@@ -1,122 +1,84 @@
 import { ref } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 
-const API_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-ed830bfb`
-const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Importante: Use o mesmo endereço que você colocou no auth.js
+// Se estiver usando IP (ex: 192.168...), coloque aqui também.
+const DB_URL = 'http://10.110.21.58:3000'
 
 export function useApi() {
-  const authStore = useAuthStore()
-  const isLoading = ref(false)
+  const loading = ref(false)
   const error = ref(null)
 
-  async function request(endpoint, options = {}) {
-    isLoading.value = true
-    error.value = null
-
+  // --- DASHBOARD ---
+  const fetchStats = async () => {
+    loading.value = true
     try {
-      const token = authStore.token || publicAnonKey
-      
-      const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Access-Token': authStore.token || '',
-          ...options.headers
-        }
-      })
+      const [materialsRes, movementsRes] = await Promise.all([
+        fetch(`${DB_URL}/materials`),
+        fetch(`${DB_URL}/movements`)
+      ])
+      const materials = await materialsRes.json()
+      const movements = await movementsRes.json()
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro na requisição')
+      return {
+        totalMaterials: materials.length || 0,
+        lowStock: materials.filter(m => m.quantidade < 10).length || 0,
+        totalMovements: movements.length || 0,
+        totalEntries: movements.filter(m => m.tipo === 'entrada').length || 0
       }
-
-      return data
     } catch (err) {
-      error.value = err.message
-      throw err
+      console.error(err)
+      return { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
     } finally {
-      isLoading.value = false
+      loading.value = false
     }
   }
 
-  // Stats
-  async function fetchStats() {
-    return request('/stats')
+  // --- MATERIAIS (CRUD) ---
+  
+  // 1. Buscar todos
+  const fetchMaterials = async () => {
+    const res = await fetch(`${DB_URL}/materials`)
+    if (!res.ok) throw new Error('Erro ao buscar materiais')
+    return await res.json()
   }
 
-  // Materials
-  async function fetchMaterials(filters) {
-    const params = new URLSearchParams()
-    if (filters?.tipo) params.append('tipo', filters.tipo)
-    if (filters?.search) params.append('search', filters.search)
-    
-    const query = params.toString() ? `?${params}` : ''
-    return request(`/materials${query}`)
-  }
-
-  async function createMaterial(material) {
-    return request('/materials', {
+  // 2. Criar novo
+  const createMaterial = async (material) => {
+    const res = await fetch(`${DB_URL}/materials`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(material)
     })
+    if (!res.ok) throw new Error('Erro ao criar material')
+    return await res.json()
   }
 
-  async function updateMaterial(id, material) {
-    return request(`/materials/${id}`, {
+  // 3. Atualizar existente
+  const updateMaterial = async (id, material) => {
+    const res = await fetch(`${DB_URL}/materials/${id}`, {
       method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(material)
     })
+    if (!res.ok) throw new Error('Erro ao atualizar material')
+    return await res.json()
   }
 
-  async function deleteMaterial(id) {
-    return request(`/materials/${id}`, {
+  // 4. Deletar
+  const deleteMaterial = async (id) => {
+    const res = await fetch(`${DB_URL}/materials/${id}`, {
       method: 'DELETE'
     })
-  }
-
-  // Transactions
-  async function fetchTransactions(filters) {
-    const params = new URLSearchParams()
-    if (filters?.tipo) params.append('tipo', filters.tipo)
-    if (filters?.material_id) params.append('material_id', filters.material_id)
-    
-    const query = params.toString() ? `?${params}` : ''
-    return request(`/transactions${query}`)
-  }
-
-  async function createTransaction(transaction) {
-    return request('/transactions', {
-      method: 'POST',
-      body: JSON.stringify(transaction)
-    })
-  }
-
-  // Admin - Users
-  async function fetchUsers() {
-    return request('/admin/users')
-  }
-
-  async function updateUserRole(userId, role) {
-    return request(`/admin/users/${userId}/role`, {
-      method: 'PUT',
-      body: JSON.stringify({ role })
-    })
+    if (!res.ok) throw new Error('Erro ao deletar material')
   }
 
   return {
-    isLoading,
+    loading,
     error,
-    request,
     fetchStats,
     fetchMaterials,
     createMaterial,
     updateMaterial,
-    deleteMaterial,
-    fetchTransactions,
-    createTransaction,
-    fetchUsers,
-    updateUserRole
+    deleteMaterial
   }
 }

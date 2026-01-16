@@ -1,71 +1,86 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-const API_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/make-server-ed830bfb`
-const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Endereço do seu novo banco de dados local
+const DB_URL = 'http://10.110.21.58:3001'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(null)
-  const isLoading = ref(true)
+  const isLoading = ref(false)
 
   const isAuthenticated = computed(() => !!user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
   async function login(email, password) {
+    isLoading.value = true
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ email, password })
-      })
+      // Busca usuários no db.json filtrando pelo email e senha
+      const response = await fetch(`${DB_URL}/users?email=${email}&password=${password}`)
+      const users = await response.json()
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao fazer login')
+      if (users.length === 0) {
+        throw new Error('E-mail ou senha incorretos')
       }
 
-      token.value = data.access_token
-      user.value = data.user
+      const foundUser = users[0] // Pega o primeiro usuário encontrado
 
-      localStorage.setItem('sobracorte_token', data.access_token)
-      localStorage.setItem('sobracorte_user', JSON.stringify(data.user))
+      // Salva sessão
+      const fakeToken = 'token-' + Date.now()
+      token.value = fakeToken
+      user.value = foundUser
+
+      localStorage.setItem('sobracorte_token', fakeToken)
+      localStorage.setItem('sobracorte_user', JSON.stringify(foundUser))
     } catch (error) {
       console.error('Login error:', error)
       throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
   async function register(nome, email, password) {
+    isLoading.value = true
     try {
-      const response = await fetch(`${API_URL}/auth/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ nome, email, password })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao criar conta')
+      // 1. Verifica se já existe
+      const checkResponse = await fetch(`${DB_URL}/users?email=${email}`)
+      const existingUsers = await checkResponse.json()
+      
+      if (existingUsers.length > 0) {
+        throw new Error('Este e-mail já está cadastrado')
       }
 
-      // Auto-login após registro
-      token.value = data.access_token
-      user.value = data.user
+      // 2. Cria novo usuário no db.json
+      const newUser = { 
+        id: String(Date.now()), // JSON Server precisa de ID string
+        nome, 
+        email, 
+        password, 
+        role: 'user' 
+      }
 
-      localStorage.setItem('sobracorte_token', data.access_token)
-      localStorage.setItem('sobracorte_user', JSON.stringify(data.user))
+      const saveResponse = await fetch(`${DB_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      })
+
+      if (!saveResponse.ok) throw new Error('Erro ao salvar no banco')
+      
+      const savedUser = await saveResponse.json()
+
+      // Loga automaticamente
+      token.value = 'token-' + savedUser.id
+      user.value = savedUser
+      localStorage.setItem('sobracorte_token', token.value)
+      localStorage.setItem('sobracorte_user', JSON.stringify(savedUser))
+
     } catch (error) {
       console.error('Register error:', error)
       throw error
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -79,35 +94,11 @@ export const useAuthStore = defineStore('auth', () => {
   function checkAuth() {
     const savedToken = localStorage.getItem('sobracorte_token')
     const savedUser = localStorage.getItem('sobracorte_user')
-
     if (savedToken && savedUser) {
-      try {
-        token.value = savedToken
-        user.value = JSON.parse(savedUser)
-      } catch (error) {
-        console.error('Error parsing saved user:', error)
-        logout()
-      }
+      token.value = savedToken
+      user.value = JSON.parse(savedUser)
     }
-
-    isLoading.value = false
   }
 
-  function updateUser(updatedUser) {
-    user.value = updatedUser
-    localStorage.setItem('sobracorte_user', JSON.stringify(updatedUser))
-  }
-
-  return {
-    user,
-    token,
-    isLoading,
-    isAuthenticated,
-    isAdmin,
-    login,
-    register,
-    logout,
-    checkAuth,
-    updateUser
-  }
+  return { user, token, isLoading, isAuthenticated, isAdmin, login, register, logout, checkAuth }
 })

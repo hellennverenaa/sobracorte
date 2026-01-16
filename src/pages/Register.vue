@@ -17,6 +17,7 @@ const router = useRouter()
 async function handleSubmit() {
   error.value = ''
 
+  // Validações simples
   if (password.value !== confirmPassword.value) {
     error.value = 'As senhas não coincidem'
     return
@@ -30,7 +31,10 @@ async function handleSubmit() {
   isLoading.value = true
 
   try {
+    // Tenta registrar no banco de dados (db.json)
     await authStore.register(nome.value, email.value, password.value)
+    
+    // Se der certo, vai para o início
     router.push('/')
   } catch (err) {
     error.value = err.message || 'Erro ao registrar'
@@ -43,7 +47,6 @@ async function handleSubmit() {
 <template>
   <div class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-blue-900 flex items-center justify-center p-4">
     <div class="w-full max-w-md">
-      <!-- Logo -->
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-2xl mb-4 shadow-lg">
           <Package class="w-8 h-8 text-white" />
@@ -52,11 +55,9 @@ async function handleSubmit() {
         <p class="text-gray-300">Pavilhão do Corte Automático</p>
       </div>
 
-      <!-- Register Card -->
       <div class="bg-white rounded-2xl shadow-2xl p-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Criar Conta</h2>
 
-        <!-- Error Alert -->
         <div v-if="error" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
           <AlertCircle class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
           <span class="text-sm">{{ error }}</span>
@@ -134,7 +135,7 @@ async function handleSubmit() {
           <button
             type="submit"
             :disabled="isLoading"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {{ isLoading ? 'Criando conta...' : 'Criar Conta' }}
           </button>
@@ -150,7 +151,6 @@ async function handleSubmit() {
         </div>
       </div>
 
-      <!-- Footer Info -->
       <div class="mt-6 text-center text-gray-400 text-sm">
         <p>Sistema de Gerenciamento de Sobras de Materiais</p>
       </div>

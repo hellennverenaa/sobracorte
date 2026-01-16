@@ -73,12 +73,16 @@ function getTipoLabel(tipo) {
   return found ? found.label : tipo
 }
 
+// --- AJUSTE IMPORTANTE AQUI ---
 async function loadMaterials() {
+  isLoading.value = true
   try {
     const data = await fetchMaterials()
-    materials.value = data.materials || []
+    // O json-server retorna o array direto, então usamos 'data' diretamente
+    materials.value = Array.isArray(data) ? data : []
   } catch (err) {
     console.error('Error fetching materials:', err)
+    error.value = 'Erro ao carregar materiais'
   } finally {
     isLoading.value = false
   }
@@ -119,8 +123,9 @@ function closeModal() {
 }
 
 async function handleSubmit() {
-  if (!authStore.token) {
-    error.value = 'Você precisa estar autenticado. Faça login novamente.'
+  // Verificação simples de login
+  if (!authStore.isAuthenticated) {
+    error.value = 'Você precisa estar autenticado.'
     return
   }
 
@@ -163,38 +168,36 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <div class="max-w-7xl mx-auto">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <div>
           <h2 class="text-3xl font-bold text-gray-900 mb-2">Materiais</h2>
-          <p class="text-gray-600">Gerencie o estoque de sobras</p>
+          <p class="text-gray-600">Gerencie o estoque de sobras e retalhos</p>
         </div>
         <button
           @click="openModal()"
-          class="mt-4 md:mt-0 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center shadow-md transition-colors"
+          class="mt-4 md:mt-0 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
         >
           <Plus class="w-5 h-5 mr-2" />
           Novo Material
         </button>
       </div>
 
-      <!-- Filters -->
-      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="relative">
             <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               v-model="searchTerm"
               type="text"
-              placeholder="Buscar por descrição ou código..."
-              class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              placeholder="Buscar por descrição, código..."
+              class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
             />
           </div>
 
           <select
             v-model="filterTipo"
-            class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            class="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white"
           >
             <option value="">Todos os tipos</option>
             <option v-for="tipo in tipos" :key="tipo.value" :value="tipo.value">
@@ -204,16 +207,17 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Materials Table -->
-      <div class="bg-white rounded-xl shadow-md overflow-hidden">
-        <LoadingSpinner v-if="isLoading" />
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div v-if="isLoading" class="p-12 flex justify-center">
+          <LoadingSpinner />
+        </div>
 
         <EmptyState
           v-else-if="filteredMaterials.length === 0"
           :icon="Package"
           title="Nenhum material encontrado"
-          description="Adicione materiais ao estoque para começar"
-          :action="{ label: 'Adicionar Material' }"
+          description="Adicione materiais ao estoque para começar a gerenciar."
+          label="Adicionar Material"
           @action="openModal()"
         />
 
@@ -221,29 +225,29 @@ onMounted(() => {
           <table class="w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Código</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Descrição</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Tipo</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quantidade</th>
-                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Localização</th>
-                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Ações</th>
+                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Código</th>
+                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Descrição</th>
+                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo</th>
+                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qtd.</th>
+                <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Local</th>
+                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
               <tr v-for="material in filteredMaterials" :key="material.id" class="hover:bg-gray-50 transition-colors">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600 font-medium">
                   {{ material.codigo }}
                 </td>
                 <td class="px-6 py-4 text-sm font-medium text-gray-900">
                   {{ material.descricao }}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                     {{ getTipoLabel(material.tipo) }}
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                  <span :class="['px-3 py-1 rounded-full font-semibold', getStockColor(material.quantidade)]">
+                  <span :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', getStockColor(material.quantidade)]">
                     {{ material.quantidade }} {{ material.unidade }}
                   </span>
                 </td>
@@ -251,20 +255,22 @@ onMounted(() => {
                   {{ material.localizacao }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    @click="openModal(material)"
-                    class="text-blue-600 hover:text-blue-900 mr-3"
-                    title="Editar"
-                  >
-                    <Edit class="w-4 h-4" />
-                  </button>
-                  <button
-                    @click="handleDelete(material.id)"
-                    class="text-red-600 hover:text-red-900"
-                    title="Deletar"
-                  >
-                    <Trash2 class="w-4 h-4" />
-                  </button>
+                  <div class="flex justify-end space-x-2">
+                    <button
+                      @click="openModal(material)"
+                      class="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                      title="Editar"
+                    >
+                      <Edit class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="handleDelete(material.id)"
+                      class="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                      title="Deletar"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -273,32 +279,31 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="flex items-center justify-between p-6 border-b border-gray-200">
+    <div v-if="showModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all">
+        <div class="flex items-center justify-between p-6 border-b border-gray-100">
           <h3 class="text-xl font-bold text-gray-900">
             {{ editingMaterial ? 'Editar Material' : 'Novo Material' }}
           </h3>
-          <button @click="closeModal" class="text-gray-400 hover:text-gray-600">
+          <button @click="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
             <X class="w-6 h-6" />
           </button>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+        <form @submit.prevent="handleSubmit" class="p-6 space-y-6">
           <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
             <AlertCircle class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
             <span class="text-sm">{{ error }}</span>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Código *</label>
               <input
                 v-model="formData.codigo"
                 type="text"
                 required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                 placeholder="Ex: MAT-001"
               />
             </div>
@@ -308,7 +313,7 @@ onMounted(() => {
               <select
                 v-model="formData.tipo"
                 required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all bg-white"
               >
                 <option v-for="tipo in tipos" :key="tipo.value" :value="tipo.value">
                   {{ tipo.label }}
@@ -323,12 +328,12 @@ onMounted(() => {
               v-model="formData.descricao"
               type="text"
               required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
               placeholder="Ex: Madeira compensada 10mm"
             />
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Quantidade *</label>
               <input
@@ -337,7 +342,7 @@ onMounted(() => {
                 required
                 min="0"
                 step="0.01"
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
               />
             </div>
 
@@ -346,7 +351,7 @@ onMounted(() => {
               <select
                 v-model="formData.unidade"
                 required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all bg-white"
               >
                 <option v-for="unidade in unidades" :key="unidade.value" :value="unidade.value">
                   {{ unidade.label }}
@@ -361,7 +366,7 @@ onMounted(() => {
               v-model="formData.localizacao"
               type="text"
               required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
               placeholder="Ex: Galpão A - Prateleira 3"
             />
           </div>
@@ -371,24 +376,27 @@ onMounted(() => {
             <textarea
               v-model="formData.observacoes"
               rows="3"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
               placeholder="Informações adicionais..."
             />
           </div>
 
-          <div class="flex justify-end space-x-3 pt-4">
+          <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100">
             <button
               type="button"
               @click="closeModal"
-              class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               :disabled="isSubmitting"
-              class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
+              <span v-if="isSubmitting" class="mr-2">
+                <LoadingSpinner class="w-4 h-4" />
+              </span>
               {{ isSubmitting ? 'Salvando...' : 'Salvar' }}
             </button>
           </div>
