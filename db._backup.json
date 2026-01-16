@@ -1,0 +1,33 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "nome": "Hellen Admin",
+      "email": "admin@sobracorte.com",
+      "password": "123",
+      "role": "admin"
+    },
+    {
+      "id": "1768586144988",
+      "nome": "midian moreira",
+      "email": "midian.santana@grupodass.com.br",
+      "password": "81192531",
+      "role": "user"
+    }
+  ],
+  "materials": [
+    {
+      "id": "1",
+      "name": "Tecido Algodão",
+      "quantity": 50,
+      "unit": "m"
+    },
+    {
+      "id": "2",
+      "name": "Linha Poliéster",
+      "quantity": 10,
+      "unit": "un"
+    }
+  ],
+  "movements": []
+}
