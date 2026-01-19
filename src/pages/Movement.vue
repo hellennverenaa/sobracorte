@@ -1,28 +1,34 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
-import { ArrowUpCircle, ArrowDownCircle, History, Package } from 'lucide-vue-next'
+import { ArrowUpCircle, ArrowDownCircle, History, Package, Search, X } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
 
 const { fetchMaterials, createMovement, fetchMovements } = useApi()
 
 // Dados do formulário
-const tipoMovimento = ref('entrada') // 'entrada' ou 'saida'
-const materialSelecionado = ref('')
+const tipoMovimento = ref('entrada')
+const materialSelecionadoId = ref('') // Guarda o ID do material escolhido
 const quantidade = ref(1)
 const observacao = ref('')
+
+// Controle da Busca Inteligente
+const termoBusca = ref('') // O que você digita
+const mostrarLista = ref(false) // Abre/fecha a lista
 
 // Listas de dados
 const materials = ref([])
 const history = ref([])
 const isLoading = ref(false)
-const message = ref({ text: '', type: '' }) // Para mostrar sucesso ou erro
+const message = ref({ text: '', type: '' })
 
-// Carrega os dados ao abrir a tela
+// Carrega dados ao abrir
 onMounted(async () => {
   isLoading.value = true
   try {
-    materials.value = await fetchMaterials()
+    const data = await fetchMaterials()
+    // Garante que é array
+    materials.value = Array.isArray(data) ? data : (data.materials || [])
     history.value = await fetchMovements()
   } catch (error) {
     console.error(error)
@@ -31,15 +37,44 @@ onMounted(async () => {
   }
 })
 
-// Pega o nome do material selecionado para exibir no histórico
+// --- LÓGICA DE FILTRO (BUSCA) ---
+const materiaisFiltrados = computed(() => {
+  if (!termoBusca.value) {
+    return [] // Se não digitou nada, não mostra nada (ou pode mostrar os primeiros 10)
+  }
+  const termo = termoBusca.value.toLowerCase()
+  
+  // Filtra por CÓDIGO ou DESCRIÇÃO
+  return materials.value.filter(m => 
+    String(m.codigo || '').toLowerCase().includes(termo) ||
+    String(m.descricao || '').toLowerCase().includes(termo)
+  ).slice(0, 50) // Limita a 50 resultados para não travar a tela
+})
+
+// Quando clica em um material da lista
+function selecionarMaterial(material) {
+  materialSelecionadoId.value = material.id
+  // Preenche o campo de busca com o nome escolhido para ficar visível
+  termoBusca.value = `${material.codigo} - ${material.descricao}`
+  mostrarLista.value = false // Esconde a lista
+}
+
+// Limpar seleção
+function limparSelecao() {
+  materialSelecionadoId.value = ''
+  termoBusca.value = ''
+  mostrarLista.value = false
+}
+
+// Pega o nome do material para o histórico
 const getMaterialName = (id) => {
   const m = materials.value.find(item => item.id == id)
-  return m ? m.descricao : 'Material Desconhecido'
+  return m ? m.descricao : 'Material excluído ou desconhecido'
 }
 
 // Envia o formulário
 async function handleSubmit() {
-  if (!materialSelecionado.value || quantidade.value <= 0) {
+  if (!materialSelecionadoId.value || quantidade.value <= 0) {
     message.value = { text: 'Selecione um material e uma quantidade válida.', type: 'error' }
     return
   }
@@ -48,22 +83,23 @@ async function handleSubmit() {
   
   try {
     await createMovement({
-      materialId: materialSelecionado.value,
+      materialId: materialSelecionadoId.value,
       tipo: tipoMovimento.value,
       quantidade: quantidade.value,
       observacao: observacao.value
     })
 
-    // Sucesso!
     message.value = { text: 'Movimentação registrada com sucesso!', type: 'success' }
     
-    // Limpa o formulário e atualiza o histórico
+    // Limpa campos
     quantidade.value = 1
     observacao.value = ''
-    history.value = await fetchMovements()
+    limparSelecao() // Reseta a busca
     
-    // Recarrega materiais para atualizar o saldo na lista (opcional)
-    materials.value = await fetchMaterials()
+    // Atualiza listas
+    history.value = await fetchMovements()
+    const data = await fetchMaterials()
+    materials.value = Array.isArray(data) ? data : (data.materials || [])
 
   } catch (err) {
     message.value = { text: err.message, type: 'error' }
@@ -110,14 +146,54 @@ async function handleSubmit() {
                 </button>
               </div>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Material</label>
-                <select v-model="materialSelecionado" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
-                  <option value="" disabled>Selecione...</option>
-                  <option v-for="m in materials" :key="m.id" :value="m.id">
-                    {{ m.codigo }} - {{ m.descricao }} (Saldo: {{ m.quantidade }})
-                  </option>
-                </select>
+              <div class="relative">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Buscar Material</label>
+                
+                <div class="relative">
+                  <input 
+                    type="text"
+                    v-model="termoBusca"
+                    @focus="mostrarLista = true"
+                    placeholder="Digite Código ou Nome..."
+                    class="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    autocomplete="off"
+                  />
+                  <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  
+                  <button 
+                    v-if="termoBusca" 
+                    type="button" 
+                    @click="limparSelecao"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X class="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div 
+                  v-if="mostrarLista && termoBusca" 
+                  class="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                >
+                  <ul class="divide-y divide-gray-100">
+                    <li v-if="materiaisFiltrados.length === 0" class="p-3 text-sm text-gray-500 text-center">
+                      Nenhum material encontrado com esse código/nome.
+                    </li>
+                    <li 
+                      v-for="m in materiaisFiltrados" 
+                      :key="m.id"
+                      @click="selecionarMaterial(m)"
+                      class="p-3 hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <div class="font-medium text-gray-900 text-sm">
+                        <span class="font-mono bg-gray-100 px-1 py-0.5 rounded text-xs text-gray-600 mr-2">{{ m.codigo }}</span>
+                        {{ m.descricao }}
+                      </div>
+                      <div class="text-xs text-gray-500 mt-1">
+                        Saldo Atual: <span class="font-bold">{{ m.quantidade }} {{ m.unidade }}</span>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
               </div>
 
               <div>
@@ -125,15 +201,15 @@ async function handleSubmit() {
                 <input 
                   v-model.number="quantidade" 
                   type="number" 
-                  min="0.1" 
-                  step="any"
+                  min="0.01" 
+                  step="0.01"
                   class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Observação (Opcional)</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Observação</label>
                 <input 
                   v-model="observacao" 
                   type="text" 
@@ -144,7 +220,8 @@ async function handleSubmit() {
 
               <button 
                 type="submit" 
-                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition-colors"
+                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition-colors disabled:opacity-50"
+                :disabled="!materialSelecionadoId"
               >
                 Confirmar {{ tipoMovimento === 'entrada' ? 'Entrada' : 'Saída' }}
               </button>
@@ -160,23 +237,23 @@ async function handleSubmit() {
               </h3>
             </div>
 
-            <div class="divide-y divide-gray-100">
+            <div class="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
               <div v-if="history.length === 0" class="p-8 text-center text-gray-500">
                 Nenhuma movimentação registrada ainda.
               </div>
 
               <div v-for="item in history" :key="item.id" class="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div class="flex items-start gap-3">
-                  <div :class="`p-2 rounded-full ${item.tipo === 'entrada' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`">
+                  <div :class="`p-2 rounded-full flex-shrink-0 ${item.tipo === 'entrada' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`">
                     <component :is="item.tipo === 'entrada' ? ArrowUpCircle : ArrowDownCircle" class="w-5 h-5" />
                   </div>
                   <div>
-                    <p class="font-medium text-gray-900">{{ getMaterialName(item.materialId) }}</p>
+                    <p class="font-medium text-gray-900 line-clamp-1">{{ getMaterialName(item.materialId) }}</p>
                     <p class="text-sm text-gray-500">{{ new Date(item.data).toLocaleString() }}</p>
                     <p v-if="item.observacao" class="text-xs text-gray-400 mt-1">{{ item.observacao }}</p>
                   </div>
                 </div>
-                <div :class="`font-bold ${item.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}`">
+                <div :class="`font-bold whitespace-nowrap ml-4 ${item.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}`">
                   {{ item.tipo === 'entrada' ? '+' : '-' }}{{ item.quantidade }}
                 </div>
               </div>
