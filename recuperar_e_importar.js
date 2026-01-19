@@ -5,68 +5,59 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ARQUIVO_ORIGEM = 'tableConvert.com_zlir85.json';
+// Nomes exatos dos seus arquivos
+const ARQUIVO_ORIGEM = 'tableConvert.com_zlir85.json'; 
 const ARQUIVO_DESTINO = 'db.json';
 
 async function recuperarEImportar() {
   try {
-    console.log('🔧 Iniciando recuperação do banco de dados...');
+    console.log('🔧 Lendo arquivo de origem...');
 
-    // 1. Tenta ler o arquivo de materiais novos
     const caminhoOrigem = path.join(__dirname, ARQUIVO_ORIGEM);
-    if (!fs.existsSync(caminhoOrigem)) {
-      throw new Error(`O arquivo ${ARQUIVO_ORIGEM} não existe! Verifique o nome.`);
-    }
+    if (!fs.existsSync(caminhoOrigem)) throw new Error('Arquivo de origem não encontrado!');
     
-    const conteudoOrigem = fs.readFileSync(caminhoOrigem, 'utf8');
-    if (!conteudoOrigem.trim()) {
-      throw new Error(`O arquivo ${ARQUIVO_ORIGEM} está vazio!`);
-    }
-    
-    const novosItens = JSON.parse(conteudoOrigem);
-    console.log(`📄 Arquivo de origem lido com sucesso: ${novosItens.length} materiais encontrados.`);
+    const dadosBrutos = fs.readFileSync(caminhoOrigem, 'utf8');
+    const novosItens = JSON.parse(dadosBrutos);
 
-    // 2. Recria a estrutura padrão do banco (Salva se o db.json estiver corrompido)
+    console.log(`📄 Encontrados ${novosItens.length} itens.`);
+
+    // Estrutura limpa do banco
     const bancoNovo = {
-      "users": [
-        {
-          "id": "1",
-          "nome": "Hellen Admin",
-          "email": "admin@sobracorte.com",
-          "password": "123",
-          "role": "admin"
-        }
-      ],
+      "users": [{
+        "id": "1",
+        "nome": "Hellen Admin",
+        "email": "admin@sobracorte.com",
+        "password": "123",
+        "role": "admin"
+      }],
       "materials": [],
       "movements": []
     };
 
-    // 3. Importa os materiais para a estrutura nova
-    console.log('🔄 Processando materiais...');
-    
+    // AQUI É A CORREÇÃO: Mapeia "material" para "descricao"
     novosItens.forEach((item, index) => {
       bancoNovo.materials.push({
-        id: String(Date.now() + index), // Garante ID único
-        codigo: String(item.codigo || 'SEM-COD'),
-        descricao: item.material || 'Sem descrição',
+        id: String(Date.now() + index),
+        // Pega 'codigo' do seu arquivo ou cria um
+        codigo: String(item.codigo || 'SEM-COD'), 
+        // Pega 'material' do seu arquivo e salva como 'descricao'
+        descricao: item.material || 'Sem descrição', 
         tipo: 'outro',
         quantidade: 0,
-        unidade: item.medida || 'un',
+        // Pega 'medida' do seu arquivo e salva como 'unidade'
+        unidade: item.medida || 'un', 
         localizacao: 'Estoque Geral',
-        observacoes: 'Importado recuperado'
+        observacoes: 'Importado via script'
       });
     });
 
-    // 4. Salva o arquivo db.json novo (Sobrescreve o corrompido)
     const caminhoDestino = path.join(__dirname, ARQUIVO_DESTINO);
     fs.writeFileSync(caminhoDestino, JSON.stringify(bancoNovo, null, 2));
 
-    console.log('------------------------------------------------');
-    console.log(`✅ SUCESSO! Banco de dados recriado e ${novosItens.length} materiais importados.`);
-    console.log('------------------------------------------------');
+    console.log(`✅ SUCESSO! ${novosItens.length} materiais importados com as descrições corretas.`);
 
   } catch (erro) {
-    console.error('❌ CRÍTICO:', erro.message);
+    console.error('❌ Erro:', erro.message);
   }
 }
 

@@ -1,129 +1,128 @@
 import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
-const DB_URL = 'http://10.110.21.58:3000'
+// CORREÇÃO: Aponta para o SEU computador na porta do banco de dados
+const API_URL = 'http://localhost:3001'
 
+//http://10.110.21.58:3001
 export function useApi() {
-  const loading = ref(false)
+  const authStore = useAuthStore()
+  const isLoading = ref(false)
   const error = ref(null)
 
-  // --- DASHBOARD & GERAL ---
-  const fetchStats = async () => {
-    loading.value = true
-    try {
-      const [materialsRes, movementsRes] = await Promise.all([
-        fetch(`${DB_URL}/materials`),
-        fetch(`${DB_URL}/movements`)
-      ])
-      const materials = await materialsRes.json()
-      const movements = await movementsRes.json()
+  // Função central que faz a conexão
+  async function request(endpoint, options = {}) {
+    isLoading.value = true
+    error.value = null
 
-      return {
-        totalMaterials: materials.length || 0,
-        lowStock: materials.filter(m => Number(m.quantidade) < 10).length || 0,
-        totalMovements: movements.length || 0,
-        totalEntries: movements.filter(m => m.tipo === 'entrada').length || 0
+    try {
+      // Monta a URL: http://localhost:3001/materials, etc.
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Erro: ${response.statusText}`)
       }
+
+      const data = await response.json()
+      return data
     } catch (err) {
-      console.error(err)
-      return { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
+      console.error("Erro de Conexão:", err)
+      error.value = "Erro ao conectar com o banco de dados. Verifique se 'npm run db' está rodando."
+      throw err
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
 
   // --- MATERIAIS ---
-  const fetchMaterials = async () => {
-    const res = await fetch(`${DB_URL}/materials`)
-    if (!res.ok) throw new Error('Erro ao buscar materiais')
-    return await res.json()
+  async function fetchMaterials() {
+    return request('/materials')
   }
 
-  const createMaterial = async (material) => {
-    const res = await fetch(`${DB_URL}/materials`, {
+  async function createMaterial(material) {
+    return request('/materials', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...material, quantidade: Number(material.quantidade) })
-    })
-    if (!res.ok) throw new Error('Erro ao criar material')
-    return await res.json()
-  }
-
-  const updateMaterial = async (id, material) => {
-    const res = await fetch(`${DB_URL}/materials/${id}`, {
-      method: 'PATCH', // Usamos PATCH para atualizar só o necessário
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(material)
     })
-    if (!res.ok) throw new Error('Erro ao atualizar material')
-    return await res.json()
   }
 
-  const deleteMaterial = async (id) => {
-    const res = await fetch(`${DB_URL}/materials/${id}`, { method: 'DELETE' })
-    if (!res.ok) throw new Error('Erro ao deletar material')
+  async function updateMaterial(id, material) {
+    return request(`/materials/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(material)
+    })
   }
 
-  // --- MOVIMENTAÇÕES (O CÉREBRO DO ESTOQUE) ---
-  const createMovement = async (movement) => {
-    loading.value = true
-    try {
-      // 1. Busca o material atual para saber quanto tem
-      const materialRes = await fetch(`${DB_URL}/materials/${movement.materialId}`)
-      const material = await materialRes.json()
+  async function deleteMaterial(id) {
+    return request(`/materials/${id}`, {
+      method: 'DELETE'
+    })
+  }
 
-      const qtdMovimento = Number(movement.quantidade)
-      const qtdAtual = Number(material.quantidade)
-      let novaQuantidade = qtdAtual
-
-      // 2. Calcula o novo saldo
-      if (movement.tipo === 'entrada') {
-        novaQuantidade = qtdAtual + qtdMovimento
-      } else {
-        if (qtdAtual < qtdMovimento) {
-          throw new Error(`Saldo insuficiente! Estoque atual: ${qtdAtual}`)
-        }
-        novaQuantidade = qtdAtual - qtdMovimento
-      }
-
-      // 3. Salva a movimentação no histórico
-      const newMov = {
-        ...movement,
-        data: new Date().toISOString(),
-        quantidade: qtdMovimento
-      }
-      
-      await fetch(`${DB_URL}/movements`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMov)
-      })
-
-      // 4. Atualiza o saldo do material
-      await updateMaterial(movement.materialId, { quantidade: novaQuantidade })
-
-      return true
-    } catch (err) {
-      throw err // Repassa o erro para a tela mostrar
-    } finally {
-      loading.value = false
+  // --- ESTATÍSTICAS (Calculadas manualmente) ---
+  async function fetchStats() {
+    const materials = await request('/materials')
+    const movements = await request('/movements')
+    return {
+      totalMaterials: materials.length,
+      lowStock: materials.filter(m => Number(m.quantidade) < 10).length,
+      totalMovements: movements.length,
+      totalEntries: movements.filter(m => m.tipo === 'entrada').length
     }
   }
 
-  const fetchMovements = async () => {
-    const res = await fetch(`${DB_URL}/movements?_sort=data&_order=desc`) // Traz os mais recentes primeiro
-    if (!res.ok) throw new Error('Erro ao buscar movimentações')
-    return await res.json()
+  // --- MOVIMENTAÇÕES ---
+  async function fetchMovements() {
+    return request('/movements?_sort=data&_order=desc')
+  }
+
+  async function createMovement(movement) {
+    // 1. Pega material atual
+    const material = await request(`/materials/${movement.materialId}`)
+    
+    // 2. Calcula novo saldo
+    const qtdMovimento = Number(movement.quantidade)
+    const qtdAtual = Number(material.quantidade)
+    let novaQuantidade = qtdAtual
+
+    if (movement.tipo === 'entrada') {
+      novaQuantidade = qtdAtual + qtdMovimento
+    } else {
+      if (qtdAtual < qtdMovimento) throw new Error("Saldo insuficiente no estoque!")
+      novaQuantidade = qtdAtual - qtdMovimento
+    }
+
+    // 3. Salva no histórico
+    await request('/movements', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...movement,
+        data: new Date().toISOString()
+      })
+    })
+
+    // 4. Atualiza o saldo do material
+    await request(`/materials/${movement.materialId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantidade: novaQuantidade })
+    })
   }
 
   return {
-    loading,
+    isLoading,
     error,
-    fetchStats,
     fetchMaterials,
     createMaterial,
     updateMaterial,
     deleteMaterial,
-    createMovement,
-    fetchMovements
+    fetchStats,
+    fetchMovements,
+    createMovement
   }
 }

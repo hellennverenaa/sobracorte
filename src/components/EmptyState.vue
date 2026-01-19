@@ -1,31 +1,43 @@
 <script setup>
-const props = defineProps({
-  icon: Object,
-  title: String,
-  description: String,
-  action: Object
+import { defineProps } from 'vue'
+
+defineProps({
+  icon: {
+    // AQUI ESTÁ A CORREÇÃO: Aceita tanto Objeto quanto Função (ícone)
+    type: [Object, Function], 
+    required: true
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  label: {
+    type: String,
+    default: ''
+  }
 })
 
-const emit = defineEmits(['action'])
+defineEmits(['action'])
 </script>
 
 <template>
-  <div class="text-center py-16">
-    <div class="flex justify-center mb-4">
-      <div class="bg-gray-100 p-6 rounded-full">
-        <component :is="icon" class="w-12 h-12 text-gray-400" />
-      </div>
+  <div class="text-center py-12 px-4 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center">
+    <div class="bg-blue-100 p-4 rounded-full mb-4">
+      <component :is="icon" class="w-8 h-8 text-blue-600" />
     </div>
-    <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ title }}</h3>
-    <p v-if="description" class="text-gray-600 text-sm mb-6 max-w-sm mx-auto">
-      {{ description }}
-    </p>
-    <button
-      v-if="action"
+    <h3 class="text-lg font-medium text-gray-900 mb-1">{{ title }}</h3>
+    <p v-if="description" class="text-gray-500 mb-6 max-w-sm">{{ description }}</p>
+    
+    <button 
+      v-if="label"
       @click="$emit('action')"
-      class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+      class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
     >
-      {{ action.label }}
+      {{ label }}
     </button>
   </div>
 </template>

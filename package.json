@@ -14,9 +14,9 @@
     "autoprefixer": "^10.4.17"
   },
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite",
     "build": "vite build",
-    "db": "json-server --watch db.json --port 3001 --host 0.0.0.0"
+    "db": "json-server --watch db.json --port 3001"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
