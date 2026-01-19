@@ -6,6 +6,13 @@
       "email": "admin@sobracorte.com",
       "password": "123",
       "role": "admin"
+    },
+    {
+      "id": "1768833344267",
+      "nome": "Midian Moreira",
+      "email": "midian@sobracorte.com",
+      "password": "123456",
+      "role": "user"
     }
   ],
   "materials": [
