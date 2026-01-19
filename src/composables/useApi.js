@@ -1,8 +1,8 @@
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
-const API_URL = 'http://localhost:3001'
-////http://10.110.21.58:3001
+const API_URL = 'http://10.110.20.181:3001'
+////http://10.110.20.181:3001
 
 export function useApi() {
   const authStore = useAuthStore()
