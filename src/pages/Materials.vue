@@ -77,12 +77,35 @@ function getTipoLabel(tipo) {
 async function loadMaterials() {
   isLoading.value = true
   try {
-    const data = await fetchMaterials()
-    // O json-server retorna o array direto, então usamos 'data' diretamente
-    materials.value = Array.isArray(data) ? data : []
+    // 1. Busca os dados do banco
+    const rawData = await fetchMaterials()
+    
+    // Garante que é uma lista
+    const listaBruta = Array.isArray(rawData) ? rawData : (rawData.materials || [])
+
+    // 2. AQUI É A MÁGICA: Traduz os campos na hora que carrega
+    materials.value = listaBruta.map(item => {
+      return {
+        ...item,
+        // Se não tiver 'descricao', usa 'material' ou 'name'
+        descricao: item.descricao || item.material || item.name || 'Sem descrição',
+        
+        // Se não tiver 'unidade', usa 'medida'
+        unidade: item.unidade || item.medida || 'un',
+        
+        // Garante que quantidade é número (se não tiver, vira 0)
+        quantidade: Number(item.quantidade || item.qtd || 0),
+        
+        // Garante que tem código
+        codigo: item.codigo || 'S/COD',
+        
+        tipo: item.tipo || 'outro'
+      }
+    })
+
   } catch (err) {
-    console.error('Error fetching materials:', err)
-    error.value = 'Erro ao carregar materiais'
+    console.error('Erro ao carregar materiais:', err)
+    error.value = 'Erro ao carregar lista de materiais.'
   } finally {
     isLoading.value = false
   }
