@@ -1,10 +1,16 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
-import { ArrowUpCircle, ArrowDownCircle, History, Package, Search, X } from 'lucide-vue-next'
+import { ArrowUpCircle, ArrowDownCircle, History, Package, Search, X, Lock } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
+import { useAuthStore } from '@/stores/auth' // <--- IMPORTANTE: Importamos o Auth
 
 const { fetchMaterials, createMovement, fetchMovements } = useApi()
+const authStore = useAuthStore() // <--- Iniciamos a loja de autenticação
+
+// --- CONTROLE DE ACESSO ---
+// Só Admins e Operadores podem mover estoque. Leitores não.
+const podeMover = computed(() => ['admin', 'operador'].includes(authStore.user?.role))
 
 // Dados do formulário
 const tipoMovimento = ref('entrada')
@@ -40,7 +46,7 @@ onMounted(async () => {
 // --- LÓGICA DE FILTRO (BUSCA) ---
 const materiaisFiltrados = computed(() => {
   if (!termoBusca.value) {
-    return [] // Se não digitou nada, não mostra nada (ou pode mostrar os primeiros 10)
+    return [] 
   }
   const termo = termoBusca.value.toLowerCase()
   
@@ -48,7 +54,7 @@ const materiaisFiltrados = computed(() => {
   return materials.value.filter(m => 
     String(m.codigo || '').toLowerCase().includes(termo) ||
     String(m.descricao || '').toLowerCase().includes(termo)
-  ).slice(0, 50) // Limita a 50 resultados para não travar a tela
+  ).slice(0, 50) 
 })
 
 // Quando clica em um material da lista
@@ -74,6 +80,12 @@ const getMaterialName = (id) => {
 
 // Envia o formulário
 async function handleSubmit() {
+  // Proteção extra: Se não tiver permissão, nem tenta enviar
+  if (!podeMover.value) {
+    message.value = { text: 'Acesso negado.', type: 'error' }
+    return
+  }
+
   if (!materialSelecionadoId.value || quantidade.value <= 0) {
     message.value = { text: 'Selecione um material e uma quantidade válida.', type: 'error' }
     return
@@ -94,7 +106,7 @@ async function handleSubmit() {
     // Limpa campos
     quantidade.value = 1
     observacao.value = ''
-    limparSelecao() // Reseta a busca
+    limparSelecao() 
     
     // Atualiza listas
     history.value = await fetchMovements()
@@ -219,12 +231,20 @@ async function handleSubmit() {
               </div>
 
               <button 
+                v-if="podeMover"
                 type="submit" 
                 class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition-colors disabled:opacity-50"
                 :disabled="!materialSelecionadoId"
               >
                 Confirmar {{ tipoMovimento === 'entrada' ? 'Entrada' : 'Saída' }}
               </button>
+
+              <div v-else class="flex flex-col items-center justify-center p-4 bg-gray-100 rounded-lg border border-gray-200 text-center">
+                <Lock class="w-6 h-6 text-gray-400 mb-2" />
+                <p class="text-sm font-medium text-gray-600">Modo Visualização</p>
+                <p class="text-xs text-gray-500 mt-1">Você não tem permissão para movimentar o estoque.</p>
+              </div>
+
             </form>
           </div>
         </div>
