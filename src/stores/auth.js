@@ -57,7 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
         nome, 
         email, 
         password, 
-        role: 'user' 
+        role: 'leitor', //<--- MUDANÇA: Todo mundo nasce como leitor
+       
       }
 
       const saveResponse = await fetch(`${DB_URL}/users`, {

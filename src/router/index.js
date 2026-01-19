@@ -1,60 +1,77 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+// Importação das Páginas
+import Login from '@/pages/Login.vue'
+import Register from '@/pages/Register.vue'
+import Dashboard from '@/pages/Dashboard.vue'
+import Materials from '@/pages/Materials.vue'
+import Movement from '@/pages/Movement.vue'
+import Profile from '@/pages/Profile.vue'
+import Users from '@/pages/Users.vue' // Nova tela de usuários
+
+const routes = [
+  { 
+    path: '/login', 
+    name: 'Login', 
+    component: Login 
+  },
+  { 
+    path: '/register', 
+    name: 'Register', 
+    component: Register 
+  },
+  { 
+    path: '/', 
+    name: 'Dashboard', 
+    component: Dashboard, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/materials', 
+    name: 'Materials', 
+    component: Materials, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/movement', 
+    name: 'Movement', 
+    component: Movement, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/profile', 
+    name: 'Profile', 
+    component: Profile, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/users', 
+    name: 'Users', 
+    component: Users, 
+    meta: { requiresAuth: true, role: 'admin' } // Protegido: Só admin entra
+  }
+]
+
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/login',
-      name: 'Login',
-      component: () => import('@/pages/Login.vue'),
-      meta: { requiresGuest: true }
-    },
-    {
-      path: '/register',
-      name: 'Register',
-      component: () => import('@/pages/Register.vue'),
-      meta: { requiresGuest: true }
-    },
-    {
-      path: '/',
-      name: 'Dashboard',
-      component: () => import('@/pages/Dashboard.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/materials',
-      name: 'Materials',
-      component: () => import('@/pages/Materials.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/movement',
-      name: 'Movement',
-      component: () => import('@/pages/Movement.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/profile',
-      name: 'Profile',
-      component: () => import('@/pages/Profile.vue'),
-      meta: { requiresAuth: true }
-    }
-  ]
+  history: createWebHistory(),
+  routes
 })
 
-// Navigation guard
+// --- GUARDIÃO DE ROTAS (Aqui estava o erro) ---
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-
-  // Rotas que requerem autenticação
+  
+  // 1. Verifica se a rota precisa de login
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ name: 'Login' })
+    next('/login')
+  } 
+  // 2. Verifica se a rota exige ser 'admin' (RBAC)
+  else if (to.meta.role === 'admin' && authStore.user?.role !== 'admin') {
+    alert('Acesso negado: Apenas administradores podem acessar esta página.')
+    next('/') // Manda de volta pro Dashboard
   }
-  // Rotas que requerem NÃO estar autenticado (login, register)
-  else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next({ name: 'Dashboard' })
-  }
+  // 3. Se passou por tudo, deixa entrar
   else {
     next()
   }
