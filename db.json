@@ -43624,5 +43624,14 @@
       "observacoes": ""
     }
   ],
-  "movements": []
+  "movements": [
+    {
+      "id": "3327",
+      "materialId": "66ef",
+      "tipo": "entrada",
+      "quantidade": 10,
+      "observacao": "NF123456",
+      "data": "2026-01-20T10:49:39.706Z"
+    }
+  ]
 }

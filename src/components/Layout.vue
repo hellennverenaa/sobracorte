@@ -5,13 +5,15 @@ import { useAuthStore } from '@/stores/auth'
 // AQUI ESTAVA FALTANDO O ÍCONE "Users" NA LISTA DE IMPORTAÇÃO
 import { 
   LayoutDashboard, 
+  Home,
   Package, 
   ArrowRightLeft, 
   User, 
   LogOut, 
   Menu, 
   X,
-  Users // <--- Adicionei este aqui!
+  Users,
+  Box // <--- Adicionei este aqui!
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
