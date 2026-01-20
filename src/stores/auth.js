@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 // Endereço do seu novo banco de dados local
-const DB_URL = 'http://10.110.20.181:3001'
-
+const DB_URL = 'http://10.110.20.66:3001'
+//ipconfig
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(null)

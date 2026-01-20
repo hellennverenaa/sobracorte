@@ -97,9 +97,9 @@ onMounted(() => {
                   v-model="user.role" 
                   class="bg-white border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5 outline-none cursor-pointer hover:bg-gray-50"
                 >
-                  <option value="leitor">👀 Leitor (Só vê)</option>
-                  <option value="operador">✍️ Operador (Edita/Move)</option>
-                  <option value="admin">👑 Admin (Total)</option>
+                  <option value="leitor"> Leitor (Só vê)</option>
+                  <option value="operador"> Operador (Edita/Move)</option>
+                  <option value="admin"> Admin (Total)</option>
                 </select>
               </td>
 

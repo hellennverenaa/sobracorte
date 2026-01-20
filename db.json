@@ -13,6 +13,13 @@
       "email": "midian@sobracorte.com",
       "password": "123456",
       "role": "admin"
+    },
+    {
+      "id": "1768849989962",
+      "nome": "natan",
+      "email": "natan@sobracorte.com",
+      "password": "123456",
+      "role": "leitor"
     }
   ],
   "materials": [
@@ -43604,6 +43611,16 @@
       "quantidade": 0,
       "unidade": "M2",
       "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "66ef",
+      "codigo": "123456789",
+      "descricao": "SINTETICO PU HV",
+      "tipo": "sintetico",
+      "quantidade": 0.14,
+      "unidade": "mt",
+      "localizacao": "RUA A CORREDOR 2",
       "observacoes": ""
     }
   ],
