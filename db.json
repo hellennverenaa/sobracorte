@@ -43612,26 +43612,40 @@
       "unidade": "M2",
       "localizacao": "Estoque Geral",
       "observacoes": ""
-    },
-    {
-      "id": "66ef",
-      "codigo": "123456789",
-      "descricao": "SINTETICO PU HV",
-      "tipo": "sintetico",
-      "quantidade": 0.14,
-      "unidade": "mt",
-      "localizacao": "RUA A CORREDOR 2",
-      "observacoes": ""
     }
   ],
   "movements": [
     {
       "id": "3327",
-      "materialId": "66ef",
+      "materialId": null,
       "tipo": "entrada",
       "quantidade": 10,
       "observacao": "NF123456",
       "data": "2026-01-20T10:49:39.706Z"
+    },
+    {
+      "id": "4f7d",
+      "materialId": null,
+      "tipo": "entrada",
+      "quantidade": 0.86,
+      "observacao": "Ajuste manual via edição de cadastro",
+      "data": "2026-01-20T11:15:17.509Z"
+    },
+    {
+      "id": "3b97",
+      "materialId": null,
+      "tipo": "entrada",
+      "quantidade": 1.4,
+      "observacao": "",
+      "data": "2026-01-20T11:15:44.888Z"
+    },
+    {
+      "id": "f6db",
+      "materialId": null,
+      "tipo": "entrada",
+      "quantidade": 10,
+      "observacao": "",
+      "data": "2026-01-20T11:16:12.618Z"
     }
   ]
 }

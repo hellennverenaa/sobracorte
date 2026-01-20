@@ -7,7 +7,8 @@ import { Search, Plus, Edit, Trash2, Package, Filter, X } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
 
-const { fetchMaterials, createMaterial, updateMaterial, deleteMaterial } = useApi()
+// IMPORTANTE: Adicionamos createMovement na lista
+const { fetchMaterials, createMaterial, updateMaterial, deleteMaterial, createMovement } = useApi()
 const authStore = useAuthStore()
 
 // --- LISTA DE CATEGORIAS CALÇADISTAS ---
@@ -107,10 +108,46 @@ async function handleSubmit() {
   isSubmitting.value = true
   try {
     if (editingMaterial.value) {
+      // --- LÓGICA INTELIGENTE DE AJUSTE ---
+      // Verifica se a quantidade mudou
+      const qtdAntiga = Number(editingMaterial.value.quantidade)
+      const qtdNova = Number(formData.value.quantidade)
+      const diferenca = qtdNova - qtdAntiga
+
+      // Se houve mudança no número, cria um registro de histórico
+      if (diferenca !== 0) {
+        await createMovement({
+          materialId: editingMaterial.value.id,
+          tipo: diferenca > 0 ? 'entrada' : 'saída',
+          quantidade: Math.abs(diferenca), // Sempre positivo para o registro
+          observacao: 'Ajuste manual via edição de cadastro'
+        })
+      }
+
+      // Atualiza os dados do material (Nome, Categoria, Nova Quantidade)
       await updateMaterial(editingMaterial.value.id, formData.value)
     } else {
-      await createMaterial(formData.value)
+      // Criação de novo material
+      const novoMaterial = await createMaterial(formData.value)
+      
+      // Opcional: Registrar a entrada inicial no histórico também
+      if (Number(formData.value.quantidade) > 0) {
+        // Precisamos do ID gerado, que vem na resposta do createMaterial
+        // Se sua API retorna o objeto criado (geralmente sim), usamos ele.
+        // Como o json-server retorna o objeto criado, podemos tentar:
+        const idGerado = novoMaterial.id || null
+        
+        if (idGerado) {
+           await createMovement({
+            materialId: idGerado,
+            tipo: 'entrada',
+            quantidade: Number(formData.value.quantidade),
+            observacao: 'Saldo inicial (Cadastro)'
+          })
+        }
+      }
     }
+    
     await loadMaterials()
     closeModal()
   } catch (err) {
