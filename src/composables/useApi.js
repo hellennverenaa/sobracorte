@@ -1,8 +1,8 @@
 import { ref } from 'vue'
 
 // SEU IP (Mantenha o que estava funcionando)
-const API_URL = 'http://10.110.20.66:3001' 
-
+const API_URL = 'http://10.110.21.53:3001' 
+//
 export function useApi() {
   const error = ref(null)
   const isLoading = ref(false)

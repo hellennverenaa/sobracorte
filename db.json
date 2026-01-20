@@ -20,6 +20,13 @@
       "email": "natan@sobracorte.com",
       "password": "123456",
       "role": "leitor"
+    },
+    {
+      "id": "1768914491677",
+      "nome": "Paulo Ricardo",
+      "email": "paulo.santana@grupodass.com.br",
+      "password": "29182918",
+      "role": "admin"
     }
   ],
   "materials": [
