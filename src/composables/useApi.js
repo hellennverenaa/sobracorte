@@ -1,8 +1,10 @@
 import { ref } from 'vue'
 
-// SEU IP (Mantenha o que estava funcionando)
-const API_URL = 'http://10.110.21.53:3001' 
-//
+// TRUQUE: Mesmo esquema, pega o IP automaticamente
+const HOST = window.location.hostname
+const API_URL = `http://${HOST}:3001`
+//http://10.110.21.53:3001
+
 export function useApi() {
   const error = ref(null)
   const isLoading = ref(false)
@@ -33,9 +35,8 @@ export function useApi() {
     body: JSON.stringify(data)
   })
 
-  // Função essencial para atualizar o estoque
   const updateMaterial = (id, data) => request(`/materials/${id}`, {
-    method: 'PUT', // Atualiza o objeto completo
+    method: 'PUT',
     body: JSON.stringify(data)
   })
 
@@ -48,14 +49,11 @@ export function useApi() {
 
   const fetchMovements = () => request('/movements?_sort=data&_order=desc')
 
-  // --- CORREÇÃO DO DASHBOARD ---
-  // Agora calculamos os totais reais buscando as movimentações
   const fetchStats = async () => {
     try {
-      // Busca materiais e movimentos em paralelo
       const [materialsData, movementsData] = await Promise.all([
         fetchMaterials(),
-        request('/movements') // Busca todos sem filtro para contar
+        request('/movements')
       ])
 
       const matList = Array.isArray(materialsData) ? materialsData : (materialsData.materials || [])
@@ -64,7 +62,6 @@ export function useApi() {
       return {
         totalMaterials: matList.length,
         lowStock: matList.filter(m => Number(m.quantidade) < 10).length,
-        // Agora conta de verdade:
         totalMovements: movList.length,
         totalEntries: movList.filter(m => m.tipo === 'entrada').length
       }
@@ -78,7 +75,7 @@ export function useApi() {
     request, 
     fetchMaterials,
     createMaterial,
-    updateMaterial, // Precisamos dessa função exportada!
+    updateMaterial,
     deleteMaterial,
     fetchStats,
     createMovement,

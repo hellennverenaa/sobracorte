@@ -4,7 +4,7 @@
       "id": "123456789",
       "nome": "Hellen Admin",
       "email": "admin@sobracorte.com",
-      "password": "dass123",
+      "password": "123",
       "role": "admin"
     },
     {
@@ -20,13 +20,6 @@
       "email": "natan@sobracorte.com",
       "password": "123456",
       "role": "leitor"
-    },
-    {
-      "id": "1768914491677",
-      "nome": "Paulo Ricardo",
-      "email": "paulo.santana@grupodass.com.br",
-      "password": "29182918",
-      "role": "admin"
     }
   ],
   "materials": [
