@@ -1,17 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { Search, Plus, Edit, Trash2, Package, Filter, X } from 'lucide-vue-next'
+import { Search, Plus, Edit, Trash2, Package, Filter, X, User, Tag as TagIcon } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
 
-// IMPORTANTE: Adicionamos createMovement na lista
-const { fetchMaterials, createMaterial, updateMaterial, deleteMaterial, createMovement } = useApi()
+const { fetchMaterials, createMaterial, updateMaterial, deleteMaterial, createMovement, request } = useApi()
 const authStore = useAuthStore()
 
-// --- LISTA DE CATEGORIAS CALÇADISTAS ---
+// --- CONFIGURAÇÕES ---
 const categorias = [
   { valor: 'todos', label: 'Todos os Materiais' },
   { valor: 'sintetico', label: 'Sintéticos (PU/PVC)' },
@@ -26,6 +25,20 @@ const categorias = [
   { valor: 'outro', label: 'Outros' }
 ]
 
+const unidades = ['UN', 'KG', 'MT', 'MT2', 'RL', 'CX', 'L', 'PR', 'M2']
+
+const localizacoes = [
+  'Estoque Geral',
+  'Almoxarifado Central',
+  'Prateleira A (Sintéticos)',
+  'Prateleira B (Tecidos)',
+  'Prateleira C (Químicos)',
+  'Prateleira D (Metais)',
+  'Área de Corte',
+  'Expedição',
+  'Depósito Externo'
+]
+
 const materials = ref([])
 const isLoading = ref(true)
 const searchTerm = ref('')
@@ -34,7 +47,6 @@ const showModal = ref(false)
 const editingMaterial = ref(null)
 const isSubmitting = ref(false)
 
-// Controle de Acesso
 const podeEditar = computed(() => ['admin', 'operador'].includes(authStore.user?.role))
 const ehAdmin = computed(() => authStore.user?.role === 'admin')
 
@@ -43,36 +55,43 @@ const formData = ref({
   descricao: '',
   tipo: 'sintetico',
   quantidade: 0,
-  unidade: 'un',
-  localizacao: '',
+  unidade: 'M2',
+  localizacao: 'Estoque Geral',
   observacoes: ''
 })
 
-const filteredMaterials = computed(() => {
-  let lista = materials.value
-
-  // 1. Filtra por Categoria
-  if (filtroCategoria.value !== 'todos') {
-    lista = lista.filter(m => m.tipo === filtroCategoria.value)
-  }
-
-  // 2. Filtra por Busca
-  if (searchTerm.value) {
-    const termo = searchTerm.value.toLowerCase()
-    lista = lista.filter(m => 
-      String(m.descricao || '').toLowerCase().includes(termo) ||
-      String(m.codigo || '').toLowerCase().includes(termo)
-    )
-  }
-
-  return lista
-})
-
+// --- CARREGAMENTO OTIMIZADO ---
 async function loadMaterials() {
   isLoading.value = true
+  materials.value = [] 
+
   try {
-    const data = await fetchMaterials()
+    let data = []
+
+    if (searchTerm.value && searchTerm.value.length > 0) {
+      const termo = searchTerm.value.toLowerCase()
+
+      // Busca tudo sem limite no servidor
+      const rawData = await request(`/materials?q=${termo}`)
+      const candidatos = Array.isArray(rawData) ? rawData : (rawData.materials || [])
+
+      // Filtra lixo e mostra os 50 melhores
+      const filtrados = candidatos.filter(item => {
+        const codigo = String(item.codigo || '').toLowerCase()
+        const descricao = String(item.descricao || '').toLowerCase()
+        return codigo.includes(termo) || descricao.includes(termo)
+      })
+
+      data = filtrados.slice(0, 50)
+
+    } else if (filtroCategoria.value !== 'todos') {
+      data = await fetchMaterials(`tipo=${filtroCategoria.value}`)
+    } else {
+      data = await fetchMaterials(`_limit=50`)
+    }
+
     materials.value = Array.isArray(data) ? data : (data.materials || [])
+
   } catch (err) {
     console.error(err)
   } finally {
@@ -80,10 +99,22 @@ async function loadMaterials() {
   }
 }
 
+watch([searchTerm, filtroCategoria], () => {
+  setTimeout(() => loadMaterials(), 400)
+})
+
 function openModal(material) {
   if (material) {
     editingMaterial.value = material
-    formData.value = { ...material }
+    formData.value = { 
+      codigo: material.codigo || '', 
+      descricao: material.descricao,
+      tipo: material.tipo || 'sintetico',
+      quantidade: material.quantidade, 
+      unidade: material.unidade || 'M2', 
+      localizacao: material.localizacao || '',
+      observacoes: material.observacoes || ''
+    }
   } else {
     editingMaterial.value = null
     formData.value = {
@@ -91,8 +122,8 @@ function openModal(material) {
       descricao: '',
       tipo: 'sintetico',
       quantidade: 0,
-      unidade: 'un',
-      localizacao: '',
+      unidade: 'M2',
+      localizacao: 'Estoque Geral',
       observacoes: ''
     }
   }
@@ -107,46 +138,21 @@ function closeModal() {
 async function handleSubmit() {
   isSubmitting.value = true
   try {
-    if (editingMaterial.value) {
-      // --- LÓGICA INTELIGENTE DE AJUSTE ---
-      // Verifica se a quantidade mudou
-      const qtdAntiga = Number(editingMaterial.value.quantidade)
-      const qtdNova = Number(formData.value.quantidade)
-      const diferenca = qtdNova - qtdAntiga
-
-      // Se houve mudança no número, cria um registro de histórico
-      if (diferenca !== 0) {
-        await createMovement({
-          materialId: editingMaterial.value.id,
-          tipo: diferenca > 0 ? 'entrada' : 'saída',
-          quantidade: Math.abs(diferenca), // Sempre positivo para o registro
-          observacao: 'Ajuste manual via edição de cadastro'
-        })
-      }
-
-      // Atualiza os dados do material (Nome, Categoria, Nova Quantidade)
-      await updateMaterial(editingMaterial.value.id, formData.value)
-    } else {
-      // Criação de novo material
-      const novoMaterial = await createMaterial(formData.value)
-      
-      // Opcional: Registrar a entrada inicial no histórico também
-      if (Number(formData.value.quantidade) > 0) {
-        // Precisamos do ID gerado, que vem na resposta do createMaterial
-        // Se sua API retorna o objeto criado (geralmente sim), usamos ele.
-        // Como o json-server retorna o objeto criado, podemos tentar:
-        const idGerado = novoMaterial.id || null
-        
-        if (idGerado) {
-           await createMovement({
-            materialId: idGerado,
-            tipo: 'entrada',
-            quantidade: Number(formData.value.quantidade),
-            observacao: 'Saldo inicial (Cadastro)'
-          })
-        }
-      }
+    const payload = {
+      ...formData.value,
+      usuario_cadastro: authStore.user?.nome || 'Desconhecido',
+      data_atualizacao: new Date().toISOString()
     }
+
+    if (editingMaterial.value) {
+      await updateMaterial(editingMaterial.value.id, payload)
+    } else {
+      payload.data_cadastro = new Date().toISOString()
+      await createMaterial(payload)
+    }
+    
+    searchTerm.value = ''
+    filtroCategoria.value = 'todos'
     
     await loadMaterials()
     closeModal()
@@ -157,10 +163,26 @@ async function handleSubmit() {
   }
 }
 
-async function handleDelete(id) {
-  if(confirm('Tem certeza que deseja excluir este material?')) {
-    await deleteMaterial(id)
+async function handleDelete(item) {
+  if(!confirm(`ATENÇÃO: Tem certeza que deseja excluir "${item.descricao}"?\nIsso ficará registrado no histórico.`)) return
+
+  try {
+    const nomeAuditado = item.codigo ? `${item.codigo} - ${item.descricao}` : item.descricao
+    
+    await createMovement({
+      materialId: null, 
+      nomeMaterial: nomeAuditado, 
+      tipo: 'exclusão', 
+      quantidade: item.quantidade,
+      observacao: `MATERIAL EXCLUÍDO DO SISTEMA`,
+      usuario: authStore.user?.nome || 'Admin'
+    })
+
+    await deleteMaterial(item.id)
     loadMaterials()
+
+  } catch (err) {
+    alert('Erro ao excluir: ' + err.message)
   }
 }
 
@@ -170,13 +192,12 @@ onMounted(() => loadMaterials())
 <template>
   <Layout>
     <div class="max-w-7xl mx-auto px-4 py-8">
-      
       <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div>
           <h2 class="text-2xl font-bold text-gray-900">Materiais</h2>
           <p class="text-gray-500 text-sm">Gerencie o estoque de matéria-prima.</p>
         </div>
-        <button v-if="podeEditar" @click="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium transition-colors w-full md:w-auto justify-center">
+        <button v-if="podeEditar" @click="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium transition-colors w-full md:w-auto justify-center shadow-lg shadow-blue-200">
           <Plus class="w-5 h-5" /> Novo Material
         </button>
       </div>
@@ -184,112 +205,128 @@ onMounted(() => loadMaterials())
       <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4">
         <div class="relative flex-grow">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input v-model="searchTerm" type="text" placeholder="Buscar por código, nome ou descrição..." class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+          <input v-model="searchTerm" type="text" placeholder="Buscar por CÓDIGO ou DESCRIÇÃO..." class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder-gray-400">
         </div>
-        <div class="relative min-w-[200px]">
+        <div class="relative min-w-[250px]">
           <Filter class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <select v-model="filtroCategoria" class="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-100 transition-colors">
+          <select v-model="filtroCategoria" class="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer hover:bg-gray-100 transition-colors text-gray-700">
             <option v-for="cat in categorias" :key="cat.valor" :value="cat.valor">{{ cat.label }}</option>
           </select>
-          <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-          </div>
         </div>
       </div>
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div v-if="isLoading" class="p-12 flex justify-center"><LoadingSpinner /></div>
-        <EmptyState v-else-if="filteredMaterials.length === 0" :icon="Package" title="Nenhum material encontrado" description="Tente mudar o filtro ou buscar por outro termo." />
+        <EmptyState v-else-if="materials.length === 0" :icon="Package" title="Nenhum material encontrado" description="Verifique o termo digitado." />
 
         <div v-else class="overflow-x-auto">
           <table class="w-full">
             <thead class="bg-gray-50/50 border-b border-gray-100">
               <tr>
-                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Código</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Código</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Categoria</th>
-                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Estoque</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Localização</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Saldo</th>
+                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cadastrado Por</th>
                 <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr v-for="item in filteredMaterials" :key="item.id" class="hover:bg-blue-50/30 transition-colors group">
-                <td class="px-6 py-4 text-sm font-mono text-gray-500 bg-gray-50/30 w-32">{{ item.codigo }}</td>
+              <tr v-for="item in materials" :key="item.id" class="hover:bg-blue-50/30 transition-colors group">
+                <td class="px-6 py-4 text-sm font-mono text-gray-500">
+                  <span v-if="item.codigo" class="bg-gray-100 px-2 py-1 rounded text-xs font-bold border border-gray-200" :class="{'bg-yellow-100 border-yellow-200 text-yellow-800': searchTerm && item.codigo.toLowerCase().includes(searchTerm.toLowerCase())}">{{ item.codigo }}</span>
+                  <span v-else class="text-xs text-gray-300">---</span>
+                </td>
                 <td class="px-6 py-4">
                   <p class="text-sm font-semibold text-gray-900">{{ item.descricao }}</p>
-                  <p v-if="item.observacoes" class="text-xs text-gray-400 mt-0.5">{{ item.observacoes }}</p>
+                  <p v-if="item.observacoes" class="text-xs text-gray-400 mt-0.5 line-clamp-1">{{ item.observacoes }}</p>
                 </td>
-                <td class="px-6 py-4">
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize border border-gray-200">
-                    {{ item.tipo }}
-                  </span>
-                </td>
+                <td class="px-6 py-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize border border-gray-200">{{ item.tipo }}</span></td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ item.localizacao || '-' }}</td>
+                
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-2">
                     <span :class="`text-sm font-bold ${Number(item.quantidade) < 10 ? 'text-red-600' : 'text-green-600'}`">
-                      {{ item.quantidade }}
+                      {{ Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) }}
                     </span>
-                    <span class="text-xs text-gray-400 uppercase">{{ item.unidade }}</span>
+                    <span class="text-xs text-gray-400 font-bold bg-gray-50 px-1 rounded">{{ item.unidade }}</span>
                   </div>
+                </td>
+
+                <td class="px-6 py-4 text-sm text-gray-400 flex items-center gap-2">
+                  <User class="w-3 h-3" /> {{ item.usuario_cadastro || 'Sistema' }}
                 </td>
                 <td class="px-6 py-4 text-right">
                   <div v-if="ehAdmin" class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="openModal(item)" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"><Edit class="w-4 h-4" /></button>
-                    <button @click="handleDelete(item.id)" class="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"><Trash2 class="w-4 h-4" /></button>
+                    <button @click="openModal(item)" class="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Editar"><Edit class="w-4 h-4" /></button>
+                    <button @click="handleDelete(item)" class="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="Excluir"><Trash2 class="w-4 h-4" /></button>
                   </div>
-                  <span v-else class="text-xs text-gray-400">Somente Leitura</span>
+                  <span v-else class="text-xs text-gray-300 italic">Leitura</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-xs text-gray-500 flex justify-between">
-          <span>Mostrando {{ filteredMaterials.length }} itens</span>
-          <span v-if="filteredMaterials.length < materials.length"> (Filtrado de {{ materials.length }} totais)</span>
+          <span v-if="!searchTerm && filtroCategoria === 'todos'">Mostrando últimos 50 itens cadastrados</span>
+          <span v-else>Resultados da pesquisa</span>
         </div>
       </div>
 
       <div v-if="showModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl transform transition-all">
-          <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+          <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
             <h3 class="text-xl font-bold text-gray-900">{{ editingMaterial ? 'Editar' : 'Novo' }} Material</h3>
-            <button @click="closeModal" class="text-gray-400 hover:text-gray-600"><X class="w-6 h-6" /></button>
+            <button @click="closeModal" class="text-gray-400 hover:text-red-500 transition-colors"><X class="w-6 h-6" /></button>
           </div>
-          <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Código</label>
-                <input v-model="formData.codigo" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+          <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
+            <div class="grid grid-cols-3 gap-4">
+              <div class="col-span-1">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código</label>
+                <div class="relative">
+                  <TagIcon class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input v-model="formData.codigo" class="w-full pl-9 pr-2.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm" placeholder="Ex: A10" />
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                <select v-model="formData.tipo" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+              <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria</label>
+                <select v-model="formData.tipo" class="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
                   <option v-for="cat in categorias.filter(c => c.valor !== 'todos')" :key="cat.valor" :value="cat.valor">{{ cat.label }}</option>
                 </select>
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-              <input v-model="formData.descricao" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição</label>
+              <input v-model="formData.descricao" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Tecido Sintético Preto..." required />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
-                <input v-model="formData.quantidade" type="number" step="0.01" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade</label>
+                <select v-model="formData.unidade" class="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                  <option v-for="uni in unidades" :key="uni" :value="uni">{{ uni }}</option>
+                </select>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
-                <input v-model="formData.unidade" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required />
+               <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Saldo Atual</label>
+                <input v-model="formData.quantidade" type="number" step="0.01" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-800" required />
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Localização</label>
-              <input v-model="formData.localizacao" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Localização</label>
+              <select v-model="formData.localizacao" class="w-full p-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                <option value="" disabled>Selecione onde está guardado...</option>
+                <option v-for="loc in localizacoes" :key="loc" :value="loc">{{ loc }}</option>
+              </select>
             </div>
-            <div class="pt-4 flex justify-end gap-3">
-              <button type="button" @click="closeModal" class="px-5 py-2.5 text-gray-700 hover:bg-gray-100 rounded-lg">Cancelar</button>
-              <button type="submit" :disabled="isSubmitting" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {{ isSubmitting ? 'Salvando...' : 'Salvar' }}
+            <div>
+              <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Observações (Opcional)</label>
+              <textarea v-model="formData.observacoes" rows="2" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+            </div>
+            <div class="pt-4 flex justify-end gap-3 border-t border-gray-50">
+              <button type="button" @click="closeModal" class="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">Cancelar</button>
+              <button type="submit" :disabled="isSubmitting" class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-bold shadow-lg shadow-blue-200 transition-all active:scale-95">
+                {{ isSubmitting ? 'Salvando...' : 'Salvar Material' }}
               </button>
             </div>
           </form>
