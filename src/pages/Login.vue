@@ -2,184 +2,196 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-// RECUPERAMOS OS ÍCONES AQUI:
-import { Package, Mail, Lock, AlertCircle } from 'lucide-vue-next'
+import { useApi } from '@/composables/useApi'
+import { Lock, Mail, User, ArrowRight, CheckCircle, AlertTriangle, X, ShieldAlert } from 'lucide-vue-next'
 
+const router = useRouter()
+const authStore = useAuthStore()
+const { request } = useApi()
+
+// Estados do Formulário
+const isRegistering = ref(false)
+const name = ref('')
 const email = ref('')
 const password = ref('')
+const confirmPassword = ref('')
 const error = ref('')
 const isLoading = ref(false)
 
-const authStore = useAuthStore()
-const router = useRouter()
+// Estados do Modal "Esqueci Senha"
+const showForgotModal = ref(false)
 
-// --- ESTADOS PARA O MODAL DE SENHA ---
-const showResetModal = ref(false)
-const resetForm = ref({ email: '', oldPassword: '', newPassword: '' })
-const resetMessage = ref('')
-// -------------------------------------
-
-async function handleSubmit() {
+// --- LOGIN ---
+async function handleLogin() {
   error.value = ''
   isLoading.value = true
-
   try {
     await authStore.login(email.value, password.value)
     router.push('/')
   } catch (err) {
-    error.value = err.message || 'Erro ao fazer login'
+    error.value = err.message || 'Erro ao conectar.'
   } finally {
     isLoading.value = false
   }
 }
 
-// --- FUNÇÃO DE TROCAR SENHA (COM CORREÇÃO DE IP) ---
-async function handlePasswordChange() {
-  resetMessage.value = 'Processando...'
-  
-  // Pega o IP automaticamente
-  const HOST = window.location.hostname
-  const API_URL = `http://${HOST}:3001`
-
-  try {
-    // 1. Verifica se os dados batem
-    const check = await fetch(`${API_URL}/users?email=${resetForm.value.email}&password=${resetForm.value.oldPassword}`)
-    const users = await check.json()
-
-    if (users.length === 0) throw new Error('Dados incorretos.')
-
-    // 2. Atualiza a senha
-    await fetch(`${API_URL}/users/${users[0].id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: resetForm.value.newPassword })
-    })
-
-    resetMessage.value = 'Sucesso! Senha alterada.'
-    setTimeout(() => { 
-      showResetModal.value = false; 
-      resetMessage.value = '';
-      resetForm.value = { email: '', oldPassword: '', newPassword: '' }
-    }, 2000)
-    
-  } catch (err) {
-    resetMessage.value = 'Erro: Verifique email e senha atual.'
+// --- CADASTRO ---
+async function handleRegister() {
+  error.value = ''
+  if (password.value !== confirmPassword.value) {
+    error.value = 'As senhas não coincidem.'
+    return
   }
+  if (password.value.length < 4) {
+    error.value = 'A senha deve ter no mínimo 4 caracteres.'
+    return
+  }
+  isLoading.value = true
+  try {
+    const existing = await request(`/users?email=${email.value}`)
+    if (existing && existing.length > 0) throw new Error('Este email já está cadastrado.')
+
+    const newUser = {
+      nome: name.value,
+      email: email.value,
+      password: password.value,
+      role: 'operador',
+      data_cadastro: new Date().toISOString()
+    }
+    await request('/users', { method: 'POST', body: JSON.stringify(newUser) })
+    await authStore.login(email.value, password.value)
+    router.push('/')
+  } catch (err) {
+    error.value = err.message || 'Erro ao criar conta.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function handleSubmit() {
+  if (isRegistering.value) handleRegister()
+  else handleLogin()
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-blue-900 flex items-center justify-center p-4">
-    <div class="w-full max-w-md">
-      <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-2xl mb-4 shadow-lg">
-          <Package class="w-8 h-8 text-white" />
+  <div class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+    
+    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl flex flex-col md:flex-row min-h-[600px]">
+      
+      <div class="md:w-1/2 bg-gradient-to-br from-indigo-900 to-slate-900 p-12 text-white flex flex-col justify-between relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+           <div class="absolute right-0 top-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+           <div class="absolute left-0 bottom-0 w-64 h-64 bg-purple-500 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
         </div>
-        <h1 class="text-4xl font-bold text-white mb-2">SobraCorte</h1>
-        <p class="text-gray-300">Pavilhão do Corte Automático</p>
+        <div class="relative z-10">
+           <div class="w-12 h-12 bg-white/10 rounded-xl backdrop-blur-md flex items-center justify-center mb-6 border border-white/20">
+             <span class="font-black text-2xl">D</span>
+           </div>
+           <h1 class="text-5xl font-black tracking-tight mb-4">Sobras DASS</h1>
+           <p class="text-indigo-200 text-lg leading-relaxed">
+             Gestão inteligente de resíduos e estoque para a indústria calçadista.
+           </p>
+        </div>
+        <div class="relative z-10 text-sm text-indigo-300/60 font-medium">
+          &copy; 2026 Grupo DASS - Sistema Consumo SEST v2.0
+        </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-2xl p-8">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Entrar no Sistema</h2>
+      <div class="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
+        <div class="max-w-md mx-auto w-full">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">{{ isRegistering ? 'Criar Conta' : 'Bem-vindo de volta' }}</h2>
+          <p class="text-gray-500 mb-8">{{ isRegistering ? 'Preencha os dados para se registrar.' : 'Faça login para acessar o painel.' }}</p>
 
-        <div v-if="error" class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
-          <AlertCircle class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-          <span class="text-sm">{{ error }}</span>
-        </div>
-
-        <form @submit.prevent="handleSubmit" class="space-y-5">
-          <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <div class="relative">
-              <Mail class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id="email"
-                v-model="email"
-                type="email"
-                class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="seu@email.com"
-                required
-              />
+          <form @submit.prevent="handleSubmit" class="space-y-5">
+            <div v-if="isRegistering" class="space-y-1 animate-fade-in">
+              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome Completo</label>
+              <div class="relative">
+                <User class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input v-model="name" type="text" placeholder="Seu Nome" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
-              Senha
-            </label>
-            <div class="relative">
-              <Lock class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id="password"
-                v-model="password"
-                type="password"
-                class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="••••••••"
-                required
-              />
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Email Corporativo</label>
+              <div class="relative">
+                <Mail class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input v-model="email" type="email" placeholder="seu@grupodass.com.br" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            :disabled="isLoading"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ isLoading ? 'Entrando...' : 'Entrar' }}
-          </button>
-        </form>
+            <div class="space-y-1">
+               <div class="flex justify-between items-center">
+                 <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Senha</label>
+                 <button v-if="!isRegistering" type="button" @click="showForgotModal = true" class="text-xs font-bold text-indigo-600 hover:underline">Esqueceu?</button>
+               </div>
+              <div class="relative">
+                <Lock class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input v-model="password" type="password" placeholder="••••••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
+            </div>
 
-        <div class="mt-6 text-center space-y-2">
-          <button @click="showResetModal = true" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">
-            Esqueci ou quero alterar minha senha
-          </button>
-          
-          <p class="text-gray-600 text-sm">
-            Não tem uma conta?
-            <router-link to="/register" class="text-blue-600 hover:text-blue-700 font-medium">
-              Cadastre-se aqui
-            </router-link>
-          </p>
-        </div>
-      </div>
+            <div v-if="isRegistering" class="space-y-1 animate-fade-in">
+              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Confirmar Senha</label>
+              <div class="relative">
+                <Lock class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input v-model="confirmPassword" type="password" placeholder="••••••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+              </div>
+            </div>
 
-      <div class="mt-6 text-center text-gray-400 text-sm">
-        <p>Sistema de Gerenciamento de Sobras de Materiais</p>
-      </div>
-    </div>
+            <div v-if="error" class="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl text-sm font-bold animate-shake">
+              <AlertTriangle class="w-5 h-5" /> {{ error }}
+            </div>
 
-    <div v-if="showResetModal" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-        <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Lock class="w-5 h-5 text-blue-600" /> Alterar Senha
-        </h3>
-        
-        <div class="space-y-3">
-          <div>
-             <label class="text-xs font-bold text-gray-500">EMAIL</label>
-             <input v-model="resetForm.email" type="email" placeholder="seu@email.com" class="w-full p-3 border rounded-lg bg-gray-50" />
-          </div>
-          <div>
-             <label class="text-xs font-bold text-gray-500">SENHA ATUAL</label>
-             <input v-model="resetForm.oldPassword" type="password" placeholder="Sua senha atual" class="w-full p-3 border rounded-lg bg-gray-50" />
-          </div>
-          <div>
-             <label class="text-xs font-bold text-gray-500">NOVA SENHA</label>
-             <input v-model="resetForm.newPassword" type="password" placeholder="Nova senha" class="w-full p-3 border rounded-lg bg-gray-50" />
+            <button type="submit" :disabled="isLoading" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed">
+              <span v-if="!isLoading">{{ isRegistering ? 'Criar Conta' : 'Acessar Sistema' }}</span>
+              <span v-else>Processando...</span>
+              <ArrowRight v-if="!isLoading" class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </form>
+
+          <div class="mt-8 text-center border-t border-gray-100 pt-6">
+            <p class="text-sm text-gray-500 mb-2">{{ isRegistering ? 'Já tem uma conta?' : 'Não tem acesso?' }}</p>
+            <button @click="isRegistering = !isRegistering; error = ''" class="text-indigo-600 font-bold hover:underline">
+              {{ isRegistering ? 'Fazer Login' : 'Criar nova conta' }}
+            </button>
           </div>
         </div>
 
-        <p class="text-center mt-4 font-bold text-sm" :class="resetMessage.includes('Sucesso') ? 'text-green-600' : 'text-red-600'">
-          {{ resetMessage }}
-        </p>
+        <div v-if="showForgotModal" class="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-fade-in">
+          <div class="w-full max-w-sm bg-white border border-gray-200 shadow-2xl rounded-2xl p-6 relative text-center">
+            <button @click="showForgotModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X class="w-5 h-5" /></button>
+            
+            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert class="w-8 h-8" />
+            </div>
+            
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Recuperação de Acesso</h3>
+            <p class="text-gray-500 text-sm mb-6">
+              Por motivos de segurança, a redefinição de senha deve ser realizada por um administrador.
+            </p>
 
-        <div class="mt-6 flex justify-end gap-3">
-          <button @click="showResetModal = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-          <button @click="handlePasswordChange" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Salvar Senha</button>
+            <div class="bg-gray-50 p-4 rounded-xl text-sm border border-gray-200 mb-6">
+              <p class="font-bold text-gray-700">Entre em contato:</p>
+              <a href="mailto:hellen.magalhaes@grupodass.com.br" class="text-indigo-600 break-all font-medium hover:underline">
+                hellen.magalhaes@grupodass.com.br
+              </a>
+            </div>
+            
+            <button @click="showForgotModal = false" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-colors">
+              Entendido
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.animate-shake { animation: shake 0.3s ease-in-out; }
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>

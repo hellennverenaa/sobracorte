@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
-import { Users, Trash2, Shield, UserPlus, Search, CheckCircle, AlertTriangle, Info } from 'lucide-vue-next'
+import { Users, Trash2, Shield, CheckCircle, Search, Info, Key } from 'lucide-vue-next'
 
 const { fetchUsers, updateUser, deleteUser } = useApi()
 const authStore = useAuthStore()
@@ -41,27 +41,37 @@ const filteredUsers = computed(() => {
 })
 
 async function handleRoleChange(user, newRole) {
-  // TRAVA DE SEGURANÇA
   if (user.id === authStore.user.id) {
     alert("Você não pode alterar seu próprio nível de acesso.")
-    // Força o visual a voltar para o que estava antes (caso o navegador tenha mudado)
     await loadUsers()
+    return
+  }
+  try {
+    await updateUser(user.id, { role: newRole })
+    user.role = newRole 
+    message.value = `Permissão de ${user.nome} alterada.`
+    setTimeout(() => message.value = '', 3000)
+  } catch (err) {
+    alert("Erro ao atualizar permissão.")
+    loadUsers()
+  }
+}
+
+// --- NOVA FUNÇÃO: REDEFINIR SENHA PELO ADMIN ---
+async function handleAdminResetPassword(user) {
+  const newPassword = prompt(`Digite a nova senha para o usuário ${user.nome}:`)
+  
+  if (newPassword === null) return // Cancelou
+  if (newPassword.length < 4) {
+    alert("A senha deve ter pelo menos 4 caracteres.")
     return
   }
 
   try {
-    // 1. Salva no banco
-    await updateUser(user.id, { role: newRole })
-    
-    // 2. ATUALIZA O VISUAL IMEDIATAMENTE (A CORREÇÃO ESTÁ AQUI)
-    user.role = newRole 
-
-    message.value = `Permissão de ${user.nome} alterada para ${newRole.toUpperCase()}.`
-    setTimeout(() => message.value = '', 3000)
+    await updateUser(user.id, { password: newPassword })
+    alert(`Sucesso! A senha de ${user.nome} foi alterada para: ${newPassword}\nAvise o usuário.`)
   } catch (err) {
-    console.error(err)
-    alert("Erro ao atualizar permissão.")
-    loadUsers() // Recarrega se der erro
+    alert("Erro ao alterar a senha.")
   }
 }
 
@@ -70,14 +80,10 @@ async function handleDelete(user) {
     alert("Você não pode excluir sua própria conta.")
     return
   }
-
-  if (confirm(`ATENÇÃO: Tem certeza que deseja remover o acesso de "${user.nome}"?\nEssa ação não pode ser desfeita.`)) {
+  if (confirm(`ATENÇÃO: Tem certeza que deseja remover o acesso de "${user.nome}"?`)) {
     try {
       await deleteUser(user.id)
-      
-      // Remove da lista visualmente na hora (mais rápido que recarregar tudo)
       users.value = users.value.filter(u => u.id !== user.id)
-      
       message.value = `Usuário ${user.nome} removido.`
       setTimeout(() => message.value = '', 3000)
     } catch (err) {
@@ -98,7 +104,7 @@ onMounted(() => loadUsers())
           <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Users class="w-6 h-6 text-indigo-600" /> Gestão de Usuários
           </h2>
-          <p class="text-gray-500 text-sm">Controle total sobre quem acessa o sistema.</p>
+          <p class="text-gray-500 text-sm">Controle de acesso e senhas.</p>
         </div>
         
         <div v-if="message" class="bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 animate-bounce">
@@ -107,23 +113,22 @@ onMounted(() => loadUsers())
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white p-4 rounded-xl border-l-4 border-indigo-500 shadow-sm hover:shadow-md transition-shadow">
+        <div class="bg-white p-4 rounded-xl border-l-4 border-indigo-500 shadow-sm">
           <div class="font-bold text-indigo-700 flex items-center gap-2 mb-1"><Shield class="w-4 h-4" /> Administrador</div>
-          <p class="text-xs text-gray-500">Acesso total. Pode criar/excluir usuários, apagar materiais e ver todo o financeiro.</p>
+          <p class="text-xs text-gray-500">Acesso total. Pode criar/excluir usuários e resetar senhas.</p>
         </div>
-        <div class="bg-white p-4 rounded-xl border-l-4 border-emerald-500 shadow-sm hover:shadow-md transition-shadow">
+        <div class="bg-white p-4 rounded-xl border-l-4 border-emerald-500 shadow-sm">
           <div class="font-bold text-emerald-700 flex items-center gap-2 mb-1"><CheckCircle class="w-4 h-4" /> Operador</div>
-          <p class="text-xs text-gray-500">Pode cadastrar materiais e registrar entradas/saídas. Não exclui usuários.</p>
+          <p class="text-xs text-gray-500">Pode cadastrar materiais e registrar entradas/saídas.</p>
         </div>
-        <div class="bg-white p-4 rounded-xl border-l-4 border-gray-400 shadow-sm hover:shadow-md transition-shadow">
+        <div class="bg-white p-4 rounded-xl border-l-4 border-gray-400 shadow-sm">
           <div class="font-bold text-gray-600 flex items-center gap-2 mb-1"><Info class="w-4 h-4" /> Visualizador</div>
-          <p class="text-xs text-gray-500">Apenas leitura. Pode ver dashboards e relatórios, mas não altera nada.</p>
+          <p class="text-xs text-gray-500">Apenas leitura dos dashboards.</p>
         </div>
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        
-        <div class="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        <div class="p-4 border-b border-gray-100 bg-gray-50/50">
           <div class="relative max-w-md w-full">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input v-model="searchTerm" type="text" placeholder="Buscar usuário..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
@@ -135,7 +140,7 @@ onMounted(() => loadUsers())
             <thead class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
               <tr>
                 <th class="p-5">Usuário</th>
-                <th class="p-5">Nível de Acesso</th>
+                <th class="p-5">Função</th>
                 <th class="p-5 text-right">Ações</th>
               </tr>
             </thead>
@@ -170,23 +175,26 @@ onMounted(() => loadUsers())
                         'opacity-50 cursor-not-allowed': u.id === authStore.user.id
                       }"
                     >
-                      <option v-for="role in roles" :key="role.value" :value="role.value">
-                        {{ role.label }}
-                      </option>
+                      <option v-for="role in roles" :key="role.value" :value="role.value">{{ role.label }}</option>
                     </select>
-                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
                   </div>
                 </td>
 
-                <td class="p-5 text-right">
+                <td class="p-5 text-right flex justify-end gap-2">
+                  <button 
+                    @click="handleAdminResetPassword(u)"
+                    class="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
+                    title="Redefinir Senha do Usuário"
+                  >
+                    <Key class="w-5 h-5" />
+                  </button>
+
                   <button 
                     @click="handleDelete(u)"
                     :disabled="u.id === authStore.user.id"
                     class="p-2 rounded-lg transition-colors"
                     :class="u.id === authStore.user.id ? 'opacity-20 cursor-not-allowed text-gray-300' : 'text-red-400 hover:bg-red-50 hover:text-red-600'"
-                    :title="u.id === authStore.user.id ? 'Proteção: Não é possível se excluir' : 'Excluir usuário'"
+                    :title="u.id === authStore.user.id ? 'Não é possível se excluir' : 'Excluir usuário'"
                   >
                     <Trash2 class="w-5 h-5" />
                   </button>
@@ -196,7 +204,6 @@ onMounted(() => loadUsers())
           </table>
         </div>
       </div>
-
     </div>
   </Layout>
 </template>

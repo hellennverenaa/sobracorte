@@ -27,6 +27,14 @@
       "email": "paulo.santana@grupodass.com.br",
       "password": "29182918",
       "role": "admin"
+    },
+    {
+      "id": "447e",
+      "nome": "Hellen Verena da Conceição Magalhães",
+      "email": "hellen.magalhaes@grupodass.com.br",
+      "password": "arianaa.1993",
+      "role": "admin",
+      "data_cadastro": "2026-01-24T15:15:40.776Z"
     }
   ],
   "materials": [
@@ -43595,6 +43603,19 @@
       "usuario_cadastro": "Hellen Admin",
       "data_atualizacao": "2026-01-24T13:19:55.451Z",
       "data_cadastro": "2026-01-24T13:19:55.451Z"
+    },
+    {
+      "id": "b098",
+      "codigo": "120325",
+      "descricao": "FORRO",
+      "tipo": "sintetico",
+      "quantidade": 5.43,
+      "unidade": "MT2",
+      "localizacao": "Prateleira B (Tecidos)",
+      "observacoes": "",
+      "usuario_cadastro": "Hellen Admin",
+      "data_atualizacao": "2026-01-24T15:27:11.225Z",
+      "data_cadastro": "2026-01-24T15:27:11.225Z"
     }
   ],
   "movements": [
@@ -43848,6 +43869,26 @@
       "observacao": "SAFDSAFA",
       "usuario": "Hellen Admin",
       "data": "2026-01-24T13:20:50.652Z"
+    },
+    {
+      "id": "46e0",
+      "materialId": "b098",
+      "nomeMaterial": "120325 - FORRO",
+      "tipo": "entrada",
+      "quantidade": 1.43,
+      "observacao": "",
+      "usuario": "Hellen Admin",
+      "data": "2026-01-24T15:27:45.614Z"
+    },
+    {
+      "id": "1651",
+      "materialId": "b098",
+      "nomeMaterial": "120325 - FORRO",
+      "tipo": "entrada",
+      "quantidade": 2,
+      "observacao": "",
+      "usuario": "Hellen Admin",
+      "data": "2026-01-24T15:28:33.955Z"
     }
   ]
 }
