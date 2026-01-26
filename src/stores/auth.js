@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
 
+<<<<<<< HEAD
 // Endereço do seu novo banco de dados local
 const DB_URL = 'http://10.110.21.53:3001'
 //ipconfig
@@ -8,98 +8,65 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(null)
   const isLoading = ref(false)
+=======
+// TRUQUE: Define o IP automaticamente para não travar (localhost ou IP da rede)
+const HOST = window.location.hostname 
+const DB_URL = `http://${HOST}:3001`
+////http://10.110.21.53:3001
+>>>>>>> b9d12962eab87c447b611208eb1f9f3a38461f55
 
-  const isAuthenticated = computed(() => !!user.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: JSON.parse(localStorage.getItem('user')) || null,
+    isAuthenticated: !!localStorage.getItem('user')
+  }),
 
-  async function login(email, password) {
-    isLoading.value = true
-    try {
-      // Busca usuários no db.json filtrando pelo email e senha
-      const response = await fetch(`${DB_URL}/users?email=${email}&password=${password}`)
-      const users = await response.json()
-
-      if (users.length === 0) {
-        throw new Error('E-mail ou senha incorretos')
+  actions: {
+    // --- FUNÇÃO ESSENCIAL PARA EVITAR A TELA BRANCA ---
+    checkAuth() {
+      const user = localStorage.getItem('user')
+      if (user) {
+        this.user = JSON.parse(user)
+        this.isAuthenticated = true
+      } else {
+        this.user = null
+        this.isAuthenticated = false
       }
+    },
+    // --------------------------------------------------
 
-      const foundUser = users[0] // Pega o primeiro usuário encontrado
+    async login(email, password) {
+      try {
+        // Usa a URL dinâmica (DB_URL)
+        const response = await fetch(`${DB_URL}/users?email=${email}&password=${password}`)
+        
+        if (!response.ok) {
+           throw new Error('Erro ao conectar com o servidor (Verifique o npm run db)')
+        }
 
-      // Salva sessão
-      const fakeToken = 'token-' + Date.now()
-      token.value = fakeToken
-      user.value = foundUser
+        const users = await response.json()
 
-      localStorage.setItem('sobracorte_token', fakeToken)
-      localStorage.setItem('sobracorte_user', JSON.stringify(foundUser))
-    } catch (error) {
-      console.error('Login error:', error)
-      throw error
-    } finally {
-      isLoading.value = false
+        if (users.length > 0) {
+          const user = users[0]
+          this.user = user
+          this.isAuthenticated = true
+          localStorage.setItem('user', JSON.stringify(user))
+          return true
+        } else {
+          throw new Error('Email ou senha incorretos')
+        }
+      } catch (error) {
+        console.error("Erro no login:", error)
+        throw error
+      }
+    },
+
+    logout() {
+      this.user = null
+      this.isAuthenticated = false
+      localStorage.removeItem('user')
+      // Força o redirecionamento
+      window.location.href = '/login'
     }
   }
-
-  async function register(nome, email, password) {
-    isLoading.value = true
-    try {
-      // 1. Verifica se já existe
-      const checkResponse = await fetch(`${DB_URL}/users?email=${email}`)
-      const existingUsers = await checkResponse.json()
-      
-      if (existingUsers.length > 0) {
-        throw new Error('Este e-mail já está cadastrado')
-      }
-
-      // 2. Cria novo usuário no db.json
-      const newUser = { 
-        id: String(Date.now()), // JSON Server precisa de ID string
-        nome, 
-        email, 
-        password, 
-        role: 'leitor', //<--- MUDANÇA: Todo mundo nasce como leitor
-       
-      }
-
-      const saveResponse = await fetch(`${DB_URL}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
-      })
-
-      if (!saveResponse.ok) throw new Error('Erro ao salvar no banco')
-      
-      const savedUser = await saveResponse.json()
-
-      // Loga automaticamente
-      token.value = 'token-' + savedUser.id
-      user.value = savedUser
-      localStorage.setItem('sobracorte_token', token.value)
-      localStorage.setItem('sobracorte_user', JSON.stringify(savedUser))
-
-    } catch (error) {
-      console.error('Register error:', error)
-      throw error
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  function logout() {
-    user.value = null
-    token.value = null
-    localStorage.removeItem('sobracorte_token')
-    localStorage.removeItem('sobracorte_user')
-  }
-
-  function checkAuth() {
-    const savedToken = localStorage.getItem('sobracorte_token')
-    const savedUser = localStorage.getItem('sobracorte_user')
-    if (savedToken && savedUser) {
-      token.value = savedToken
-      user.value = JSON.parse(savedUser)
-    }
-  }
-
-  return { user, token, isLoading, isAuthenticated, isAdmin, login, register, logout, checkAuth }
 })

@@ -9,6 +9,7 @@ import Materials from '@/pages/Materials.vue'
 import Movement from '@/pages/Movement.vue'
 import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue' // Nova tela de usuários
+import Reports from '@/pages/Reports.vue'
 
 const routes = [
   { 
@@ -50,7 +51,11 @@ const routes = [
     name: 'Users', 
     component: Users, 
     meta: { requiresAuth: true, role: 'admin' } // Protegido: Só admin entra
-  }
+  },
+  { path: '/reports',
+    name:'Reports',
+    component: Reports, 
+    meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({

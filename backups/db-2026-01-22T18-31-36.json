@@ -4,7 +4,7 @@
       "id": "123456789",
       "nome": "Hellen Admin",
       "email": "admin@sobracorte.com",
-      "password": "dass123",
+      "password": "123",
       "role": "admin"
     },
     {
@@ -19,37 +19,7 @@
       "nome": "natan",
       "email": "natan@sobracorte.com",
       "password": "123456",
-      "role": "operador"
-    },
-    {
-      "id": "1768914491677",
-      "nome": "Paulo Ricardo",
-      "email": "paulo.santana@grupodass.com.br",
-      "password": "29182918",
-      "role": "admin"
-    },
-    {
-<<<<<<< HEAD
-      "id": "1768926909192",
-      "nome": "Midian Santana",
-      "email": "midian.santana@grupodass.com.br",
-      "password": "81192531",
-      "role": "admin"
-    },
-    {
-      "id": "1768931263444",
-      "nome": "Márcio",
-      "email": "marcio.leite@grupodass.com.br",
-      "password": "Modelagem2016",
       "role": "leitor"
-=======
-      "id": "447e",
-      "nome": "Hellen Verena da Conceição Magalhães",
-      "email": "hellen.magalhaes@grupodass.com.br",
-      "password": "arianaa.1993",
-      "role": "admin",
-      "data_cadastro": "2026-01-24T15:15:40.776Z"
->>>>>>> b9d12962eab87c447b611208eb1f9f3a38461f55
     }
   ],
   "materials": [
@@ -59,8 +29,8 @@
       "descricao": "APROVEITAMENTO FORRO LINING (200GR/M2) 100%PES LAG",
       "tipo": "forro",
       "quantidade": 0,
-      "unidade": "MT2",
-      "localizacao": "Almoxarifado Central",
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
       "observacoes": ""
     },
     {
@@ -75,6 +45,56 @@
     },
     {
       "id": "1768826558426",
+      "codigo": "838725",
+      "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
+      "tipo": "outro",
+      "quantidade": 0,
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "1768826558427",
+      "codigo": "838725",
+      "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
+      "tipo": "outro",
+      "quantidade": 0,
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "1768826558428",
+      "codigo": "838725",
+      "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
+      "tipo": "outro",
+      "quantidade": 0,
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "1768826558429",
+      "codigo": "838725",
+      "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
+      "tipo": "outro",
+      "quantidade": 0,
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "1768826558430",
+      "codigo": "838725",
+      "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
+      "tipo": "outro",
+      "quantidade": 0,
+      "unidade": "M2",
+      "localizacao": "Estoque Geral",
+      "observacoes": ""
+    },
+    {
+      "id": "1768826558431",
       "codigo": "838725",
       "descricao": "APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
       "tipo": "outro",
@@ -43592,66 +43612,6 @@
       "unidade": "M2",
       "localizacao": "Estoque Geral",
       "observacoes": ""
-    },
-    {
-<<<<<<< HEAD
-      "id": "2a8b",
-      "codigo": "123456",
-      "descricao": "teste",
-      "tipo": "outro",
-      "quantidade": 50,
-      "unidade": "un",
-      "localizacao": "Rua 20",
-      "observacoes": ""
-    },
-    {
-      "id": "09d3",
-      "codigo": "123457",
-      "descricao": "Modelo Y  corte traseiro",
-      "tipo": "metal",
-      "quantidade": 12,
-      "unidade": "un",
-      "localizacao": "Rua 30",
-      "observacoes": ""
-=======
-      "id": "931c",
-      "codigo": "10202325",
-      "descricao": "TESTE 1",
-      "tipo": "sintetico",
-      "quantidade": 34.81,
-      "unidade": "M2",
-      "localizacao": "Almoxarifado Central",
-      "observacoes": "",
-      "usuario_cadastro": "Hellen Admin",
-      "data_atualizacao": "2026-01-23T18:40:49.077Z",
-      "data_cadastro": "2026-01-23T18:40:49.077Z"
-    },
-    {
-      "id": "5435",
-      "codigo": "123623",
-      "descricao": "COURO PRETO",
-      "tipo": "couro",
-      "quantidade": 6.2,
-      "unidade": "M2",
-      "localizacao": "Área de Corte",
-      "observacoes": "NF3236",
-      "usuario_cadastro": "Hellen Admin",
-      "data_atualizacao": "2026-01-24T13:19:55.451Z",
-      "data_cadastro": "2026-01-24T13:19:55.451Z"
-    },
-    {
-      "id": "b098",
-      "codigo": "120325",
-      "descricao": "FORRO",
-      "tipo": "sintetico",
-      "quantidade": 5.43,
-      "unidade": "MT2",
-      "localizacao": "Prateleira B (Tecidos)",
-      "observacoes": "",
-      "usuario_cadastro": "Hellen Admin",
-      "data_atualizacao": "2026-01-24T15:27:11.225Z",
-      "data_cadastro": "2026-01-24T15:27:11.225Z"
->>>>>>> b9d12962eab87c447b611208eb1f9f3a38461f55
     }
   ],
   "movements": [
@@ -43686,310 +43646,6 @@
       "quantidade": 10,
       "observacao": "",
       "data": "2026-01-20T11:16:12.618Z"
-    },
-    {
-<<<<<<< HEAD
-      "id": "9e43",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 300,
-      "observacao": "Saldo inicial (Cadastro)",
-      "data": "2026-01-20T17:18:57.787Z"
-    },
-    {
-      "id": "fb3c",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 50,
-      "observacao": "Rua 15",
-      "data": "2026-01-20T17:20:34.953Z"
-    },
-    {
-      "id": "b0b2",
-      "materialId": "2a8b",
-      "tipo": "saida",
-      "quantidade": 349,
-      "observacao": "",
-      "data": "2026-01-20T17:21:01.939Z"
-    },
-    {
-      "id": "0542",
-      "materialId": "2a8b",
-      "tipo": "saida",
-      "quantidade": 1,
-      "observacao": "",
-      "data": "2026-01-20T17:22:40.910Z"
-    },
-    {
-      "id": "f3a1",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 50,
-      "observacao": "rua30",
-      "data": "2026-01-20T17:25:12.162Z"
-    },
-    {
-      "id": "7a28",
-      "materialId": "09d3",
-      "tipo": "entrada",
-      "quantidade": 12,
-      "observacao": "Saldo inicial (Cadastro)",
-      "data": "2026-01-20T17:40:10.835Z"
-    },
-    {
-      "id": "c16b",
-      "materialId": "09d3",
-      "tipo": "entrada",
-      "quantidade": 12,
-      "observacao": "rua 40",
-      "data": "2026-01-20T17:41:15.819Z"
-    },
-    {
-      "id": "8728",
-      "materialId": "09d3",
-      "tipo": "saida",
-      "quantidade": 12,
-      "observacao": "",
-      "data": "2026-01-20T17:41:34.123Z"
-=======
-      "id": "c426",
-      "materialId": null,
-      "tipo": "entrada",
-      "quantidade": 1.26,
-      "observacao": "Saldo inicial (Cadastro)",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T13:17:42.047Z"
-    },
-    {
-      "id": "280d",
-      "materialId": null,
-      "nomeMaterial": "SINTETICO NBR 1212",
-      "tipo": "entrada",
-      "quantidade": 10.01,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T14:05:46.322Z"
-    },
-    {
-      "id": "b258",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "entrada",
-      "quantidade": 0.97,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:00:57.747Z"
-    },
-    {
-      "id": "141c",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "entrada",
-      "quantidade": 1.14,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:01:01.800Z"
-    },
-    {
-      "id": "5c53",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "entrada",
-      "quantidade": 0.82,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:01:06.719Z"
-    },
-    {
-      "id": "c108",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "entrada",
-      "quantidade": 1.19,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:01:16.928Z"
-    },
-    {
-      "id": "653f",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "saida",
-      "quantidade": 0.85,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:01:22.096Z"
-    },
-    {
-      "id": "ed02",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "entrada",
-      "quantidade": 1.16,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:02:59.040Z"
-    },
-    {
-      "id": "24ab",
-      "materialId": null,
-      "nomeMaterial": "121212 - SItentico HELLEN",
-      "tipo": "exclusão",
-      "quantidade": 1.26,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:40:16.358Z"
-    },
-    {
-      "id": "ed5d",
-      "materialId": null,
-      "nomeMaterial": "121213 - SINTETICO NBR 1212",
-      "tipo": "exclusão",
-      "quantidade": 2.13,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:40:19.305Z"
-    },
-    {
-      "id": "20ad",
-      "materialId": null,
-      "nomeMaterial": "123123 - gfhdfhbdf",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:40:22.321Z"
-    },
-    {
-      "id": "8ef6",
-      "materialId": null,
-      "nomeMaterial": "12345678 - TESTE 02",
-      "tipo": "exclusão",
-      "quantidade": 10,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T18:40:25.979Z"
-    },
-    {
-      "id": "b491",
-      "materialId": "931c",
-      "nomeMaterial": "10202325 - TESTE 1",
-      "tipo": "entrada",
-      "quantidade": 1.24,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:21:11.645Z"
-    },
-    {
-      "id": "dec1",
-      "materialId": "931c",
-      "nomeMaterial": "10202325 - TESTE 1",
-      "tipo": "entrada",
-      "quantidade": 10.99,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:21:34.512Z"
-    },
-    {
-      "id": "b2a7",
-      "materialId": null,
-      "nomeMaterial": "838725 - APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:47:01.661Z"
-    },
-    {
-      "id": "988d",
-      "materialId": null,
-      "nomeMaterial": "838725 - APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:47:03.269Z"
-    },
-    {
-      "id": "ba95",
-      "materialId": null,
-      "nomeMaterial": "838725 - APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:47:04.866Z"
-    },
-    {
-      "id": "4617",
-      "materialId": null,
-      "nomeMaterial": "838725 - APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:47:06.495Z"
-    },
-    {
-      "id": "7e16",
-      "materialId": null,
-      "nomeMaterial": "838725 - APROVEITAMENTO MATERIAL PARA SACOS - CAPAS - TAPET",
-      "tipo": "exclusão",
-      "quantidade": 0,
-      "observacao": "MATERIAL EXCLUÍDO DO SISTEMA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-23T19:47:08.240Z"
-    },
-    {
-      "id": "abc8",
-      "materialId": "931c",
-      "nomeMaterial": "10202325 - TESTE 1",
-      "tipo": "entrada",
-      "quantidade": 22.27,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-24T13:18:23.769Z"
-    },
-    {
-      "id": "02c6",
-      "materialId": "931c",
-      "nomeMaterial": "10202325 - TESTE 1",
-      "tipo": "saida",
-      "quantidade": 0.99,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-24T13:18:45.386Z"
-    },
-    {
-      "id": "fc97",
-      "materialId": "5435",
-      "nomeMaterial": "123623 - COURO PRETO",
-      "tipo": "entrada",
-      "quantidade": 5.2,
-      "observacao": "SAFDSAFA",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-24T13:20:50.652Z"
-    },
-    {
-      "id": "46e0",
-      "materialId": "b098",
-      "nomeMaterial": "120325 - FORRO",
-      "tipo": "entrada",
-      "quantidade": 1.43,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-24T15:27:45.614Z"
-    },
-    {
-      "id": "1651",
-      "materialId": "b098",
-      "nomeMaterial": "120325 - FORRO",
-      "tipo": "entrada",
-      "quantidade": 2,
-      "observacao": "",
-      "usuario": "Hellen Admin",
-      "data": "2026-01-24T15:28:33.955Z"
->>>>>>> b9d12962eab87c447b611208eb1f9f3a38461f55
     }
   ]
 }
