@@ -79,7 +79,7 @@ onMounted(() => {
               
               <td class="p-5">
                 <div class="font-bold text-gray-900">{{ user.nome }}</div>
-                <div v-if="user.id === authStore.user.id" class="text-xs text-indigo-600 font-bold mt-1">
+                <div v-if="user.id === authStore.user?.id" class="text-xs text-indigo-600 font-bold mt-1">
                   (Você está aqui)
                 </div>
               </td>
@@ -87,7 +87,7 @@ onMounted(() => {
               <td class="p-5 text-gray-500 text-sm">{{ user.email }}</td>
               
               <td class="p-5">
-                <div v-if="user.id === authStore.user.id" class="flex items-center gap-2 text-gray-400 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200 cursor-not-allowed">
+                <div v-if="user.id === authStore.user?.id" class="flex items-center gap-2 text-gray-400 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200 cursor-not-allowed">
                   <Shield class="w-4 h-4" />
                   <span class="text-sm font-medium capitalize">{{ user.role }}</span>
                 </div>
@@ -105,7 +105,7 @@ onMounted(() => {
 
               <td class="p-5 text-right">
                 <button 
-                  v-if="user.id !== authStore.user.id"
+                  v-if="user.id !== authStore.user?.id"
                   @click="updateUserRole(user)"
                   class="text-indigo-600 hover:bg-indigo-50 p-2 rounded-lg transition-all active:scale-95"
                   title="Salvar Alteração"

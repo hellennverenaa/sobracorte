@@ -27,20 +27,6 @@
       "email": "paulo.santana@grupodass.com.br",
       "password": "29182918",
       "role": "admin"
-    },
-    {
-      "id": "1768926909192",
-      "nome": "Midian Santana",
-      "email": "midian.santana@grupodass.com.br",
-      "password": "81192531",
-      "role": "admin"
-    },
-    {
-      "id": "1768931263444",
-      "nome": "Márcio",
-      "email": "marcio.leite@grupodass.com.br",
-      "password": "Modelagem2016",
-      "role": "leitor"
     }
   ],
   "materials": [
@@ -43633,26 +43619,6 @@
       "unidade": "M2",
       "localizacao": "Estoque Geral",
       "observacoes": ""
-    },
-    {
-      "id": "2a8b",
-      "codigo": "123456",
-      "descricao": "teste",
-      "tipo": "outro",
-      "quantidade": 50,
-      "unidade": "un",
-      "localizacao": "Rua 20",
-      "observacoes": ""
-    },
-    {
-      "id": "09d3",
-      "codigo": "123457",
-      "descricao": "Modelo Y  corte traseiro",
-      "tipo": "metal",
-      "quantidade": 12,
-      "unidade": "un",
-      "localizacao": "Rua 30",
-      "observacoes": ""
     }
   ],
   "movements": [
@@ -43687,70 +43653,6 @@
       "quantidade": 10,
       "observacao": "",
       "data": "2026-01-20T11:16:12.618Z"
-    },
-    {
-      "id": "9e43",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 300,
-      "observacao": "Saldo inicial (Cadastro)",
-      "data": "2026-01-20T17:18:57.787Z"
-    },
-    {
-      "id": "fb3c",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 50,
-      "observacao": "Rua 15",
-      "data": "2026-01-20T17:20:34.953Z"
-    },
-    {
-      "id": "b0b2",
-      "materialId": "2a8b",
-      "tipo": "saida",
-      "quantidade": 349,
-      "observacao": "",
-      "data": "2026-01-20T17:21:01.939Z"
-    },
-    {
-      "id": "0542",
-      "materialId": "2a8b",
-      "tipo": "saida",
-      "quantidade": 1,
-      "observacao": "",
-      "data": "2026-01-20T17:22:40.910Z"
-    },
-    {
-      "id": "f3a1",
-      "materialId": "2a8b",
-      "tipo": "entrada",
-      "quantidade": 50,
-      "observacao": "rua30",
-      "data": "2026-01-20T17:25:12.162Z"
-    },
-    {
-      "id": "7a28",
-      "materialId": "09d3",
-      "tipo": "entrada",
-      "quantidade": 12,
-      "observacao": "Saldo inicial (Cadastro)",
-      "data": "2026-01-20T17:40:10.835Z"
-    },
-    {
-      "id": "c16b",
-      "materialId": "09d3",
-      "tipo": "entrada",
-      "quantidade": 12,
-      "observacao": "rua 40",
-      "data": "2026-01-20T17:41:15.819Z"
-    },
-    {
-      "id": "8728",
-      "materialId": "09d3",
-      "tipo": "saida",
-      "quantidade": 12,
-      "observacao": "",
-      "data": "2026-01-20T17:41:34.123Z"
     }
   ]
 }

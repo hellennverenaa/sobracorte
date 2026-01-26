@@ -60,7 +60,7 @@ function handleLogout() {
     >
       <div class="p-6 border-b border-white/10 flex justify-between items-center">
         <div>
-          <h1 class="text-xl font-bold tracking-tight">SobraCorte</h1>
+          <h1 class="text-xl font-bold tracking-tight">Sobras DASS</h1>
           <p class="text-xs text-slate-400 mt-1">Gestão Inteligente</p>
         </div>
         <button @click="isSidebarOpen = false" class="lg:hidden text-white/70 hover:text-white">
@@ -98,7 +98,7 @@ function handleLogout() {
         <button @click="isSidebarOpen = true" class="text-gray-600 hover:text-gray-900">
           <Menu class="w-6 h-6" />
         </button>
-        <span class="font-bold text-gray-800">SobraCorte</span>
+        <span class="font-bold text-gray-800">Sobras DASS</span>
         <div class="w-6"></div> </header>
 
       <div class="flex-1 overflow-auto">
