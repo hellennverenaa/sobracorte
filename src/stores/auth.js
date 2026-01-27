@@ -52,6 +52,7 @@ export const useAuthStore = defineStore('auth', {
 
           this.user = user_data
           this.isAuthenticated = true
+          localStorage.setItem("user", user_data)
           return true
         } else {
           throw new Error('Usuario ou senha invalidos. Tente novamente.')
