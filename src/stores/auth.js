@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 
 // TRUQUE: Define o IP automaticamente para não travar (localhost ou IP da rede)
-const HOST = window.location.hostname 
+const HOST = window.location.hostname
 const DB_URL = `http://${HOST}:3001`
 ////http://10.110.21.53:3001
 
@@ -25,28 +25,39 @@ export const useAuthStore = defineStore('auth', {
     },
     // --------------------------------------------------
 
-    async login(email, password) {
+    async login(user, password) {
       try {
         // Usa a URL dinâmica (DB_URL)
-        const response = await fetch(`${DB_URL}/users?email=${email}&password=${password}`)
-        
+        const response = await fetch(`http://10.100.1.43:2399/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            usuario: user,
+            senha: password
+          })
+        })
+
         if (!response.ok) {
-           throw new Error('Erro ao conectar com o servidor (Verifique o npm run db)')
+          throw new Error('Usuario ou senha invalidos. Tente novamente.')
         }
 
-        const users = await response.json()
+        const data = await response.json()
+        const user_data = data.data
 
-        if (users.length > 0) {
-          const user = users[0]
-          this.user = user
+        if (user_data) {
+
+          console.log(user_data);
+
+          this.user = user_data
           this.isAuthenticated = true
-          localStorage.setItem('user', JSON.stringify(user))
           return true
         } else {
-          throw new Error('Email ou senha incorretos')
+          throw new Error('Usuario ou senha invalidos. Tente novamente.')
         }
       } catch (error) {
-        console.error("Erro no login:", error)
+        console.error("Erro no login, contate a equipe de automação.", error)
         throw error
       }
     },

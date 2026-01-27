@@ -116,7 +116,7 @@ function handleSubmit() {
               <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Email Corporativo</label>
               <div class="relative">
                 <Mail class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input v-model="email" type="email" placeholder="seu@grupodass.com.br" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <input v-model="email" type="text" placeholder="Usuario Dass" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
               </div>
             </div>
 
