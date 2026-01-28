@@ -3,10 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { Search, Plus, Edit, Trash2, Package, Filter, X, User, Tag as TagIcon } from 'lucide-vue-next'
+import { Search, Plus as PlusIcon, Edit, Trash2, Package, Filter, X, User, Tag as TagIcon } from 'lucide-vue-next'
 import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
 
+const auth = useAuthStore()
 const { fetchMaterials, createMaterial, updateMaterial, deleteMaterial, createMovement, request } = useApi()
 const authStore = useAuthStore()
 
@@ -197,9 +198,14 @@ onMounted(() => loadMaterials())
           <h2 class="text-2xl font-bold text-gray-900">Materiais</h2>
           <p class="text-gray-500 text-sm">Gerencie o estoque de matéria-prima.</p>
         </div>
-        <button v-if="podeEditar" @click="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium transition-colors w-full md:w-auto justify-center shadow-lg shadow-blue-200">
-          <Plus class="w-5 h-5" /> Novo Material
-        </button>
+       <button 
+  v-if="auth.can('cadastrar_materiais')" 
+  @click="showModal = true" 
+  class="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary-focus transition-colors"
+>
+  <PlusIcon class="w-5 h-5" />
+  Novo Material
+</button>
       </div>
 
       <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4">
