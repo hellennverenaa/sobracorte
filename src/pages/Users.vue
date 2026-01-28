@@ -1,203 +1,207 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import Layout from '@/components/Layout.vue'
-import { useApi } from '@/composables/useApi'
 import { useAuthStore } from '@/stores/auth'
-import { Users, Trash2, Shield, CheckCircle, Search, Info, Key } from 'lucide-vue-next'
+import Layout from '@/components/Layout.vue'
+import { 
+  Trash2, 
+  Edit, 
+  Search, 
+  UserCheck, 
+  Shield, 
+  Users as UsersIcon,
+  Activity,
+  Eye
+} from 'lucide-vue-next'
 
-const { fetchUsers, updateUser, deleteUser } = useApi()
-const authStore = useAuthStore()
-
+const auth = useAuthStore()
 const users = ref([])
+const loading = ref(true)
 const searchTerm = ref('')
-const isLoading = ref(true)
-const message = ref('')
+const showEditModal = ref(false)
+const editingUser = ref(null)
 
-const roles = [
-  { value: 'admin', label: 'Administrador', class: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  { value: 'operador', label: 'Operador', class: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  { value: 'viewer', label: 'Visualizador', class: 'bg-gray-100 text-gray-700 border-gray-200' }
+// URL do Banco Local (JSON Server)
+const DB_URL = 'http://localhost:3001/users'
+
+// Opções de Níveis de Acesso
+const roleOptions = [
+  { value: 'admin', label: 'Admin Master', icon: Shield, color: 'text-purple-600 bg-purple-100' },
+  { value: 'lider', label: 'Líder', icon: UserCheck, color: 'text-blue-600 bg-blue-100' },
+  { value: 'movimentador', label: 'Movimentador', icon: Activity, color: 'text-orange-600 bg-orange-100' },
+  { value: 'leitor', label: 'Leitor', icon: Eye, color: 'text-gray-600 bg-gray-100' }
 ]
 
-async function loadUsers() {
-  isLoading.value = true
+// Carregar usuários do banco local
+const fetchUsers = async () => {
+  loading.value = true
   try {
-    const data = await fetchUsers()
-    users.value = Array.isArray(data) ? data : []
-  } catch (err) {
-    console.error(err)
+    const response = await fetch(DB_URL)
+    const data = await response.json()
+    users.value = data
+  } catch (error) {
+    console.error('Erro ao buscar usuários:', error)
+    alert('Erro ao carregar lista de usuários. Verifique se o banco (npm run db) está rodando.')
   } finally {
-    isLoading.value = false
+    loading.value = false
   }
 }
 
+// Salvar alteração de nível
+const saveUserRole = async () => {
+  if (!editingUser.value) return
+
+  try {
+    const response = await fetch(`${DB_URL}/${editingUser.value.id}`, {
+      method: 'PUT', // Ou PATCH
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingUser.value)
+    })
+
+    if (response.ok) {
+      alert('Permissão atualizada com sucesso!')
+      showEditModal.value = false
+      fetchUsers() // Recarrega a lista
+    } else {
+      throw new Error('Falha ao salvar')
+    }
+  } catch (error) {
+    console.error(error)
+    alert('Erro ao atualizar usuário.')
+  }
+}
+
+// Abrir modal de edição
+const openEditModal = (user) => {
+  // Cria uma cópia para não alterar a tabela antes de salvar
+  editingUser.value = { ...user }
+  showEditModal.value = true
+}
+
+// Excluir usuário (opcional, cuidado!)
+const deleteUser = async (id) => {
+  if (!confirm('Tem certeza que deseja remover este usuário do sistema local?')) return
+
+  try {
+    await fetch(`${DB_URL}/${id}`, { method: 'DELETE' })
+    fetchUsers()
+  } catch (error) {
+    alert('Erro ao excluir usuário')
+  }
+}
+
+// Filtro de busca
 const filteredUsers = computed(() => {
   if (!searchTerm.value) return users.value
-  const s = searchTerm.value.toLowerCase()
+  const term = searchTerm.value.toLowerCase()
   return users.value.filter(u => 
-    u.nome.toLowerCase().includes(s) || 
-    u.email.toLowerCase().includes(s)
+    u.nome?.toLowerCase().includes(term) || 
+    u.usuario?.toLowerCase().includes(term) ||
+    u.setor?.toLowerCase().includes(term)
   )
 })
 
-async function handleRoleChange(user, newRole) {
-  if (user.id === authStore.user.id) {
-    alert("Você não pode alterar seu próprio nível de acesso.")
-    await loadUsers()
-    return
-  }
-  try {
-    await updateUser(user.id, { role: newRole })
-    user.role = newRole 
-    message.value = `Permissão de ${user.nome} alterada.`
-    setTimeout(() => message.value = '', 3000)
-  } catch (err) {
-    alert("Erro ao atualizar permissão.")
-    loadUsers()
-  }
+// Função auxiliar para pegar a cor/label do cargo
+const getRoleInfo = (role) => {
+  return roleOptions.find(r => r.value === role) || roleOptions[3] // Fallback para leitor
 }
 
-// --- NOVA FUNÇÃO: REDEFINIR SENHA PELO ADMIN ---
-async function handleAdminResetPassword(user) {
-  const newPassword = prompt(`Digite a nova senha para o usuário ${user.nome}:`)
-  
-  if (newPassword === null) return // Cancelou
-  if (newPassword.length < 4) {
-    alert("A senha deve ter pelo menos 4 caracteres.")
-    return
-  }
-
-  try {
-    await updateUser(user.id, { password: newPassword })
-    alert(`Sucesso! A senha de ${user.nome} foi alterada para: ${newPassword}\nAvise o usuário.`)
-  } catch (err) {
-    alert("Erro ao alterar a senha.")
-  }
-}
-
-async function handleDelete(user) {
-  if (user.id === authStore.user.id) {
-    alert("Você não pode excluir sua própria conta.")
-    return
-  }
-  if (confirm(`ATENÇÃO: Tem certeza que deseja remover o acesso de "${user.nome}"?`)) {
-    try {
-      await deleteUser(user.id)
-      users.value = users.value.filter(u => u.id !== user.id)
-      message.value = `Usuário ${user.nome} removido.`
-      setTimeout(() => message.value = '', 3000)
-    } catch (err) {
-      alert("Erro ao excluir usuário.")
-    }
-  }
-}
-
-onMounted(() => loadUsers())
+onMounted(() => {
+  fetchUsers()
+})
 </script>
 
 <template>
   <Layout>
-    <div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="p-6 max-w-7xl mx-auto">
       
-      <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      <div class="flex justify-between items-center mb-8">
         <div>
-          <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Users class="w-6 h-6 text-indigo-600" /> Gestão de Usuários
-          </h2>
-          <p class="text-gray-500 text-sm">Controle de acesso e senhas.</p>
+          <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <UsersIcon class="w-8 h-8 text-blue-600" />
+            Gestão de Usuários
+          </h1>
+          <p class="text-gray-600 mt-1">Gerencie os níveis de acesso da equipe</p>
         </div>
         
-        <div v-if="message" class="bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 animate-bounce">
-          <CheckCircle class="w-4 h-4" /> {{ message }}
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input 
+            v-model="searchTerm"
+            type="text" 
+            placeholder="Buscar por nome ou setor..." 
+            class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64"
+          >
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white p-4 rounded-xl border-l-4 border-indigo-500 shadow-sm">
-          <div class="font-bold text-indigo-700 flex items-center gap-2 mb-1"><Shield class="w-4 h-4" /> Administrador</div>
-          <p class="text-xs text-gray-500">Acesso total. Pode criar/excluir usuários e resetar senhas.</p>
-        </div>
-        <div class="bg-white p-4 rounded-xl border-l-4 border-emerald-500 shadow-sm">
-          <div class="font-bold text-emerald-700 flex items-center gap-2 mb-1"><CheckCircle class="w-4 h-4" /> Operador</div>
-          <p class="text-xs text-gray-500">Pode cadastrar materiais e registrar entradas/saídas.</p>
-        </div>
-        <div class="bg-white p-4 rounded-xl border-l-4 border-gray-400 shadow-sm">
-          <div class="font-bold text-gray-600 flex items-center gap-2 mb-1"><Info class="w-4 h-4" /> Visualizador</div>
-          <p class="text-xs text-gray-500">Apenas leitura dos dashboards.</p>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="p-4 border-b border-gray-100 bg-gray-50/50">
-          <div class="relative max-w-md w-full">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input v-model="searchTerm" type="text" placeholder="Buscar usuário..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
-          </div>
-        </div>
-
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead class="bg-gray-50 text-gray-500 text-xs uppercase font-bold tracking-wider">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b">
               <tr>
-                <th class="p-5">Usuário</th>
-                <th class="p-5">Função</th>
-                <th class="p-5 text-right">Ações</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Usuário / Nome</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Setor / Função</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Nível de Acesso</th>
+                <th class="px-6 py-4 text-center text-sm font-semibold text-gray-600">Ações</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 text-sm">
-              <tr v-for="u in filteredUsers" :key="u.id" class="hover:bg-indigo-50/30 transition-colors group">
-                <td class="p-5">
+            <tbody class="divide-y divide-gray-100">
+              <tr v-if="loading">
+                <td colspan="4" class="px-6 py-8 text-center text-gray-500">Carregando usuários...</td>
+              </tr>
+              
+              <tr v-else-if="filteredUsers.length === 0">
+                <td colspan="4" class="px-6 py-8 text-center text-gray-500">Nenhum usuário encontrado.</td>
+              </tr>
+
+              <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-gray-50 transition-colors">
+                
+                <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-gray-600 font-bold text-lg shadow-sm">
-                      {{ u.nome.charAt(0).toUpperCase() }}
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                      {{ user.nome ? user.nome.charAt(0).toUpperCase() : 'U' }}
                     </div>
                     <div>
-                      <div class="font-bold text-gray-900 flex items-center gap-2">
-                        {{ u.nome }}
-                        <span v-if="u.id === authStore.user.id" class="text-[10px] bg-indigo-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">Você</span>
-                      </div>
-                      <div class="text-gray-500 text-xs">{{ u.email }}</div>
+                      <p class="font-medium text-gray-900">{{ user.nome || 'Sem Nome' }}</p>
+                      <p class="text-sm text-gray-500">{{ user.usuario }}</p>
                     </div>
                   </div>
                 </td>
-                
-                <td class="p-5">
-                  <div class="relative w-48">
-                    <select 
-                      :value="u.role" 
-                      @change="handleRoleChange(u, $event.target.value)"
-                      :disabled="u.id === authStore.user.id"
-                      class="w-full appearance-none pl-3 pr-8 py-2 rounded-lg text-xs font-bold uppercase border cursor-pointer outline-none focus:ring-2 focus:ring-indigo-500 transition-colors shadow-sm"
-                      :class="{
-                        'bg-indigo-50 text-indigo-700 border-indigo-200': u.role === 'admin',
-                        'bg-emerald-50 text-emerald-700 border-emerald-200': u.role === 'operador',
-                        'bg-gray-50 text-gray-600 border-gray-200': u.role === 'viewer',
-                        'opacity-50 cursor-not-allowed': u.id === authStore.user.id
-                      }"
-                    >
-                      <option v-for="role in roles" :key="role.value" :value="role.value">{{ role.label }}</option>
-                    </select>
-                  </div>
+
+                <td class="px-6 py-4">
+                  <p class="text-sm font-medium text-gray-800">{{ user.setor || '-' }}</p>
+                  <p class="text-xs text-gray-500">{{ user.funcao || '-' }}</p>
                 </td>
 
-                <td class="p-5 text-right flex justify-end gap-2">
-                  <button 
-                    @click="handleAdminResetPassword(u)"
-                    class="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
-                    title="Redefinir Senha do Usuário"
-                  >
-                    <Key class="w-5 h-5" />
-                  </button>
+                <td class="px-6 py-4">
+                  <span :class="`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${getRoleInfo(user.role).color}`">
+                    <component :is="getRoleInfo(user.role).icon" class="w-3 h-3" />
+                    {{ getRoleInfo(user.role).label }}
+                  </span>
+                </td>
 
-                  <button 
-                    @click="handleDelete(u)"
-                    :disabled="u.id === authStore.user.id"
-                    class="p-2 rounded-lg transition-colors"
-                    :class="u.id === authStore.user.id ? 'opacity-20 cursor-not-allowed text-gray-300' : 'text-red-400 hover:bg-red-50 hover:text-red-600'"
-                    :title="u.id === authStore.user.id ? 'Não é possível se excluir' : 'Excluir usuário'"
-                  >
-                    <Trash2 class="w-5 h-5" />
-                  </button>
+                <td class="px-6 py-4 text-center">
+                  <div class="flex justify-center gap-2">
+                    <button 
+                      @click="openEditModal(user)"
+                      class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar Permissão"
+                      :disabled="user.usuario === auth.user.usuario" 
+                      :class="{'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario}"
+                    >
+                      <Edit class="w-5 h-5" />
+                    </button>
+                    
+                    <button 
+                      @click="deleteUser(user.id)"
+                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remover Usuário"
+                      :disabled="user.usuario === auth.user.usuario"
+                      :class="{'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario}"
+                    >
+                      <Trash2 class="w-5 h-5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -205,5 +209,76 @@ onMounted(() => loadUsers())
         </div>
       </div>
     </div>
+
+    <div v-if="showEditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
+        
+        <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+          <h3 class="font-bold text-lg text-gray-800">Alterar Permissões</h3>
+          <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+            <input 
+              type="text" 
+              :value="editingUser.nome || editingUser.usuario" 
+              disabled 
+              class="w-full bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-gray-600 cursor-not-allowed"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Nível de Acesso</label>
+            <div class="space-y-2">
+              <label 
+                v-for="option in roleOptions" 
+                :key="option.value"
+                class="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-gray-50"
+                :class="{'border-blue-500 bg-blue-50 ring-1 ring-blue-500': editingUser.role === option.value}"
+              >
+                <input 
+                  type="radio" 
+                  v-model="editingUser.role" 
+                  :value="option.value"
+                  class="text-blue-600 focus:ring-blue-500 h-4 w-4 mr-3"
+                >
+                <div class="flex items-center gap-2">
+                  <component :is="option.icon" class="w-4 h-4 text-gray-500" />
+                  <span class="text-sm font-medium text-gray-700">{{ option.label }}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+          <button 
+            @click="showEditModal = false"
+            class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            @click="saveUserRole"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm"
+          >
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
   </Layout>
 </template>
+
+<style scoped>
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+</style>

@@ -8,7 +8,7 @@ import Dashboard from '@/pages/Dashboard.vue'
 import Materials from '@/pages/Materials.vue'
 import Movement from '@/pages/Movement.vue'
 import Profile from '@/pages/Profile.vue'
-import Users from '@/pages/Users.vue' // Nova tela de usuários
+import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
 
 const routes = [
@@ -32,13 +32,20 @@ const routes = [
     path: '/materials', 
     name: 'Materials', 
     component: Materials, 
-    meta: { requiresAuth: true } 
+    meta: { 
+      requiresAuth: true,
+      // AGORA TODOS PODEM ENTRAR (para ver), mas só alguns cadastram (controlado no botão)
+      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+    } 
   },
   { 
     path: '/movement', 
     name: 'Movement', 
     component: Movement, 
-    meta: { requiresAuth: true } 
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider', 'movimentador'] // Leitor NÃO movimenta
+    } 
   },
   { 
     path: '/profile', 
@@ -50,12 +57,20 @@ const routes = [
     path: '/users', 
     name: 'Users', 
     component: Users, 
-    meta: { requiresAuth: true, role: 'admin' } // Protegido: Só admin entra
+    meta: { 
+      requiresAuth: true, 
+      roles: ['admin'] // Apenas Admin Master
+    } 
   },
-  { path: '/reports',
+  { 
+    path: '/reports',
     name:'Reports',
     component: Reports, 
-    meta: { requiresAuth: true } },
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider'] 
+    } 
+  },
 ]
 
 const router = createRouter({
@@ -63,20 +78,22 @@ const router = createRouter({
   routes
 })
 
-// --- GUARDIÃO DE ROTAS (Aqui estava o erro) ---
+// --- GUARDIÃO DE ROTAS ---
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
-  
-  // 1. Verifica se a rota precisa de login
+  const userRole = authStore.user?.role
+
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } 
-  // 2. Verifica se a rota exige ser 'admin' (RBAC)
-  else if (to.meta.role === 'admin' && authStore.user?.role !== 'admin') {
-    alert('Acesso negado: Apenas administradores podem acessar esta página.')
-    next('/') // Manda de volta pro Dashboard
+  else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
+    alert('Acesso negado: Você não tem permissão para acessar esta página.')
+    if (from.name !== 'Dashboard' && from.name !== 'Login') {
+      next('/')
+    } else {
+      next(false)
+    }
   }
-  // 3. Se passou por tudo, deixa entrar
   else {
     next()
   }
