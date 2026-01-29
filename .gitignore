@@ -1,5 +1,47 @@
+# Ignorar as pastas pesadas em qualquer lugar
 node_modules
+**/node_modules
 
-# Ignorar Banco de Dados
-db.json
+# Ignorar arquivos de build
+dist
+build
+
+# SEGURANÇA: Nunca subir senhas
+.env
+.env.local
+
+# Arquivos de sistema operacional (lixo)
+.DS_Store
+Thumbs.db
+
+# --- BANCO DE DADOS E BACKUPS (Não subir!) ---
+# Ignora a pasta de backups automáticos
 backups/
+
+# Ignora arquivos de banco de dados
+*.sqlite
+*.db
+*.db-journal
+
+# Ignora arquivos JSON de backup específicos
+db._backup.json
+dados_antigos.json
+novos_dados.json
+
+# Opcional: Se o db.json tem dados REAIS de produção, ignore ele também
+# e mantenha apenas um "db.example.json" com dados falsos no projeto.
+# Por enquanto, se quiser garantir segurança total:
+# db.json
+
+# Ignora QUALQUER db.json em qualquer pasta
+**/db.json
+
+# Ignora o backup que criamos
+**/dados_antigos.json
+
+# ... (outras regras que já estavam)
+
+# Ignorar o banco de dados em qualquer pasta
+**/db.json
+**/dados_antigos.json
+**/backups/
