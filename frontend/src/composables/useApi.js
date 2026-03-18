@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 const HOST = window.location.hostname
-const API_URL = `http://${HOST}:3001`
+const API_URL = `http://${HOST}:3000`
 ////http://10.110.21.53:3001
 
 export function useApi() {

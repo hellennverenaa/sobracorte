@@ -21,7 +21,8 @@ const showEditModal = ref(false)
 const editingUser = ref(null)
 
 // URL do Banco Local (JSON Server)
-const DB_URL = 'http://localhost:3001/users'
+const HOST = window.location.hostname
+const DB_URL = `http://${HOST}:3001/users`
 
 // Opções de Níveis de Acesso
 const roleOptions = [

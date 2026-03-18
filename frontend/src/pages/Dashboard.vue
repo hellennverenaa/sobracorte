@@ -122,7 +122,7 @@ async function loadData() {
 onMounted(() => {
   loadData()
   clockInterval = setInterval(() => { currentTime.value = new Date() }, 1000)
-  refreshInterval = setInterval(loadData, 5000) 
+  refreshInterval = setInterval(loadData, 60000) 
 })
 
 onUnmounted(() => {

@@ -1,5 +1,13 @@
 node_modules
-# Keep environment variables out of version control
 .env
-dist
-/generated/prisma
+
+# Ignorar arquivos de dados especificamente
+db.json
+db._backup.json
+novos_dados.json
+tableConvert.com_zlir85.json
+backups/
+
+# Ignorar artefatos gerados pelo Prisma
+backend/src/generated/
+src/generated/client/

@@ -1,391 +1,145 @@
-<script setup>
-import { ref, watch, onMounted } from 'vue'
-import Layout from '@/components/Layout.vue'
-import { useApi } from '@/composables/useApi'
-import { useAuthStore } from '@/stores/auth'
-import { ArrowUpCircle, ArrowDownCircle, History, Filter, AlertTriangle, Search, Package, CheckCircle, X } from 'lucide-vue-next'
-
-const { request, createMovement, updateMaterial } = useApi()
-const authStore = useAuthStore()
-
-// --- ESTADOS ---
-const history = ref([])
-const isLoadingHistory = ref(false)
-
-// Formulário
-const tipoMovimento = ref('saida')
-const quantidade = ref(1)
-const observacao = ref('')
-const message = ref('')
-const error = ref('')
-
-// Busca de Material
-const termoBuscaMaterial = ref('')
-const resultadosBuscaMaterial = ref([])
-const materialSelecionado = ref(null)
-const buscandoMaterial = ref(false)
-
-// Filtros Histórico
-const filtroTipo = ref('todos')
-const termoBuscaHistorico = ref('') 
-
-// --- FUNÇÃO DE BUSCA SEGURA (A SALVAÇÃO) ---
-// 1. Busca TUDO com 'q' (mais garantido de achar).
-// 2. Filtra no Javascript para garantir que bate com Código ou Descrição.
-async function buscarMateriaisReal(termo) {
-  if (!termo) return []
-  try {
-    const data = await request(`/materials?q=${termo}`)
-    const lista = Array.isArray(data) ? data : (data.materials || [])
-    
-    // AQUI É A TRAVA DE SEGURANÇA:
-    // Só aceita se o termo digitado estiver dentro do Código ou da Descrição.
-    return lista.filter(m => {
-      const s = termo.toLowerCase()
-      const cod = String(m.codigo || '').toLowerCase()
-      const desc = String(m.descricao || '').toLowerCase()
-      return cod.includes(s) || desc.includes(s)
-    })
-  } catch (e) {
-    return []
-  }
-}
-
-// --- 1. BUSCA DE MATERIAL (ESQUERDA - FORMULÁRIO) ---
-async function buscarMateriaisParaFormulario() {
-  const termo = termoBuscaMaterial.value
-  if (!termo || termo.length < 1) {
-    resultadosBuscaMaterial.value = []
-    return
-  }
-  
-  buscandoMaterial.value = true
-  resultadosBuscaMaterial.value = []
-
-  try {
-    const filtrados = await buscarMateriaisReal(termo)
-    resultadosBuscaMaterial.value = filtrados.slice(0, 10)
-  } catch (err) {
-    console.error(err)
-  } finally {
-    buscandoMaterial.value = false
-  }
-}
-
-watch(termoBuscaMaterial, (newVal) => {
-  if (!materialSelecionado.value || newVal !== materialSelecionado.value.descricao) {
-     // Pequeno delay para não buscar enquanto digita muito rápido
-     setTimeout(buscarMateriaisParaFormulario, 300)
-  }
-})
-
-function selecionarMaterial(mat) {
-  materialSelecionado.value = mat
-  termoBuscaMaterial.value = '' 
-  resultadosBuscaMaterial.value = [] 
-  error.value = ''
-  // Limpa busca da direita para não confundir
-  termoBuscaHistorico.value = ''
-}
-
-function limparSelecao() {
-  materialSelecionado.value = null
-  termoBuscaMaterial.value = ''
-  loadHistory()
-}
-
-// --- 2. CARREGAR HISTÓRICO (DIREITA - CORRIGIDO) ---
-async function loadHistory() {
-  isLoadingHistory.value = true
-  history.value = [] 
-
-  try {
-    const t = new Date().getTime()
-    // Base da URL: Ordenar por ID decrescente (mais novos primeiro)
-    let urlBase = `/movements?_sort=id&_order=desc&t=${t}`
-    let filtrosExtras = ''
-
-    // CENÁRIO A: Material Selecionado na Esquerda (Prioridade Total)
-    if (materialSelecionado.value) {
-      filtrosExtras += `&materialId=${materialSelecionado.value.id}`
-      filtrosExtras += '&_limit=50' 
-    }
-    // CENÁRIO B: Busca no Campo da Direita
-    else if (termoBuscaHistorico.value && termoBuscaHistorico.value.length > 0) {
-      const termo = termoBuscaHistorico.value
-      
-      // 1. Primeiro, acha os MATERIAIS com esse código
-      const materiaisEncontrados = await buscarMateriaisReal(termo)
-      
-      if (materiaisEncontrados.length > 0) {
-        // 2. Pega os IDs deles e filtra o histórico
-        // Ex: &materialId=10&materialId=11...
-        const ids = materiaisEncontrados.map(m => m.id).slice(0, 20)
-        filtrosExtras += '&' + ids.map(id => `materialId=${id}`).join('&')
-      } else {
-        // 3. Se não achou material, NÃO busca nada (para não mostrar "todas as entradas")
-        isLoadingHistory.value = false
-        return 
-      }
-    }
-    // CENÁRIO C: Nada selecionado (Mostra últimos 50)
-    else {
-      filtrosExtras += '&_limit=50'
-    }
-
-    // Filtro de Tipo (Entrada/Saída)
-    if (filtroTipo.value !== 'todos') {
-      filtrosExtras += `&tipo=${filtroTipo.value}`
-    }
-
-    // Faz a busca final
-    const data = await request(`${urlBase}${filtrosExtras}&_expand=material`)
-    const rawList = Array.isArray(data) ? data : []
-    
-    // Filtra itens quebrados
-    history.value = rawList.filter(item => item.tipo === 'exclusão' || (item.materialId && (item.material || item.nomeMaterial)))
-
-  } catch (err) {
-    console.error("Erro histórico:", err)
-  } finally {
-    isLoadingHistory.value = false
-  }
-}
-
-watch([termoBuscaHistorico, filtroTipo], () => {
-  setTimeout(() => loadHistory(), 500)
-})
-
-watch(materialSelecionado, () => {
-  loadHistory()
-})
-
-// --- 3. SALVAR ---
-async function save() {
-  error.value = ''
-  message.value = ''
-
-  if (!materialSelecionado.value) {
-    error.value = 'Selecione um material.'
-    return
-  }
-
-  const qtd = Number(quantidade.value)
-  if (qtd <= 0) {
-    error.value = 'Qtd inválida.'
-    return
-  }
-
-  let saldoAtual = Number(materialSelecionado.value.quantidade)
-  let novoSaldo = 0
-  
-  if (tipoMovimento.value === 'saida') {
-    if (qtd > saldoAtual) {
-      error.value = `Saldo insuficiente! Disp: ${saldoAtual}`
-      return
-    }
-    novoSaldo = saldoAtual - qtd
-  } else {
-    novoSaldo = saldoAtual + qtd
-  }
-
-  novoSaldo = Number(novoSaldo.toFixed(3))
-
-  try {
-    await updateMaterial(materialSelecionado.value.id, {
-      quantidade: novoSaldo
-    })
-
-    const nomeAuditado = materialSelecionado.value.codigo 
-      ? `${materialSelecionado.value.codigo} - ${materialSelecionado.value.descricao}`
-      : materialSelecionado.value.descricao
-
-    await createMovement({
-      materialId: materialSelecionado.value.id,
-      nomeMaterial: nomeAuditado, 
-      tipo: tipoMovimento.value,
-      quantidade: qtd,
-      observacao: observacao.value,
-      usuario: authStore.user?.nome || 'Sistema'
-    })
-
-    message.value = `Saldo Atualizado: ${novoSaldo}`
-    materialSelecionado.value.quantidade = novoSaldo
-    
-    await loadHistory()
-    
-    quantidade.value = 1
-    observacao.value = ''
-    
-    setTimeout(() => message.value = '', 4000)
-  } catch (err) {
-    error.value = 'Erro ao salvar.'
-    console.error(err)
-  }
-}
-
-onMounted(() => {
-  loadHistory()
-})
-</script>
-
 <template>
   <Layout>
-    <div class="max-w-6xl mx-auto px-4 py-8 h-[calc(100vh-80px)] overflow-hidden flex flex-col">
+    <div class="flex flex-col h-full px-6 pt-6 bg-gray-50/50">
       
-      <div class="mb-6 flex-shrink-0">
-        <h2 class="text-2xl font-bold text-gray-900">Movimentação</h2>
-        <p class="text-sm text-gray-500">Registre entradas e saídas.</p>
+      <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-800 tracking-tight">Movimentações</h1>
+        <p class="text-gray-500">Controle de Entradas (Soma) e Saídas (Subtração)</p>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full overflow-hidden pb-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full pb-6">
         
-        <div class="lg:col-span-1 flex flex-col overflow-y-auto">
-          <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div class="lg:col-span-4 h-fit">
+          <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+            <h2 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">Nova Operação</h2>
             
-            <div class="flex bg-gray-100 p-1 rounded-xl mb-6">
-              <button @click="tipoMovimento = 'entrada'" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all" :class="tipoMovimento === 'entrada' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
-                <ArrowDownCircle class="w-4 h-4" /> Entrada (Custo)
-              </button>
-              <button @click="tipoMovimento = 'saida'" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all" :class="tipoMovimento === 'saida' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'">
-                <ArrowUpCircle class="w-4 h-4" /> Saída (Lucro)
-              </button>
-            </div>
-
-            <div class="mb-6 relative">
-              <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Material</label>
+            <form @submit.prevent="submitMovement" class="space-y-5">
               
-              <div v-if="!materialSelecionado">
-                <div class="relative">
-                  <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input v-model="termoBuscaMaterial" type="text" placeholder="Digite CÓDIGO ou Nome..." class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
-                  <div v-if="buscandoMaterial" class="absolute right-3 top-1/2 -translate-y-1/2"><div class="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>
-                </div>
+              <div class="grid grid-cols-2 gap-3 p-1 bg-gray-100 rounded-xl">
+                <button type="button" @click="form.type = 'ENTRADA'" class="py-3 text-sm font-extrabold rounded-lg transition-all flex items-center justify-center gap-2" :class="form.type === 'ENTRADA' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5 scale-[1.02]' : 'text-gray-400 hover:text-gray-600'">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg> ENTRADA
+                </button>
+                <button type="button" @click="form.type = 'SAIDA'" class="py-3 text-sm font-extrabold rounded-lg transition-all flex items-center justify-center gap-2" :class="form.type === 'SAIDA' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5 scale-[1.02]' : 'text-gray-400 hover:text-gray-600'">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg> SAÍDA
+                </button>
+              </div>
 
-                <div v-if="resultadosBuscaMaterial.length > 0" class="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-60 overflow-y-auto">
-                  <div v-for="mat in resultadosBuscaMaterial" :key="mat.id" @click="selecionarMaterial(mat)" class="p-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0">
-                    <div class="font-bold text-gray-800 text-sm">{{ mat.descricao }}</div>
-                    <div class="flex justify-between text-xs text-gray-500 mt-1">
-                      <span class="bg-gray-100 px-1 rounded font-mono font-bold text-indigo-600">{{ mat.codigo || 'S/ Cód' }}</span>
-                      <span>{{ mat.quantidade }} {{ mat.unidade }}</span>
+              <div class="relative">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Material</label>
+                <div class="relative">
+                  <input v-model="searchQuery" @input="filterMaterials" @focus="showDropdown = true" type="text" class="w-full pl-4 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 placeholder-gray-400" placeholder="Digite código ou nome..." required />
+                  <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  </div>
+                </div>
+                <ul v-if="showDropdown && filteredMaterials.length > 0" class="absolute z-50 w-full bg-white border border-gray-100 rounded-xl shadow-xl mt-2 max-h-60 overflow-y-auto custom-scrollbar ring-1 ring-black/5">
+                  <li v-for="mat in filteredMaterials" :key="mat.id" @click="selectMaterial(mat)" class="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b last:border-0 border-gray-50 group flex justify-between items-center transition-colors">
+                    <span class="font-bold text-gray-700 group-hover:text-blue-700">{{ mat.name }}</span>
+                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono font-bold border border-gray-200">#{{ mat.code }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="selectedMaterial" class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden animate-fade-in">
+                <div class="absolute right-0 top-0 p-3 opacity-10 text-gray-400">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" fill="currentColor" viewBox="0 0 20 20"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" /><path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                </div>
+                <div class="relative z-10">
+                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Selecionado</div>
+                  <div class="font-bold text-gray-800 text-lg leading-tight pr-8">{{ selectedMaterial.name }}</div>
+                  <div class="mt-3 flex items-center gap-4">
+                    <div>
+                      <span class="text-xs text-gray-400 block">Código</span>
+                      <span class="font-mono text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{{ selectedMaterial.code }}</span>
+                    </div>
+                    <div>
+                      <span class="text-xs text-gray-400 block">Estoque Atual</span>
+                      <span class="font-bold text-gray-700">{{ formatNumber(selectedMaterial.quantity) }} {{ selectedMaterial.unit }}</span>
                     </div>
                   </div>
                 </div>
-                <div v-else-if="termoBuscaMaterial.length > 2 && !buscandoMaterial" class="absolute z-10 w-full mt-2 bg-white p-3 text-center text-sm text-gray-500 rounded-xl shadow-xl border border-gray-100">
-                  Nenhum material encontrado.
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Quantidade</label>
+                <div class="relative">
+                  <input v-model.number="form.quantity" type="number" step="0.01" class="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-xl text-gray-800" placeholder="0.00" required />
+                  <div class="absolute right-4 top-3.5 text-sm font-bold text-gray-400 pointer-events-none">{{ selectedMaterial ? selectedMaterial.unit : 'un' }}</div>
                 </div>
               </div>
 
-              <div v-else class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 relative group">
-                <button @click="limparSelecao" class="absolute top-2 right-2 text-indigo-400 hover:text-indigo-700 bg-white rounded-full p-1 shadow-sm" title="Trocar"><X class="w-3 h-3" /></button>
-                <div class="flex items-start gap-3">
-                  <div class="p-2 bg-white rounded-lg text-indigo-600 shadow-sm"><Package class="w-6 h-6" /></div>
-                  <div>
-                    <h4 class="font-bold text-gray-900 text-sm leading-tight">{{ materialSelecionado.descricao }}</h4>
-                    <p class="text-xs text-indigo-600 font-medium mt-1">
-                      Saldo Atual: <span class="text-lg font-bold">{{ materialSelecionado.quantidade }}</span> {{ materialSelecionado.unidade }}
-                    </p>
-                    <p class="text-[10px] text-gray-400 mt-1 uppercase font-mono">Cód: {{ materialSelecionado.codigo }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="space-y-4">
               <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Quantidade</label>
-                <input v-model="quantidade" type="number" step="0.01" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800 text-lg" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Observação</label>
-                <textarea v-model="observacao" rows="2" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none"></textarea>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Motivo / Obs</label>
+                <input v-model="form.reason" type="text" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Ex: Produção..." />
               </div>
 
-              <div v-if="error" class="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2"><AlertTriangle class="w-4 h-4" /> {{ error }}</div>
-              <div v-if="message" class="p-3 bg-green-50 text-green-600 text-sm rounded-lg font-bold text-center flex items-center justify-center gap-2"><CheckCircle class="w-4 h-4" /> {{ message }}</div>
-
-              <button @click="save" :disabled="!materialSelecionado" class="w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed" :class="tipoMovimento === 'entrada' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'">
-                Confirmar {{ tipoMovimento === 'entrada' ? 'Entrada' : 'Saída' }}
+              <button type="submit" class="w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-transform transform active:scale-[0.98] flex justify-center items-center gap-2 text-lg mt-4" :class="form.type === 'ENTRADA' ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-200 hover:shadow-red-300' : 'bg-gradient-to-r from-green-500 to-green-600 shadow-green-200 hover:shadow-green-300'">
+                <span>CONFIRMAR {{ form.type }}</span>
               </button>
-            </div>
+            </form>
           </div>
         </div>
 
-        <div class="lg:col-span-2 h-full flex flex-col overflow-hidden">
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden">
+        <div class="lg:col-span-8 h-full min-h-[500px]">
+          <div class="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-full overflow-hidden">
             
-            <div class="p-4 border-b border-gray-100 flex-shrink-0 bg-gray-50/50">
-              <div class="flex flex-col md:flex-row justify-between items-center gap-3">
-                <h3 class="font-bold text-gray-900 flex items-center gap-2"><History class="w-5 h-5 text-gray-400" /> Histórico</h3>
-                <div class="flex gap-3 w-full md:w-auto">
-                  <div class="relative flex-grow">
-                    <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input v-model="termoBuscaHistorico" type="text" placeholder="Buscar histórico por CÓDIGO ou Nome..." class="pl-9 pr-8 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none w-full md:w-48 shadow-sm" :disabled="materialSelecionado" />
-                    <button v-if="termoBuscaHistorico" @click="termoBuscaHistorico = ''" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"><X class="w-3 h-3" /></button>
-                  </div>
-                  <div class="flex items-center gap-2 text-sm text-gray-500 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
-                    <Filter class="w-4 h-4" />
-                    <select v-model="filtroTipo" class="bg-transparent outline-none cursor-pointer hover:text-indigo-600"><option value="todos">Todos</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select>
-                  </div>
-                </div>
+            <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+              <h2 class="font-bold text-gray-700 flex items-center gap-2">Últimos Registros</h2>
+              <div class="relative w-64">
+                <input v-model="historySearch" type="text" placeholder="Filtrar por código..." class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 bg-white" />
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
             </div>
 
-            <div class="flex-grow overflow-y-auto relative bg-white">
-              <div v-if="isLoadingHistory" class="absolute inset-0 bg-white/80 z-10 flex items-center justify-center"><div class="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>
-
+            <div class="flex-1 overflow-auto custom-scrollbar">
               <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-50 text-gray-500 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
-                  <tr><th class="p-4 w-32 bg-gray-50">Data</th><th class="p-4 bg-gray-50">Material</th><th class="p-4 w-24 bg-gray-50">Tipo</th><th class="p-4 w-20 bg-gray-50">Qtd</th><th class="p-4 w-32 bg-gray-50">Resp.</th></tr>
+                <thead class="bg-gray-50 sticky top-0 z-10">
+                  <tr>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Data</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">Material</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-center">Tipo</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-right">Qtd</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-center">Responsável</th>
+                    <th class="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 text-center">Obs</th> </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 text-sm">
-                  <tr v-for="item in history" :key="item.id" class="hover:bg-indigo-50/30 transition-colors">
-                    <td class="p-4 text-gray-500 whitespace-nowrap text-xs">
-                      <div class="font-bold">{{ new Date(item.data).toLocaleDateString('pt-BR') }}</div>
-                      <div class="text-gray-400">{{ new Date(item.data).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) }}</div>
-                    </td>
-                    
-                    <td class="p-4">
-                      <div class="font-bold text-gray-800" :class="{'text-red-500 line-through': item.tipo === 'exclusão'}">
-                        {{ (item.material ? item.material.descricao : null) || item.nomeMaterial || item.nome }}
-                      </div>
-                      <div v-if="item.material && item.material.codigo" class="text-[10px] text-gray-400 mt-0.5 font-mono">
-                        Cód: {{ item.material.codigo }}
-                      </div>
-                      <div v-if="item.observacao" class="text-xs text-gray-500 mt-0.5 italic flex items-center gap-1">
-                        <span class="w-1 h-1 bg-gray-300 rounded-full"></span> {{ item.observacao }}
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-for="item in filteredHistory" :key="item.id" class="hover:bg-blue-50/30 transition-colors group">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">{{ formatDate(item.createdAt) }}</td>
+                    <td class="px-6 py-4">
+                      <div class="flex flex-col">
+                        <span class="font-bold text-gray-700 text-sm group-hover:text-blue-700 transition-colors">{{ item.material?.name || 'Excluído' }}</span>
+                        <span class="text-[10px] text-gray-400 font-mono" v-if="item.material">Cód: {{ item.material.code }}</span>
                       </div>
                     </td>
-                    
-                    <td class="p-4">
-                      <span class="px-2 py-1 rounded-md text-[10px] uppercase font-bold border tracking-wide" 
-                        :class="{
-                          'bg-red-50 text-red-700 border-red-100': item.tipo === 'entrada',
-                          'bg-green-50 text-green-700 border-green-100': item.tipo === 'saida',
-                          'bg-gray-200 text-gray-800 border-gray-300': item.tipo === 'exclusão'
-                        }"
-                      >
-                         {{ item.tipo }}
+                    <td class="px-6 py-4 text-center">
+                      <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-sm" :class="item.type === 'ENTRADA' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'">{{ item.type }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                      <div class="text-sm font-bold text-gray-800">{{ formatNumber(item.quantity) }}</div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <span class="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full border border-gray-200">
+                        {{ item.user ? item.user.name : 'Sistema' }}
                       </span>
                     </td>
-                    <td class="p-4 font-bold text-gray-700 text-base">
-                      {{ Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) }}
+                    <td class="px-6 py-4 text-center">
+                      <div v-if="item.reason" class="relative group/tooltip inline-block">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 hover:text-blue-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs rounded p-2 hidden group-hover/tooltip:block z-50 text-center shadow-lg">
+                          {{ item.reason }}
+                          <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800"></div>
+                        </div>
+                      </div>
+                      <span v-else class="text-gray-300">-</span>
                     </td>
-                    <td class="p-4 text-gray-500">
-                       <div class="flex items-center gap-2">
-                         <div class="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-[10px] font-bold border border-gray-200">{{ item.usuario ? item.usuario.charAt(0).toUpperCase() : '?' }}</div>
-                         <span class="text-xs truncate max-w-[80px]" :title="item.usuario">{{ item.usuario || 'Sistema' }}</span>
-                       </div>
-                    </td>
+                  </tr>
+                  <tr v-if="filteredHistory.length === 0">
+                    <td colspan="6" class="p-12 text-center text-gray-400 italic">Nenhum registro encontrado.</td>
                   </tr>
                 </tbody>
               </table>
-
-              <div v-if="history.length === 0 && !isLoadingHistory" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 mt-20">
-                <History class="w-12 h-12 mb-3 text-gray-200" />
-                <p class="font-medium">Nenhum registro encontrado.</p>
-                <p v-if="termoBuscaHistorico" class="text-xs mt-1">Dica: Digite o CÓDIGO completo.</p>
-              </div>
             </div>
           </div>
         </div>
@@ -394,3 +148,114 @@ onMounted(() => {
     </div>
   </Layout>
 </template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import Layout from '../components/Layout.vue'
+
+const API_URL = 'http://localhost:3000'
+
+const form = ref({ type: 'SAIDA', quantity: '', reason: '' })
+const materials = ref([])
+const history = ref([])
+const searchQuery = ref('')
+const selectedMaterial = ref(null)
+const showDropdown = ref(false)
+const historySearch = ref('')
+
+async function fetchData() {
+  try {
+    const [matRes, histRes] = await Promise.all([
+      fetch(`${API_URL}/materials`),
+      fetch(`${API_URL}/movements`)
+    ])
+    materials.value = await matRes.json()
+    const allHistory = await histRes.json()
+    history.value = allHistory.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  } catch (e) { console.error(e) }
+}
+
+const filteredMaterials = computed(() => {
+  if (!searchQuery.value) return []
+  const term = searchQuery.value.toLowerCase()
+  return materials.value.filter(m => m.name.toLowerCase().includes(term) || String(m.code).toLowerCase().includes(term)).slice(0, 10)
+})
+
+const filteredHistory = computed(() => {
+  let list = history.value
+  if (historySearch.value) {
+    const term = historySearch.value.toLowerCase()
+    list = list.filter(h => h.material?.code && String(h.material.code).toLowerCase().includes(term))
+  }
+  return list.slice(0, 20)
+})
+
+function selectMaterial(mat) {
+  selectedMaterial.value = mat
+  searchQuery.value = mat.name
+  showDropdown.value = false
+}
+
+function filterMaterials() {
+  selectedMaterial.value = null
+  showDropdown.value = true
+}
+
+function formatNumber(num) { return Number(num).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }) }
+function formatDate(date) { if (!date) return '-'; return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }
+
+async function submitMovement() {
+  if (!selectedMaterial.value) {
+    const match = materials.value.find(m => String(m.code) === searchQuery.value.trim())
+    if (match) selectedMaterial.value = match
+    else return alert('⚠️ Selecione um material válido!')
+  }
+
+  if (!form.value.quantity || form.value.quantity <= 0) return alert('⚠️ Quantidade inválida!')
+
+  // PEGA O USUÁRIO LOGADO
+  const userJson = localStorage.getItem('user');
+  const user = userJson ? JSON.parse(userJson) : null;
+  const userId = user ? user.id : 1; 
+
+  try {
+    const res = await fetch(`${API_URL}/movements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        materialId: Number(selectedMaterial.value.id),
+        type: form.value.type,
+        quantity: Number(form.value.quantity),
+        reason: form.value.reason || '',
+        userId: userId // Envia ID do usuário
+      })
+    })
+
+    const data = await res.json().catch(() => ({}))
+
+    if (res.ok) {
+      alert('✅ Movimentação Registrada!')
+      form.value.quantity = ''
+      form.value.reason = ''
+      searchQuery.value = ''
+      selectedMaterial.value = null
+      await fetchData()
+    } else {
+      alert(`❌ Erro: ${data.error || 'Falha no servidor'}`)
+    }
+  } catch (e) { alert('Erro de conexão.') }
+}
+
+onMounted(() => {
+  fetchData()
+  document.addEventListener('click', (e) => { if (!e.target.closest('.relative')) showDropdown.value = false })
+})
+</script>
+
+<style scoped>
+@keyframes fade { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fade 0.3s ease-out forwards; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+</style>

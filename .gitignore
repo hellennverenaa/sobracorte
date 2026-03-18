@@ -45,3 +45,4 @@ novos_dados.json
 **/db.json
 **/dados_antigos.json
 **/backups/
+backend/src/generated/
