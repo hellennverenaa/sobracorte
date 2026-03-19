@@ -9,13 +9,30 @@ const prisma = new PrismaClient();
 app.use(express.json());
 app.use(cors());
 
-// --- ROTA DE MATERIAIS ---
+// --- ROTA DE DASHBOARD (STATS) OTIMIZADA ---
+app.get('/stats', async (req, res) => {
+  try {
+    const [totalMaterials, lowStock, totalMovements, totalEntries] = await Promise.all([
+      prisma.material.count(),
+      prisma.material.count({ where: { quantity: { lte: 10 } } }),
+      prisma.movement.count(),
+      prisma.movement.count({ where: { type: 'ENTRADA' } })
+    ]);
+    res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao buscar métricas" });
+  }
+});
+
+// --- ROTAS DE MATERIAIS ---
 app.get('/materials', async (req, res) => {
   try {
-    const materials = await prisma.material.findMany({ orderBy: { name: 'asc' } });
+    const materials = await prisma.material.findMany({ 
+      include: { locations: { include: { location: true } } }, // Traz os locais junto
+      orderBy: { createdAt: 'desc' } 
+    });
     res.json(materials);
   } catch (error) {
-    console.error("Erro Materials:", error);
     res.status(500).json({ error: "Erro ao buscar materiais" });
   }
 });
@@ -29,10 +46,9 @@ app.post('/materials', async (req, res) => {
   }
 });
 
-app.put('/materials/:id', async (req, res) => {
+app.patch('/materials/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    // Remove o ID do corpo para não tentar atualizar a chave primária
     const { id: _, ...dados } = req.body;
     
     const atualizado = await prisma.material.update({
@@ -54,9 +70,10 @@ app.delete('/materials/:id', async (req, res) => {
   }
 });
 
-// --- ROTA DE MOVIMENTAÇÕES ---
+// --- ROTAS DE MOVIMENTAÇÕES ---
 app.post('/movements', async (req, res) => {
-  const { materialId, type, quantity, reason, userId } = req.body;
+  // Agora recebe os dados do operador logado pela API da DASS
+  const { materialId, type, quantity, reason, operatorId, operatorName } = req.body;
 
   if (!materialId || !quantity || !type) {
     return res.status(400).json({ error: "Dados incompletos" });
@@ -70,7 +87,6 @@ app.post('/movements', async (req, res) => {
     if (type === 'ENTRADA') novoSaldo += Number(quantity);
     else if (type === 'SAIDA') novoSaldo -= Number(quantity);
 
-    // Transação para garantir que salva o histórico E atualiza o saldo
     const [mov] = await prisma.$transaction([
       prisma.movement.create({
         data: {
@@ -78,7 +94,8 @@ app.post('/movements', async (req, res) => {
           type,
           quantity: Number(quantity),
           reason: reason || '',
-          userId: userId ? Number(userId) : null
+          operatorId: operatorId ? String(operatorId) : null,
+          operatorName: operatorName ? String(operatorName) : null
         }
       }),
       prisma.material.update({
@@ -89,30 +106,34 @@ app.post('/movements', async (req, res) => {
 
     res.json(mov);
   } catch (error) {
-    console.error("Erro Movement:", error);
-    res.status(500).json({ error: "Erro interno ao processar" });
+    res.status(500).json({ error: "Erro interno ao processar movimentação" });
   }
 });
 
 app.get('/movements', async (req, res) => {
   try {
     const movements = await prisma.movement.findMany({
-      include: {
-        material: true,
-        user: true // Traz o nome do responsável
-      },
+      include: { material: true },
       orderBy: { createdAt: 'desc' },
       take: 100
     });
     res.json(movements);
   } catch (error) {
-    console.error("Erro Histórico:", error);
     res.status(500).json({ error: "Erro ao buscar histórico" });
   }
 });
 
-// --- ROTA DE LOGIN (MANTIDA) ---
+// --- ROTA DE LOCAIS (WMS BÁSICO) ---
+app.get('/locations', async (req, res) => {
+  try {
+    const locations = await prisma.location.findMany({ orderBy: { name: 'asc' } });
+    res.json(locations);
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao buscar locais" });
+  }
+});
 
+// --- ROTA DE LOGIN (AUTENTICAÇÃO DASS) ---
 app.post('/auth/login', async (req, res) => {
   const { usuario, senha } = req.body;
   try {
@@ -128,7 +149,6 @@ app.post('/auth/login', async (req, res) => {
     res.status(500).json({ error: "Erro conexão DASS" });
   }
 });
-
 
 const PORT = 3000;
 app.listen(PORT, () => console.log(`🔥 Servidor RODANDO na porta ${PORT}`));
