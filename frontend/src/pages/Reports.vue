@@ -28,7 +28,9 @@ const materialTypes = [
   { value: 'sintetico', label: 'Sintético' },
   { value: 'tecido', label: 'Tecido' },
   { value: 'solado', label: 'Solado' },
-  { value: 'quimico', label: 'Químico' }
+  { value: 'quimico', label: 'Químico' },
+  { value: 'filme', label: 'Filme' }, // Adicionado para fechar com o dashboard
+  { value: 'forro', label: 'Forro' }
 ]
 
 const periods = [
@@ -39,11 +41,11 @@ const periods = [
   { value: 'custom', label: 'Personalizado' }
 ]
 
-// --- LÓGICA DE DATAS ---
+// --- LÓGICA DE DATAS (Para Enviar ao Backend) ---
 function getDatesFromPeriod(period) {
   const now = new Date()
-  const start = new Date()
-  const end = new Date()
+  let start = new Date()
+  let end = new Date()
 
   if (period === 'hoje') {
     start.setHours(0,0,0,0)
@@ -51,26 +53,31 @@ function getDatesFromPeriod(period) {
   } else if (period === 'semana') {
     const day = now.getDay()
     const diff = now.getDate() - day + (day === 0 ? -6 : 1) // Ajuste para segunda-feira
-    start.setDate(diff)
+    start = new Date(now.setDate(diff))
     start.setHours(0,0,0,0)
+    end = new Date() // Fim é hoje
   } else if (period === 'mes_atual') {
     start.setDate(1)
     start.setHours(0,0,0,0)
+    end = new Date()
   } else if (period === 'ano_atual') {
     start.setMonth(0, 1)
     start.setHours(0,0,0,0)
-  } else {
-    // Custom
+    end = new Date()
+  } else if (period === 'custom') {
     if (!filters.value.dataInicio || !filters.value.dataFim) return null
-    return {
-      start: new Date(filters.value.dataInicio + 'T00:00:00'),
-      end: new Date(filters.value.dataFim + 'T23:59:59')
-    }
+    start = new Date(filters.value.dataInicio + 'T00:00:00')
+    end = new Date(filters.value.dataFim + 'T23:59:59')
   }
-  return { start, end }
+  
+  // Retorna as datas em formato ISO para o Backend entender
+  return { 
+    start: start.toISOString(), 
+    end: end.toISOString() 
+  }
 }
 
-// --- GERAR RELATÓRIO ---
+// --- GERAR RELATÓRIO (Buscando do PostgreSQL) ---
 async function generateReport() {
   loading.value = true
   hasSearched.value = true
@@ -84,38 +91,27 @@ async function generateReport() {
       return
     }
 
-    // Busca TUDO (limite alto) e filtra no JS para ter precisão máxima
-    // Trazendo 'expand=material' para saber o tipo do material
-    const allMovements = await request('/movements?_limit=1000&_expand=material&_sort=data&_order=desc')
-    
-    // FILTRAGEM
-    reportData.value = allMovements.filter(mov => {
-      const movDate = new Date(mov.data)
-      const mat = mov.material || {}
-      
-      // 1. Filtro de Data
-      if (movDate < dates.start || movDate > dates.end) return false
+    // A MÁGICA: O Backend (Postgres) faz a busca pesada por data usando nossos índices!
+    const queryUrl = `/reports/movements?dataInicio=${dates.start}&dataFim=${dates.end}`
+    const apiData = await request(queryUrl)
 
-      // 2. Filtro de Tipo de Material
-      if (filters.value.tipoMaterial !== 'todos') {
-        const tipoMat = (mat.tipo || 'outros').toLowerCase()
-        if (tipoMat !== filters.value.tipoMaterial) return false
-      }
+    // O Frontend faz apenas os filtros "leves" de interface (Material e Tipo de Movimento)
+    reportData.value = apiData.filter(mov => {
+      // 1. Filtro de Tipo de Material (se aplicável, dependendo de como está salvo no material)
+      // Como a rota /reports/movements não traz a categoria do material por padrão (só nome/código), 
+      // se a DASS precisar filtrar muito por categoria, teremos que adicionar 'type' no ReportController depois.
+      // Por enquanto, vamos pular esse filtro e focar nos movimentos.
 
-      // 3. Filtro de Tipo de Movimento (Entrada/Saída)
+      // 2. Filtro de Tipo de Movimento (ENTRADA/SAIDA)
       if (filters.value.tipoMovimento !== 'todos') {
-        if (mov.tipo !== filters.value.tipoMovimento) return false
+        if (mov.tipo.toLowerCase() !== filters.value.tipoMovimento.toLowerCase()) return false
       }
-
-      // Ignora Exclusões (normalmente não vão para relatório gerencial)
-      if (mov.tipo === 'exclusão') return false
-
       return true
     })
 
   } catch (err) {
     console.error(err)
-    alert("Erro ao gerar relatório.")
+    alert("Erro ao gerar relatório. Verifique a conexão com o servidor.")
   } finally {
     loading.value = false
   }
@@ -125,16 +121,17 @@ async function generateReport() {
 function downloadExcel() {
   if (reportData.value.length === 0) return
   
+  // O Backend já devolve quase pronto, só ajustamos a Data para o Excel Brasileiro
   const rows = reportData.value.map(mov => ({
-    DATA: new Date(mov.data).toLocaleDateString('pt-BR'),
-    HORA: new Date(mov.data).toLocaleTimeString('pt-BR'),
-    TIPO_MOVIMENTO: mov.tipo.toUpperCase(),
-    MATERIAL: (mov.material?.descricao || mov.nomeMaterial),
-    CODIGO: mov.material?.codigo || '-',
-    CATEGORIA: mov.material?.tipo || '-',
-    QUANTIDADE: mov.quantidade,
-    UNIDADE: mov.material?.unidade || 'UN',
-    USUARIO: mov.usuario || 'Sistema'
+    DATA: new Date(mov.data_hora).toLocaleDateString('pt-BR'),
+    HORA: new Date(mov.data_hora).toLocaleTimeString('pt-BR'),
+    TIPO_MOVIMENTO: mov.tipo,
+    MATERIAL: mov.material?.descricao || mov.nomeMaterial || '-',
+    CODIGO: mov.codigo,
+    QUANTIDADE: Number(mov.quantidade).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }),
+    UNIDADE: mov.unidade,
+    MOTIVO: mov.motivo,
+    USUARIO: mov.responsavel
   }))
 
   exportToCSV(`SobrasDASS_Relatorio_${filters.value.periodo}`, rows)
@@ -145,9 +142,9 @@ function printPDF() {
   window.print()
 }
 
-// Totais Calculados
-const totalEntradas = computed(() => reportData.value.filter(m => m.tipo === 'entrada').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
-const totalSaidas = computed(() => reportData.value.filter(m => m.tipo === 'saida').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
+// Totais Calculados (Para mostrar no rodapé da tabela, se você tiver um)
+const totalEntradas = computed(() => reportData.value.filter(m => m.tipo.toLowerCase() === 'entrada').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
+const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCase() === 'saida').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
 
 </script>
 

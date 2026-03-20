@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { AuthController } from './controllers/AuthController';
 import { MaterialController } from './controllers/MaterialController';
 import { MovementController } from './controllers/MovementController';
+import { ReportController } from './controllers/ReportController';
 
 const routes = Router();
+const reportController = new ReportController(); // (No meio)
 
 // Instanciando os controllers
 const authController = new AuthController();
@@ -26,11 +28,15 @@ routes.get('/stats', materialController.stats);
 routes.get('/movements', movementController.index);
 routes.post('/movements', movementController.create);
 
+routes.get('/reports/inventory', reportController.inventory);
+routes.get('/reports/movements', reportController.movements);
+
 // 👤 Rota Temporária de Usuários
 routes.get('/users', (req, res) => {
   res.json([
     { id: 1, usuario: 'HELLEN.MAGALHAES', role: 'admin', email: 'hellen.magalhaes@grupodass.com.br' },
-    { id: 2, usuario: 'HENDRIUS.SANTANA', role: 'admin', email: 'hendrius.santana@grupodass.com.br' }
+    { id: 2, usuario: 'HENDRIUS.SANTANA', role: 'admin', email: 'hendrius.santana@grupodass.com.br' },
+    { id: 3, usuario: 'PAULO.SANTANA', role: 'admin', email: 'paulo.santana@grupodass.com.br'}
   ]);
 });
 
