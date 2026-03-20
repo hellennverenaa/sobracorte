@@ -21,14 +21,18 @@ model Material {
   
   movements   Movement[]
   locations   MaterialLocation[] // Relação com os múltiplos locais
+
+  // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan na busca)
+  @@index([name])
+  @@index([code])
 }
 
 // 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, sem digitação livre)
 model Location {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique // Ex: "Prateleira A", "Corredor 2"
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // Ex: "Prateleira A", "Corredor 2"
   
-  materials   MaterialLocation[]
+  materials MaterialLocation[]
 }
 
 // 🔗 TABELA DE JUNÇÃO (Material <-> Localização)
@@ -44,21 +48,23 @@ model MaterialLocation {
   location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@id([materialId, locationId]) // Impede que o mesmo material seja duplicado no mesmo local
+  @@index([locationId]) // 🚀 ÍNDICE: Acelera a busca para saber "O que tem na prateleira X?"
 }
 
 model Movement {
-  id          Int      @id @default(autoincrement())
-  type        String
-  quantity    Float
-  reason      String?
-  createdAt   DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  type         String
+  quantity     Float
+  reason       String?
+  createdAt    DateTime @default(now())
   
-  materialId  Int
-  material    Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  materialId   Int
+  material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   // 👤 DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
-  operatorId    String?  // Matrícula vinda da DASS
-  operatorName  String?  // Nome vindo da DASS
+  operatorId   String?  // Matrícula vinda da DASS
+  operatorName String?  // Nome vindo da DASS
 
   @@index([materialId])
+  @@index([createdAt]) // 🚀 ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
 }

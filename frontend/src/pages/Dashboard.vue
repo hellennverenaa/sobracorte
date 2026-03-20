@@ -46,24 +46,36 @@ function formatNumber(value) {
   return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
-const totalExitsDisplay = computed(() => displayStats.value.totalMovements - displayStats.value.totalEntries)
-const efficiencyRateDisplay = computed(() => {
-  if (displayStats.value.totalMovements === 0) return 0
-  return Math.round((totalExitsDisplay.value / displayStats.value.totalMovements) * 100)
+// Para a Barra de Progresso e o Giro (Proteção contra NaN)
+const totalExitsDisplay = computed(() => {
+  const mov = Number(displayStats.value.totalMovements) || 0;
+  const ent = Number(displayStats.value.totalEntries) || 0;
+  return Math.max(0, mov - ent); 
 })
 
-// GRÁFICO DE PIZZA
+const efficiencyRateDisplay = computed(() => {
+  const mov = Number(displayStats.value.totalMovements) || 0;
+  if (mov === 0) return 0;
+  return Math.round((totalExitsDisplay.value / mov) * 100);
+})
+
+// GRÁFICO DE PIZZA (Proteção Matemática)
 const pieChartData = computed(() => {
   if (materials.value.length === 0) return []
   const groups = {}
   let totalQty = 0
+  
   materials.value.forEach(m => {
-    const tipo = m.tipo || 'Outros'
-    const qtd = Number(m.quantidade) || 0
+    const tipo = (m.tipo || m.type || 'outros').toLowerCase().trim()
+    // Garante que a quantidade vire um NÚMERO real, mesmo se vier com vírgula
+    const qtdStr = String(m.quantidade || m.quantity || '0').replace(',', '.')
+    const qtd = parseFloat(qtdStr) || 0
+    
     if (!groups[tipo]) groups[tipo] = 0
     groups[tipo] += qtd
     totalQty += qtd
   })
+
   return Object.keys(groups).map(key => ({
     label: key.charAt(0).toUpperCase() + key.slice(1),
     value: groups[key],
@@ -73,12 +85,25 @@ const pieChartData = computed(() => {
 })
 
 function getColorForCategory(cat) {
-  const colors = { 'sintetico': '#1d4ed8', 'couro': '#854d0e', 'tecido': '#047857', 'solado': '#334155', 'quimico': '#b91c1c' }
-  return colors[cat] || '#64748b'
+  const catLower = String(cat).toLowerCase().trim()
+  const colors = { 
+    'sintetico': '#1d4ed8', 
+    'couro': '#854d0e', 
+    'tecido': '#047857', 
+    'solado': '#334155', 
+    'quimico': '#b91c1c',
+    'filme': '#4f46e5',    // Azul Indigo (A cor que vai aparecer agora!)
+    'forro': '#0ea5e9',    // Azul Claro
+    'linha': '#d946ef',    // Rosa/Fuchsia
+    'elastico': '#f59e0b', // Laranja
+    'aviamento': '#ec4899',// Rosa Claro
+    'outro': '#94a3b8'     // Cinza
+  }
+  return colors[catLower] || '#64748b'
 }
 
 const pieChartStyle = computed(() => {
-  if (pieChartData.value.length === 0) return ''
+  if (pieChartData.value.length === 0) return { background: '#e2e8f0' } // Cinza se vazio
   let gradientStr = ''
   let currentDeg = 0
   pieChartData.value.forEach((slice, index) => {
@@ -90,15 +115,20 @@ const pieChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
+// RANKING (Top 5)
 const topMaterials = computed(() => {
   return [...materials.value]
-    .sort((a, b) => Number(b.quantidade) - Number(a.quantidade))
+    .sort((a, b) => {
+      const qA = parseFloat(String(a.quantidade || a.quantity || '0').replace(',', '.')) || 0;
+      const qB = parseFloat(String(b.quantidade || b.quantity || '0').replace(',', '.')) || 0;
+      return qB - qA;
+    })
     .slice(0, 5)
 })
 
 const maxMaterialValue = computed(() => {
   if (topMaterials.value.length === 0) return 1
-  return Number(topMaterials.value[0].quantidade)
+  return parseFloat(String(topMaterials.value[0].quantidade || topMaterials.value[0].quantity || '0').replace(',', '.')) || 1
 })
 
 // --- CARREGAMENTO ---
@@ -106,7 +136,12 @@ async function loadData() {
   isUpdating.value = true 
   try {
     const statsData = await fetchStats()
-    realStats.value = statsData
+    realStats.value = {
+      totalMaterials: statsData.totalMaterials || 0,
+      lowStock: statsData.lowStock || 0,
+      totalMovements: statsData.totalMovements || 0,
+      totalEntries: statsData.totalEntries || 0 
+    }
 
     const materialsData = await fetchMaterials('_limit=1000')
     materials.value = Array.isArray(materialsData) ? materialsData : (materialsData.materials || [])

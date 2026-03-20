@@ -21,8 +21,11 @@ const showEditModal = ref(false)
 const editingUser = ref(null)
 
 // URL do Banco Local (JSON Server)
-const HOST = window.location.hostname
-const DB_URL = `http://${HOST}:3001/users`
+//const HOST = window.location.hostname
+//const DB_URL = `http://${HOST}:3001/users`
+
+const API_URL = `http://${window.location.hostname}:3333`
+
 
 // Opções de Níveis de Acesso
 const roleOptions = [
@@ -36,7 +39,7 @@ const roleOptions = [
 const fetchUsers = async () => {
   loading.value = true
   try {
-    const response = await fetch(DB_URL)
+    const response = await fetch(API_URL + '/users')
     const data = await response.json()
     users.value = data
   } catch (error) {
@@ -52,7 +55,7 @@ const saveUserRole = async () => {
   if (!editingUser.value) return
 
   try {
-    const response = await fetch(`${DB_URL}/${editingUser.value.id}`, {
+    const response = await fetch(`${API_URL}/users/${editingUser.value.id}`, {
       method: 'PUT', // Ou PATCH
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editingUser.value)
@@ -83,7 +86,7 @@ const deleteUser = async (id) => {
   if (!confirm('Tem certeza que deseja remover este usuário do sistema local?')) return
 
   try {
-    await fetch(`${DB_URL}/${id}`, { method: 'DELETE' })
+    await fetch(`${API_URL}/users/${id}`, { method: 'DELETE' })
     fetchUsers()
   } catch (error) {
     alert('Erro ao excluir usuário')
