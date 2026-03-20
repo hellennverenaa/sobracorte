@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 const HOST = window.location.hostname
-const API_URL = `http://${HOST}:3000`
+const API_URL = `http://${HOST}:3333`
 ////http://10.110.21.53:3001
 
 export function useApi() {
@@ -42,7 +42,19 @@ export function useApi() {
   const updateMaterial = (id, data) => request(`/materials/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   const deleteMaterial = (id) => request(`/materials/${id}`, { method: 'DELETE' })
   
-  const fetchStats = () => request('/stats') 
+ const fetchStats = async () => {
+    try {
+      // Agora o Vue bate direto no cofre blindado pedindo os números mastigados!
+      const t = new Date().getTime();
+      const response = await fetch(`${API_URL}/stats?t=${t}`);
+      
+      if (!response.ok) throw new Error('Erro ao buscar stats');
+      return await response.json();
+
+    } catch (e) { 
+      return { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 } 
+    }
+  } 
   
   const createMovement = (data) => request('/movements', { method: 'POST', body: JSON.stringify(data) })
   const fetchMovements = () => request('/movements')

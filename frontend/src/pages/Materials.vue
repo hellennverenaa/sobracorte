@@ -188,7 +188,7 @@
 import { ref, computed, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 
-const API_URL = 'http://localhost:3000'
+const API_URL = `http://${window.location.hostname}:3333`; 
 const materials = ref([])
 const search = ref('')
 const selectedCategory = ref('Todos')

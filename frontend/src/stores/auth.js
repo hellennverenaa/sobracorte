@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 // Pega o IP ou nome de onde o site está rodando (localhost ou 10.100.x.x)
 const HOST = window.location.hostname 
 // Monta a URL usando esse IP, mas na porta 3000 (onde está nosso servidor Node)
-const DB_URL = `http://${HOST}:3000`
+const DB_URL = `http://${HOST}:3333`
 
 // --- LÓGICA DE NÍVEIS ---
 const defineNivelUsuario = (userData) => {
@@ -13,7 +13,7 @@ const defineNivelUsuario = (userData) => {
   const setor = userData.setor ? userData.setor.toUpperCase() : '';
 
   // 1. ADMIN MASTER
-  const adminsMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA'];
+  const adminsMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA', 'PAULO.SANTANA'];
   if (adminsMaster.includes(usuario)) return 'admin';
 
   // 2. LÍDER
@@ -77,7 +77,7 @@ console.log("👤 Usuário identificado na API:", apiUser.usuario);
         // --- TRAVA DE SEGURANÇA PARA ADMINS MASTER ---
         // Se for Hellen ou Hendrius, É ADMIN e ponto final. Ignora o resto.
         const usuarioUpper = String(apiUser.usuario).toUpperCase().trim();
-        const isMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA'].includes(usuarioUpper);
+        const isMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA', 'PAULO.SANTANA'].includes(usuarioUpper);
 
         // Prepara dados básicos
         const dadosAtualizados = {
