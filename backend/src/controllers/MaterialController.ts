@@ -23,19 +23,30 @@ export class MaterialController {
         where: whereClause,
         skip: skip,
         take: limit,
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        include: { 
+          locations: { 
+            include: { location: true } // 🚀 Traz os locais vinculados do banco
+          } 
+        }
       });
 
-      const formatted = materials.map(m => ({
-        ...m,
-        codigo: m.code,
-        descricao: m.name,
-        quantidade: m.quantity,
-        unidade: m.unit,
-        tipo: m.type,
-        observacoes: m.observation,
-        data_cadastro: m.createdAt,
-      }));
+      const formatted = materials.map(m => {
+        // Pega o primeiro local cadastrado para exibir no modal de edição, ou "Não definido"
+        const primaryLocation = m.locations.length > 0 ? m.locations[0].location.name : 'Não definido';
+        
+        return {
+          ...m,
+          codigo: m.code,
+          descricao: m.name,
+          quantidade: m.quantity,
+          unidade: m.unit,
+          tipo: m.type,
+          observacoes: m.observation,
+          data_cadastro: m.createdAt,
+          location: primaryLocation // 🚀 Envia a prateleira para o Frontend
+        };
+      });
 
       res.json(formatted);
     } catch (error) {
@@ -45,26 +56,61 @@ export class MaterialController {
 
   async create(req: Request, res: Response) {
     try {
+      const locationName = String(req.body.location || 'Não definido').trim();
+      const qtdInicial = Number(req.body.quantidade || req.body.quantity || 0);
+
+      // 🚀 1. Busca se a Prateleira já existe no banco. Se não, cria na hora!
+      let loc = await prisma.location.findUnique({ where: { name: locationName } });
+      if (!loc) {
+        loc = await prisma.location.create({ data: { name: locationName } });
+      }
+
+      // 🚀 2. Cria o Material já vinculando ele à Prateleira encontrada/criada
       const novo = await prisma.material.create({
         data: {
           code: String(req.body.codigo || req.body.code),
           name: String(req.body.descricao || req.body.name),
-          quantity: Number(req.body.quantidade || req.body.quantity || 0),
+          quantity: qtdInicial,
           unit: String(req.body.unidade || req.body.unit || 'UN'),
           type: String(req.body.tipo || req.body.type || 'outros'),
           observation: String(req.body.observacoes || req.body.observation || ''),
+          locations: {
+            create: {
+              locationId: loc.id,
+              quantity: qtdInicial // Já joga o saldo inicial para a prateleira
+            }
+          }
         }
       });
       res.json(novo);
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao criar material' });
+      res.status(500).json({ error: 'Erro ao criar material. Verifique duplicidade.' });
     }
   }
 
   async update(req: Request, res: Response) {
     try {
+      const materialId = Number(req.params.id);
+      const locationName = req.body.location ? String(req.body.location).trim() : null;
+
+      // 🚀 1. Se o usuário alterou a prateleira no Frontend, nós garantimos que ela existe
+      if (locationName) {
+        let loc = await prisma.location.findUnique({ where: { name: locationName } });
+        if (!loc) {
+          loc = await prisma.location.create({ data: { name: locationName } });
+        }
+
+        // 🚀 2. Conecta essa nova prateleira ao Material usando Upsert (Atualiza ou Cria o vínculo)
+        await prisma.materialLocation.upsert({
+          where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
+          update: {}, // Se já existe, não mexe na quantidade
+          create: { materialId: materialId, locationId: loc.id, quantity: 0 } // Se não existe, cria o vínculo com saldo 0
+        });
+      }
+
+      // 3. Atualiza os dados básicos do Material
       const atualizado = await prisma.material.update({
-        where: { id: Number(req.params.id) },
+        where: { id: materialId },
         data: {
           code: req.body.codigo ? String(req.body.codigo) : undefined,
           name: req.body.descricao ? String(req.body.descricao) : undefined,
@@ -89,13 +135,13 @@ export class MaterialController {
     }
   }
 
- async stats(req: Request, res: Response) {
+  async stats(req: Request, res: Response) {
     try {
       const [totalMaterials, lowStock, totalMovements, totalEntries] = await Promise.all([
         prisma.material.count(), 
         prisma.material.count({ where: { quantity: { lte: 10 } } }), 
         prisma.movement.count(), 
-        prisma.movement.count({ where: { type: 'entrada' } }) // <-- Agora o banco conta as Entradas Reais!
+        prisma.movement.count({ where: { type: 'entrada' } }) 
       ]);
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {
