@@ -21,16 +21,24 @@ const filters = ref({
   tipoMovimento: 'todos' // entrada, saida, todos
 })
 
-// Opções de Filtro
+// Opções de Filtro Sincronizadas
 const materialTypes = [
   { value: 'todos', label: 'Todos os Materiais' },
+  { value: 'tecido', label: 'Tecido' },
+  { value: 'linha', label: 'Linha' },
+  { value: 'elastico', label: 'Elástico' },
+  { value: 'aviamento', label: 'Aviamento' },
   { value: 'couro', label: 'Couro' },
   { value: 'sintetico', label: 'Sintético' },
-  { value: 'tecido', label: 'Tecido' },
   { value: 'solado', label: 'Solado' },
-  { value: 'quimico', label: 'Químico' },
-  { value: 'filme', label: 'Filme' }, // Adicionado para fechar com o dashboard
-  { value: 'forro', label: 'Forro' }
+  { value: 'filme', label: 'Filme' },
+  { value: 'eva', label: 'EVA' },
+  { value: 'espuma', label: 'Espuma' },
+  { value: 'forro', label: 'Forro' },
+  { value: 'manta', label: 'Manta' },
+  { value: 'microfibra', label: 'Microfibra' },
+  { value: 'ferramentais', label: 'Ferramentais' },
+  { value: 'outros', label: 'Outros' }
 ]
 
 const periods = [
@@ -95,18 +103,27 @@ async function generateReport() {
     const queryUrl = `/reports/movements?dataInicio=${dates.start}&dataFim=${dates.end}`
     const apiData = await request(queryUrl)
 
-    // O Frontend faz apenas os filtros "leves" de interface (Material e Tipo de Movimento)
+   // O Frontend faz apenas os filtros "leves" de interface (Material e Tipo de Movimento)
     reportData.value = apiData.filter(mov => {
-      // 1. Filtro de Tipo de Material (se aplicável, dependendo de como está salvo no material)
-      // Como a rota /reports/movements não traz a categoria do material por padrão (só nome/código), 
-      // se a DASS precisar filtrar muito por categoria, teremos que adicionar 'type' no ReportController depois.
-      // Por enquanto, vamos pular esse filtro e focar nos movimentos.
+      
+      // 1. Filtro de Tipo de Material (A MÁGICA LIGADA AQUI 🚀)
+      if (filters.value.tipoMaterial !== 'todos') {
+        // Pega o tipo que veio do banco (se não vier, assume 'outros')
+        const tipoMat = (mov.material?.tipo || 'outros').toLowerCase();
+        // Se for diferente do que o usuário selecionou, joga fora da tabela
+        if (tipoMat !== filters.value.tipoMaterial.toLowerCase()) {
+          return false;
+        }
+      }
 
       // 2. Filtro de Tipo de Movimento (ENTRADA/SAIDA)
       if (filters.value.tipoMovimento !== 'todos') {
-        if (mov.tipo.toLowerCase() !== filters.value.tipoMovimento.toLowerCase()) return false
+        if (mov.tipo.toLowerCase() !== filters.value.tipoMovimento.toLowerCase()) {
+          return false;
+        }
       }
-      return true
+      
+      return true; // Se passou por todos os filtros, aparece na tabela!
     })
 
   } catch (err) {
