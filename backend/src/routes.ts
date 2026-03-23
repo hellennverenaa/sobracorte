@@ -34,9 +34,34 @@ routes.get('/reports/movements', reportController.movements);
 // 👤 Rota Temporária de Usuários
 routes.get('/users', (req, res) => {
   res.json([
-    { id: 1, usuario: 'HELLEN.MAGALHAES', role: 'admin', email: 'hellen.magalhaes@grupodass.com.br' },
-    { id: 2, usuario: 'HENDRIUS.SANTANA', role: 'admin', email: 'hendrius.santana@grupodass.com.br' },
-    { id: 3, usuario: 'PAULO.SANTANA', role: 'admin', email: 'paulo.santana@grupodass.com.br'}
+    { 
+      id: 1, 
+      nome: 'Hellen Verena',
+      usuario: 'HELLEN.MAGALHAES', 
+      role: 'admin', 
+      email: 'hellen.magalhaes@grupodass.com.br',
+      setor: 'Consumo / Tecnologia',
+      funcao: 'Arquiteta de Software'
+    },
+    { 
+      id: 2, 
+      nome: 'Hendrius Santana',
+      usuario: 'HENDRIUS.SANTANA', 
+      role: 'admin', 
+      email: 'hendrius.santana@grupodass.com.br',
+      setor: 'TI / Automação',
+      funcao: 'Engenheiro de Software'
+    },
+    { 
+      id: 2, 
+      nome: 'Paulo Santana',
+      usuario: 'PAULO.SANTANA', 
+      role: 'admin', 
+      email: 'paulo.santana@grupodass.com.br',
+      setor: 'Tecnologia',
+      funcao: 'Especialista Técnico de Corte\Corte Automático e Novas Tecnologias'
+    }
+
   ]);
 });
 

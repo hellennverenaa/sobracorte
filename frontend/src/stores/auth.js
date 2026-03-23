@@ -115,6 +115,7 @@ console.log("👤 Usuário identificado na API:", apiUser.usuario);
 
         const finalUser = {
           ...apiUser,
+          ...dadosAtualizados,
           id: localId || apiUser.id,
           role: finalRole,
           token: data.data.token
