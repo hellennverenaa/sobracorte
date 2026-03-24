@@ -167,9 +167,12 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
-                <select v-model="form.type" required class="w-full border p-2 rounded bg-white outline-none">
+                <select v-model="form.type" required 
+                  class="w-full border p-2 rounded bg-white outline-none transition-colors"
+                  :class="!form.type ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a categoria...</option>
-                  <option v-for="cat in categories.filter(c => c !== 'Todos')" :key="cat" :value="cat">{{ cat }}
+                  <option v-for="cat in categories.filter(c => c !== 'Todos')" :key="cat" :value="cat" class="text-gray-900">
+                    {{ cat }}
                   </option>
                 </select>
               </div>
@@ -177,16 +180,17 @@
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Unidade</label>
                 <select v-model="form.unit" required 
-                  class="w-full border p-2 rounded bg-white outline-none-200 font-medium">
+                  class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors"
+                  :class="!form.unit ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a unidade...</option>
-                  <option value="und">Unidade (und)</option>
-                  <option value="kg">Quilograma (kg)</option>
-                  <option value="m">Metro (m)</option>
-                  <option value="m²">Metro Quadrado (m²)</option>
-                  <option value="g">Grama (g)</option>
-                  <option value="par">Par</option>
-                  <option value="cx">Caixa</option>
-                  <option value="rl">Rolo</option>
+                  <option value="und" class="text-gray-900">Unidade (und)</option>
+                  <option value="kg" class="text-gray-900">Quilograma (kg)</option>
+                  <option value="m" class="text-gray-900">Metro (m)</option>
+                  <option value="m²" class="text-gray-900">Metro Quadrado (m²)</option>
+                  <option value="g" class="text-gray-900">Grama (g)</option>
+                  <option value="par" class="text-gray-900">Par</option>
+                  <option value="cx" class="text-gray-900">Caixa</option>
+                  <option value="rl" class="text-gray-900">Rolo</option>
                 </select>
               </div>
             </div>
@@ -198,9 +202,17 @@
                   class="w-full border p-2 rounded outline-none" />
               </div>
               <div>
-                <label class="block text-sm font-medium text-gray-700">Localização (Prateleira)</label>
-                <select v-model="form.location" class="w-full border p-2 rounded bg-white outline-none font-medium">
-                  <option v-for="loc in availableLocations" :key="loc" :value="loc">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Localização (Prateleira)</label>
+                <select v-model="form.location" required 
+                  :disabled="!form.type"
+                  class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  :class="!form.location ? 'text-gray-400' : 'text-gray-900'">
+                  
+                  <option value="" disabled selected hidden>
+                    {{ form.type ? 'Selecione a prateleira...' : 'Escolha a Categoria primeiro' }}
+                  </option>
+                  
+                  <option v-for="loc in availableLocations" :key="loc" :value="loc" class="text-gray-900">
                     {{ loc }}
                   </option>
                 </select>
@@ -227,7 +239,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Layout from '../components/Layout.vue'
 
 const API_URL = `http://${window.location.hostname}:3333`;
@@ -244,14 +256,44 @@ const notification = ref({ show: false, type: '', message: '' })
 function showNotification(type, message) {
   notification.value = { show: true, type, message }
   setTimeout(() => { notification.value.show = false }, 3000)
+} // 🚀 AQUI ESTÁ A CHAVE QUE FALTAVA! SALVADORA DA PÁTRIA!
+
+// 1. 🚀 PRIMEIRO: Criamos o Form (Isso TEM que vir antes do Computed e do Watch)
+const form = ref({ code: '', name: '', type: '', unit: '', quantity: 0, location: '', observation: '' })
+
+// 2. 🚀 DEPOIS: A Inteligência de Zoneamento (Dicionário)
+const mapArmazens = {
+  'LINHA': ['Gaiola de Linhas', 'Estante Linhas A', 'Estante Linhas B'],
+  'AVIAMENTO': ['Gaveteiro Aviamentos', 'Prateleira Aviamentos'],
+  'ELASTICO': ['Prateleira de Elásticos', 'Caixas de Elástico'],
+  'FERRAMENTAIS': ['Armário de Ferramentas', 'Sala da Manutenção']
 }
 
-// 🚀 TAREFA 2: Lista de Localizações (Dropdown)
-const availableLocations = ['Não definido', 'Prateleira A', 'Prateleira B', 'Corredor 1', 'Corredor 2', 'Gaiola Central', 'Mezanino']
+// Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
+const defaultLocations = ['Prateleira Geral A', 'Prateleira Geral B', 'Galpão Principal', 'Corredor 1']
 
-const form = ref({ code: '', name: '', type: 'OUTROS', unit: 'und', quantity: 0, location: 'Não definido', observation: '' })
+// 3. 🚀 A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
+const availableLocations = computed(() => {
+  if (!form.value.type) return [] // Retorna vazio se não escolheu a categoria
+
+  const categoriaSelecionada = String(form.value.type).toUpperCase().trim()
+  
+  // Se a categoria for especial (Linha, Aviamento...), puxa do dicionário. 
+  // Se não for, puxa a lista padrão (defaultLocations).
+  return mapArmazens[categoriaSelecionada] || defaultLocations
+})
+
+// 4. 🚀 O OBSERVADOR: Limpa a prateleira se o usuário mudar de ideia
+watch(() => form.value.type, (newType, oldType) => {
+  // Só limpa se realmente mudou de uma categoria para outra (ignora a abertura do modal)
+  if (newType !== oldType && oldType !== undefined && oldType !== '') {
+    form.value.location = '' 
+  }
+})
 
 const categories = ['Todos', 'TECIDO', 'LINHA', 'ELASTICO', 'AVIAMENTO', 'COURO', 'SINTETICO', 'SOLADO', 'FILME', 'EVA', 'ESPUMA', 'FORRO', 'MANTA', 'MICROFIBRA', 'FERRAMENTAIS', 'OUTROS']
+
+
 
 async function fetchMaterials() {
   try {
@@ -272,7 +314,7 @@ function formatNumber(num) { return Number(num).toLocaleString('pt-BR', { minimu
 
 function openCreateModal() {
   editingItem.value = null
-  form.value = { code: '', name: '', type: '', unit: '', quantity: 0, location: 'Não definido', observation: '' }
+  form.value = { code: '', name: '', type: '', unit: '', quantity: 0, location: '', observation: '' }
   showCreateModal.value = true
 }
 
