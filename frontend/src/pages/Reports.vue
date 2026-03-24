@@ -109,7 +109,7 @@ async function generateReport() {
       // 1. Filtro de Tipo de Material (A MÁGICA LIGADA AQUI 🚀)
       if (filters.value.tipoMaterial !== 'todos') {
         // Pega o tipo que veio do banco (se não vier, assume 'outros')
-        const tipoMat = (mov.material?.tipo || 'outros').toLowerCase();
+        const tipoMat = String(mov.material?.type || mov.material?.tipo || 'outros').toLowerCase();
         // Se for diferente do que o usuário selecionou, joga fora da tabela
         if (tipoMat !== filters.value.tipoMaterial.toLowerCase()) {
           return false;

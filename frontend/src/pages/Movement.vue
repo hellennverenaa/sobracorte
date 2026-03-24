@@ -358,9 +358,14 @@ const filteredHistory = computed(() => {
   let list = history.value
   if (historySearch.value) {
     const term = historySearch.value.toLowerCase().trim()
-    list = list.filter(h => h.material?.codigo && String(h.material.codigo).toLowerCase().includes(term))
+    list = list.filter(h => {
+      // 🚀 A CORREÇÃO: Busca usando os campos em inglês do Prisma ('code' e 'name')
+      const codeMatch = h.material?.code && String(h.material.code).toLowerCase().includes(term)
+      const nameMatch = h.material?.name && String(h.material.name).toLowerCase().includes(term)
+      return codeMatch || nameMatch
+    })
   }
-  return list.slice(0, 100)
+  return list.slice(0, 100) // Traz os últimos 100
 })
 
 function selectMaterial(mat) {
