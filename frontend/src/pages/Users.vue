@@ -51,20 +51,26 @@ const fetchUsers = async () => {
 }
 
 // Salvar alteração de nível
+// Salvar alteração de nível
 const saveUserRole = async () => {
   if (!editingUser.value) return
 
   try {
     const response = await fetch(`${API_URL}/users/${editingUser.value.id}`, {
-      method: 'PUT', // Ou PATCH
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editingUser.value)
     })
 
     if (response.ok) {
+      // 🚀 A MÁGICA: Atualiza a tabela na tela imediatamente!
+      const index = users.value.findIndex(u => u.id === editingUser.value.id)
+      if (index !== -1) {
+        users.value[index].role = editingUser.value.role
+      }
+      
       alert('Permissão atualizada com sucesso!')
       showEditModal.value = false
-      fetchUsers() // Recarrega a lista
     } else {
       throw new Error('Falha ao salvar')
     }

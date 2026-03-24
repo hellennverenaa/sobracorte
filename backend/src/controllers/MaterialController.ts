@@ -15,25 +15,39 @@ export class MaterialController {
       const totalItems = await prisma.material.count({ where: whereClause });
       res.set('X-Total-Count', totalItems.toString());
 
+      // 🚀 1. AUMENTADO PARA 10.000 (Traz todo o estoque do ERP para a pesquisa do Vue funcionar)
       const page = Number(_page) || 1;
-      const limit = Number(_limit) || 50;
+      const limit = Number(_limit) || 10000; 
       const skip = (page - 1) * limit;
 
       const materials = await prisma.material.findMany({
         where: whereClause,
         skip: skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        // 🚀 2. A TRAVA DO DBA: Desempata a data usando o ID. O item nunca mais muda de lugar!
+        orderBy: [
+          { createdAt: 'desc' },
+          { id: 'desc' } 
+        ],
         include: { 
           locations: { 
-            include: { location: true } // 🚀 Traz os locais vinculados do banco
+            include: { location: true } 
           } 
         }
       });
 
-      const formatted = materials.map(m => {
-        // Pega o primeiro local cadastrado para exibir no modal de edição, ou "Não definido"
-        const primaryLocation = m.locations.length > 0 ? m.locations[0].location.name : 'Não definido';
+     const formatted = materials.map(m => {
+        // 🚀 A MÁGICA: Filtra apenas as prateleiras que realmente têm saldo (> 0)
+        // Ignorando os "Não definido" vazios do passado.
+        const prateleirasComSaldo = m.locations.filter((ml: any) => ml.quantity > 0);
+        
+        let localExibicao = 'Não definido';
+        
+        if (prateleirasComSaldo.length > 0) {
+          // Se tiver em apenas uma, mostra o nome dela. 
+          // Se o material estiver dividido, ele junta os nomes (Ex: "Prat A | Prat B")
+          localExibicao = prateleirasComSaldo.map((ml: any) => ml.location.name).join(' | ');
+        }
         
         return {
           ...m,
@@ -44,7 +58,7 @@ export class MaterialController {
           tipo: m.type,
           observacoes: m.observation,
           data_cadastro: m.createdAt,
-          location: primaryLocation // 🚀 Envia a prateleira para o Frontend
+          location: localExibicao // 🚀 Envia o nome real da prateleira para o Frontend
         };
       });
 

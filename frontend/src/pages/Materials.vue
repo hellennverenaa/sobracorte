@@ -45,7 +45,7 @@
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código</th>
+                <th class="px-4 py-3 text-xs font-bold number-gray-500 uppercase border-b">Código</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Categ.</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Qtd / Medida</th>
@@ -154,20 +154,21 @@
           <form @submit.prevent="saveItem" class="space-y-4">
 
             <div>
-              <label class="block text-sm font-bold text-gray-700 mb-1">Código</label>
+              <label class="block number-sm font-bold text-gray-700 mb-1">Código</label>
               <input v-model="form.code" required class="w-full border p-2 rounded outline-none font-mono"
                 placeholder="Ex: 1040" />
             </div>
 
             <div>
               <label class="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
-              <input v-model="form.name" required class="w-full border p-2 rounded outline-none" />
+              <input v-model="form.name" required class="w-full border p-2 rounded outline-none" placeholder="Digite a descrição do material"/>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
-                <select v-model="form.type" class="w-full border p-2 rounded bg-white outline-none">
+                <select v-model="form.type" required class="w-full border p-2 rounded bg-white outline-none">
+                  <option value="" disabled selected hidden>Selecione a categoria...</option>
                   <option v-for="cat in categories.filter(c => c !== 'Todos')" :key="cat" :value="cat">{{ cat }}
                   </option>
                 </select>
@@ -175,7 +176,9 @@
 
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Unidade</label>
-                <select v-model="form.unit" class="w-full border p-2 rounded bg-white outline-none font-medium">
+                <select v-model="form.unit" required 
+                  class="w-full border p-2 rounded bg-white outline-none-200 font-medium">
+                  <option value="" disabled selected hidden>Selecione a unidade...</option>
                   <option value="und">Unidade (und)</option>
                   <option value="kg">Quilograma (kg)</option>
                   <option value="m">Metro (m)</option>
@@ -269,7 +272,7 @@ function formatNumber(num) { return Number(num).toLocaleString('pt-BR', { minimu
 
 function openCreateModal() {
   editingItem.value = null
-  form.value = { code: '', name: '', type: 'OUTROS', unit: 'und', quantity: 0, location: 'Não definido', observation: '' }
+  form.value = { code: '', name: '', type: '', unit: '', quantity: 0, location: 'Não definido', observation: '' }
   showCreateModal.value = true
 }
 
@@ -282,6 +285,25 @@ function editItem(item) {
 function viewDetails(item) { viewingItem.value = item }
 
 async function saveItem() {
+
+  // 🚀 BARREIRA DE SEGURANÇA (Validações da Arquiteta)
+  if (!form.value.code) {
+    return showNotification('error', 'O código do material é obrigatório!');
+  }
+  // Verifica se tem alguma letra ou caractere especial misturado nos números
+  if (!/^\d+$/.test(form.value.code)) {
+    return showNotification('error', 'O código deve conter APENAS números!');
+  }
+  if (!form.value.type) {
+    return showNotification('error', 'Selecione uma Categoria válida!');
+  }
+  if (!form.value.unit) {
+    return showNotification('error', 'A Unidade de Medida é obrigatória!');
+  }
+  if (!form.value.location) {
+    return showNotification('error', 'Selecione uma Localização (Prateleira)!');
+  }
+
   try {
     const userJson = localStorage.getItem('user');
     const user = userJson ? JSON.parse(userJson) : null;
