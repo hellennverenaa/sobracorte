@@ -367,7 +367,7 @@ onUnmounted(() => {
                     </td>
                     <td class="p-3">
                        <div class="flex items-center gap-1 text-slate-500 text-xs font-medium">
-                         <MapPin class="w-3 h-3 text-slate-300" /> {{ item.localizacao || 'Não definido' }}
+                         <MapPin class="w-3 h-3 text-slate-300" /> {{ item.location || 'Não definido' }}
                        </div>
                     </td>
                     <td class="p-3 pr-4 text-right w-1/3">

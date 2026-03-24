@@ -73,13 +73,23 @@ export class MaterialController {
       const locationName = String(req.body.location || 'Não definido').trim();
       const qtdInicial = Number(req.body.quantidade || req.body.quantity || 0);
 
-      // 🚀 1. Busca se a Prateleira já existe no banco. Se não, cria na hora!
+      //  1. Busca se a Prateleira já existe no banco. Se não, cria na hora!
       let loc = await prisma.location.findUnique({ where: { name: locationName } });
       if (!loc) {
         loc = await prisma.location.create({ data: { name: locationName } });
       }
 
-      // 🚀 2. Cria o Material já vinculando ele à Prateleira encontrada/criada
+      //  2. A MÁGICA: Prepara a auditoria. Se tiver saldo, gera uma ENTRADA automática.
+      const movimentos = qtdInicial > 0 ? {
+        create: {
+          type: 'entrada',
+          quantity: qtdInicial,
+          reason: 'Saldo Inicial de Implantação',
+          operatorName: 'Sistema / Implantação' // Nome fixo para auditoria de cadastro
+        }
+      } : undefined;
+
+      //  3. Cria o Material, a Prateleira e o Histórico em uma única transação atômica!
       const novo = await prisma.material.create({
         data: {
           code: String(req.body.codigo || req.body.code),
@@ -88,16 +98,21 @@ export class MaterialController {
           unit: String(req.body.unidade || req.body.unit || 'UN'),
           type: String(req.body.tipo || req.body.type || 'outros'),
           observation: String(req.body.observacoes || req.body.observation || ''),
+          
           locations: {
             create: {
               locationId: loc.id,
-              quantity: qtdInicial // Já joga o saldo inicial para a prateleira
+              quantity: qtdInicial
             }
-          }
+          },
+          
+          movements: movimentos // 🚀 Injeção do Histórico Automático
         }
       });
+      
       res.json(novo);
     } catch (error) {
+      console.error("Erro na criação:", error); // Bom deixar isso aqui para debugar se precisar
       res.status(500).json({ error: 'Erro ao criar material. Verifique duplicidade.' });
     }
   }
