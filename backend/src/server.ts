@@ -10,7 +10,7 @@ app.use(cors({ exposedHeaders: ['X-Total-Count'] }));
 app.use(express.json());
 
 // ==========================================
-// 🛡️ CAMADA DE SEGURANÇA (SecOps)
+// CAMADA DE SEGURANÇA (SecOps)
 // ==========================================
 
 // 1. HELMET: O Capacete. Ele esconde dos hackers que o servidor roda Node.js/Express 
