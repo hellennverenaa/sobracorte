@@ -240,7 +240,7 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-0">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print:shadow-none print:border-0 print:overflow-visible print:w-full">
           
           <div class="hidden print:block p-8 text-center border-b border-gray-200">
             <h1 class="text-3xl font-black text-slate-900">Sobras DASS</h1>
@@ -297,12 +297,38 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
 </template>
 
 <style>
+/* 🚀 MÁGICA: Remove os cabeçalhos e rodapés automáticos do navegador (Links e Datas do Chrome) */
+@page {
+  margin: 0cm; 
+}
+
 @media print {
-  body { background: white; }
+  /* Limpeza de tela e fundo branco */
+  body { background: white !important; }
+  aside, header, footer, nav { display: none !important; }
   .print\:hidden { display: none !important; }
   .print\:block { display: block !important; }
-  /* Esconde sidebar, layout extra, etc */
-  aside, header, footer { display: none; }
-  main { margin: 0; padding: 0; height: auto; overflow: visible; }
+  
+  /* 🚀 A BOMBA NUCLEAR: Destranca TODOS os elementos da página */
+  * {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: auto !important;
+  }
+
+  /* Garante que o container principal ocupe 100% da folha */
+  #app, main { 
+    margin: 0 !important; 
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Garante que uma linha (tr) da tabela não seja cortada no meio entre as páginas */
+  table { width: 100% !important; }
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 </style>
