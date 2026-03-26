@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { routes } from './routes';
 import rateLimit from 'express-rate-limit';
+import {Request, Response} from "express"
 
 const app = express();
 
@@ -41,6 +42,12 @@ app.use(express.json());
 
 // Engatando o "roteador" no nosso motor principal
 app.use(routes);
+
+app.get("/", (req: Request, res: Response) => {
+  res.json({
+    message: "Api sorbra corte runnig."
+  })
+})
 
 const PORT = Number(process.env.PORT) || 3333;
 app.listen(PORT, '0.0.0.0', () => {
