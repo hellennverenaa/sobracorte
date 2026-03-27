@@ -264,8 +264,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
-
-const API_URL = `http://${window.location.hostname}:3333`
+import { api } from '../utils/ip'
 
 // Lista padrão de prateleiras da fábrica para as Entradas
 const availableLocations = ['Não definido', 'Prateleira A', 'Prateleira B', 'Corredor 1', 'Corredor 2', 'Gaiola Central', 'Mezanino']
@@ -332,8 +331,8 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
 async function fetchData() {
   try {
     const [matRes, histRes] = await Promise.all([
-      fetch(`${API_URL}/materials`),
-      fetch(`${API_URL}/movements`)
+      fetch(`${api}/materials`),
+      fetch(`${api}/movements`)
     ])
     if (!matRes.ok || !histRes.ok) throw new Error('Falha na conexão com back-end.')
 
@@ -424,7 +423,7 @@ async function submitMovement() {
   const user = userJson ? JSON.parse(userJson) : null;
 
   try {
-    const res = await fetch(`${API_URL}/movements`, {
+    const res = await fetch(`${api}/movements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

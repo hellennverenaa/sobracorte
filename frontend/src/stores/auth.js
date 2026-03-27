@@ -1,10 +1,6 @@
 import { defineStore } from 'pinia'
 
-// --- CONFIGURAÇÃO INTELIGENTE (Dinâmica) ---
-// Pega o IP ou nome de onde o site está rodando (localhost ou 10.100.x.x)
-const HOST = window.location.hostname 
-// Monta a URL usando esse IP, mas na porta 3000 (onde está nosso servidor Node)
-const DB_URL = `http://${HOST}:3333`
+import { authApi, api } from '../utils/ip'
 
 // --- LÓGICA DE NÍVEIS ---
 const defineNivelUsuario = (userData) => {
@@ -17,12 +13,12 @@ const defineNivelUsuario = (userData) => {
   if (adminsMaster.includes(usuario)) return 'admin';
 
   // 2. LÍDER
-  if (funcao.includes('LIDER') || funcao.includes('COORDENADOR') || 
-      funcao.includes('GERENTE') || funcao.includes('SUPERVISOR')) return 'lider';
+  if (funcao.includes('LIDER') || funcao.includes('COORDENADOR') ||
+    funcao.includes('GERENTE') || funcao.includes('SUPERVISOR')) return 'lider';
 
   // 3. MOVIMENTADOR
-  if (funcao.includes('AUXILIAR') || funcao.includes('OPERADOR') || 
-      setor === 'ALMOXARIFADO') return 'movimentador';
+  if (funcao.includes('AUXILIAR') || funcao.includes('OPERADOR') ||
+    setor === 'ALMOXARIFADO') return 'movimentador';
 
   return 'leitor';
 }
@@ -52,10 +48,8 @@ export const useAuthStore = defineStore('auth', {
     // --- LOGIN VIA PROXY ---
     async login(user, password) {
       try {
-        console.log(`🚀 Tentando login em: ${DB_URL}/auth/login`);
-        
         // Usa a URL dinâmica definida lá em cima
-        const response = await fetch(`http://10.100.1.43:2399/api/auth/login`, {
+        const response = await fetch(authApi, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ usuario: user, senha: password })
@@ -72,7 +66,7 @@ export const useAuthStore = defineStore('auth', {
         // Processa o Token
         const tokenPayload = data.data.token.split(".")[1]
         const apiUser = JSON.parse(atob(tokenPayload))
-console.log("👤 Usuário identificado na API:", apiUser.usuario);
+        console.log("👤 Usuário identificado na API:", apiUser.usuario);
 
         // --- TRAVA DE SEGURANÇA PARA ADMINS MASTER ---
         // Se for Hellen ou Hendrius, É ADMIN e ponto final. Ignora o resto.
@@ -91,26 +85,26 @@ console.log("👤 Usuário identificado na API:", apiUser.usuario);
         let localId = null
 
         if (isMaster) {
-            console.log("👑 Admin Master Identificado: Acesso Total Liberado.");
-            finalRole = 'admin';
+          console.log("👑 Admin Master Identificado: Acesso Total Liberado.");
+          finalRole = 'admin';
         } else {
-            // SÓ entra aqui se NÃO for a Hellen ou o Hendrius
-            try {
-              const localCheck = await fetch(`${DB_URL}/users`)
-              if (localCheck.ok) {
-                 const localUsers = await localCheck.json()
-                 const existingUser = localUsers.find(u => u.email === dadosAtualizados.email)
-                 
-                 if (existingUser) {
-                     finalRole = existingUser.role
-                     localId = existingUser.id
-                 } else {
-                     finalRole = defineNivelUsuario(apiUser)
-                 }
+          // SÓ entra aqui se NÃO for a Hellen ou o Hendrius
+          try {
+            const localCheck = await fetch(`${api}/users`)
+            if (localCheck.ok) {
+              const localUsers = await localCheck.json()
+              const existingUser = localUsers.find(u => u.email === dadosAtualizados.email)
+
+              if (existingUser) {
+                finalRole = existingUser.role
+                localId = existingUser.id
+              } else {
+                finalRole = defineNivelUsuario(apiUser)
               }
-            } catch (error) {
-              finalRole = defineNivelUsuario(apiUser);
             }
+          } catch (error) {
+            finalRole = defineNivelUsuario(apiUser);
+          }
         }
 
         const finalUser = {
@@ -139,7 +133,7 @@ console.log("👤 Usuário identificado na API:", apiUser.usuario);
       localStorage.removeItem('user')
       window.location.href = '/login'
     },
-    
+
     can(action) {
       const role = this.user?.role
       if (role === 'admin') return true
