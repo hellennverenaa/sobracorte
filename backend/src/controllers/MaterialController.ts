@@ -64,6 +64,7 @@ export class MaterialController {
 
       res.json(formatted);
     } catch (error) {
+      console.error("Erro ao buscar materiais: ", error)
       res.status(500).json({ error: 'Erro ao buscar materiais' });
     }
   }
