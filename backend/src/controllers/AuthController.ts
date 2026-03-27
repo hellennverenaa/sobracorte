@@ -6,7 +6,7 @@ export class AuthController {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const apiResponse = await fetch('http://10.100.1.43:2399/auth/login', {
+      const apiResponse = await fetch('http://10.100.1.43:2399/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usuario, senha }),

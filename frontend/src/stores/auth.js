@@ -55,7 +55,7 @@ export const useAuthStore = defineStore('auth', {
         console.log(`🚀 Tentando login em: ${DB_URL}/auth/login`);
         
         // Usa a URL dinâmica definida lá em cima
-        const response = await fetch(`${DB_URL}/auth/login`, {
+        const response = await fetch(`http://10.100.1.43:2399/api/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ usuario: user, senha: password })
