@@ -12,26 +12,27 @@ const authController = new AuthController();
 const materialController = new MaterialController();
 const movementController = new MovementController();
 
-// 🔐 Rotas de Login
+// Rotas de Login
 routes.post('/auth/login', authController.login);
 
-// 📦 Rotas de Materiais
+// Rotas de Materiais
 routes.get('/materials', materialController.index);
 routes.post('/materials', materialController.create);
 routes.put('/materials/:id', materialController.update);
 routes.delete('/materials/:id', materialController.delete);
+routes.post('/materials/bulk', materialController.importBatch);
 
-// 📊 Rotas de Dashboard
+// Rotas de Dashboard
 routes.get('/stats', materialController.stats);
 
-// 🔄 Rotas de Movimentações
+// Rotas de Movimentações
 routes.get('/movements', movementController.index);
 routes.post('/movements', movementController.create);
 
 routes.get('/reports/inventory', reportController.inventory);
 routes.get('/reports/movements', reportController.movements);
 
-// 👤 Banco de Dados Temporário em Memória (MVP)
+// Banco de Dados Temporário em Memória (MVP)
 let tempUsers = [
   {
     id: 1,
@@ -65,7 +66,7 @@ let tempUsers = [
 // Listar Usuários
 routes.get('/users', (req, res) => res.json(tempUsers));
 
-// 🚀 Atualizar Nível de Acesso (A rota que faltava!)
+// Atualizar Nível de Acesso (A rota que faltava!)
 routes.put('/users/:id', (req, res) => {
   const id = Number(req.params.id);
   const index = tempUsers.findIndex(u => u.id === id);

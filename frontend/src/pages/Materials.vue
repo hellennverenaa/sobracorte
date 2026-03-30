@@ -12,26 +12,27 @@
       <span class="font-medium">{{ notification.message }}</span>
     </div>
 
+    
     <div class="flex flex-col h-full">
-      <div class="flex justify-between items-center mb-6 px-4 pt-4">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-800">Materiais</h1>
-          <p class="text-sm text-gray-500">Gerenciamento de Estoque</p>
-        </div>
-        <button
-          @click="openCreateModal"
-          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2 shadow-sm transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fill-rule="evenodd"
-              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          <span>Novo Material</span>
-        </button>
-      </div>
+      <div class="flex flex-col sm:flex-row gap-5 items-center justify-end w-full sm:w-auto ml-auto my-8">
+  
+  <label v-if="authStore.user?.role === 'admin'" class="cursor-pointer bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition flex items-center gap-2 shadow-md relative overflow-hidden group">
+    <Upload class="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+    <span v-if="importLoading">Enviando...</span>
+    <span v-else>Importar Planilha</span>
+    <input type="file" accept=".csv" class="hidden" @change="handleFileUpload" :disabled="importLoading" />
+  </label>
+
+  <button @click="openModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2">
+    Novo Material
+  </button>
+
+</div>
+
+<div v-if="importResult" class="mt-4 p-3 rounded-lg text-sm font-bold flex items-center justify-between" :class="importResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'">
+  {{ importResult }}
+  <button @click="importResult = null" class="underline opacity-70 hover:opacity-100">Fechar</button>
+</div>
 
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex gap-4">
         <div class="w-1/3">
@@ -342,6 +343,9 @@
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
 import { api } from "../utils/ip";
+import { Upload } from 'lucide-vue-next'
+// 1. ADICIONE ESTA LINHA PARA IMPORTAR:
+import { useAuthStore } from '@/stores/auth'
 
 const materials = ref([]);
 const search = ref("");
@@ -350,7 +354,16 @@ const showCreateModal = ref(false);
 const editingItem = ref(null);
 const viewingItem = ref(null);
 
-// 🚀 TAREFA 1: Sistema de Notificações Elegante
+const showImportModal = ref(false)
+const importLoading = ref(false)
+const importResult = ref(null)
+
+
+
+// 2. ADICIONE ESTA LINHA PARA CRIAR A VARIÁVEL:
+const authStore = useAuthStore()
+
+// TAREFA 1: Sistema de Notificações Elegante
 const notification = ref({ show: false, type: "", message: "" });
 
 function showNotification(type, message) {
@@ -358,12 +371,12 @@ function showNotification(type, message) {
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
-} // 🚀 AQUI ESTÁ A CHAVE QUE FALTAVA! SALVADORA DA PÁTRIA!
+} // AQUI ESTÁ A CHAVE QUE FALTAVA! SALVADORA DA PÁTRIA!
 
-// 1. 🚀 PRIMEIRO: Criamos o Form (Isso TEM que vir antes do Computed e do Watch)
+// 1. PRIMEIRO: Criamos o Form (Isso TEM que vir antes do Computed e do Watch)
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
 
-// 2. 🚀 DEPOIS: A Inteligência de Zoneamento (Dicionário)
+// 2. DEPOIS: A Inteligência de Zoneamento (Dicionário)
 const mapArmazens = {
   LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
   AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
@@ -374,7 +387,7 @@ const mapArmazens = {
 // Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
 const defaultLocations = ["Prateleira Geral A", "Prateleira Geral B", "Galpão Principal", "Corredor 1"];
 
-// 3. 🚀 A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
+// 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
   if (!form.value.type) return []; // Retorna vazio se não escolheu a categoria
 
@@ -385,7 +398,7 @@ const availableLocations = computed(() => {
   return mapArmazens[categoriaSelecionada] || defaultLocations;
 });
 
-// 4. 🚀 O OBSERVADOR: Limpa a prateleira se o usuário mudar de ideia
+// 4. O OBSERVADOR: Limpa a prateleira se o usuário mudar de ideia
 watch(
   () => form.value.type,
   (newType, oldType) => {
@@ -422,6 +435,61 @@ async function fetchMaterials() {
   } catch (e) {
     console.error(e);
   }
+}
+
+// Lógica de Leitura de CSV nativa (sem bibliotecas pesadas)
+async function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  importLoading.value = true;
+  const reader = new FileReader();
+  
+  reader.onload = async (e) => {
+    const text = e.target.result;
+    const lines = text.split('\n');
+    const items = [];
+    
+    // Começa do 1 para pular o cabeçalho do Excel
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const [code, name, quantity, unit, type] = lines[i].split(';');
+      items.push({ 
+        code: code, 
+        name: name, 
+        quantity: quantity || 0, 
+        unit: unit || 'UN', 
+        type: type || 'outro' 
+      });
+    }
+
+   try {
+      // Agora usamos o seu 'fetch' nativo apontando para a sua variável 'api'
+      const response = await fetch(`${api}/materials/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materiais: items })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error || "Erro na importação");
+
+      importResult.value = `Sucesso! ${data.inseridos || items.length} materiais importados.`;
+      
+      // Chama a sua função original para atualizar a tabela!
+      fetchMaterials(); 
+      
+    } catch (error) {
+      console.error("Erro no CSV:", error);
+      importResult.value = "❌ Erro ao importar. Verifique se o CSV está separado por ponto-e-vírgula.";
+    } finally {
+      importLoading.value = false;
+      event.target.value = null; 
+    }
+  };
+  reader.readAsText(file);
 }
 
 const paginatedMaterials = computed(() => {
