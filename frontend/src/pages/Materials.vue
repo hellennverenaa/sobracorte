@@ -23,7 +23,7 @@
     <input type="file" accept=".csv" class="hidden" @change="handleFileUpload" :disabled="importLoading" />
   </label>
 
-  <button @click="openModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2">
+  <button @click="openCreateModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2">
     Novo Material
   </button>
 
@@ -267,7 +267,8 @@
                 <select
                   v-model="form.unit"
                   required
-                  class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors"
+                  :disabled="isUnitLocked"
+                  class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                   :class="!form.unit ? 'text-gray-400' : 'text-gray-900'"
                 >
                   <option value="" disabled selected hidden>Selecione a unidade...</option>
@@ -398,15 +399,44 @@ const availableLocations = computed(() => {
   return mapArmazens[categoriaSelecionada] || defaultLocations;
 });
 
-// 4. O OBSERVADOR: Limpa a prateleira se o usuário mudar de ideia
+// 3.5 DICIONÁRIO DE ALMOXARIFADO E BLOQUEIO DA ARQUITETA
+const categoriasAlmoxarifadoM2 = [
+  "TECIDO", "SINTETICO", "FILME", "EVA", "ESPUMA", "FORRO", "MANTA", "MICROFIBRA"
+];
+// Couro separado para Metros lineares
+const categoriasAlmoxarifadoM = ["COURO"]; 
+
+// A TRAVA: Computa instantaneamente se o campo de unidade deve ser bloqueado (disabled)
+const isUnitLocked = computed(() => {
+  return categoriasAlmoxarifadoM2.includes(form.value.type) || 
+         categoriasAlmoxarifadoM.includes(form.value.type);
+});
+
+// 4. O OBSERVADOR TURBINADO
 watch(
   () => form.value.type,
   (newType, oldType) => {
-    // Só limpa se realmente mudou de uma categoria para outra (ignora a abertura do modal)
+    // Regra 1: Limpa a localização se mudar de ideia
     if (newType !== oldType && oldType !== undefined && oldType !== "") {
       form.value.location = "";
     }
-  },
+
+    // Regra 2: Inteligência da Unidade de Medida
+    if (newType) {
+      const isCreating = !editingItem.value;
+      const userChangedCategory = oldType !== "" && oldType !== undefined;
+
+      if (isCreating || userChangedCategory) {
+        if (categoriasAlmoxarifadoM2.includes(newType)) {
+          form.value.unit = "m²"; // Trava no m²
+        } else if (categoriasAlmoxarifadoM.includes(newType)) {
+          form.value.unit = "m"; // Trava o Couro no m
+        } else if (userChangedCategory) {
+          form.value.unit = ""; // Deixa livre para Aviamentos e Linhas
+        }
+      }
+    }
+  }
 );
 
 const categories = [
