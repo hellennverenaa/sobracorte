@@ -3,6 +3,8 @@ import { AuthController } from './controllers/AuthController';
 import { MaterialController } from './controllers/MaterialController';
 import { MovementController } from './controllers/MovementController';
 import { ReportController } from './controllers/ReportController';
+import { prisma } from './prisma';
+import { checkAuth, requireRole } from './middlewares/authMiddleware';
 
 const routes = Router();
 const reportController = new ReportController(); // (No meio)
@@ -12,69 +14,65 @@ const authController = new AuthController();
 const materialController = new MaterialController();
 const movementController = new MovementController();
 
-// 🔐 Rotas de Login
+// Rotas de Login (Única rota que fica 100% aberta, sem middleware)
 routes.post('/auth/login', authController.login);
 
-// 📦 Rotas de Materiais
-routes.get('/materials', materialController.index);
-routes.post('/materials', materialController.create);
-routes.put('/materials/:id', materialController.update);
-routes.delete('/materials/:id', materialController.delete);
+// Rotas de Materiais
+// GET é livre para quem está logado (Leitor vê a lista)
+routes.get('/materials', checkAuth, materialController.index);
+// POST, PUT, DELETE é só para Liderança/Admin
+routes.post('/materials', checkAuth, requireRole(['lider']), materialController.create);
+routes.put('/materials/:id', checkAuth, requireRole(['lider']), materialController.update);
+routes.delete('/materials/:id', checkAuth, requireRole(['lider']), materialController.delete);
 
-// 📊 Rotas de Dashboard
-routes.get('/stats', materialController.stats);
+// Rotas de Movimentações
+routes.get('/movements', checkAuth, movementController.index);
+// Lider e Movimentador podem dar entrada/saída (Leitor toma bloqueio)
+routes.post('/movements', checkAuth, requireRole(['lider', 'movimentador']), movementController.create);
 
-// 🔄 Rotas de Movimentações
-routes.get('/movements', movementController.index);
-routes.post('/movements', movementController.create);
+// Rotas de Dashboard e Relatórios (Líderes)
+routes.get('/stats', checkAuth, materialController.stats);
+routes.get('/reports/inventory', checkAuth, requireRole(['lider']), reportController.inventory);
+routes.get('/reports/movements', checkAuth, requireRole(['lider']), reportController.movements);
 
-routes.get('/reports/inventory', reportController.inventory);
-routes.get('/reports/movements', reportController.movements);
+// Gestão de Usuários (Somente os deuses - Admins)
+routes.get('/users', checkAuth, requireRole([]), async (req, res) => { /*...seu código...*/ });
+routes.put('/users/:id', checkAuth, requireRole([]), async (req, res) => { /*...seu código...*/ });
 
-// 👤 Banco de Dados Temporário em Memória (MVP)
-let tempUsers = [
-  {
-    id: 1,
-    nome: 'Hellen Verena',
-    usuario: 'HELLEN.MAGALHAES',
-    role: 'admin',
-    email: 'hellen.magalhaes@grupodass.com.br',
-    setor: 'Consumo / Tecnologia',
-    funcao: 'Arquiteta de Software'
-  },
-  {
-    id: 2,
-    nome: 'Hendrius Santana',
-    usuario: 'HENDRIUS.SANTANA',
-    role: 'admin',
-    email: 'hendrius.santana@grupodass.com.br',
-    setor: 'TI / Automação',
-    funcao: 'Engenheiro de Software'
-  },
-  {
-    id: 2,
-    nome: 'Paulo Santana',
-    usuario: 'PAULO.SANTANA',
-    role: 'admin',
-    email: 'paulo.santana@grupodass.com.br',
-    setor: 'Tecnologia',
-    funcao: 'Especialista Técnico de Corte\Corte Automático e Novas Tecnologias'
+
+// ==========================================================
+// ROTAS DE GESTÃO DE USUÁRIOS (SobraCorte DB)
+// ==========================================================
+
+// 1. Listar Usuários (Agora buscando direto do PostgreSQL)
+routes.get('/users', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { nome: 'asc' } // Já devolve em ordem alfabética para a tela
+    });
+    res.json(users);
+  } catch (error) {
+    console.error("Erro ao buscar usuários:", error);
+    res.status(500).json({ error: 'Erro interno ao buscar usuários' });
   }
-];
+});
 
-// Listar Usuários
-routes.get('/users', (req, res) => res.json(tempUsers));
+// 2. Atualizar Nível de Acesso (A rota de poder do Admin!)
+routes.put('/users/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { role } = req.body; // Pega o novo nível (admin, lider, movimentador, leitor)
 
-// 🚀 Atualizar Nível de Acesso (A rota que faltava!)
-routes.put('/users/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const index = tempUsers.findIndex(u => u.id === id);
+    // O Prisma faz o UPDATE cirúrgico no banco
+    const updatedUser = await prisma.user.update({
+      where: { id: id },
+      data: { role: role }
+    });
 
-  if (index !== -1) {
-    tempUsers[index].role = req.body.role; // Atualiza o nível
-    res.json(tempUsers[index]); // Devolve o usuário atualizado
-  } else {
-    res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Erro ao atualizar usuário:", error);
+    res.status(404).json({ error: 'Usuário não encontrado ou erro na atualização' });
   }
 });
 

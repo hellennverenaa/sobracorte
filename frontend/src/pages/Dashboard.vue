@@ -135,16 +135,25 @@ const maxMaterialValue = computed(() => {
 async function loadData() {
   isUpdating.value = true 
   try {
-    const statsData = await fetchStats()
+    const rawStats = await fetchStats()
+    console.log("🔍 DADOS DA API /stats:", rawStats)
+
+    // A ARQUITETA ABRINDO O ENVELOPE: Se vier dentro de 'data', a gente desempacota!
+    const statsData = rawStats.data || rawStats
+
     realStats.value = {
-      totalMaterials: statsData.totalMaterials || 0,
-      lowStock: statsData.lowStock || 0,
-      totalMovements: statsData.totalMovements || 0,
-      totalEntries: statsData.totalEntries || 0 
+      totalMaterials: statsData.totalMaterials || statsData.total_materials || 0,
+      lowStock: statsData.lowStock || statsData.low_stock || 0,
+      totalMovements: statsData.totalMovements || statsData.movimentacoes || 0,
+      totalEntries: statsData.totalEntries || statsData.entradas || 0 
     }
 
-    const materialsData = await fetchMaterials('_limit=1000')
-    materials.value = Array.isArray(materialsData) ? materialsData : (materialsData.materials || [])
+    const rawMaterials = await fetchMaterials('_limit=1000')
+    
+    // DESEMPACOTANDO OS MATERIAIS TAMBÉM:
+    const materialsData = rawMaterials.data || rawMaterials.materials || rawMaterials
+    
+    materials.value = Array.isArray(materialsData) ? materialsData : []
     
   } catch (error) {
     console.error("Erro dashboard:", error)
