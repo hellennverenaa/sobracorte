@@ -69,3 +69,21 @@ model Movement {
   @@index([materialId])
   @@index([createdAt]) // 🚀 ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
 }
+
+// 👤 TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
+model User {
+  id        Int      @id @default(autoincrement())
+  usuario   String   @unique // Matrícula/Login da DASS (Ex: HELLEN.MAGALHAES)
+  nome      String
+  email     String   @unique
+  setor     String?
+  funcao    String?  // Cargo que vem do RH
+  role      String   @default("leitor") // Nível de acesso manual do nosso sistema
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
+  @@index([usuario])
+  @@index([email])
+}
