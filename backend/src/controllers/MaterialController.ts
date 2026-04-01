@@ -37,7 +37,7 @@ export class MaterialController {
       });
 
      const formatted = materials.map(m => {
-        // 🚀 A MÁGICA: Filtra apenas as prateleiras que realmente têm saldo (> 0)
+        // A MÁGICA: Filtra apenas as prateleiras que realmente têm saldo (> 0)
         // Ignorando os "Não definido" vazios do passado.
         const prateleirasComSaldo = m.locations.filter((ml: any) => ml.quantity > 0);
         
@@ -58,7 +58,7 @@ export class MaterialController {
           tipo: m.type,
           observacoes: m.observation,
           data_cadastro: m.createdAt,
-          location: localExibicao // 🚀 Envia o nome real da prateleira para o Frontend
+          location: localExibicao // Envia o nome real da prateleira para o Frontend
         };
       });
 
@@ -107,7 +107,7 @@ export class MaterialController {
             }
           },
           
-          movements: movimentos // 🚀 Injeção do Histórico Automático
+          movements: movimentos // Injeção do Histórico Automático
         }
       });
       
@@ -123,7 +123,7 @@ export class MaterialController {
       const materialId = Number(req.params.id);
       const locationName = req.body.location ? String(req.body.location).trim() : null;
 
-      // 🚀 1. Se o usuário alterou a prateleira no Frontend, nós garantimos que ela existe
+      // 1. Se o usuário alterou a prateleira no Frontend, nós garantimos que ela existe
       if (locationName) {
         let loc = await prisma.location.findUnique({ where: { name: locationName } });
         if (!loc) {
@@ -176,6 +176,43 @@ export class MaterialController {
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {
       res.status(500).json({ error: 'Erro nas estatísticas' });
+    }
+  }
+
+  async importBatch(req: Request, res: Response) {
+    try {
+      // 1. Barreira de Segurança: Verifica se é ADMIN (adaptar conforme seu JWT payload)
+      // if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: "Acesso negado." });
+
+      const { materiais } = req.body;
+
+      if (!Array.isArray(materiais) || materiais.length === 0) {
+        return res.status(400).json({ error: "O payload deve ser um array de materiais." });
+      }
+
+      // 2. Mapeamento e Sanitização dos Dados
+      const dadosLimpos = materiais.map((m: any) => ({
+        code: String(m.code || '').trim(),
+        name: String(m.name || '').trim().toUpperCase(),
+        quantity: Number(String(m.quantity).replace(',', '.')) || 0,
+        unit: String(m.unit || 'UN').toUpperCase(),
+        type: String(m.type || 'OUTRO').toLowerCase()
+      })).filter((m: any) => m.name !== ''); // Remove linhas vazias
+
+      // 3. Execução em Lote no PostgreSQL
+      const result = await prisma.material.createMany({
+        data: dadosLimpos,
+        skipDuplicates: true, // Ignora registros com IDs/Códigos já existentes (ON CONFLICT DO NOTHING)
+      });
+
+      return res.status(201).json({ 
+        message: "Importação concluída com sucesso.", 
+        inseridos: result.count 
+      });
+
+    } catch (error) {
+      console.error("Erro no Bulk Insert:", error);
+      return res.status(500).json({ error: "Erro interno ao processar o lote." });
     }
   }
 }
