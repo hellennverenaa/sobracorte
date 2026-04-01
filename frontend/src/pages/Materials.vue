@@ -303,7 +303,7 @@ const mapArmazens = {
 };
 
 // Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
-const defaultLocations = ["Prateleira Geral A", "Prateleira Geral B", "Galpão Principal", "Corredor 1"];
+const defaultLocations = ["Rua 03 - Caixote - Nível 04", "Prateleira Geral B", "Galpão Principal", "Corredor 1"];
 
 // 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
