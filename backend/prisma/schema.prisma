@@ -1,11 +1,12 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
-  previewFeatures = ["driverAdapters"]
+  previewFeatures = ["driverAdapters", "multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["public", "sobra_corte", "autenticacao"]
 }
 
 model Material {
@@ -26,6 +27,7 @@ model Material {
   // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan na busca)
   @@index([name])
   @@index([code])
+  @@schema("sobra_corte")
 }
 
 // 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, sem digitação livre)
@@ -34,6 +36,7 @@ model Location {
   name      String   @unique // Ex: "Prateleira A", "Corredor 2"
   
   materials MaterialLocation[]
+  @@schema("sobra_corte")
 }
 
 // 🔗 TABELA DE JUNÇÃO (Material <-> Localização)
@@ -50,6 +53,7 @@ model MaterialLocation {
 
   @@id([materialId, locationId]) // Impede que o mesmo material seja duplicado no mesmo local
   @@index([locationId]) // 🚀 ÍNDICE: Acelera a busca para saber "O que tem na prateleira X?"
+  @@schema("sobra_corte")
 }
 
 model Movement {
@@ -68,6 +72,7 @@ model Movement {
 
   @@index([materialId])
   @@index([createdAt]) // 🚀 ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
+  @@schema("sobra_corte")
 }
 
 // 👤 TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
@@ -79,11 +84,47 @@ model User {
   setor     String?
   funcao    String?  // Cargo que vem do RH
   role      String   @default("leitor") // Nível de acesso manual do nosso sistema
+  matricula    BigInt    @unique(map: "matricula_unique")
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  matriculaDass BigInt?  @unique
+  dassInfo      UsuariosDass? @relation(fields: [matriculaDass], references: [matricula])
+
   // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
   @@index([usuario])
   @@index([email])
+  @@schema("sobra_corte")
+}
+
+// Essa é a tabela de referencia de usuarios da api principal de autenticacao. Nao deve ser auterada de forma alguma, só deve ser utilizada como referencia ao usuario da api.
+model UsuariosDass {
+  id           BigInt    @default(autoincrement())
+  createdAt    DateTime? @default(now()) @map("createdat") @db.Timestamptz
+  updatedAt    DateTime? @default(now()) @map("updatedat") @db.Timestamptz
+  codigoBarras BigInt    @map("codigo_barras")
+  matricula    BigInt    @unique(map: "matricula_unique")
+  nome         String?   @db.VarChar
+  usuario      String?   @db.VarChar
+  senha        String?   @db.VarChar
+  funcao       String?   @db.VarChar
+  setor        String?   @db.VarChar
+  testeCalce   Int?      @default(0) @map("teste_calce")
+  penseAja     Int?      @default(0) @map("pense_aja")
+  season       Int?      @default(0)
+  ambulatorio  Int?      @default(0)
+  limpeza      Int?      @default(0)
+  telas        Int?
+  unidade      String?   @db.VarChar
+  nivel        String?   @db.VarChar
+  peConfirmado Int?      @map("pe_confirmado")
+  rfid         BigInt?
+
+  // Relação com a tabela User do app
+  userApp      User?
+
+  @@id([id, codigoBarras, matricula], map: "usuarios_pk")
+  @@map("usuarios")
+  @@schema("autenticacao")
 }
