@@ -1,7 +1,7 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
-  previewFeatures = ["driverAdapters", "multiSchema"]
+ 
 }
 
 datasource db {
@@ -84,15 +84,16 @@ model User {
   setor     String?
   funcao    String?  // Cargo que vem do RH
   role      String   @default("leitor") // Nível de acesso manual do nosso sistema
-  matricula    BigInt    @unique(map: "matricula_unique")
+ 
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+// Apenas a chave estrangeira para ligar com a DASS
   matriculaDass BigInt?  @unique
   dassInfo      UsuariosDass? @relation(fields: [matriculaDass], references: [matricula])
 
-  // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
+  // ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
   @@index([usuario])
   @@index([email])
   @@schema("sobra_corte")

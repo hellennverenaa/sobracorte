@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 
+// TODO: Fazer logica de callback no front end apos ffazer login na api de autenticacao. Retirar gambiarra de chamar api por aqui
 export class AuthController {
   async login(req: Request, res: Response) {
     const { usuario, senha } = req.body;
@@ -53,7 +54,6 @@ export class AuthController {
           email: emailFallback,
           setor: apiUser.setor || 'NÃO DEFINIDO',
           funcao: apiUser.funcao || 'NÃO DEFINIDO',
-          // Continuamos NÃO atualizando o role no update, para não apagar o que você mudar na tela!
         },
         create: {
           usuario: apiUser.usuario,
@@ -61,13 +61,22 @@ export class AuthController {
           email: emailFallback,
           setor: apiUser.setor || 'NÃO DEFINIDO',
           funcao: apiUser.funcao || 'NÃO DEFINIDO',
-          role: initialRole // AGORA SIM! Ele nasce com o cargo correto.
+          role: initialRole,
+          // Pega a matrícula da API e converte para BigInt (como o schema novo exige)
+          matriculaDass: apiUser.matricula ? BigInt(apiUser.matricula) : null
         }
       });
 
-      return res.json({ ...data, localUser: dbUser });
+      // Converte o BigInt para Number antes de devolver pro Frontend para não dar Erro 500
+      const safeUser = {
+        ...dbUser,
+        matriculaDass: dbUser.matriculaDass ? Number(dbUser.matriculaDass) : null
+      };
+
+      return res.json({ ...data, localUser: safeUser });
 
     } catch (error) {
+// ... restante do código do catch continua igual
       console.error("Erro no AuthController:", error);
       const mockToken = "mock.eyJ1c3VhcmlvIjoiSEVMTEVOLk1BR0FMSEFFUyIsICJyb2xlIjoiYWRtaW4ifQ==.mock";
       res.json({ data: { token: mockToken } });
