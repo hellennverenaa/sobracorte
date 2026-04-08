@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
 import { Trash2, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye } from "lucide-vue-next";
+import { authApi, api } from '../services/httpClient'
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -10,8 +11,6 @@ const loading = ref(true);
 const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
-
-import { api } from "../utils/ip";
 
 // Opções de Níveis de Acesso
 const roleOptions = [
@@ -25,44 +24,48 @@ const roleOptions = [
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    const response = await fetch(api + "/users");
-    const data = await response.json();
-    users.value = data;
+    // O Axios resolve TUDO em uma linha:
+    // URL base, Headers, Credentials e o GET automático.
+    const response = await api.get('/users');
+
+    // Os dados já vêm convertidos do JSON direto na propriedade 'data'
+    users.value = response.data;
+
   } catch (error) {
-    console.error("Erro ao buscar usuários:", error);
-    alert("Erro ao carregar lista de usuários. Verifique se o banco (npm run db) está rodando.");
+    // Se der 401 Unauthorized de novo, o Axios pula direto pra cá!
+    const errorMsg = error.response?.data?.error || error.message;
+    console.error("Erro ao buscar usuários:", errorMsg);
   } finally {
     loading.value = false;
   }
 };
 
 // Salvar alteração de nível
-// Salvar alteração de nível
 const saveUserRole = async () => {
   if (!editingUser.value) return;
 
   try {
-    const response = await fetch(`${api}/users/${editingUser.value.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editingUser.value),
-    });
+    // O Axios resolve o PUT de forma limpa:
+    // Passamos apenas a rota final e o objeto puro que será salvo.
+    // O Content-Type, o credentials e o JSON.stringify já estão embutidos.
+    await api.put(`/users/${editingUser.value.id}`, editingUser.value);
 
-    if (response.ok) {
-      // 🚀 A MÁGICA: Atualiza a tabela na tela imediatamente!
-      const index = users.value.findIndex((u) => u.id === editingUser.value.id);
-      if (index !== -1) {
-        users.value[index].role = editingUser.value.role;
-      }
-
-      alert("Permissão atualizada com sucesso!");
-      showEditModal.value = false;
-    } else {
-      throw new Error("Falha ao salvar");
+    // Se chegou aqui, o Status 200 (Sucesso) é garantido!
+    // A MÁGICA: Atualiza a tabela na tela imediatamente!
+    const index = users.value.findIndex((u) => u.id === editingUser.value.id);
+    if (index !== -1) {
+      users.value[index].role = editingUser.value.role;
     }
+
+    alert("Permissão atualizada com sucesso!");
+    showEditModal.value = false;
+
   } catch (error) {
-    console.error(error);
-    alert("Erro ao atualizar usuário.");
+    console.error("Erro ao atualizar usuário:", error);
+
+    // Captura o erro disparado pelo seu backend Node.js/Prisma, caso exista
+    const errorMsg = error.response?.data?.error || "Erro de conexão ao atualizar usuário.";
+    alert(errorMsg);
   }
 };
 
@@ -73,18 +76,29 @@ const openEditModal = (user) => {
   showEditModal.value = true;
 };
 
+
 // Excluir usuário (opcional, cuidado!)
 const deleteUser = async (id) => {
   if (!confirm("Tem certeza que deseja remover este usuário do sistema local?")) return;
 
   try {
-    await fetch(`${api}/users/${id}`, { method: "DELETE" });
+    // O Axios aciona o método DELETE usando a sua instância centralizada.
+    // Ele já sabe o endereço do servidor e já leva os cookies/tokens necessários.
+    await api.delete(`/users/${id}`);
+
+    // Se a linha acima não falhou, o status é 200 (Sucesso Garantido).
+    // Atualizamos a tabela na tela.
     fetchUsers();
+
   } catch (error) {
-    alert("Erro ao excluir usuário");
+    console.error("Erro ao excluir usuário:", error);
+
+    // Agora capturamos o erro real e cirúrgico do seu backend Node.js/Prisma
+    // Ex: "Não é possível excluir um usuário com movimentações ativas."
+    const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir usuário.";
+    alert(`Falha: ${errorMsg}`);
   }
 };
-
 // Filtro de busca
 const filteredUsers = computed(() => {
   if (!searchTerm.value) return users.value;
@@ -121,12 +135,8 @@ onMounted(() => {
 
         <div class="relative">
           <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            v-model="searchTerm"
-            type="text"
-            placeholder="Buscar por nome ou setor..."
-            class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64"
-          />
+          <input v-model="searchTerm" type="text" placeholder="Buscar por nome ou setor..."
+            class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64" />
         </div>
       </div>
 
@@ -154,8 +164,7 @@ onMounted(() => {
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
                     <div
-                      class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold"
-                    >
+                      class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
                       {{ user.nome ? user.nome.charAt(0).toUpperCase() : "U" }}
                     </div>
                     <div>
@@ -172,8 +181,7 @@ onMounted(() => {
 
                 <td class="px-6 py-4">
                   <span
-                    :class="`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${getRoleInfo(user.role).color}`"
-                  >
+                    :class="`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit ${getRoleInfo(user.role).color}`">
                     <component :is="getRoleInfo(user.role).icon" class="w-3 h-3" />
                     {{ getRoleInfo(user.role).label }}
                   </span>
@@ -181,23 +189,17 @@ onMounted(() => {
 
                 <td class="px-6 py-4 text-center">
                   <div class="flex justify-center gap-2">
-                    <button
-                      @click="openEditModal(user)"
-                      class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Editar Permissão"
+                    <button @click="openEditModal(user)"
+                      class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Permissão"
                       :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }"
-                    >
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
                       <Edit class="w-5 h-5" />
                     </button>
 
-                    <button
-                      @click="deleteUser(user.id)"
-                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Remover Usuário"
+                    <button @click="deleteUser(user.id)"
+                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover Usuário"
                       :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }"
-                    >
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
                       <Trash2 class="w-5 h-5" />
                     </button>
                   </div>
@@ -219,29 +221,18 @@ onMounted(() => {
         <div class="p-6 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
-            <input
-              type="text"
-              :value="editingUser.nome || editingUser.usuario"
-              disabled
-              class="w-full bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-gray-600 cursor-not-allowed"
-            />
+            <input type="text" :value="editingUser.nome || editingUser.usuario" disabled
+              class="w-full bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-gray-600 cursor-not-allowed" />
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Nível de Acesso</label>
             <div class="space-y-2">
-              <label
-                v-for="option in roleOptions"
-                :key="option.value"
+              <label v-for="option in roleOptions" :key="option.value"
                 class="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-gray-50"
-                :class="{ 'border-blue-500 bg-blue-50 ring-1 ring-blue-500': editingUser.role === option.value }"
-              >
-                <input
-                  type="radio"
-                  v-model="editingUser.role"
-                  :value="option.value"
-                  class="text-blue-600 focus:ring-blue-500 h-4 w-4 mr-3"
-                />
+                :class="{ 'border-blue-500 bg-blue-50 ring-1 ring-blue-500': editingUser.role === option.value }">
+                <input type="radio" v-model="editingUser.role" :value="option.value"
+                  class="text-blue-600 focus:ring-blue-500 h-4 w-4 mr-3" />
                 <div class="flex items-center gap-2">
                   <component :is="option.icon" class="w-4 h-4 text-gray-500" />
                   <span class="text-sm font-medium text-gray-700">{{ option.label }}</span>
@@ -252,16 +243,12 @@ onMounted(() => {
         </div>
 
         <div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
-          <button
-            @click="showEditModal = false"
-            class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-          >
+          <button @click="showEditModal = false"
+            class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors">
             Cancelar
           </button>
-          <button
-            @click="saveUserRole"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm"
-          >
+          <button @click="saveUserRole"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm">
             Salvar Alterações
           </button>
         </div>
@@ -280,6 +267,7 @@ onMounted(() => {
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);

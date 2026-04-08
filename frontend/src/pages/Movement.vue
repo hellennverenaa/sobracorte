@@ -264,7 +264,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
-import { api } from '../utils/ip'
+import { authApi, api } from '../services/httpClient'
 
 // Lista padrão de prateleiras da fábrica para as Entradas
 const availableLocations = ['Não definido', 'Prateleira A', 'Prateleira B', 'Corredor 1', 'Corredor 2', 'Gaiola Central', 'Mezanino']
@@ -330,17 +330,23 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
 
 async function fetchData() {
   try {
+    // O Axios dispara as duas requisições juntas usando a URL base
     const [matRes, histRes] = await Promise.all([
-      fetch(`${api}/materials`),
-      fetch(`${api}/movements`)
-    ])
-    if (!matRes.ok || !histRes.ok) throw new Error('Falha na conexão com back-end.')
+      api.get('/materials'),
+      api.get('/movements')
+    ]);
 
-    materials.value = await matRes.json()
-    history.value = await histRes.json()
-  } catch (e) {
-    console.error(e);
-    showNotification('⚠️ Erro ao carregar dados do servidor.', 'error');
+    // O status 200 é garantido se chegou aqui.
+    // Os dados já estão decodificados na propriedade .data de cada resposta.
+    materials.value = matRes.data;
+    history.value = histRes.data;
+
+  } catch (error) {
+    console.error("Erro no fetchData:", error);
+    
+    // O Axios captura a falha se QUALQUER UMA das duas requisições quebrar (ex: 500 ou 401).
+    const errorMsg = error.response?.data?.error || 'Erro ao carregar dados do servidor.';
+    showNotification(`⚠️ ${errorMsg}`, 'error');
   }
 }
 
@@ -414,7 +420,7 @@ async function submitMovement() {
   if (!form.value.quantity || form.value.quantity <= 0) {
     return showNotification('⚠️ Digite uma quantidade válida!', 'error');
   }
-  // 🚀 A BARREIRA: Obriga a escolher a prateleira!
+  // A BARREIRA: Obriga a escolher a prateleira!
   if (!form.value.location) {
     return showNotification('⚠️ Selecione a prateleira de destino!', 'error');
   }
@@ -422,36 +428,37 @@ async function submitMovement() {
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
 
-  try {
-    const res = await fetch(`${api}/movements`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        materialId: Number(selectedMaterial.value.id),
-        type: form.value.type,
-        quantity: Number(form.value.quantity),
-        reason: form.value.reason || '',
-        location: form.value.location, // 🚀 A MÁGICA ENVIADA PARA O BANCO DE DADOS
-        usuario: user ? user.usuario : 'Sistema'
-      })
-    })
+ try {
+    // 1. O Axios monta o POST, serializa o objeto para JSON e embute o Token.
+    // Perceba que guardamos a resposta inteira (opcional) ou já pulamos direto, 
+    // porque se deu sucesso, nem precisamos ler o "data" para continuar.
+    await api.post('/movements', {
+      materialId: Number(selectedMaterial.value.id),
+      type: form.value.type,
+      quantity: Number(form.value.quantity),
+      reason: form.value.reason || '',
+      location: form.value.location, // 🚀 A MÁGICA ENVIADA PARA O BANCO DE DADOS
+      usuario: user ? user.usuario : 'Sistema'
+    });
 
-    const data = await res.json().catch(() => ({}))
+    // 2. Se a execução chegou aqui, é SUCESSO GARANTIDO (Status 200/201)!
+    showNotification(`✅ Registro de ${form.value.type} salvo!`, 'success', form.value.type);
 
-    if (res.ok) {
-      showNotification(`✅ Registro de ${form.value.type} salvo!`, 'success', form.value.type);
+    form.value.quantity = '';
+    form.value.reason = '';
+    // Opcional: form.value.location = 'Não definido'
+    searchQuery.value = '';
+    selectedMaterial.value = null;
+    
+    await fetchData();
 
-      form.value.quantity = ''
-      form.value.reason = ''
-      // Opcional: form.value.location = 'Não definido' (se quiser resetar a prateleira após mover)
-      searchQuery.value = ''
-      selectedMaterial.value = null
-      await fetchData()
-    } else {
-      showNotification(`❌ Erro: ${data.error || 'Falha no servidor.'}`, 'error');
-    }
   } catch (e) {
-    showNotification('⚠️ Erro de conexão com o servidor.', 'error');
+    // 3. O Axios joga QUALQUER erro (seja 400 do backend ou netowrk error) aqui para o catch.
+    // Pegamos a mensagem que o backend mandou, ou damos o fallback de conexão.
+    const errorMsg = e.response?.data?.error || 'Falha de conexão ou erro no servidor.';
+    
+    showNotification(`❌ Erro: ${errorMsg}`, 'error');
+    console.error('Erro ao salvar movimentação:', e);
   }
 }
 

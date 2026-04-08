@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { authApi, api } from '../utils/ip'
+import { authApi, api } from '../services/httpClient'
 
 // --- LÓGICA DE NÍVEIS AUTOMÁTICOS (VIA CARGO DO RH DASS) ---
 const defineNivelUsuario = (userData) => {
@@ -54,22 +54,12 @@ export const useAuthStore = defineStore('auth', {
     // --- LOGIN VIA API DA FÁBRICA ---
     async login(user, password) {
       try {
-        const response = await fetch(authApi, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ usuario: user, senha: password })
-        })
+        const response = await authApi.post("/auth/login", { usuario: user, senha: password })
 
-        if (!response.ok) {
-          const erro = await response.json();
-          throw new Error(erro.error || 'Falha no login');
-        }
-
-        const data = await response.json()
-        console.log("Login aceito!");
+        const payload = response.data
 
         // Processa o Token da DASS
-        const tokenPayload = data.data.token.split(".")[1]
+        const tokenPayload = payload.data.token.split(".")[1]
         const apiUser = JSON.parse(atob(tokenPayload))
         console.log("Usuário:", apiUser.usuario, "| Cargo DASS:", apiUser.funcao);
 
@@ -94,26 +84,31 @@ export const useAuthStore = defineStore('auth', {
         if (isMaster) {
           console.log("Admin Master Identificado: Acesso Total Liberado.");
           finalRole = 'admin';
+
         } else {
           // SÓ entra aqui se NÃO for um dos 4 Admins
           try {
-            const localCheck = await fetch(`${api}/users`)
-            if (localCheck.ok) {
-              const localUsers = await localCheck.json()
-              const existingUser = localUsers.find(u => u.email === dadosAtualizados.email)
+            // O Axios bate na rota e já devolve a lista pronta em 'data'
+            const response = await api.get('/users');
+            
+            const localUsers = response.data;
 
-              // O PODER DO ADMIN: Se o usuário já existe no nosso banco e o Admin alterou
-              // o nível de acesso dele manualmente, essa decisão sobrepõe a regra do RH!
-              if (existingUser && existingUser.role) {
-                finalRole = existingUser.role
-                localId = existingUser.id
-              } else {
-                // Se é a primeira vez logando, usa a inteligência do Cargo da DASS
-                finalRole = defineNivelUsuario(apiUser)
-              }
+            const existingUser = localUsers.find(u => u.email === dadosAtualizados.email);
+
+            // O PODER DO ADMIN: Se o usuário já existe no nosso banco e o Admin alterou
+            // o nível de acesso dele manualmente, essa decisão sobrepõe a regra do RH!
+            if (existingUser && existingUser.role) {
+              finalRole = existingUser.role;
+              localId = existingUser.id;
+            } else {
+              // Se é a primeira vez logando, usa a inteligência do Cargo da DASS
+              finalRole = defineNivelUsuario(apiUser);
             }
+
           } catch (error) {
+            //  O Axios joga QUALQUER erro pra cá (API fora, Erro 500, Internet caiu).
             // Se o nosso banco estiver fora, garante o login usando o Cargo do RH
+            console.warn("⚠️ Banco local inacessível. Usando cargo do RH (DASS) como fallback.");
             finalRole = defineNivelUsuario(apiUser);
           }
         }
@@ -123,7 +118,7 @@ export const useAuthStore = defineStore('auth', {
           ...dadosAtualizados,
           id: localId || apiUser.id,
           role: finalRole,
-          token: data.data.token
+          token: payload.token
         }
 
         this.user = finalUser
@@ -148,7 +143,7 @@ export const useAuthStore = defineStore('auth', {
     // A MATRIZ DE ACESSO (O ESCUDO DA ARQUITETA)
     can(action) {
       const role = this.user?.role;
-      
+
       // Admins Masters podem TUDO (Burlam qualquer trava abaixo)
       if (role === 'admin') return true;
 
@@ -157,15 +152,15 @@ export const useAuthStore = defineStore('auth', {
 
       // 2. Exportar planilhas e relatórios gerenciais
       if (action === 'baixar_relatorios') return role === 'lider';
-      
+
       // 3. Cadastrar, Editar e Excluir materiais do estoque
       if (action === 'cadastrar_materiais') return role === 'lider';
-      
+
       // 4. Operação de rotina (Dar entrada ou saída do estoque)
       if (action === 'movimentar') return role === 'lider' || role === 'movimentador';
-      
+
       // Bloqueio de segurança padrão (para o Leitor)
-      return false; 
+      return false;
     }
   }
 })

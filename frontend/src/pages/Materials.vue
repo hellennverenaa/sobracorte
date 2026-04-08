@@ -259,8 +259,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
-import { api } from "../utils/ip";
 import { Upload } from 'lucide-vue-next'
+import { authApi, api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
 import { useAuthStore } from '@/stores/auth'
@@ -375,12 +375,22 @@ const categories = [
   "OUTROS",
 ];
 
-async function fetchMaterials() {
+// Adicionamos o 'config = {}' para aceitar os parâmetros do Dashboard!
+async function fetchMaterials(config = {}) {
   try {
-    const res = await fetch(`${api}/materials`);
-    materials.value = await res.json();
+    // O Axios faz o GET, junta a baseURL e aplica os parâmetros se existirem
+    const response = await api.get('/materials', config);
+    
+    // O Axios já entrega o JSON mastigado no response.data
+    materials.value = response.data;
+    
+    // Retornamos o dado para caso outra tela (como o Dashboard) esteja chamando
+    return response.data; 
+    
   } catch (e) {
-    console.error(e);
+    console.error("Erro ao buscar materiais:", e);
+    // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
+    return []; 
   }
 }
 
@@ -412,28 +422,26 @@ async function handleFileUpload(event) {
     }
 
     try {
-      // Agora usamos o seu 'fetch' nativo apontando para a sua variável 'api'
-      const response = await fetch(`${api}/materials/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materiais: items })
-      });
+      //  AXIOS NO COMANDO: Enviando o array direto!
+      // Não precisa de JSON.stringify nem de headers manuais.
+      const response = await api.post('/materials/bulk', { materiais: items });
 
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || "Erro na importação");
-
-      importResult.value = `Sucesso! ${data.inseridos || items.length} materiais importados.`;
+      // O sucesso é garantido se chegou aqui. O dado está em response.data
+      importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
 
       // Chama a sua função original para atualizar a tabela!
       fetchMaterials();
 
     } catch (error) {
       console.error("Erro no CSV:", error);
-      importResult.value = "❌ Erro ao importar. Verifique se o CSV está separado por ponto-e-vírgula.";
+      
+      // Captura cirúrgica do erro do backend (se o backend disser qual linha falhou, por exemplo)
+      const errorMsg = error.response?.data?.error || "Verifique se o CSV está separado por ponto-e-vírgula.";
+      importResult.value = `❌ Erro ao importar: ${errorMsg}`;
+      
     } finally {
       importLoading.value = false;
-      event.target.value = null;
+      event.target.value = null; // Reseta o input de arquivo
     }
   };
   reader.readAsText(file);
@@ -497,50 +505,62 @@ async function saveItem() {
     return showNotification("error", "Selecione uma Localização (Prateleira)!");
   }
 
-  try {
+ try {
     const userJson = localStorage.getItem("user");
     const user = userJson ? JSON.parse(userJson) : null;
     const userId = user ? user.id : 1;
 
-    const method = editingItem.value ? "PUT" : "POST";
-    const url = editingItem.value ? `${api}/materials/${editingItem.value.id}` : `${api}/materials`;
-
     const payload = { ...form.value, userId };
     if (!editingItem.value) delete payload.id;
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      showNotification(
-        "success",
-        editingItem.value ? "Material atualizado com sucesso!" : "Material salvo com sucesso!",
-      );
-      showCreateModal.value = false;
-      await fetchMaterials();
+    // O Axios resolve o caminho de forma super declarativa!
+    if (editingItem.value) {
+      // Se tem item sendo editado, faz um PUT na rota específica
+      await api.put(`/materials/${editingItem.value.id}`, payload);
     } else {
-      showNotification("error", "Erro: Verifique se o código já existe.");
+      // Se é um item novo, faz um POST na rota geral
+      await api.post('/materials', payload);
     }
-  } catch (e) {
-    showNotification("error", "Erro de conexão com o servidor.");
+
+    // Se chegou nesta linha, o status 200/201 (Sucesso) está garantido!
+    showNotification(
+      "success",
+      editingItem.value ? "Material atualizado com sucesso!" : "Material salvo com sucesso!"
+    );
+    
+    showCreateModal.value = false;
+    await fetchMaterials();
+
+  } catch (error) {
+    console.error("Erro ao salvar/atualizar material:", error);
+    
+    // Captura o erro real devolvido pelo Prisma/Node.js (Ex: "O código já existe no banco")
+    const errorMsg = error.response?.data?.error || "Verifique se o código já existe ou falha de conexão.";
+    showNotification("error", `Erro: ${errorMsg}`);
   }
 }
 
 async function confirmDelete(item) {
-
-  // ESCUDO 2: Bloqueia movimentadores/leitores intrusos
+  // ESCUDO 2: Bloqueia movimentadores/leitores intrusos (Intacto!)
   if (!authStore.can('cadastrar_materiais')) {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem excluir materiais.");
   }
 
   if (confirm("Tem certeza? A exclusão será registrada.")) {
-    const res = await fetch(`${api}/materials/${item.id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      // AXIOS: Chama o método delete direto, passando apenas a rota final
+      await api.delete(`/materials/${item.id}`);
+      
+      // Se a execução chegou aqui, o status é 200 (Sucesso Garantido!)
       showNotification("success", "Material excluído com sucesso!");
       fetchMaterials();
+
+    } catch (error) {
+      console.error("Erro ao excluir:", error);
+      
+      // Captura a mensagem do backend caso ele impeça a exclusão (ex: material com saldo)
+      const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
+      showNotification("error", errorMsg);
     }
   }
 }

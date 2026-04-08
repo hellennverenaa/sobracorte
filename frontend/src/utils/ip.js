@@ -7,9 +7,4 @@
 
 // --- IP DO SEU NOTEBOOK (LOCAL) ---
 // O seu Node.js local roda na porta 3333 e não tem a pasta /api/sobracorte
-const host = import.meta.env.VITE_BASE_API
-const baseApiAuthLocal = `http://${host}:2399`
-const baseApiLocal = `http://${host}:3333`
-
-export const authApi = `${baseApiAuthLocal}/auth/login`
-export const api = baseApiLocal
+export const ip = import.meta.env.VITE_BASE_API || "http://localhost"

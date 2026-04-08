@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { authApi, api } from '../services/httpClient'
 import { Database, Loader2, RefreshCw } from 'lucide-vue-next'
 
 const isSeeding = ref(false)
@@ -12,29 +13,32 @@ const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 async function handleSeed() {
   isSeeding.value = true
   message.value = ''
-
-  try {
-    const response = await fetch(`${API_URL}/seed`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`
-      }
-    })
-
-    const data = await response.json()
-
-    if (response.ok) {
-      message.value = `✅ ${data.message}`
-      seedComplete.value = true
-    } else {
-      message.value = `❌ Erro: ${data.error}`
+try {
+  // 1. axios.post recebe 3 parâmetros: (URL, Corpo_da_Requisicao, Configuracoes)
+  // Como não estamos enviando nada no corpo, passamos null ou {}.
+  const response = await api.post('/seed', null, {
+    headers: {
+      // Mantivemos a chave específica aqui. (Se a sua API já pegasse o token 
+      // do usuário via interceptor, você nem precisaria dessa linha!)
+      'Authorization': `Bearer ${publicAnonKey}` 
     }
-  } catch (error) {
-    message.value = '❌ Erro ao popular banco de dados'
-    console.error('Seed error:', error)
-  } finally {
-    isSeeding.value = false
-  }
+  });
+
+  // 2. Se a execução chegou nesta linha, é porque o status foi 200 (Sucesso garantido!)
+  // O Axios já converteu o JSON, então usamos 'response.data'
+  message.value = `✅ ${response.data.message}`;
+  seedComplete.value = true;
+
+} catch (error) {
+  // 3. O Axios joga o "else" do response.ok direto aqui pro catch!
+  // Ele guarda a resposta de erro do backend dentro de error.response.data
+  const errorMessage = error.response?.data?.error || 'Erro interno ao popular banco de dados';
+  
+  message.value = `❌ Erro: ${errorMessage}`;
+  console.error('Seed error:', error);
+
+} finally {
+  isSeeding.value = false;
 }
 
 function handleReload() {
