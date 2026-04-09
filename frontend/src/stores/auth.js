@@ -29,6 +29,10 @@ const defineNivelUsuario = (userData) => {
   return 'leitor';
 }
 
+const registerUserSobraCorte = async (payload) => {
+  const response = api.post("/auth/check-user", { user: payload })
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
@@ -61,7 +65,6 @@ export const useAuthStore = defineStore('auth', {
         // Processa o Token da DASS
         const tokenPayload = payload.data.token.split(".")[1]
         const apiUser = JSON.parse(atob(tokenPayload))
-        console.log("Usuário:", apiUser.usuario, "| Cargo DASS:", apiUser.funcao);
 
         const usuarioUpper = String(apiUser.usuario).toUpperCase().trim();
 
@@ -90,7 +93,7 @@ export const useAuthStore = defineStore('auth', {
           try {
             // O Axios bate na rota e já devolve a lista pronta em 'data'
             const response = await api.get('/users');
-            
+
             const localUsers = response.data;
 
             const existingUser = localUsers.find(u => u.email === dadosAtualizados.email);
@@ -124,6 +127,10 @@ export const useAuthStore = defineStore('auth', {
         this.user = finalUser
         this.isAuthenticated = true
         localStorage.setItem("user", JSON.stringify(finalUser))
+
+        // Chamar callback para backend sobracorte registrar usuario (se necessario)
+        console.log("Inii=ciando verificacao de usuario")
+        registerUserSobraCorte(apiUser)
 
         return true
 

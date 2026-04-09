@@ -5,11 +5,11 @@ import { prisma } from '../prisma';
 export class AuthController {
   async login(req: Request, res: Response) {
     const { usuario, senha } = req.body;
-    
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
-      
+
       const apiResponse = await fetch('http://10.100.1.43:2399/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,7 +33,7 @@ export class AuthController {
 
       // O CÉREBRO DA ARQUITETA AGORA NO BACKEND
       let initialRole = 'leitor'; // Padrão de segurança
-      
+
       if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
         initialRole = 'lider';
       } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
@@ -76,10 +76,48 @@ export class AuthController {
       return res.json({ ...data, localUser: safeUser });
 
     } catch (error) {
-// ... restante do código do catch continua igual
+      // ... restante do código do catch continua igual
       console.error("Erro no AuthController:", error);
       const mockToken = "mock.eyJ1c3VhcmlvIjoiSEVMTEVOLk1BR0FMSEFFUyIsICJyb2xlIjoiYWRtaW4ifQ==.mock";
       res.json({ data: { token: mockToken } });
     }
+  }
+
+  // Verifica se usuario existe no banco de ususarios do app sobra corte, se nao existir cadastra
+  async checkUser(req: Request, res: Response) {
+    const { user } = req.body
+
+    console.log("Usuario logado")
+    const userSobraCorte = await prisma.user.findUnique({
+      where: { matriculaDass: user.matricula }
+    })
+
+    // Verifica usuario
+    if (userSobraCorte) {
+      return res.status(200).json({ message: "Usuario ja cadastrado" })
+    }
+
+    let initialRole = 'leitor';
+    const funcaoUpper = user.funcao
+    if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
+      initialRole = 'lider';
+    } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
+      initialRole = 'movimentador';
+    }
+
+    const now = new Date()
+    const dadosNovoUsuario = {
+      usuario: user.usuario,
+      nome: user.usuario,
+      email: `${user.usuario.toUpperCase()}@grupodass.com.br`,
+      setor: user.setor,
+      funcao: user.funcao,
+      role: initialRole,
+      matriculaDass: Number(user.matricula),
+      createdAt: now,
+      updatedAt: now
+    }
+    const newUser = await prisma.user.create({ data: dadosNovoUsuario })
+    return res.status(200).json({ message: "Usuario cadastrado com sucesso", dados: newUser })
   }
 }

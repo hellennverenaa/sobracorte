@@ -16,6 +16,9 @@ const movementController = new MovementController();
 // 🔐 Rotas de Login (Aberta)
 routes.post('/auth/login', authController.login);
 
+// Rota callback para registrar usuaruo no banco sobracorte
+routes.post("/auth/check-user", authController.checkUser)
+
 // 📦 Rotas de Materiais
 routes.get('/materials', materialController.index);
 routes.post('/materials', requireRole(['lider']), materialController.create);
