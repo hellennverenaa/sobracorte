@@ -215,20 +215,22 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-              <div>
+             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Estoque Inicial</label>
                 <input type="number" step="0.01" v-model.number="form.quantity"
-                  class="w-full border p-2 rounded outline-none" />
+                  :disabled="!!editingItem"
+                  class="w-full border p-2 rounded outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed" 
+                  :title="editingItem ? 'Alterações de saldo devem ser feitas na tela de Movimentação' : ''" />
               </div>
-              <div>
+             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Localização (Prateleira)</label>
-                <select v-model="form.location" required :disabled="!form.type"
-                  class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
-                  :class="!form.location ? 'text-gray-400' : 'text-gray-900'">
+                <select v-model="form.location" required :disabled="!form.type || !!editingItem"
+                  class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  :class="!form.location ? 'text-gray-400' : 'text-gray-900'"
+                  :title="editingItem ? 'Transferências de prateleira devem ser feitas na tela de Movimentação' : ''">
                   <option value="" disabled selected hidden>
                     {{ form.type ? "Selecione a prateleira..." : "Escolha a Categoria primeiro" }}
                   </option>
-
                   <option v-for="loc in availableLocations" :key="loc" :value="loc" class="text-gray-900">
                     {{ loc }}
                   </option>
@@ -525,16 +527,25 @@ async function saveItem() {
     const user = userJson ? JSON.parse(userJson) : null;
     const userId = user ? user.id : 1;
 
-    const payload = { ...form.value, userId };
-    if (!editingItem.value) delete payload.id;
+    // A MÁGICA DA LIMPEZA: Pegamos APENAS os dados dos inputs do formulário!
+    const payloadLimpo = {
+      code: form.value.code,
+      name: form.value.name,
+      quantity: Number(form.value.quantity),
+      unit: form.value.unit,
+      type: form.value.type,
+      observation: form.value.observation,
+      location: form.value.location,
+      userId: userId
+    };
 
     // O Axios resolve o caminho de forma super declarativa!
     if (editingItem.value) {
-      // Se tem item sendo editado, faz um PUT na rota específica
-      await api.put(`/materials/${editingItem.value.id}`, payload);
+      // Mandando a maleta limpa no PUT
+      await api.put(`/materials/${editingItem.value.id}`, payloadLimpo);
     } else {
-      // Se é um item novo, faz um POST na rota geral
-      await api.post('/materials', payload);
+      // Mandando a maleta limpa no POST
+      await api.post('/materials', payloadLimpo);
     }
 
     // Se chegou nesta linha, o status 200/201 (Sucesso) está garantido!

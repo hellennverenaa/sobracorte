@@ -122,22 +122,30 @@ export class MaterialController {
     try {
       const materialId = Number(req.params.id);
       const locationName = req.body.location ? String(req.body.location).trim() : null;
-      console.log("Noca solicitacao de att material");
-      console.log(req.body);
       
+      // 1. Pega a quantidade que veio na Maleta Limpa do Frontend
+      const novaQtd = req.body.quantity !== undefined ? Number(req.body.quantity) : undefined;
+
+      console.log("Nova solicitacao de att material: ", req.body);
       
-      // 1. Se o usuário alterou a prateleira no Frontend, nós garantimos que ela existe
       if (locationName) {
         let loc = await prisma.location.findUnique({ where: { name: locationName } });
         if (!loc) {
           loc = await prisma.location.create({ data: { name: locationName } });
         }
 
-        // 🚀 2. Conecta essa nova prateleira ao Material usando Upsert (Atualiza ou Cria o vínculo)
+        // 2. A CORREÇÃO DE LÓGICA: Injeta o saldo na Prateleira!
+        // Como o saldo agora é > 0, ela vai aparecer na tela instantaneamente!
         await prisma.materialLocation.upsert({
           where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-          update: {}, // Se já existe, não mexe na quantidade
-          create: { materialId: materialId, locationId: loc.id, quantity: 0 } // Se não existe, cria o vínculo com saldo 0
+          update: { 
+            quantity: novaQtd !== undefined ? novaQtd : undefined 
+          }, 
+          create: { 
+            materialId: materialId, 
+            locationId: loc.id, 
+            quantity: novaQtd !== undefined ? novaQtd : 0 
+          }
         });
       }
 
@@ -145,16 +153,18 @@ export class MaterialController {
       const atualizado = await prisma.material.update({
         where: { id: materialId },
         data: {
-          code: req.body.codigo ? String(req.body.codigo) : undefined,
-          name: req.body.descricao ? String(req.body.descricao) : undefined,
-          quantity: req.body.quantidade !== undefined ? Number(req.body.quantidade) : undefined,
-          unit: req.body.unidade ? String(req.body.unidade) : undefined,
-          type: req.body.tipo ? String(req.body.tipo) : undefined,
-          observation: req.body.observacoes !== undefined ? String(req.body.observacoes) : undefined,
+          code: req.body.code !== undefined ? String(req.body.code) : undefined,
+          name: req.body.name !== undefined ? String(req.body.name) : undefined,
+          quantity: novaQtd,
+          unit: req.body.unit !== undefined ? String(req.body.unit) : undefined,
+          type: req.body.type !== undefined ? String(req.body.type) : undefined,
+          observation: req.body.observation !== undefined ? String(req.body.observation) : undefined,
         }
       });
+      
       res.json(atualizado);
     } catch (error) {
+      console.error("Erro no update: ", error);
       res.status(500).json({ error: 'Erro ao atualizar material' });
     }
   }
