@@ -259,8 +259,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
-import { api } from "../utils/ip";
 import { Upload } from 'lucide-vue-next'
+import { authApi, api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
 import { useAuthStore } from '@/stores/auth'
@@ -303,7 +303,14 @@ const mapArmazens = {
 };
 
 // Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
-const defaultLocations = ["Prateleira Geral A", "Prateleira Geral B", "Galpão Principal", "Corredor 1"];
+const defaultLocations = ["Rua 03 - Caixote 58 - Nível 01",
+"Rua 03 - Caixote 58 - Nível 02",
+"Rua 03 - Caixote 58 - Nível 03",
+"Rua 03 - Caixote 58 - Nível 04",
+"Rua 03 - Caixote 60 - Nível 01",
+"Rua 03 - Caixote 60 - Nível 02",
+"Rua 03 - Caixote 60 - Nível 03"
+ ];
 
 // 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
@@ -375,12 +382,22 @@ const categories = [
   "OUTROS",
 ];
 
-async function fetchMaterials() {
+// Adicionamos o 'config = {}' para aceitar os parâmetros do Dashboard!
+async function fetchMaterials(config = {}) {
   try {
-    const res = await fetch(`${api}/materials`);
-    materials.value = await res.json();
+    // O Axios faz o GET, junta a baseURL e aplica os parâmetros se existirem
+    const response = await api.get('/materials', config);
+    
+    // O Axios já entrega o JSON mastigado no response.data
+    materials.value = response.data;
+    
+    // Retornamos o dado para caso outra tela (como o Dashboard) esteja chamando
+    return response.data; 
+    
   } catch (e) {
-    console.error(e);
+    console.error("Erro ao buscar materiais:", e);
+    // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
+    return []; 
   }
 }
 
@@ -390,52 +407,58 @@ async function handleFileUpload(event) {
   if (!file) return;
 
   importLoading.value = true;
+  importResult.value = "";
+
   const reader = new FileReader();
-
+  
   reader.onload = async (e) => {
-    const text = e.target.result;
-    const lines = text.split('\n');
-    const items = [];
-
-    // Começa do 1 para pular o cabeçalho do Excel
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-
-      const [code, name, quantity, unit, type] = lines[i].split(';');
-      items.push({
-        code: code,
-        name: name,
-        quantity: quantity || 0,
-        unit: unit || 'UN',
-        type: type || 'outro'
-      });
-    }
-
     try {
-      // Agora usamos o seu 'fetch' nativo apontando para a sua variável 'api'
-      const response = await fetch(`${api}/materials/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ materiais: items })
-      });
+      const text = e.target.result;
+      const delimiter = text.indexOf(';') !== -1 ? ';' : ',';
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      
+      if (lines.length < 2) {
+         throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
+      }
 
-      const data = await response.json();
+      const items = [];
 
-      if (!response.ok) throw new Error(data.error || "Erro na importação");
+      for (let i = 1; i < lines.length; i++) {
+        // 🚀 MÁGICA 1: Quebra as colunas e ARRANCA todas as aspas duplas!
+        const row = lines[i].split(delimiter).map(col => col.replace(/"/g, '').trim());
+        
+        // 🚀 MÁGICA 2: Limpeza pesada de números Brasileiros
+        // Pega o valor, ex: "1.500,50" ou "15"
+        let rawQtd = row[2] || '0'; 
+        rawQtd = rawQtd.replace(/\./g, ''); // Arranca o ponto de milhar -> "1500,50"
+        rawQtd = rawQtd.replace(',', '.');  // Troca a vírgula por ponto -> "1500.50"
 
-      importResult.value = `Sucesso! ${data.inseridos || items.length} materiais importados.`;
+        // Agora o mapeamento fica limpinho:
+        items.push({
+          codigo: row[0] || '',
+          nome: row[1] || '',
+          quantidade: Number(rawQtd) || 0,
+          unidade: row[3] || '',
+          tipo: row[4] || ''
+        });
+      }
 
-      // Chama a sua função original para atualizar a tabela!
-      fetchMaterials();
+      // Envia para o backend
+      const response = await api.post('/materials/bulk', { materiais: items });
+      
+      importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
+      fetchMaterials(); 
 
     } catch (error) {
       console.error("Erro no CSV:", error);
-      importResult.value = "❌ Erro ao importar. Verifique se o CSV está separado por ponto-e-vírgula.";
+      const errorMsg = error.response?.data?.error || error.message || "Verifique a formatação do CSV.";
+      importResult.value = `❌ Erro ao importar: ${errorMsg}`;
     } finally {
       importLoading.value = false;
-      event.target.value = null;
+      event.target.value = null; 
     }
   };
+
   reader.readAsText(file);
 }
 
@@ -497,50 +520,62 @@ async function saveItem() {
     return showNotification("error", "Selecione uma Localização (Prateleira)!");
   }
 
-  try {
+ try {
     const userJson = localStorage.getItem("user");
     const user = userJson ? JSON.parse(userJson) : null;
     const userId = user ? user.id : 1;
 
-    const method = editingItem.value ? "PUT" : "POST";
-    const url = editingItem.value ? `${api}/materials/${editingItem.value.id}` : `${api}/materials`;
-
     const payload = { ...form.value, userId };
     if (!editingItem.value) delete payload.id;
 
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.ok) {
-      showNotification(
-        "success",
-        editingItem.value ? "Material atualizado com sucesso!" : "Material salvo com sucesso!",
-      );
-      showCreateModal.value = false;
-      await fetchMaterials();
+    // O Axios resolve o caminho de forma super declarativa!
+    if (editingItem.value) {
+      // Se tem item sendo editado, faz um PUT na rota específica
+      await api.put(`/materials/${editingItem.value.id}`, payload);
     } else {
-      showNotification("error", "Erro: Verifique se o código já existe.");
+      // Se é um item novo, faz um POST na rota geral
+      await api.post('/materials', payload);
     }
-  } catch (e) {
-    showNotification("error", "Erro de conexão com o servidor.");
+
+    // Se chegou nesta linha, o status 200/201 (Sucesso) está garantido!
+    showNotification(
+      "success",
+      editingItem.value ? "Material atualizado com sucesso!" : "Material salvo com sucesso!"
+    );
+    
+    showCreateModal.value = false;
+    await fetchMaterials();
+
+  } catch (error) {
+    console.error("Erro ao salvar/atualizar material:", error);
+    
+    // Captura o erro real devolvido pelo Prisma/Node.js (Ex: "O código já existe no banco")
+    const errorMsg = error.response?.data?.error || "Verifique se o código já existe ou falha de conexão.";
+    showNotification("error", `Erro: ${errorMsg}`);
   }
 }
 
 async function confirmDelete(item) {
-
-  // ESCUDO 2: Bloqueia movimentadores/leitores intrusos
+  // ESCUDO 2: Bloqueia movimentadores/leitores intrusos (Intacto!)
   if (!authStore.can('cadastrar_materiais')) {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem excluir materiais.");
   }
 
   if (confirm("Tem certeza? A exclusão será registrada.")) {
-    const res = await fetch(`${api}/materials/${item.id}`, { method: "DELETE" });
-    if (res.ok) {
+    try {
+      // AXIOS: Chama o método delete direto, passando apenas a rota final
+      await api.delete(`/materials/${item.id}`);
+      
+      // Se a execução chegou aqui, o status é 200 (Sucesso Garantido!)
       showNotification("success", "Material excluído com sucesso!");
       fetchMaterials();
+
+    } catch (error) {
+      console.error("Erro ao excluir:", error);
+      
+      // Captura a mensagem do backend caso ele impeça a exclusão (ex: material com saldo)
+      const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
+      showNotification("error", errorMsg);
     }
   }
 }

@@ -22,7 +22,7 @@ const menuItems = [
   { label: 'Materiais', path: '/materials', icon: Package },
   { label: 'Movimentação', path: '/movement', icon: ArrowLeftRight },
   { label: 'Relatórios', path: '/reports', icon: FileBarChart }, // NOVO
-  { label: 'Usuários', path: '/users', icon: Users, role: 'admin' } // Só admin vê
+  { label: 'Usuários', path: '/users', icon: Users } // Só admin vê
 ]
 </script>
 

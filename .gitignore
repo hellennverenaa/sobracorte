@@ -6,6 +6,8 @@ node_modules
 dist
 build
 
+.vscode/
+
 # SEGURANÇA: Nunca subir senhas
 .env
 .env.local

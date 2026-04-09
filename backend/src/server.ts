@@ -3,12 +3,19 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { routes } from './routes';
 import rateLimit from 'express-rate-limit';
-import {Request, Response} from "express"
+import { Request, Response } from "express"
+import cookieParser from "cookie-parser"
 
 const app = express();
 
-app.use(cors({ exposedHeaders: ['X-Total-Count'] }));
-app.use(express.json());
+app.use(cors({ origin: ["http://localhost:3000", "http://10.100.1.43"] ,exposedHeaders: ['X-Total-Count'], credentials: true }));
+
+// LIBERANDO A CATRACA PARA ARQUIVOS GRANDES (CSVs de Importação)
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(cookieParser())
+
+
 
 // ==========================================
 // CAMADA DE SEGURANÇA (SecOps)
@@ -30,7 +37,7 @@ app.use(limiter);
 app.use(cors({
   // Por enquanto liberamos o localhost. Quando a equipe de Redes da DASS for colocar
   // no servidor oficial, eles vão trocar isso para o IP do domínio da fábrica.
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], 
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'] // Trava para aceitar só JSON e Token
 }));
