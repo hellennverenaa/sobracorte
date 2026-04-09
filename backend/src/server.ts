@@ -9,8 +9,13 @@ import cookieParser from "cookie-parser"
 const app = express();
 
 app.use(cors({ origin: ["http://localhost:3000", "http://10.100.1.43"] ,exposedHeaders: ['X-Total-Count'], credentials: true }));
-app.use(express.json());
+
+// LIBERANDO A CATRACA PARA ARQUIVOS GRANDES (CSVs de Importação)
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser())
+
+
 
 // ==========================================
 // CAMADA DE SEGURANÇA (SecOps)

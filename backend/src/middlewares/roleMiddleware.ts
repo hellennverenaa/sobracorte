@@ -6,7 +6,7 @@ const PRIVATE_KEY = "chave-segredo" // TODO: Colocar segredo em .env
 
 // TODO: fazer interceotir de  req. no frontend para chamar rota de refresh de token apos expiracao
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  const token = req.cookies.token; // Cookie de autenticacao vinda da api principal de autenticacao
+  const token = req.cookies.token // Cookie de autenticacao vinda da api principal de autenticacao
   
   if (!token) {
     return res.status(401).json({ error: 'Token não fornecido' });
@@ -45,11 +45,6 @@ export const requireRole = (allowedRoles: string[]) => {
       const user = await prisma.user.findUnique({
         where: { usuario: String(apiUser.usuario) }
       });
-
-      console.log("User SObracorte");
-      console.log(user);
-      
-      
 
       const userRole = user?.role;
 

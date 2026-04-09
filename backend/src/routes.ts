@@ -13,28 +13,29 @@ const authController = new AuthController();
 const materialController = new MaterialController();
 const movementController = new MovementController();
 
-// 🔐 Rotas de Login (Aberta)
+//  Rotas de Login (Aberta)
 routes.post('/auth/login', authController.login);
 
 // Rota callback para registrar usuaruo no banco sobracorte
 routes.post("/auth/check-user", authController.checkUser)
 
-// 📦 Rotas de Materiais
-routes.get('/materials', materialController.index);
-routes.post('/materials', requireRole(['lider']), materialController.create);
-routes.put('/materials/:id', requireRole(['lider']), materialController.update);
-routes.delete('/materials/:id', requireRole(['lider']), materialController.delete);
+// Rotas de Materiais
+routes.get('/materials', requireAuth, materialController.index);
+routes.post('/materials', requireAuth, requireRole(['lider']), materialController.create);
+routes.put('/materials/:id', requireAuth, requireRole(['lider']), materialController.update);
+routes.delete('/materials/:id', requireAuth, requireRole(['lider']), materialController.delete);
+routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
 
-// 📊 Rotas de Dashboard
+// Rotas de Dashboard
 routes.get('/stats', materialController.stats);
 
-// 🔄 Rotas de Movimentações
+// Rotas de Movimentações
 routes.get('/movements', movementController.index);
-routes.post('/movements', requireRole(['lider', 'movimentador']), movementController.create);
+routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), movementController.create);
 
-// 📈 Relatórios
-routes.get('/reports/inventory', requireRole(['lider']), reportController.inventory);
-routes.get('/reports/movements', requireRole(['lider']), reportController.movements);
+// Relatórios
+routes.get('/reports/inventory', requireAuth, requireRole(['lider']), reportController.inventory);
+routes.get('/reports/movements', requireAuth, requireRole(['lider']), reportController.movements);
 
 // ==========================================================
 // 👥 ROTAS DE GESTÃO DE USUÁRIOS (SobraCorte DB)

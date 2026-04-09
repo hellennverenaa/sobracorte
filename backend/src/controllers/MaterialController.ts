@@ -122,7 +122,10 @@ export class MaterialController {
     try {
       const materialId = Number(req.params.id);
       const locationName = req.body.location ? String(req.body.location).trim() : null;
-
+      console.log("Noca solicitacao de att material");
+      console.log(req.body);
+      
+      
       // 1. Se o usuário alterou a prateleira no Frontend, nós garantimos que ela existe
       if (locationName) {
         let loc = await prisma.location.findUnique({ where: { name: locationName } });

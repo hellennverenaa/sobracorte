@@ -303,12 +303,12 @@ const mapArmazens = {
 };
 
 // Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
-const defaultLocations = ["Rua 03 - Caixote - Nível 04",
-"Rua 03 - Caixote 58 - Nível 01",
+const defaultLocations = ["Rua 03 - Caixote 58 - Nível 01",
 "Rua 03 - Caixote 58 - Nível 02",
 "Rua 03 - Caixote 58 - Nível 03",
+"Rua 03 - Caixote 58 - Nível 04",
 "Rua 03 - Caixote 60 - Nível 01",
-"Rua 03 - Caixote 60 - Nível 03",
+"Rua 03 - Caixote 60 - Nível 02",
 "Rua 03 - Caixote 60 - Nível 03"
  ];
 
@@ -407,50 +407,58 @@ async function handleFileUpload(event) {
   if (!file) return;
 
   importLoading.value = true;
+  importResult.value = "";
+
   const reader = new FileReader();
-
+  
   reader.onload = async (e) => {
-    const text = e.target.result;
-    const lines = text.split('\n');
-    const items = [];
-
-    // Começa do 1 para pular o cabeçalho do Excel
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-
-      const [code, name, quantity, unit, type] = lines[i].split(';');
-      items.push({
-        code: code,
-        name: name,
-        quantity: quantity || 0,
-        unit: unit || 'UN',
-        type: type || 'outro'
-      });
-    }
-
     try {
-      //  AXIOS NO COMANDO: Enviando o array direto!
-      // Não precisa de JSON.stringify nem de headers manuais.
+      const text = e.target.result;
+      const delimiter = text.indexOf(';') !== -1 ? ';' : ',';
+      const lines = text.split('\n').filter(line => line.trim() !== '');
+      
+      if (lines.length < 2) {
+         throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
+      }
+
+      const items = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        // 🚀 MÁGICA 1: Quebra as colunas e ARRANCA todas as aspas duplas!
+        const row = lines[i].split(delimiter).map(col => col.replace(/"/g, '').trim());
+        
+        // 🚀 MÁGICA 2: Limpeza pesada de números Brasileiros
+        // Pega o valor, ex: "1.500,50" ou "15"
+        let rawQtd = row[2] || '0'; 
+        rawQtd = rawQtd.replace(/\./g, ''); // Arranca o ponto de milhar -> "1500,50"
+        rawQtd = rawQtd.replace(',', '.');  // Troca a vírgula por ponto -> "1500.50"
+
+        // Agora o mapeamento fica limpinho:
+        items.push({
+          codigo: row[0] || '',
+          nome: row[1] || '',
+          quantidade: Number(rawQtd) || 0,
+          unidade: row[3] || '',
+          tipo: row[4] || ''
+        });
+      }
+
+      // Envia para o backend
       const response = await api.post('/materials/bulk', { materiais: items });
-
-      // O sucesso é garantido se chegou aqui. O dado está em response.data
+      
       importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
-
-      // Chama a sua função original para atualizar a tabela!
-      fetchMaterials();
+      fetchMaterials(); 
 
     } catch (error) {
       console.error("Erro no CSV:", error);
-      
-      // Captura cirúrgica do erro do backend (se o backend disser qual linha falhou, por exemplo)
-      const errorMsg = error.response?.data?.error || "Verifique se o CSV está separado por ponto-e-vírgula.";
+      const errorMsg = error.response?.data?.error || error.message || "Verifique a formatação do CSV.";
       importResult.value = `❌ Erro ao importar: ${errorMsg}`;
-      
     } finally {
       importLoading.value = false;
-      event.target.value = null; // Reseta o input de arquivo
+      event.target.value = null; 
     }
   };
+
   reader.readAsText(file);
 }
 
