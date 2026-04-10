@@ -8,7 +8,14 @@ import cookieParser from "cookie-parser"
 
 const app = express();
 
-app.use(cors({ origin: ["http://localhost:3000", "http://10.100.1.43"] ,exposedHeaders: ['X-Total-Count'], credentials: true }));
+// CONFIGURAÇÃO DE CORS PARA AMBIENTES COM AUTENTICAÇÃO (JWT/Cookies)
+app.use(cors({
+  origin: 'http://localhost:3000', // Diz exatamente quem pode fazer requisições
+  credentials: true,               // Permite que o Frontend envie Tokens/Cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count'] // Libera o cabeçalho de paginação (se você usar)
+}));
 
 // LIBERANDO A CATRACA PARA ARQUIVOS GRANDES (CSVs de Importação)
 app.use(express.urlencoded({ limit: '50mb', extended: true }));

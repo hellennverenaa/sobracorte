@@ -29,9 +29,16 @@ const defineNivelUsuario = (userData) => {
   return 'leitor';
 }
 
-const registerUserSobraCorte = async (payload) => {
-  const response = api.post("/auth/check-user", { user: payload })
-}
+// const checkOrRegisterUser = async (payload) => {
+//   try {
+//     const response = api.post("/auth/check-user", { user: payload })
+//     return response?.data?.user
+//   } catch (error) {
+//     console.error("Erro ao verificar ususario apos login", error);
+//     throw new Error("Erro ao verificar ususario apos login");
+//     return null;
+//   }
+// }
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -62,75 +69,60 @@ export const useAuthStore = defineStore('auth', {
 
         const payload = response.data
 
+
         // Processa o Token da DASS
         const tokenPayload = payload.data.token.split(".")[1]
         const apiUser = JSON.parse(atob(tokenPayload))
 
+        // Chamar callback para backend sobracorte registrar usuario (se necessario)
+        //TODO: Modificar essa função para se o usuário já estiver cadastrado retornar o usuário, se não estiver cadastrar e retorna o usuário:
+        let userSobraCorte = null;
+        try {
+            // 🚀 AQUI ESTÁ O SEGREDO: O await garante que o banco vai responder!
+            const checkResponse = await api.post("/auth/check-user", { user: apiUser });
+            userSobraCorte = checkResponse.data.user;
+        } catch (err) {
+            console.warn("⚠️ Falha ao buscar cargo no banco local. Usando RH DASS.");
+        }
+// 4. Inteligência de Níveis
+        let finalRole = 'leitor';
+        if (userSobraCorte && userSobraCorte.role) {
+            // Se achou no banco, USA O DO BANCO (O Admin do Hendrius entra aqui!)
+            finalRole = userSobraCorte.role;
+        } else {
+            // Inteligência de RH (Fallback)
+            const funcaoUpper = String(apiUser.funcao || '').toUpperCase().trim();
+            if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
+              finalRole = 'lider';
+            } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
+              finalRole = 'movimentador';
+            }
+        }
+
+        // 5. Escudo Master da Arquiteta
         const usuarioUpper = String(apiUser.usuario).toUpperCase().trim();
-
-        // 1. ADMIN MASTER (Diretoria de TI/Projeto)
-        // Lista restrita: Hellen, Paulo Ricardo, Hendrius e Midian
         const adminsMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA', 'PAULO.RICARDO', 'MIDIAN.SANTANA', 'CLEONICE.SOARES'];
-        // Verifica se o login do usuário contém algum dos nomes master
-        const isMaster = adminsMaster.some(admin => usuarioUpper.includes(admin));
+        if (adminsMaster.some(admin => usuarioUpper.includes(admin))) {
+            finalRole = 'admin';
+        }
 
-        const dadosAtualizados = {
+        // 🚀 6. CONSTRUÇÃO BLINDADA DO USUÁRIO (Adeus Bug do Fantasma!)
+        const finalUser = {
+          id: userSobraCorte ? userSobraCorte.id : apiUser.id,
           nome: apiUser.nome || apiUser.usuario,
+          usuario: apiUser.usuario,
           email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
           setor: apiUser.setor || 'NÃO DEFINIDO',
-          funcao: apiUser.funcao || 'NÃO DEFINIDO'
+          funcao: apiUser.funcao || 'NÃO DEFINIDO',
+          role: finalRole, // O cargo 'admin' entra aqui perfeitamente
+          token: payload.data.token
         }
 
-        let finalRole = 'leitor'
-        let localId = null
-
-        if (isMaster) {
-          console.log("Admin Master Identificado: Acesso Total Liberado.");
-          finalRole = 'admin';
-
-        } else {
-          // SÓ entra aqui se NÃO for um dos 4 Admins
-          try {
-            // O Axios bate na rota e já devolve a lista pronta em 'data'
-            const response = await api.get('/users');
-
-            const localUsers = response.data;
-
-            const existingUser = localUsers.find(u => u.email === dadosAtualizados.email);
-
-            // O PODER DO ADMIN: Se o usuário já existe no nosso banco e o Admin alterou
-            // o nível de acesso dele manualmente, essa decisão sobrepõe a regra do RH!
-            if (existingUser && existingUser.role) {
-              finalRole = existingUser.role;
-              localId = existingUser.id;
-            } else {
-              // Se é a primeira vez logando, usa a inteligência do Cargo da DASS
-              finalRole = defineNivelUsuario(apiUser);
-            }
-
-          } catch (error) {
-            //  O Axios joga QUALQUER erro pra cá (API fora, Erro 500, Internet caiu).
-            // Se o nosso banco estiver fora, garante o login usando o Cargo do RH
-            console.warn("⚠️ Banco local inacessível. Usando cargo do RH (DASS) como fallback.");
-            finalRole = defineNivelUsuario(apiUser);
-          }
-        }
-
-        const finalUser = {
-          ...apiUser,
-          ...dadosAtualizados,
-          id: localId || apiUser.id,
-          role: finalRole,
-          token: payload.token
-        }
+        console.log("🚀 Usuário Montado com Sucesso:", finalUser);
 
         this.user = finalUser
         this.isAuthenticated = true
         localStorage.setItem("user", JSON.stringify(finalUser))
-
-        // Chamar callback para backend sobracorte registrar usuario (se necessario)
-        console.log("Inii=ciando verificacao de usuario")
-        registerUserSobraCorte(apiUser)
 
         return true
 

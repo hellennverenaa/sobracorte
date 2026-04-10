@@ -85,39 +85,63 @@ export class AuthController {
 
   // Verifica se usuario existe no banco de ususarios do app sobra corte, se nao existir cadastra
   async checkUser(req: Request, res: Response) {
-    const { user } = req.body
+    try {
+      const { user } = req.body;
 
-    console.log("Usuario logado")
-    const userSobraCorte = await prisma.user.findUnique({
-      where: { matriculaDass: user.matricula }
-    })
+      // 1. Busca por "usuario" (mais seguro que matrícula)
+      const userSobraCorte = await prisma.user.findUnique({
+        where: { usuario: user.usuario }
+      });
+      
+      // A VACINA DO BIGINT: Função para limpar os dados antes do res.json
+      const safeUser = (u: any) => ({
+        ...u,
+        matriculaDass: u.matriculaDass ? Number(u.matriculaDass) : null
+      });
 
-    // Verifica usuario
-    if (userSobraCorte) {
-      return res.status(200).json({ message: "Usuario ja cadastrado" })
+      // Se já existe, devolve limpinho
+      if (userSobraCorte) {
+        return res.status(200).json({ message: "Usuario ja cadastrado", user: safeUser(userSobraCorte) });
+      }
+
+      // Se não existe, vamos criar
+      let initialRole = 'leitor';
+      const funcaoUpper = String(user.funcao || '').toUpperCase().trim();
+      
+      if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
+        initialRole = 'lider';
+      } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
+        initialRole = 'movimentador';
+      }
+
+      // Proteção Master
+      const adminsMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA', 'PAULO.RICARDO', 'MIDIAN.SANTANA', 'CLEONICE.SOARES'];
+      if (adminsMaster.some(admin => String(user.usuario).toUpperCase().trim().includes(admin))) {
+        initialRole = 'admin';
+      }
+
+      const now = new Date();
+      const dadosNovoUsuario = {
+        usuario: user.usuario,
+        nome: user.nome || user.usuario,
+        email: user.email || `${user.usuario.toLowerCase()}@grupodass.com.br`,
+        setor: user.setor || 'NÃO DEFINIDO',
+        funcao: user.funcao || 'NÃO DEFINIDO',
+        role: initialRole,
+        // O CORRETO PRO PRISMA: Usar BigInt!
+        matriculaDass: user.matricula ? BigInt(user.matricula) : null,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const newUser = await prisma.user.create({ data: dadosNovoUsuario });
+      
+      // Devolve com a vacina
+      return res.status(200).json({ message: "Usuario cadastrado com sucesso", user: safeUser(newUser) });
+
+    } catch (error) {
+      console.error("💥 ERRO FATAL NO CHECK-USER:", error);
+      return res.status(500).json({ error: "Erro interno ao processar usuário." });
     }
-
-    let initialRole = 'leitor';
-    const funcaoUpper = user.funcao
-    if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
-      initialRole = 'lider';
-    } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
-      initialRole = 'movimentador';
-    }
-
-    const now = new Date()
-    const dadosNovoUsuario = {
-      usuario: user.usuario,
-      nome: user.usuario,
-      email: `${user.usuario.toUpperCase()}@grupodass.com.br`,
-      setor: user.setor,
-      funcao: user.funcao,
-      role: initialRole,
-      matriculaDass: Number(user.matricula),
-      createdAt: now,
-      updatedAt: now
-    }
-    const newUser = await prisma.user.create({ data: dadosNovoUsuario })
-    return res.status(200).json({ message: "Usuario cadastrado com sucesso", dados: newUser })
   }
 }
