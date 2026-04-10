@@ -78,32 +78,33 @@ export const useAuthStore = defineStore('auth', {
         //TODO: Modificar essa função para se o usuário já estiver cadastrado retornar o usuário, se não estiver cadastrar e retorna o usuário:
         let userSobraCorte = null;
         try {
-            // 🚀 AQUI ESTÁ O SEGREDO: O await garante que o banco vai responder!
-            const checkResponse = await api.post("/auth/check-user", { user: apiUser });
-            userSobraCorte = checkResponse.data.user;
+          // 🚀 AQUI ESTÁ O SEGREDO: O await garante que o banco vai responder!
+          const checkResponse = await api.post("/auth/check-user", { user: apiUser });
+          userSobraCorte = checkResponse.data.user;
         } catch (err) {
-            console.warn("⚠️ Falha ao buscar cargo no banco local. Usando RH DASS.");
+          console.warn("⚠️ Falha ao buscar cargo no banco local. Usando RH DASS.");
         }
-// 4. Inteligência de Níveis
+
+        // 4. Inteligência de Níveis
         let finalRole = 'leitor';
         if (userSobraCorte && userSobraCorte.role) {
-            // Se achou no banco, USA O DO BANCO (O Admin do Hendrius entra aqui!)
-            finalRole = userSobraCorte.role;
+          // Se achou no banco, USA O DO BANCO (O Admin do Hendrius entra aqui!)
+          finalRole = userSobraCorte.role;
         } else {
-            // Inteligência de RH (Fallback)
-            const funcaoUpper = String(apiUser.funcao || '').toUpperCase().trim();
-            if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
-              finalRole = 'lider';
-            } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
-              finalRole = 'movimentador';
-            }
+          // Inteligência de RH (Fallback)
+          const funcaoUpper = String(apiUser.funcao || '').toUpperCase().trim();
+          if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
+            finalRole = 'lider';
+          } else if (funcaoUpper.includes('AUXILIAR') || funcaoUpper.includes('ASSISTENTE')) {
+            finalRole = 'movimentador';
+          }
         }
 
         // 5. Escudo Master da Arquiteta
         const usuarioUpper = String(apiUser.usuario).toUpperCase().trim();
         const adminsMaster = ['HELLEN.MAGALHAES', 'HENDRIUS.SANTANA', 'PAULO.RICARDO', 'MIDIAN.SANTANA', 'CLEONICE.SOARES'];
         if (adminsMaster.some(admin => usuarioUpper.includes(admin))) {
-            finalRole = 'admin';
+          finalRole = 'admin';
         }
 
         // 🚀 6. CONSTRUÇÃO BLINDADA DO USUÁRIO (Adeus Bug do Fantasma!)
@@ -127,8 +128,21 @@ export const useAuthStore = defineStore('auth', {
         return true
 
       } catch (error) {
-        console.error("Erro no login:", error)
-        throw error
+        console.error("🔍 Erro capturado no Axios:", error);
+
+        // 1. O Axios esconde a resposta do backend dentro de error.response.data
+        // Vamos pescar a mensagem exata ("Usuário ou senha inválidos") e jogar pro Vue!
+        if (error.response && error.response.data && error.response.data.error) {
+          throw new Error(error.response.data.error);
+        }
+
+        // 2. Tratamento para Banco de Dados Caído / Network Error
+        if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+          throw new Error("O serviço da fábrica está temporariamente indisponível.");
+        }
+
+        // 3. Trava de segurança final
+        throw new Error("Ocorreu um erro ao processar o login.");
       }
     },
 

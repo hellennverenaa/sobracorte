@@ -10,6 +10,7 @@ export class AuthController {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
+      // Bate na API da DASS
       const apiResponse = await fetch('http://10.100.1.43:2399/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -18,7 +19,10 @@ export class AuthController {
       });
       clearTimeout(timeoutId);
 
-      if (!apiResponse.ok) return res.status(401).json({ error: "Credenciais inválidas" });
+      // 🚀 SE A SENHA ESTIVER ERRADA, A MENSAGEM LIMPA SAI DAQUI:
+      if (!apiResponse.ok) {
+        return res.status(401).json({ error: "Usuário ou senha inválidos." });
+      }
 
       const data = await apiResponse.json();
       const token = data.data.token;
