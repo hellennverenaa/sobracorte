@@ -8,5 +8,6 @@ dotenv.config({
 })
 
 export const vars = {
-  DB_URL: process.env.DATABASE_URL || ""
+  DB_URL: process.env.DATABASE_URL || "",
+  PRIVATE_KEY: process.env.PRIVATE_KEY
 }

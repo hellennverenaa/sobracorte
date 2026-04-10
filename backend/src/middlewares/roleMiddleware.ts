@@ -1,18 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import jsonwebtoken from "jsonwebtoken"
-
-const PRIVATE_KEY = "chave-segredo" // TODO: Colocar segredo em .env
+import { vars } from "../config/dotenv"
 
 // TODO: fazer interceotir de  req. no frontend para chamar rota de refresh de token apos expiracao
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token // Cookie de autenticacao vinda da api principal de autenticacao
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
-  jsonwebtoken.verify(token, PRIVATE_KEY, async (error: any, decoded: any) => {
+  jsonwebtoken.verify(token, vars.PRIVATE_KEY ?? "minha-chave", async (error: any, decoded: any) => {
     if (error) {
       if (error.name === "TokenExpiredError") {
         return res.status(401).json({ message: "Token expirado", expired: true });
@@ -32,7 +31,7 @@ export const requireRole = (allowedRoles: string[]) => {
     // ==========================================
     // 1. O PORTEIRO (Lê o Token que o Vue mandou)
     // ==========================================
-    let apiUser = req.user;   
+    let apiUser = req.user;
 
     if (!apiUser || !apiUser.usuario) {
       return res.status(401).json({ error: 'Usuário não identificado no token' });
@@ -53,7 +52,7 @@ export const requireRole = (allowedRoles: string[]) => {
         (req as any).user = user; // Injeta para uso no controller
         return next();
       }
-      
+
       // Se não tiver na lista de permitidos, toma bloqueio
       if (!userRole || !allowedRoles.includes(userRole)) {
         return res.status(403).json({ error: 'Acesso negado: Seu nível não permite esta ação.' });
