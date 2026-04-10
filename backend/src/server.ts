@@ -10,7 +10,7 @@ const app = express();
 
 // CONFIGURAÇÃO DE CORS PARA AMBIENTES COM AUTENTICAÇÃO (JWT/Cookies)
 app.use(cors({
-  origin: 'http://localhost:3000', // Diz exatamente quem pode fazer requisições
+  origin: ['http://localhost:3000', 'http://10.100.1.43'], // Diz exatamente quem pode fazer requisições
   credentials: true,               // Permite que o Frontend envie Tokens/Cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'Origin', 'X-Requested-With'],
