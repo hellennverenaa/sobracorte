@@ -4,7 +4,7 @@ import axios from "axios"
 
 // TODO: Em producao fica -> baseURL: `${ip}:2399/api`
 export const authApi = axios.create({
-  baseURL: `${ip}:2399`,
+  baseURL: `${ip}:2399/api`,
   withCredentials: true
 });
 
