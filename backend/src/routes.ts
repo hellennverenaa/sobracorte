@@ -62,7 +62,9 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
 });
 
 // Atualizar Nível de Acesso no Banco Real
-routes.put('/users/:id', requireRole([]), async (req, res) => {
+//  A CORREÇÃO: Colocamos o Porteiro e dizemos que só ADMIN entra!
+// Atualizar Nível de Acesso no Banco Real
+routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { role } = req.body;
@@ -72,10 +74,17 @@ routes.put('/users/:id', requireRole([]), async (req, res) => {
       data: { role: role }
     });
 
-    res.json(updatedUser);
+    // A VACINA: Converte o BigInt para Number antes de devolver pro Vue.js!
+    const safeUser = {
+      ...updatedUser,
+      matriculaDass: updatedUser.matriculaDass ? Number(updatedUser.matriculaDass) : null
+    };
+
+    res.json(safeUser);
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error);
-    res.status(404).json({ error: 'Usuário não encontrado ou erro na atualização' });
+    // Mudei para 500 para fazer mais sentido, caso dê um erro real de banco
+    res.status(500).json({ error: 'Erro interno ao atualizar usuário' }); 
   }
 });
 
