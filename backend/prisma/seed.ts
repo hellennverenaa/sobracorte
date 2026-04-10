@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
 import * as path from 'path';
+import * as fs from 'fs';
 
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
