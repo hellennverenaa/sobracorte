@@ -71,6 +71,6 @@ export default defineConfig({
   // Configuração de Build (UNIFICADA AQUI)
   build: {
     target: 'esnext',
-    outDir: 'build',
+    outDir: 'sobra_corte', // Nome da pasta criada apos o build da aplicacao
   },
 });

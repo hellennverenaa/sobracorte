@@ -2,6 +2,8 @@ import { attachInterceptors } from "./interceptors/interceptor"
 import { ip } from "../utils/ip"
 import axios from "axios"
 
+// fazer verificacao de ambiente dev para preencher as apis dinamicamente
+
 // TODO: Em producao fica -> baseURL: `${ip}:2399/api`
 export const authApi = axios.create({
   baseURL: `${ip}:2399/api`,
@@ -9,7 +11,7 @@ export const authApi = axios.create({
 });
 
 export const api = axios.create({
-  baseURL: `${ip}:3333`,
+  baseURL: `${ip}:2399/api/sobracorte`,
   withCredentials: true
 });
 
