@@ -266,8 +266,24 @@ import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { authApi, api } from '../services/httpClient'
 
-// Lista padrão de prateleiras da fábrica para as Entradas
-const availableLocations = ['Não definido', 'Prateleira A', 'Prateleira B', 'Corredor 1', 'Corredor 2', 'Gaiola Central', 'Mezanino']
+// 🚀 O NOVO CÉREBRO: O mesmo dicionário que usamos na criação de materiais
+const mapArmazens = {
+  LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
+  AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
+  ELASTICO: ["Prateleira de Elásticos", "Caixas de Elástico"],
+  FERRAMENTAIS: ["Armário de Ferramentas", "Sala da Manutenção"],
+};
+
+const defaultLocations = [
+  "Rua 03 - Caixote 58 - Nível 01",
+  "Rua 03 - Caixote 58 - Nível 02",
+  "Rua 03 - Caixote 58 - Nível 03",
+  "Rua 03 - Caixote 58 - Nível 04",
+  "Rua 03 - Caixote 60 - Nível 01",
+  "Rua 03 - Caixote 60 - Nível 02",
+  "Rua 03 - Caixote 60 - Nível 03"
+];
+
 const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '' })
 
 const materials = ref([])
@@ -280,15 +296,10 @@ const notification = ref({ show: false, message: '', type: 'success', style: '' 
 
 // 🚀 A MÁGICA 1: O Dropdown Inteligente
 const locationOptions = computed(() => {
-  if (!selectedMaterial.value) {
-    return availableLocations.map(loc => ({ value: loc, label: loc }))
-  }
-
-  if (form.value.type === 'ENTRADA') {
-    // Na Entrada, mostra todas as prateleiras para ele poder guardar em novos lugares
-    return availableLocations.map(loc => ({ value: loc, label: loc }))
-  } else {
-    // Na SAÍDA, filtra e mostra APENAS onde tem estoque real!
+  if (form.value.type === 'SAIDA') {
+    // 🛡️ NA SAÍDA: A sua lógica original brilhante se mantém!
+    // Filtra e mostra APENAS onde tem estoque real!
+    if (!selectedMaterial.value) return [];
     const matLocations = selectedMaterial.value.locations || []
     const validLocations = matLocations
       .filter(ml => ml.quantity > 0)
@@ -303,6 +314,20 @@ const locationOptions = computed(() => {
     }
     return validLocations
   }
+
+  // 📦 NA ENTRADA: O Novo Escudo!
+  // Se ainda não selecionou material, mostra as Ruas (default)
+  if (!selectedMaterial.value) {
+    return defaultLocations.map(loc => ({ value: loc, label: loc }))
+  }
+
+  // Pega a categoria do material selecionado (Tratando possíveis nulos do banco)
+  const categoria = String(selectedMaterial.value.type || selectedMaterial.value.category || '').toUpperCase().trim()
+
+  // Usa a inteligência do dicionário (Se for linha, traz gaiola. Se não achar, traz as Ruas)
+  const smartLocations = mapArmazens[categoria] || defaultLocations;
+
+  return smartLocations.map(loc => ({ value: loc, label: loc }))
 })
 
 // 🚀 A MÁGICA 2: Auto-selecionar a prateleira para poupar cliques do usuário
@@ -318,13 +343,12 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
       form.value.location = '' // Força o erro para ele não conseguir salvar
     }
   } else {
-    // Se for ENTRADA, sugere o lugar onde o material costuma ficar
-    const matLocations = newMat.locations || []
-    if (matLocations.length > 0) {
-      form.value.location = matLocations[0].location.name
-    } else {
-      form.value.location = 'Não definido'
-    }
+    // 🎯 NA ENTRADA: Sugere a primeira prateleira correta baseada na categoria!
+    const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim()
+    const smartLocations = mapArmazens[categoria] || defaultLocations;
+
+    // Já preenche o form com o destino ideal para o operador não precisar clicar
+    form.value.location = smartLocations[0];
   }
 })
 
@@ -343,7 +367,7 @@ async function fetchData() {
 
   } catch (error) {
     console.error("Erro no fetchData:", error);
-    
+
     // O Axios captura a falha se QUALQUER UMA das duas requisições quebrar (ex: 500 ou 401).
     const errorMsg = error.response?.data?.error || 'Erro ao carregar dados do servidor.';
     showNotification(`⚠️ ${errorMsg}`, 'error');
@@ -428,7 +452,7 @@ async function submitMovement() {
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
 
- try {
+  try {
     // 1. O Axios monta o POST, serializa o objeto para JSON e embute o Token.
     // Perceba que guardamos a resposta inteira (opcional) ou já pulamos direto, 
     // porque se deu sucesso, nem precisamos ler o "data" para continuar.
@@ -449,14 +473,14 @@ async function submitMovement() {
     // Opcional: form.value.location = 'Não definido'
     searchQuery.value = '';
     selectedMaterial.value = null;
-    
+
     await fetchData();
 
   } catch (e) {
     // 3. O Axios joga QUALQUER erro (seja 400 do backend ou netowrk error) aqui para o catch.
     // Pegamos a mensagem que o backend mandou, ou damos o fallback de conexão.
     const errorMsg = e.response?.data?.error || 'Falha de conexão ou erro no servidor.';
-    
+
     showNotification(`❌ Erro: ${errorMsg}`, 'error');
     console.error('Erro ao salvar movimentação:', e);
   }
