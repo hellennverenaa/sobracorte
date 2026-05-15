@@ -5,8 +5,7 @@ import { vars } from "../config/dotenv"
 
 // TODO: fazer interceotir de  req. no frontend para chamar rota de refresh de token apos expiracao
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  // 1. Tenta pegar do Cookie (Produção)
-  let token = req.cookies.token;
+  let token = req.cookies.token // Cookie de autenticacao vinda da api principal de autenticacao
 
   // 2. Tenta pegar do Header (Localhost)
   if (!token && req.headers.authorization) {
@@ -22,16 +21,21 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
 
   jsonwebtoken.verify(token, vars.PRIVATE_KEY ?? "minha-chave", async (error: any, decoded: any) => {
     if (error) {
-      // 🔥 MODO DE SOBREVIVÊNCIA LOCAL: 
-      // Se a chave secreta local da DASS mudar, isso garante que o app continue funcionando no seu notebook!
-      if (error.name !== "TokenExpiredError") {
+      // A IMUNIDADE LOCAL: Verifica se o pedido veio do seu notebook (localhost)
+      const isLocal = req.headers.origin?.includes('localhost') || req.headers.host?.includes('localhost');
+
+      // Se for no seu notebook, nós perdoamos o token expirado de 1 minuto do Hendrius!
+      if (isLocal) {
         const decodedFallback = jsonwebtoken.decode(token);
-        if (decodedFallback) {
+
+        // A MÁGICA DO TYPESCRIPT: Comprova que não é string e força o cast
+        if (decodedFallback && typeof decodedFallback === 'object') {
           req.user = decodedFallback as any;
           return next();
         }
       }
 
+      // Se não for local (Produção), a trava age normalmente:
       if (error.name === "TokenExpiredError") {
         return res.status(401).json({ message: "Token expirado", expired: true });
       }

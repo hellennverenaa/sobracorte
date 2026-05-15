@@ -81,7 +81,8 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
         console.error("Erro temporário no refresh de token:", refreshError);
       }
 
-      throw refreshError;
+      //comentado para evitar que o usuario seja redirecionado para a pagina de login
+      // throw refreshError;
     } finally {
       isRefreshing = false;
     }
