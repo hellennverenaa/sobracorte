@@ -60,22 +60,25 @@ model Movement {
   id           Int      @id @default(autoincrement())
   type         String
   quantity     Float
+
+  origem     String?  // Opcional para não quebrar os registros antigos
+
   reason       String?
   createdAt    DateTime @default(now())
   
   materialId   Int
   material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
-  // 👤 DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
+  // DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
   operatorId   String?  // Matrícula vinda da DASS
   operatorName String?  // Nome vindo da DASS
 
   @@index([materialId])
-  @@index([createdAt]) // 🚀 ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
+  @@index([createdAt]) // ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
   @@schema("sobra_corte")
 }
 
-// 👤 TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
+// TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
 model User {
   id        Int      @id @default(autoincrement())
   usuario   String   @unique // Matrícula/Login da DASS (Ex: HELLEN.MAGALHAES)

@@ -82,14 +82,6 @@
 
               <div v-if="selectedMaterial"
                 class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden animate-fade-in">
-                <div class="absolute right-0 top-0 p-3 opacity-10 text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                    <path fill-rule="evenodd"
-                      d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                      clip-rule="evenodd" />
-                  </svg>
-                </div>
                 <div class="relative z-10">
                   <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Selecionado</div>
                   <div class="font-bold text-gray-800 text-lg leading-tight pr-8">{{ selectedMaterial.descricao ||
@@ -102,7 +94,7 @@
                           selectedMaterial.codigo || selectedMaterial.code }}</span>
                     </div>
                     <div>
-                      <span class="text-xs text-gray-400 block">Estoque Atual</span>
+                      <span class="text-xs text-gray-400 block">Estoque Total</span>
                       <span class="font-bold transition-colors"
                         :class="form.type === 'ENTRADA' ? 'text-red-600' : 'text-green-600'">
                         {{ formatNumber(selectedMaterial.quantidade || selectedMaterial.quantity) }} {{
@@ -112,7 +104,6 @@
                   </div>
                 </div>
               </div>
-
 
               <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Quantidade</label>
@@ -130,21 +121,36 @@
                 <select v-model="form.location" :disabled="form.type === 'SAIDA' && !form.location"
                   class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-red-500">
                   <option value="" disabled selected hidden>Selecione a prateleira...</option>
-
                   <option v-for="option in locationOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
-
-                <p v-if="form.type === 'SAIDA' && !form.location" class="text-xs text-red-500 mt-1 mt-1 font-medium">
+                <p v-if="form.type === 'SAIDA' && !form.location" class="text-xs text-red-500 mt-1 font-medium">
                   Este material está zerado em todas as prateleiras.
                 </p>
               </div>
+
+              <div v-if="form.type === 'ENTRADA'" class="space-y-2 mt-4 animate-fade-in">
+                <label class="text-sm font-bold text-gray-700">
+                  Origem da Sobra <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <select v-model="form.origem"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    :class="!form.origem ? 'text-gray-400' : 'text-gray-900'">
+                    <option value="" disabled selected hidden>Selecione o motivo da sobra...</option>
+                    <option v-for="item in origensSobra" :key="item" :value="item">
+                      {{ item }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Motivo / Obs</label>
                 <input v-model="form.reason" type="text"
                   class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  placeholder="Ex: Produção..." />
+                  placeholder="Ex: Observações gerais..." />
               </div>
 
               <button type="submit"
@@ -158,7 +164,6 @@
 
         <div class="lg:col-span-8 h-full min-h-[500px]">
           <div class="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-full overflow-hidden">
-
             <div
               class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center sticky top-0 bg-white z-[5]">
               <h2 class="font-bold text-gray-700 flex items-center gap-2">Últimos Registros</h2>
@@ -206,9 +211,11 @@
                       <div class="flex flex-col">
                         <span class="font-bold text-gray-700 text-sm group-hover:text-blue-700 transition-colors">{{
                           item.nomeMaterial || (item.material ? (item.material.descricao || item.material.name) :
-                            'Excluído') }}</span>
+                          'Excluído') }}</span>
                         <span class="text-[10px] text-gray-400 font-mono" v-if="item.material">Cód: {{
                           item.material.codigo || item.material.code }}</span>
+                        <span v-if="item.origem" class="text-[9px] font-bold text-blue-500 uppercase mt-0.5">Origem: {{
+                          item.origem }}</span>
                       </div>
                     </td>
                     <td class="px-6 py-4 text-center">
@@ -247,9 +254,6 @@
                       <span v-else class="text-gray-300">-</span>
                     </td>
                   </tr>
-                  <tr v-if="filteredHistory.length === 0">
-                    <td colspan="6" class="p-12 text-center text-gray-400 italic">Nenhum registro encontrado.</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -284,7 +288,19 @@ const defaultLocations = [
   "Rua 03 - Caixote 60 - Nível 03"
 ];
 
-const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '' })
+const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '', origem: '' })
+
+// A MÁGICA DO BI: A lista de origens que a produção pediu
+const origensSobra = [
+  'Consumo',
+  'Dublagem / Tirada',
+  'Ganho no Rolo do Material',
+  'Sobra de Requisição',
+  'Devolução de Produção',
+  'Retalho Aproveitável',
+  'Erro de Enfesto/Corte',
+  'Outros'
+]
 
 const materials = ref([])
 const history = ref([])
@@ -438,15 +454,20 @@ async function submitMovement() {
     const term = searchQuery.value.trim();
     const match = materials.value.find(m => String(m.codigo || m.code) === term);
     if (match) selectedMaterial.value = match;
-    else return showNotification('⚠️ Selecione um material válido!', 'error');
+    else return showNotification('Selecione um material válido!', 'error');
   }
 
   if (!form.value.quantity || form.value.quantity <= 0) {
-    return showNotification('⚠️ Digite uma quantidade válida!', 'error');
+    return showNotification('Digite uma quantidade válida!', 'error');
   }
   // A BARREIRA: Obriga a escolher a prateleira!
   if (!form.value.location) {
-    return showNotification('⚠️ Selecione a prateleira de destino!', 'error');
+    return showNotification('Selecione a prateleira de destino!', 'error');
+  }
+
+  // NOVA TRAVA: Obriga a preencher a origem se for ENTRADA
+  if (form.value.type === 'ENTRADA' && !form.value.origem) {
+    return showNotification('Selecione a origem da sobra!', 'error');
   }
 
   const userJson = localStorage.getItem('user');
@@ -461,15 +482,18 @@ async function submitMovement() {
       type: form.value.type,
       quantity: Number(form.value.quantity),
       reason: form.value.reason || '',
-      location: form.value.location, // 🚀 A MÁGICA ENVIADA PARA O BANCO DE DADOS
+      location: form.value.location, // A MÁGICA ENVIADA PARA O BANCO DE DADOS
+      // ENVIA PARA O BANCO (Só manda se for entrada)
+      origem: form.value.type === 'ENTRADA' ? form.value.origem : null,
       usuario: user ? user.usuario : 'Sistema'
     });
 
     // 2. Se a execução chegou aqui, é SUCESSO GARANTIDO (Status 200/201)!
-    showNotification(`✅ Registro de ${form.value.type} salvo!`, 'success', form.value.type);
+    showNotification(`Registro de ${form.value.type} salvo!`, 'success', form.value.type);
 
     form.value.quantity = '';
     form.value.reason = '';
+    form.value.origem = ''; // Limpa o campo para a próxima
     // Opcional: form.value.location = 'Não definido'
     searchQuery.value = '';
     selectedMaterial.value = null;

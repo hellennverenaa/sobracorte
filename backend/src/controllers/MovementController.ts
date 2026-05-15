@@ -7,9 +7,9 @@ export class MovementController {
       const movements = await prisma.movement.findMany({
         take: 100,
         orderBy: { createdAt: 'desc' },
-        include: { material: true } 
+        include: { material: true }
       });
-      
+
       const formatted = movements.map(m => ({
         ...m,
         id: m.id,
@@ -19,11 +19,12 @@ export class MovementController {
         motivo: m.reason,
         observacao: m.reason,
         usuario: m.operatorName,
-        operador: m.operatorName, 
-        material: m.material, 
+        operador: m.operatorName,
+        origem: m.origem,
+        material: m.material,
         nomeMaterial: m.material?.name || m.material?.code
       }));
-      
+
       res.json(formatted);
     } catch (error) {
       res.status(500).json({ error: 'Erro nas movimentações' });
@@ -34,12 +35,13 @@ export class MovementController {
     try {
       const materialId = Number(req.body.materialId || req.body.material_id);
       const quantidade = Number(req.body.quantidade || req.body.quantity);
-      const tipo = String(req.body.tipo || req.body.type).toLowerCase(); 
-      const locationName = String(req.body.location || 'Não definido').trim(); // 🚀 Recebe a prateleira
-      
+      const tipo = String(req.body.tipo || req.body.type).toLowerCase();
+      const locationName = String(req.body.location || 'Não definido').trim(); // Recebe a prateleira
+      const origem = req.body.origem || null; // Recebe a origem da sobra
+
       const result = await prisma.$transaction(async (tx) => {
-        
-        // 🚀 1. Acha ou Cria a Localização (Prateleira) dentro da transação
+
+        // 1. Acha ou Cria a Localização (Prateleira) dentro da transação
         let loc = await tx.location.findUnique({ where: { name: locationName } });
         if (!loc) {
           loc = await tx.location.create({ data: { name: locationName } });
@@ -49,21 +51,22 @@ export class MovementController {
         const movement = await tx.movement.create({
           data: {
             materialId: materialId,
-            type: tipo, 
+            type: tipo,
             quantity: quantidade,
+            origem: tipo === 'entrada' ? origem : null, // Grava no banco apenas se for ENTRADA
             reason: req.body.observacao || req.body.reason || '',
-            operatorName: req.body.usuario || 'Usuário DASS' 
+            operatorName: req.body.usuario || 'Usuário DASS'
           }
         });
 
-        // 🚀 3. Regra de Negócio: Atualiza o Total e a Prateleira Específica
+        // 3. Regra de Negócio: Atualiza o Total e a Prateleira Específica
         if (tipo === 'entrada') {
           // Incrementa no Total Geral
-          await tx.material.update({ 
-            where: { id: materialId }, 
-            data: { quantity: { increment: quantidade } } 
+          await tx.material.update({
+            where: { id: materialId },
+            data: { quantity: { increment: quantidade } }
           });
-          
+
           // Incrementa na Prateleira Específica (Upsert)
           await tx.materialLocation.upsert({
             where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
@@ -72,7 +75,7 @@ export class MovementController {
           });
 
         } else if (tipo === 'saida') {
-          // 🛑 TRAVA DE SEGURANÇA DBA: Verifica saldo na Prateleira antes de dar saída
+          // TRAVA DE SEGURANÇA DBA: Verifica saldo na Prateleira antes de dar saída
           const matLoc = await tx.materialLocation.findUnique({
             where: { materialId_locationId: { materialId: materialId, locationId: loc.id } }
           });
@@ -83,18 +86,18 @@ export class MovementController {
           }
 
           // Decrementa no Total Geral
-          await tx.material.update({ 
-            where: { id: materialId }, 
-            data: { quantity: { decrement: quantidade } } 
+          await tx.material.update({
+            where: { id: materialId },
+            data: { quantity: { decrement: quantidade } }
           });
-          
+
           // Decrementa na Prateleira Específica
           await tx.materialLocation.update({
             where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
             data: { quantity: { decrement: quantidade } }
           });
         }
-        
+
         return movement;
       });
 
