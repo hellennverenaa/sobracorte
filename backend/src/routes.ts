@@ -47,7 +47,7 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
     const users = await prisma.user.findMany({
       orderBy: { nome: 'asc' }
     });
-    
+
     //  A MÁGICA: Converte o BigInt para Number antes de virar JSON!
     const safeUsers = users.map(user => ({
       ...user,
@@ -84,7 +84,7 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error);
     // Mudei para 500 para fazer mais sentido, caso dê um erro real de banco
-    res.status(500).json({ error: 'Erro interno ao atualizar usuário' }); 
+    res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
   }
 });
 

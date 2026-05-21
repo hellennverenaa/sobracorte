@@ -40,19 +40,10 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 3. CORS: A Lista VIP (Blindagem de Origem)
-app.use(cors({
-  // Por enquanto liberamos o localhost. Quando a equipe de Redes da DASS for colocar
-  // no servidor oficial, eles vão trocar isso para o IP do domínio da fábrica.
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'] // Trava para aceitar só JSON e Token
-}));
-
 // ==========================================
 // CONFIGURAÇÕES PADRÃO DO EXPRESS
 // ==========================================
-app.use(express.json());
+// Nota: express.json() já foi configurado acima com limit 50mb
 
 // Engatando o "roteador" no nosso motor principal
 app.use(routes);

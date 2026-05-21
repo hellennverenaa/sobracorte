@@ -32,6 +32,9 @@ export class MovementController {
   }
 
   async create(req: Request, res: Response) {
+    // 🔍 LOG NÍVEL 1: Rastreamento de Payload — PRIMEIRA LINHA DA FUNÇÃO
+    console.log('📦 CHEGOU NO BACKEND:', req.body);
+
     try {
       const materialId = Number(req.body.materialId || req.body.material_id);
       const quantidade = Number(req.body.quantidade || req.body.quantity);
@@ -39,71 +42,91 @@ export class MovementController {
       const locationName = String(req.body.location || 'Não definido').trim(); // Recebe a prateleira
       const origem = req.body.origem || null; // Recebe a origem da sobra
 
-      const result = await prisma.$transaction(async (tx) => {
+      // 🔄 LOG NÍVEL 2: Rastreamento de execução antes de chamar o banco
+      console.log('🔄 TENTANDO SALVAR NO BANCO...');
+      console.log('   ↳ materialId:', materialId, '| quantidade:', quantidade, '| tipo:', tipo, '| location:', locationName);
 
-        // 1. Acha ou Cria a Localização (Prateleira) dentro da transação
-        let loc = await tx.location.findUnique({ where: { name: locationName } });
-        if (!loc) {
-          loc = await tx.location.create({ data: { name: locationName } });
-        }
+      let result: any;
+      try {
+        result = await prisma.$transaction(async (tx) => {
 
-        // 2. Cria o Registro de Movimentação Histórica
-        const movement = await tx.movement.create({
-          data: {
-            materialId: materialId,
-            type: tipo,
-            quantity: quantidade,
-            origem: tipo === 'entrada' ? origem : null, // Grava no banco apenas se for ENTRADA
-            reason: req.body.observacao || req.body.reason || '',
-            operatorName: req.body.usuario || 'Usuário DASS'
+          // 1. Acha ou Cria a Localização (Prateleira) dentro da transação
+          let loc = await tx.location.findUnique({ where: { name: locationName } });
+          if (!loc) {
+            loc = await tx.location.create({ data: { name: locationName } });
           }
+          console.log("Localizacao:", loc)
+
+          // 2. Cria o Registro de Movimentação Histórica
+          const movement = await tx.movement.create({
+            data: {
+              materialId: materialId,
+              type: tipo,
+              quantity: quantidade,
+              origem: tipo === 'entrada' ? origem : null, // Grava no banco apenas se for ENTRADA
+              reason: req.body.observacao || req.body.reason || '',
+              operatorName: req.body.usuario || 'Usuário DASS'
+            }
+          });
+
+          // 3. Regra de Negócio: Atualiza o Total e a Prateleira Específica
+          if (tipo === 'entrada') {
+            // Incrementa no Total Geral
+            await tx.material.update({
+              where: { id: materialId },
+              data: { quantity: { increment: quantidade } }
+            });
+
+            // Incrementa na Prateleira Específica (Upsert)
+            await tx.materialLocation.upsert({
+              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
+              update: { quantity: { increment: quantidade } },
+              create: { materialId: materialId, locationId: loc.id, quantity: quantidade }
+            });
+
+          } else if (tipo === 'saida') {
+            // TRAVA DE SEGURANÇA DBA: Verifica saldo na Prateleira antes de dar saída
+            const matLoc = await tx.materialLocation.findUnique({
+              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } }
+            });
+
+            if (!matLoc || Number(matLoc.quantity || 0) < quantidade) {
+              // Se não tiver saldo, aborta a transação e joga o erro
+              throw new Error(`Estoque insuficiente na localização: ${loc.name}`);
+            }
+
+            // Decrementa no Total Geral
+            await tx.material.update({
+              where: { id: materialId },
+              data: { quantity: { decrement: quantidade } }
+            });
+
+            // Decrementa na Prateleira Específica
+            await tx.materialLocation.update({
+              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
+              data: { quantity: { decrement: quantidade } }
+            });
+          }
+
+          return movement;
         });
 
-        // 3. Regra de Negócio: Atualiza o Total e a Prateleira Específica
-        if (tipo === 'entrada') {
-          // Incrementa no Total Geral
-          await tx.material.update({
-            where: { id: materialId },
-            data: { quantity: { increment: quantidade } }
-          });
+        console.log('✅ TRANSAÇÃO CONCLUÍDA COM SUCESSO! ID gerado:', result?.id);
+        res.json(result);
 
-          // Incrementa na Prateleira Específica (Upsert)
-          await tx.materialLocation.upsert({
-            where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-            update: { quantity: { increment: quantidade } },
-            create: { materialId: materialId, locationId: loc.id, quantity: quantidade }
-          });
+      } catch (prismaError: any) {
+        // 🚨 LOG NÍVEL 3: Erro Fatal do Prisma — nunca silencia o erro do banco
+        console.error('🚨 ERRO FATAL NO PRISMA:', prismaError);
+        console.error('   ↳ Código do erro:', prismaError?.code);
+        console.error('   ↳ Meta:', prismaError?.meta);
+        return res.status(500).json({
+          error: prismaError.message || 'Erro interno ao salvar movimentação'
+        });
+      }
 
-        } else if (tipo === 'saida') {
-          // TRAVA DE SEGURANÇA DBA: Verifica saldo na Prateleira antes de dar saída
-          const matLoc = await tx.materialLocation.findUnique({
-            where: { materialId_locationId: { materialId: materialId, locationId: loc.id } }
-          });
-
-          if (!matLoc || Number(matLoc.quantity || 0) < quantidade) {
-            // Se não tiver saldo, aborta a transação e joga o erro
-            throw new Error(`Estoque insuficiente na localização: ${loc.name}`);
-          }
-
-          // Decrementa no Total Geral
-          await tx.material.update({
-            where: { id: materialId },
-            data: { quantity: { decrement: quantidade } }
-          });
-
-          // Decrementa na Prateleira Específica
-          await tx.materialLocation.update({
-            where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-            data: { quantity: { decrement: quantidade } }
-          });
-        }
-
-        return movement;
-      });
-
-      res.json(result);
     } catch (error: any) {
-      // Captura o erro da nossa trava de segurança ou do banco
+      // Captura erros de validação/negócio (ex: estoque insuficiente) antes de chegar no Prisma
+      console.error('⚠️ ERRO DE VALIDAÇÃO/NEGÓCIO:', error.message);
       res.status(400).json({ error: error.message || 'Erro ao salvar movimentação' });
     }
   }

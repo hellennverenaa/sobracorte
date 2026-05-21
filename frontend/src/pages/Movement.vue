@@ -501,12 +501,17 @@ async function submitMovement() {
     await fetchData();
 
   } catch (e) {
-    // 3. O Axios joga QUALQUER erro (seja 400 do backend ou netowrk error) aqui para o catch.
-    // Pegamos a mensagem que o backend mandou, ou damos o fallback de conexão.
-    const errorMsg = e.response?.data?.error || 'Falha de conexão ou erro no servidor.';
+    // 3. O Axios lança QUALQUER erro HTTP (400, 500) ou de rede aqui para o catch.
+    // O Frontend NUNCA exibe sucesso se o backend retornar 400 ou 500.
+    const httpStatus = e.response?.status;
+    const errorMsg = e.response?.data?.error || e.message || 'Falha de conexão ou erro no servidor.';
 
-    showNotification(`❌ Erro: ${errorMsg}`, 'error');
-    console.error('Erro ao salvar movimentação:', e);
+    console.error('🔴 [Frontend] Erro ao salvar movimentação:');
+    console.error('   ↳ HTTP Status:', httpStatus);
+    console.error('   ↳ Mensagem do backend:', errorMsg);
+    console.error('   ↳ Objeto completo do erro:', e.response?.data);
+
+    showNotification(`❌ Erro ${httpStatus ? `(${httpStatus})` : ''}: ${errorMsg}`, 'error');
   }
 }
 
