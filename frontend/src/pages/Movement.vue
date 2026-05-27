@@ -82,14 +82,6 @@
 
               <div v-if="selectedMaterial"
                 class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden animate-fade-in">
-                <div class="absolute right-0 top-0 p-3 opacity-10 text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                    <path fill-rule="evenodd"
-                      d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
-                      clip-rule="evenodd" />
-                  </svg>
-                </div>
                 <div class="relative z-10">
                   <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Selecionado</div>
                   <div class="font-bold text-gray-800 text-lg leading-tight pr-8">{{ selectedMaterial.descricao ||
@@ -102,7 +94,7 @@
                           selectedMaterial.codigo || selectedMaterial.code }}</span>
                     </div>
                     <div>
-                      <span class="text-xs text-gray-400 block">Estoque Atual</span>
+                      <span class="text-xs text-gray-400 block">Estoque Total</span>
                       <span class="font-bold transition-colors"
                         :class="form.type === 'ENTRADA' ? 'text-red-600' : 'text-green-600'">
                         {{ formatNumber(selectedMaterial.quantidade || selectedMaterial.quantity) }} {{
@@ -112,7 +104,6 @@
                   </div>
                 </div>
               </div>
-
 
               <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Quantidade</label>
@@ -130,21 +121,36 @@
                 <select v-model="form.location" :disabled="form.type === 'SAIDA' && !form.location"
                   class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-red-500">
                   <option value="" disabled selected hidden>Selecione a prateleira...</option>
-
                   <option v-for="option in locationOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
-
-                <p v-if="form.type === 'SAIDA' && !form.location" class="text-xs text-red-500 mt-1 mt-1 font-medium">
+                <p v-if="form.type === 'SAIDA' && !form.location" class="text-xs text-red-500 mt-1 font-medium">
                   Este material está zerado em todas as prateleiras.
                 </p>
               </div>
+
+              <div v-if="form.type === 'ENTRADA'" class="space-y-2 mt-4 animate-fade-in">
+                <label class="text-sm font-bold text-gray-700">
+                  Origem da Sobra <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <select v-model="form.origem"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    :class="!form.origem ? 'text-gray-400' : 'text-gray-900'">
+                    <option value="" disabled selected hidden>Selecione o motivo da sobra...</option>
+                    <option v-for="item in origensSobra" :key="item" :value="item">
+                      {{ item }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Motivo / Obs</label>
                 <input v-model="form.reason" type="text"
                   class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  placeholder="Ex: Produção..." />
+                  placeholder="Ex: Observações gerais..." />
               </div>
 
               <button type="submit"
@@ -158,7 +164,6 @@
 
         <div class="lg:col-span-8 h-full min-h-[500px]">
           <div class="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-full overflow-hidden">
-
             <div
               class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center sticky top-0 bg-white z-[5]">
               <h2 class="font-bold text-gray-700 flex items-center gap-2">Últimos Registros</h2>
@@ -206,9 +211,11 @@
                       <div class="flex flex-col">
                         <span class="font-bold text-gray-700 text-sm group-hover:text-blue-700 transition-colors">{{
                           item.nomeMaterial || (item.material ? (item.material.descricao || item.material.name) :
-                            'Excluído') }}</span>
+                          'Excluído') }}</span>
                         <span class="text-[10px] text-gray-400 font-mono" v-if="item.material">Cód: {{
                           item.material.codigo || item.material.code }}</span>
+                        <span v-if="item.origem" class="text-[9px] font-bold text-blue-500 uppercase mt-0.5">Origem: {{
+                          item.origem }}</span>
                       </div>
                     </td>
                     <td class="px-6 py-4 text-center">
@@ -247,9 +254,6 @@
                       <span v-else class="text-gray-300">-</span>
                     </td>
                   </tr>
-                  <tr v-if="filteredHistory.length === 0">
-                    <td colspan="6" class="p-12 text-center text-gray-400 italic">Nenhum registro encontrado.</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -266,9 +270,37 @@ import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { authApi, api } from '../services/httpClient'
 
-// Lista padrão de prateleiras da fábrica para as Entradas
-const availableLocations = ['Não definido', 'Prateleira A', 'Prateleira B', 'Corredor 1', 'Corredor 2', 'Gaiola Central', 'Mezanino']
-const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '' })
+// 🚀 O NOVO CÉREBRO: O mesmo dicionário que usamos na criação de materiais
+const mapArmazens = {
+  LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
+  AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
+  ELASTICO: ["Prateleira de Elásticos", "Caixas de Elástico"],
+  FERRAMENTAIS: ["Armário de Ferramentas", "Sala da Manutenção"],
+};
+
+const defaultLocations = [
+  "Rua 03 - Caixote 58 - Nível 01",
+  "Rua 03 - Caixote 58 - Nível 02",
+  "Rua 03 - Caixote 58 - Nível 03",
+  "Rua 03 - Caixote 58 - Nível 04",
+  "Rua 03 - Caixote 60 - Nível 01",
+  "Rua 03 - Caixote 60 - Nível 02",
+  "Rua 03 - Caixote 60 - Nível 03"
+];
+
+const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '', origem: '' })
+
+// A MÁGICA DO BI: A lista de origens que a produção pediu
+const origensSobra = [
+  'Consumo',
+  'Dublagem / Tirada',
+  'Ganho no Rolo do Material',
+  'Sobra de Requisição',
+  'Devolução de Produção',
+  'Retalho Aproveitável',
+  'Erro de Enfesto/Corte',
+  'Outros'
+]
 
 const materials = ref([])
 const history = ref([])
@@ -280,15 +312,10 @@ const notification = ref({ show: false, message: '', type: 'success', style: '' 
 
 // 🚀 A MÁGICA 1: O Dropdown Inteligente
 const locationOptions = computed(() => {
-  if (!selectedMaterial.value) {
-    return availableLocations.map(loc => ({ value: loc, label: loc }))
-  }
-
-  if (form.value.type === 'ENTRADA') {
-    // Na Entrada, mostra todas as prateleiras para ele poder guardar em novos lugares
-    return availableLocations.map(loc => ({ value: loc, label: loc }))
-  } else {
-    // Na SAÍDA, filtra e mostra APENAS onde tem estoque real!
+  if (form.value.type === 'SAIDA') {
+    // 🛡️ NA SAÍDA: A sua lógica original brilhante se mantém!
+    // Filtra e mostra APENAS onde tem estoque real!
+    if (!selectedMaterial.value) return [];
     const matLocations = selectedMaterial.value.locations || []
     const validLocations = matLocations
       .filter(ml => ml.quantity > 0)
@@ -303,6 +330,20 @@ const locationOptions = computed(() => {
     }
     return validLocations
   }
+
+  // 📦 NA ENTRADA: O Novo Escudo!
+  // Se ainda não selecionou material, mostra as Ruas (default)
+  if (!selectedMaterial.value) {
+    return defaultLocations.map(loc => ({ value: loc, label: loc }))
+  }
+
+  // Pega a categoria do material selecionado (Tratando possíveis nulos do banco)
+  const categoria = String(selectedMaterial.value.type || selectedMaterial.value.category || '').toUpperCase().trim()
+
+  // Usa a inteligência do dicionário (Se for linha, traz gaiola. Se não achar, traz as Ruas)
+  const smartLocations = mapArmazens[categoria] || defaultLocations;
+
+  return smartLocations.map(loc => ({ value: loc, label: loc }))
 })
 
 // 🚀 A MÁGICA 2: Auto-selecionar a prateleira para poupar cliques do usuário
@@ -318,13 +359,12 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
       form.value.location = '' // Força o erro para ele não conseguir salvar
     }
   } else {
-    // Se for ENTRADA, sugere o lugar onde o material costuma ficar
-    const matLocations = newMat.locations || []
-    if (matLocations.length > 0) {
-      form.value.location = matLocations[0].location.name
-    } else {
-      form.value.location = 'Não definido'
-    }
+    // 🎯 NA ENTRADA: Sugere a primeira prateleira correta baseada na categoria!
+    const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim()
+    const smartLocations = mapArmazens[categoria] || defaultLocations;
+
+    // Já preenche o form com o destino ideal para o operador não precisar clicar
+    form.value.location = smartLocations[0];
   }
 })
 
@@ -343,7 +383,7 @@ async function fetchData() {
 
   } catch (error) {
     console.error("Erro no fetchData:", error);
-    
+
     // O Axios captura a falha se QUALQUER UMA das duas requisições quebrar (ex: 500 ou 401).
     const errorMsg = error.response?.data?.error || 'Erro ao carregar dados do servidor.';
     showNotification(`⚠️ ${errorMsg}`, 'error');
@@ -414,21 +454,26 @@ async function submitMovement() {
     const term = searchQuery.value.trim();
     const match = materials.value.find(m => String(m.codigo || m.code) === term);
     if (match) selectedMaterial.value = match;
-    else return showNotification('⚠️ Selecione um material válido!', 'error');
+    else return showNotification('Selecione um material válido!', 'error');
   }
 
   if (!form.value.quantity || form.value.quantity <= 0) {
-    return showNotification('⚠️ Digite uma quantidade válida!', 'error');
+    return showNotification('Digite uma quantidade válida!', 'error');
   }
   // A BARREIRA: Obriga a escolher a prateleira!
   if (!form.value.location) {
-    return showNotification('⚠️ Selecione a prateleira de destino!', 'error');
+    return showNotification('Selecione a prateleira de destino!', 'error');
+  }
+
+  // NOVA TRAVA: Obriga a preencher a origem se for ENTRADA
+  if (form.value.type === 'ENTRADA' && !form.value.origem) {
+    return showNotification('Selecione a origem da sobra!', 'error');
   }
 
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
 
- try {
+  try {
     // 1. O Axios monta o POST, serializa o objeto para JSON e embute o Token.
     // Perceba que guardamos a resposta inteira (opcional) ou já pulamos direto, 
     // porque se deu sucesso, nem precisamos ler o "data" para continuar.
@@ -437,28 +482,36 @@ async function submitMovement() {
       type: form.value.type,
       quantity: Number(form.value.quantity),
       reason: form.value.reason || '',
-      location: form.value.location, // 🚀 A MÁGICA ENVIADA PARA O BANCO DE DADOS
+      location: form.value.location, // A MÁGICA ENVIADA PARA O BANCO DE DADOS
+      // ENVIA PARA O BANCO (Só manda se for entrada)
+      origem: form.value.type === 'ENTRADA' ? form.value.origem : null,
       usuario: user ? user.usuario : 'Sistema'
     });
 
     // 2. Se a execução chegou aqui, é SUCESSO GARANTIDO (Status 200/201)!
-    showNotification(`✅ Registro de ${form.value.type} salvo!`, 'success', form.value.type);
+    showNotification(`Registro de ${form.value.type} salvo!`, 'success', form.value.type);
 
     form.value.quantity = '';
     form.value.reason = '';
+    form.value.origem = ''; // Limpa o campo para a próxima
     // Opcional: form.value.location = 'Não definido'
     searchQuery.value = '';
     selectedMaterial.value = null;
-    
+
     await fetchData();
 
   } catch (e) {
-    // 3. O Axios joga QUALQUER erro (seja 400 do backend ou netowrk error) aqui para o catch.
-    // Pegamos a mensagem que o backend mandou, ou damos o fallback de conexão.
-    const errorMsg = e.response?.data?.error || 'Falha de conexão ou erro no servidor.';
-    
-    showNotification(`❌ Erro: ${errorMsg}`, 'error');
-    console.error('Erro ao salvar movimentação:', e);
+    // 3. O Axios lança QUALQUER erro HTTP (400, 500) ou de rede aqui para o catch.
+    // O Frontend NUNCA exibe sucesso se o backend retornar 400 ou 500.
+    const httpStatus = e.response?.status;
+    const errorMsg = e.response?.data?.error || e.message || 'Falha de conexão ou erro no servidor.';
+
+    console.error('🔴 [Frontend] Erro ao salvar movimentação:');
+    console.error('   ↳ HTTP Status:', httpStatus);
+    console.error('   ↳ Mensagem do backend:', errorMsg);
+    console.error('   ↳ Objeto completo do erro:', e.response?.data);
+
+    showNotification(`❌ Erro ${httpStatus ? `(${httpStatus})` : ''}: ${errorMsg}`, 'error');
   }
 }
 

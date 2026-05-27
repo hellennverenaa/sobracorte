@@ -215,14 +215,13 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-             <div>
+              <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Estoque Inicial</label>
-                <input type="number" step="0.01" v-model.number="form.quantity"
-                  :disabled="!!editingItem"
-                  class="w-full border p-2 rounded outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed" 
+                <input type="number" step="0.01" v-model.number="form.quantity" :disabled="!!editingItem"
+                  class="w-full border p-2 rounded outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                   :title="editingItem ? 'Alterações de saldo devem ser feitas na tela de Movimentação' : ''" />
               </div>
-             <div>
+              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Localização (Prateleira)</label>
                 <select v-model="form.location" required :disabled="!form.type || !!editingItem"
                   class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
@@ -306,13 +305,13 @@ const mapArmazens = {
 
 // Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
 const defaultLocations = ["Rua 03 - Caixote 58 - Nível 01",
-"Rua 03 - Caixote 58 - Nível 02",
-"Rua 03 - Caixote 58 - Nível 03",
-"Rua 03 - Caixote 58 - Nível 04",
-"Rua 03 - Caixote 60 - Nível 01",
-"Rua 03 - Caixote 60 - Nível 02",
-"Rua 03 - Caixote 60 - Nível 03"
- ];
+  "Rua 03 - Caixote 58 - Nível 02",
+  "Rua 03 - Caixote 58 - Nível 03",
+  "Rua 03 - Caixote 58 - Nível 04",
+  "Rua 03 - Caixote 60 - Nível 01",
+  "Rua 03 - Caixote 60 - Nível 02",
+  "Rua 03 - Caixote 60 - Nível 03"
+];
 
 // 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
@@ -327,7 +326,7 @@ const availableLocations = computed(() => {
 
 // 3.5 DICIONÁRIO DE ALMOXARIFADO E BLOQUEIO DA ARQUITETA
 const categoriasAlmoxarifadoM2 = [
-  "TECIDO", "SINTETICO", "FILME", "EVA", "ESPUMA", "FORRO", "MANTA", "MICROFIBRA"
+  "TECIDO", "SINTETICO", "FILME", "EVA", "ESPUMA", "FORRO", "MANTA", "MICROFIBRA", "REFORÇO", "PAPEL SUBLIMACAO", "OUTROS"
 ];
 // Couro separado para Metros lineares
 const categoriasAlmoxarifadoM = ["COURO"];
@@ -381,6 +380,8 @@ const categories = [
   "MANTA",
   "MICROFIBRA",
   "FERRAMENTAIS",
+  "REFORÇO",
+  "PAPEL SUBLIMACAO",
   "OUTROS",
 ];
 
@@ -389,17 +390,17 @@ async function fetchMaterials(config = {}) {
   try {
     // O Axios faz o GET, junta a baseURL e aplica os parâmetros se existirem
     const response = await api.get('/materials', config);
-    
+
     // O Axios já entrega o JSON mastigado no response.data
     materials.value = response.data;
-    
+
     // Retornamos o dado para caso outra tela (como o Dashboard) esteja chamando
-    return response.data; 
-    
+    return response.data;
+
   } catch (e) {
     console.error("Erro ao buscar materiais:", e);
     // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
-    return []; 
+    return [];
   }
 }
 
@@ -412,15 +413,15 @@ async function handleFileUpload(event) {
   importResult.value = "";
 
   const reader = new FileReader();
-  
+
   reader.onload = async (e) => {
     try {
       const text = e.target.result;
       const delimiter = text.indexOf(';') !== -1 ? ';' : ',';
       const lines = text.split('\n').filter(line => line.trim() !== '');
-      
+
       if (lines.length < 2) {
-         throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
+        throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
       }
 
       const items = [];
@@ -428,10 +429,10 @@ async function handleFileUpload(event) {
       for (let i = 1; i < lines.length; i++) {
         // 🚀 MÁGICA 1: Quebra as colunas e ARRANCA todas as aspas duplas!
         const row = lines[i].split(delimiter).map(col => col.replace(/"/g, '').trim());
-        
+
         // 🚀 MÁGICA 2: Limpeza pesada de números Brasileiros
         // Pega o valor, ex: "1.500,50" ou "15"
-        let rawQtd = row[2] || '0'; 
+        let rawQtd = row[2] || '0';
         rawQtd = rawQtd.replace(/\./g, ''); // Arranca o ponto de milhar -> "1500,50"
         rawQtd = rawQtd.replace(',', '.');  // Troca a vírgula por ponto -> "1500.50"
 
@@ -447,9 +448,9 @@ async function handleFileUpload(event) {
 
       // Envia para o backend
       const response = await api.post('/materials/bulk', { materiais: items });
-      
+
       importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
-      fetchMaterials(); 
+      fetchMaterials();
 
     } catch (error) {
       console.error("Erro no CSV:", error);
@@ -457,7 +458,7 @@ async function handleFileUpload(event) {
       importResult.value = `❌ Erro ao importar: ${errorMsg}`;
     } finally {
       importLoading.value = false;
-      event.target.value = null; 
+      event.target.value = null;
     }
   };
 
@@ -522,7 +523,7 @@ async function saveItem() {
     return showNotification("error", "Selecione uma Localização (Prateleira)!");
   }
 
- try {
+  try {
     const userJson = localStorage.getItem("user");
     const user = userJson ? JSON.parse(userJson) : null;
     const userId = user ? user.id : 1;
@@ -553,13 +554,13 @@ async function saveItem() {
       "success",
       editingItem.value ? "Material atualizado com sucesso!" : "Material salvo com sucesso!"
     );
-    
+
     showCreateModal.value = false;
     await fetchMaterials();
 
   } catch (error) {
     console.error("Erro ao salvar/atualizar material:", error);
-    
+
     // Captura o erro real devolvido pelo Prisma/Node.js (Ex: "O código já existe no banco")
     const errorMsg = error.response?.data?.error || "Verifique se o código já existe ou falha de conexão.";
     showNotification("error", `Erro: ${errorMsg}`);
@@ -576,14 +577,14 @@ async function confirmDelete(item) {
     try {
       // AXIOS: Chama o método delete direto, passando apenas a rota final
       await api.delete(`/materials/${item.id}`);
-      
+
       // Se a execução chegou aqui, o status é 200 (Sucesso Garantido!)
       showNotification("success", "Material excluído com sucesso!");
       fetchMaterials();
 
     } catch (error) {
       console.error("Erro ao excluir:", error);
-      
+
       // Captura a mensagem do backend caso ele impeça a exclusão (ex: material com saldo)
       const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
       showNotification("error", errorMsg);

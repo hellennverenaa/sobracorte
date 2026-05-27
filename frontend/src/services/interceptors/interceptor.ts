@@ -13,6 +13,20 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
     return new Promise<void>((resolve, reject) => queue.push({ resolve, reject }));
   }
 
+  // 🚀 A MÁGICA 1: Injeta o Token JWT no cabeçalho (Salva o Localhost das regras de Cookie)
+  api.interceptors.request.use((config) => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.token) {
+          config.headers.Authorization = `Bearer ${user.token}`;
+        }
+      } catch (e) { }
+    }
+    return config;
+  });
+
   const handle401 = async (error: any, instance: AxiosInstance, authInstance: AxiosInstance) => {
     const originalRequest = error?.config
 
@@ -67,6 +81,8 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
         console.error("Erro temporário no refresh de token:", refreshError);
       }
 
+      // Propaga o erro para o caller — sem isso, api.post() retorna undefined
+      // e o frontend mostra "sucesso" sem ter salvo nada no banco
       throw refreshError;
     } finally {
       isRefreshing = false;

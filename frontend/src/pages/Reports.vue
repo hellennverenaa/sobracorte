@@ -255,6 +255,7 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
                 <th class="p-4">Tipo</th>
                 <th class="p-4">Material</th>
                 <th class="p-4">Categoria</th>
+                <th class="p-4 text-center">Origem</th>
                 <th class="p-4 text-right">Qtd</th>
               </tr>
             </thead>
@@ -271,18 +272,19 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
                   <span v-if="row.material?.codigo" class="block text-[9px] text-gray-400 font-mono">{{ row.material.codigo }}</span>
                 </td>
                 <td class="p-4 capitalize text-gray-600">{{ row.material?.tipo || '-' }}</td>
+                <td class="p-4 text-center text-xs font-bold text-blue-600 uppercase">{{ row.origem || '-' }}</td>
                 <td class="p-4 text-right font-bold text-gray-800">
                   {{ row.quantidade }} <span class="text-[9px] text-gray-400">{{ row.material?.unidade }}</span>
                 </td>
               </tr>
               <tr v-if="reportData.length === 0">
-                <td colspan="5" class="p-8 text-center text-gray-400 italic">Nenhum dado encontrado para os filtros selecionados.</td>
+                <td colspan="6" class="p-8 text-center text-gray-400 italic">Nenhum dado encontrado para os filtros selecionados.</td>
               </tr>
             </tbody>
             <tfoot v-if="reportData.length > 0" class="bg-gray-50 font-bold text-sm border-t-2 border-gray-200 print:bg-gray-100">
               <tr>
                 <td colspan="3" class="p-4 text-right">TOTAIS DO PERÍODO:</td>
-                <td colspan="2" class="p-4 text-right">
+                <td colspan="3" class="p-4 text-right">
                   <div class="text-green-600">Saídas: {{ totalSaidas.toLocaleString('pt-BR') }}</div>
                   <div class="text-red-600">Entradas: {{ totalEntradas.toLocaleString('pt-BR') }}</div>
                 </td>

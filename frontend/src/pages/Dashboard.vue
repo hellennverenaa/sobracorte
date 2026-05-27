@@ -7,14 +7,17 @@ import {
   TrendingUp, TrendingDown, Package, AlertOctagon,
   PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
 } from 'lucide-vue-next'
-const { fetchStats, fetchMaterials, request } = useApi()
+const { fetchStats, fetchMaterials, fetchMovements, request } = useApi()
 
 // --- ESTADOS ---
 const realStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 
 const materials = ref([])
+const movements = ref([])
 const isLoading = ref(true)
+const hoveredCategory = ref(null)
+const hoveredOrigem = ref(null)
 const isUpdating = ref(false)
 const currentTime = ref(new Date())
 let refreshInterval = null
@@ -115,6 +118,52 @@ const pieChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
+// GRÁFICO DE PIZZA - ORIGEM DAS SOBRAS (apenas entradas)
+const origemChartData = computed(() => {
+  const entradas = movements.value.filter(m => String(m.tipo || '').toLowerCase() === 'entrada')
+  if (entradas.length === 0) return []
+
+  const groups = {}
+  let totalQty = 0
+
+  entradas.forEach(m => {
+    const origem = (m.origem || 'Outros').trim()
+    const qtdStr = String(m.quantidade || '0').replace(',', '.')
+    const qtd = parseFloat(qtdStr) || 0
+    if (!groups[origem]) groups[origem] = 0
+    groups[origem] += qtd
+    totalQty += qtd
+  })
+
+  const origemColors = [
+    '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
+    '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'
+  ]
+
+  return Object.keys(groups)
+    .map((key, i) => ({
+      label: key,
+      value: groups[key],
+      percent: totalQty > 0 ? (groups[key] / totalQty) * 100 : 0,
+      color: origemColors[i % origemColors.length]
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5)
+})
+
+const origemChartStyle = computed(() => {
+  if (origemChartData.value.length === 0) return { background: '#e2e8f0' }
+  let gradientStr = ''
+  let currentDeg = 0
+  origemChartData.value.forEach((slice, index) => {
+    const degrees = (slice.percent / 100) * 360
+    gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + degrees}deg`
+    if (index < origemChartData.value.length - 1) gradientStr += ', '
+    currentDeg += degrees
+  })
+  return { background: `conic-gradient(${gradientStr})` }
+})
+
 // RANKING (Top 5)
 const topMaterials = computed(() => {
   return [...materials.value]
@@ -156,6 +205,10 @@ async function loadData() {
     const materialsArray = materialsData.data || materialsData.materials || materialsData;
 
     materials.value = Array.isArray(materialsArray) ? materialsArray : [];
+
+    // Carrega movimentações para o gráfico de Origem
+    const movData = await fetchMovements();
+    movements.value = movData.data || movData || [];
 
   } catch (error) {
     console.error("Erro dashboard:", error);
@@ -325,118 +378,157 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up" style="animation-delay: 0.2s">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up" style="animation-delay: 0.2s">
 
-          <div
-            class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col items-center justify-center relative overflow-hidden">
+          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col items-center relative overflow-hidden h-[450px]">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
             <h3 class="font-bold text-slate-800 w-full text-left mb-6 flex items-center gap-2">
               <PieChart class="w-5 h-5 text-slate-400" /> Distribuição
             </h3>
-            <div
-              class="relative w-52 h-52 rounded-full shadow-lg mb-8 border-4 border-slate-50 transition-transform duration-700 hover:scale-105 hover:rotate-2"
+            
+            <div class="relative w-48 h-48 mx-auto rounded-full shadow-lg mb-6 border-4 border-slate-50 transition-transform duration-700 hover:scale-105"
               :style="pieChartStyle">
-              <div
-                class="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
-                <span class="text-3xl font-black text-slate-800">{{ pieChartData.length }}</span>
-                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Categorias</span>
+              <div class="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden transition-all duration-300">
+                <div v-if="hoveredCategory" class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
+                  <span class="text-2xl font-black leading-none" :style="{ color: hoveredCategory.color }">
+                    {{ hoveredCategory.percent.toFixed(1) }}%
+                  </span>
+                  <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                    {{ hoveredCategory.label }}
+                  </span>
+                </div>
+                <div v-else class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
+                  <span class="text-3xl font-black text-slate-800">{{ pieChartData.length }}</span>
+                  <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Categorias</span>
+                </div>
               </div>
             </div>
-            <div class="w-full space-y-2">
+
+            <div class="w-full space-y-2 overflow-y-auto pr-1 max-h-[140px] mt-auto">
               <div v-for="slice in pieChartData" :key="slice.label"
-                class="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 transition-colors hover:bg-slate-100">
+                @mouseenter="hoveredCategory = slice" @mouseleave="hoveredCategory = null"
+                class="group flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 transition-all hover:bg-slate-100 hover:shadow-md cursor-pointer">
                 <div class="flex items-center gap-3">
-                  <span class="w-3 h-3 rounded-sm shadow-sm" :style="{ backgroundColor: slice.color }"></span>
-                  <span class="text-slate-700 font-bold uppercase">{{ slice.label }}</span>
+                  <span class="w-3 h-3 rounded-sm shadow-sm transition-transform group-hover:scale-125" :style="{ backgroundColor: slice.color }"></span>
+                  <span class="text-slate-700 font-bold uppercase group-hover:text-blue-600 transition-colors">{{ slice.label }}</span>
                 </div>
-                <span class="font-bold text-slate-900">{{ formatNumber(slice.value) }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 text-[10px] hidden group-hover:inline-block animate-fade-in bg-slate-200 px-1.5 py-0.5 rounded font-bold">{{ slice.percent.toFixed(1) }}%</span>
+                  <span class="font-bold text-slate-900">{{ formatNumber(slice.value) }}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div
-            class="lg:col-span-2 bg-white rounded-2xl shadow-xl border border-slate-300 flex flex-col overflow-hidden">
-            <div class="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-              <div class="flex items-center gap-2">
-                <Trophy class="w-5 h-5 text-yellow-500" />
-                <h3 class="font-bold text-slate-800">Maiores Acúmulos</h3>
-                <div class="group relative ml-1">
-                  <HelpCircle class="w-3 h-3 text-slate-400 cursor-help" />
-                  <div
-                    class="absolute left-0 bottom-full mb-2 w-48 bg-slate-800 text-white text-[10px] p-2 rounded hidden group-hover:block z-20">
-                    Estes são os materiais que ocupam mais espaço no estoque hoje. Foco neles para venda!
-                  </div>
+          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col items-center relative overflow-hidden h-[450px]">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+            <h3 class="font-bold text-slate-800 w-full text-left mb-6 flex items-center gap-2">
+              <MapPin class="w-5 h-5 text-slate-400" /> Origem das Entradas
+            </h3>
+            
+            <div class="relative w-48 h-48 mx-auto rounded-full shadow-lg mb-6 border-4 border-slate-50 transition-transform duration-700 hover:scale-105"
+              :style="origemChartStyle">
+              <div class="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden transition-all duration-300">
+                <div v-if="hoveredOrigem" class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
+                  <span class="text-2xl font-black leading-none" :style="{ color: hoveredOrigem.color }">
+                    {{ hoveredOrigem.percent.toFixed(1) }}%
+                  </span>
+                  <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 text-center leading-tight">
+                    {{ hoveredOrigem.label }}
+                  </span>
                 </div>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                <span class="text-[10px] font-bold text-slate-400 uppercase">Top 5 Sobras</span>
+                <div v-else class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
+                  <span class="text-3xl font-black text-slate-800">{{ origemChartData.length }}</span>
+                  <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fontes</span>
+                </div>
               </div>
             </div>
 
-            <div class="flex-grow bg-white p-2">
-              <table class="w-full text-left">
-                <thead class="bg-white text-slate-400 text-[10px] uppercase font-bold tracking-wider">
-                  <tr>
-                    <th class="p-3 pl-4 w-12 text-center">Rank</th>
-                    <th class="p-3">Material</th>
-                    <th class="p-3">Localização</th>
-                    <th class="p-3 text-right">Volume Atual</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 text-sm relative">
+            <div class="w-full space-y-2 mt-auto">
+              <div v-if="origemChartData.length === 0" class="flex flex-col items-center justify-center py-8 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 w-full h-[120px]">
+                <span class="text-xs font-bold">Nenhum dado registrado</span>
+                <span class="text-[10px] mt-1 text-center px-4">Cadastre registros de entrada com origem para popular este gráfico.</span>
+              </div>
+              
+              <div v-else v-for="slice in origemChartData" :key="slice.label"
+                @mouseenter="hoveredOrigem = slice" @mouseleave="hoveredOrigem = null"
+                class="group flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 transition-all hover:bg-slate-100 hover:shadow-md cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="w-3 h-3 rounded-sm shadow-sm transition-transform group-hover:scale-125" :style="{ backgroundColor: slice.color }"></span>
+                  <span class="text-slate-700 font-bold uppercase group-hover:text-blue-600 transition-colors">{{ slice.label }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 text-[10px] hidden group-hover:inline-block animate-fade-in bg-slate-200 px-1.5 py-0.5 rounded font-bold">{{ slice.percent.toFixed(1) }}%</span>
+                  <span class="font-bold text-slate-900">{{ formatNumber(slice.value) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col relative overflow-hidden h-[450px]">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
+            
+            <div class="w-full flex justify-between items-center mb-6">
+              <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                <Trophy class="w-5 h-5 text-yellow-500" /> Maiores Acúmulos
+              </h3>
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span class="text-[10px] font-bold text-slate-400 uppercase">Top 5</span>
+              </div>
+            </div>
+
+            <div class="w-full flex-1 flex flex-col justify-between">
+              <table class="w-full text-left border-collapse">
+                <tbody class="divide-y divide-slate-100">
                   <tr v-for="(item, index) in topMaterials" :key="item.id"
                     class="hover:bg-slate-50 transition-colors duration-200 group">
-                    <td class="p-3 text-center">
-                      <div
-                        class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs mx-auto shadow-sm"
-                        :class="index === 0 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                          (index === 1 ? 'bg-slate-200 text-slate-600' :
-                            (index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'))">
-                        {{ index + 1 }}º
+                    <td class="py-3.5 pr-3 w-10">
+                      <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm"
+                        :class="index === 0 ? 'bg-yellow-100 text-yellow-700' : index === 1 ? 'bg-slate-200 text-slate-600' : index === 2 ? 'bg-amber-100/50 text-amber-700' : 'bg-slate-50 text-slate-400'">
+                        {{ index + 1 }}
                       </div>
                     </td>
                     <td class="p-3">
-                      <div class="font-bold text-slate-700 text-sm group-hover:text-blue-700 transition-colors">
-                        {{ item.descricao }}
-                      </div>
-                      <div v-if="item.codigo" class="text-[10px] text-slate-400 font-mono mt-0.5">
-                        {{ item.codigo }} • {{ item.tipo }}
-                      </div>
+                      <div class="font-bold text-slate-800 text-sm truncate max-w-[150px] group-hover:text-blue-600 transition-colors"
+                        :title="item.descricao || item.name">{{ item.descricao || item.name }}</div>
+                      <div class="text-[10px] text-slate-400 font-mono mt-1">Cód: {{ item.codigo || item.code }}</div>
                     </td>
-                    <td class="p-3">
-                      <div class="flex items-center gap-1 text-slate-500 text-xs font-medium">
-                        <MapPin class="w-3 h-3 text-slate-300" /> {{ item.location || 'Não definido' }}
-                      </div>
+                    <td class="p-3 text-right">
+                      <div class="text-base font-black text-slate-800 tracking-tight">{{ formatNumber(item.quantidade || item.quantity) }}</div>
+                      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">{{ item.unidade || item.unit }}</div>
                     </td>
-                    <td class="p-3 pr-4 text-right w-1/3">
-                      <div class="font-black text-slate-800 text-lg leading-none mb-1">
-                        {{ formatNumber(item.quantidade) }} <span class="text-xs text-slate-400 font-bold uppercase">{{
-                          item.unidade }}</span>
-                      </div>
-                      <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex justify-end">
-                        <div class="h-full rounded-l-full transition-all duration-1000"
-                          :class="index === 0 ? 'bg-red-500' : 'bg-slate-400'"
-                          :style="{ width: `${(Number(item.quantidade) / maxMaterialValue) * 100}%` }">
-                        </div>
-                      </div>
-                    </td>
+                  </tr>
+                  <tr v-if="topMaterials.length === 0">
+                    <td colspan="3" class="p-10 text-center text-slate-400 text-sm font-medium italic">Nenhum material no estoque.</td>
                   </tr>
                 </tbody>
               </table>
-              <div v-if="topMaterials.length === 0" class="p-10 text-center text-slate-400 italic font-medium">
-                Nenhum material cadastrado ainda.
+              
+              <div class="w-full text-center border-t border-slate-100 pt-4 mt-auto">
+                <span class="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Sincronizado com o Banco de Dados</span>
               </div>
             </div>
           </div>
 
         </div>
+
+
       </div>
     </div>
   </Layout>
 </template>
 
 <style scoped>
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
 .animate-fade-in-down {
   animation: fadeInDown 0.8s ease-out forwards;
 }
