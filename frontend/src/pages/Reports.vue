@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useApi } from '@/composables/useApi'
 import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileText, FileBarChart } from 'lucide-vue-next'
 import { exportToCSV } from '@/utils/export'
+import { api } from '@/services/httpClient'
 
 const { request } = useApi()
 
@@ -22,24 +23,28 @@ const filters = ref({
 })
 
 // Opções de Filtro Sincronizadas
-const materialTypes = [
-  { value: 'todos', label: 'Todos os Materiais' },
-  { value: 'tecido', label: 'Tecido' },
-  { value: 'linha', label: 'Linha' },
-  { value: 'elastico', label: 'Elástico' },
-  { value: 'aviamento', label: 'Aviamento' },
-  { value: 'couro', label: 'Couro' },
-  { value: 'sintetico', label: 'Sintético' },
-  { value: 'solado', label: 'Solado' },
-  { value: 'filme', label: 'Filme' },
-  { value: 'eva', label: 'EVA' },
-  { value: 'espuma', label: 'Espuma' },
-  { value: 'forro', label: 'Forro' },
-  { value: 'manta', label: 'Manta' },
-  { value: 'microfibra', label: 'Microfibra' },
-  { value: 'ferramentais', label: 'Ferramentais' },
-  { value: 'outros', label: 'Outros' }
-]
+const materialTypes = ref([
+  { value: 'todos', label: 'Todos os Materiais' }
+])
+
+async function fetchCategories() {
+  try {
+    const res = await api.get('/settings/categories')
+    materialTypes.value = [
+      { value: 'todos', label: 'Todos os Materiais' },
+      ...res.data.map(cat => ({
+        value: cat.name.toLowerCase(),
+        label: cat.name.charAt(0).toUpperCase() + cat.name.slice(1).toLowerCase()
+      }))
+    ]
+  } catch (err) {
+    console.error("Erro ao carregar categorias para o relatório:", err)
+  }
+}
+
+onMounted(() => {
+  fetchCategories()
+})
 
 const periods = [
   { value: 'hoje', label: 'Hoje' },

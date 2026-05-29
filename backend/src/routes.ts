@@ -1,17 +1,26 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { AuthController } from './controllers/AuthController';
 import { MaterialController } from './controllers/MaterialController';
 import { MovementController } from './controllers/MovementController';
 import { ReportController } from './controllers/ReportController';
+import { SettingsController } from './controllers/SettingsController';
+import { ImportController } from './controllers/ImportController';
 import { prisma } from './prisma'; // <-- Conexão com o banco!
 import { requireRole, requireAuth } from './middlewares/roleMiddleware'; // <-- Nosso Cão de Guarda!
 
 const routes = Router();
 
+// Multer: memoryStorage — o arquivo fica em RAM (req.file.buffer), sem tocar o disco
+const upload = multer({ storage: multer.memoryStorage() });
+
 const reportController = new ReportController();
 const authController = new AuthController();
 const materialController = new MaterialController();
 const movementController = new MovementController();
+const settingsController = new SettingsController();
+const importController = new ImportController();
+
 
 //  Rotas de Login (Aberta)
 routes.post('/auth/login', authController.login);
@@ -87,5 +96,31 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
     res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
   }
 });
+
+// ==========================================================
+// ⚙️ ROTAS DE CONFIGURAÇÕES (apenas admin)
+// Gerencia os valores de domínio que alimentam os selects do frontend
+// ==========================================================
+
+// Categorias (governa Material.type)
+routes.get('/settings/categories',    requireAuth, settingsController.getCategories);
+routes.post('/settings/categories',   requireAuth, requireRole(['admin']), settingsController.createCategory);
+routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin']), settingsController.deleteCategory);
+
+// Localizações (tabela Location já existente)
+routes.get('/settings/locations',    requireAuth, settingsController.getLocations);
+routes.post('/settings/locations',   requireAuth, requireRole(['admin']), settingsController.createLocation);
+routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin']), settingsController.deleteLocation);
+
+// Origens de sobra (governa Movement.origem)
+routes.get('/settings/origins',    requireAuth, settingsController.getOrigins);
+routes.post('/settings/origins',   requireAuth, requireRole(['admin']), settingsController.createOrigin);
+routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin']), settingsController.deleteOrigin);
+
+// ==========================================================
+// 📥 ROTA DE IMPORTAÇÃO DE CSV (apenas admin)
+// Recebe arquivo .csv via multipart/form-data (campo: "arquivo")
+// ==========================================================
+routes.post('/import/csv', requireAuth, requireRole(['admin']), upload.single('arquivo'), importController.importCSV);
 
 export { routes };

@@ -133,3 +133,24 @@ model UsuariosDass {
   @@map("usuarios")
   @@schema("autenticacao")
 }
+
+// 🏷️ TABELA DE CONFIGURAÇÃO: Valores permitidos para Material.type
+// Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
+model CategoryConfig {
+  id       Int    @id @default(autoincrement())
+  name     String @unique // Ex: "TECIDO", "COURO", "LINHA"
+  unitLock String @default("livre") // "m2" | "m" | "livre"
+
+  @@index([name])
+  @@schema("sobra_corte")
+}
+
+// 🔖 TABELA DE CONFIGURAÇÃO: Valores permitidos para Movement.origem
+// Substitui o array hardcoded no frontend (Consumo, Dublagem / Tirada, etc.)
+model OriginConfig {
+  id   Int    @id @default(autoincrement())
+  name String @unique // Ex: "Consumo", "Dublagem / Tirada"
+
+  @@index([name])
+  @@schema("sobra_corte")
+}

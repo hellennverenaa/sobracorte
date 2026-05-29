@@ -270,37 +270,10 @@ import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { authApi, api } from '../services/httpClient'
 
-// 🚀 O NOVO CÉREBRO: O mesmo dicionário que usamos na criação de materiais
-const mapArmazens = {
-  LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
-  AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
-  ELASTICO: ["Prateleira de Elásticos", "Caixas de Elástico"],
-  FERRAMENTAIS: ["Armário de Ferramentas", "Sala da Manutenção"],
-};
-
-const defaultLocations = [
-  "Rua 03 - Caixote 58 - Nível 01",
-  "Rua 03 - Caixote 58 - Nível 02",
-  "Rua 03 - Caixote 58 - Nível 03",
-  "Rua 03 - Caixote 58 - Nível 04",
-  "Rua 03 - Caixote 60 - Nível 01",
-  "Rua 03 - Caixote 60 - Nível 02",
-  "Rua 03 - Caixote 60 - Nível 03"
-];
+const dbLocations = ref([]);
+const origensSobra = ref([]);
 
 const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '', origem: '' })
-
-// A MÁGICA DO BI: A lista de origens que a produção pediu
-const origensSobra = [
-  'Consumo',
-  'Dublagem / Tirada',
-  'Ganho no Rolo do Material',
-  'Sobra de Requisição',
-  'Devolução de Produção',
-  'Retalho Aproveitável',
-  'Erro de Enfesto/Corte',
-  'Outros'
-]
 
 const materials = ref([])
 const history = ref([])
@@ -310,40 +283,63 @@ const showDropdown = ref(false)
 const historySearch = ref('')
 const notification = ref({ show: false, message: '', type: 'success', style: '' })
 
-// 🚀 A MÁGICA 1: O Dropdown Inteligente
+// 🚀 A MÁGICA 1: O Dropdown Inteligente com localizações dinâmicas
 const locationOptions = computed(() => {
   if (form.value.type === 'SAIDA') {
-    // 🛡️ NA SAÍDA: A sua lógica original brilhante se mantém!
-    // Filtra e mostra APENAS onde tem estoque real!
+    // 🛡️ NA SAÍDA: Filtra e mostra APENAS onde tem estoque real!
     if (!selectedMaterial.value) return [];
     const matLocations = selectedMaterial.value.locations || []
     const validLocations = matLocations
       .filter(ml => ml.quantity > 0)
       .map(ml => ({
         value: ml.location.name,
-        label: `${ml.location.name} (Saldo: ${ml.quantity})` // Mostra o saldo na tela!
+        label: `${ml.location.name} (Saldo: ${ml.quantity})`
       }))
 
-    // Se não tem saldo em lugar nenhum, bloqueia
     if (validLocations.length === 0) {
       return [{ value: '', label: '❌ Sem estoque físico disponível' }]
     }
     return validLocations
   }
 
-  // 📦 NA ENTRADA: O Novo Escudo!
-  // Se ainda não selecionou material, mostra as Ruas (default)
+  // 📦 NA ENTRADA:
   if (!selectedMaterial.value) {
-    return defaultLocations.map(loc => ({ value: loc, label: loc }))
+    const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
+    const generalLocations = dbLocations.value.filter(loc => 
+      !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
+    );
+    const targets = generalLocations.length > 0 ? generalLocations : dbLocations.value;
+    return targets.map(loc => ({ value: loc.name, label: loc.name }));
   }
 
-  // Pega a categoria do material selecionado (Tratando possíveis nulos do banco)
-  const categoria = String(selectedMaterial.value.type || selectedMaterial.value.category || '').toUpperCase().trim()
+  const categoria = String(selectedMaterial.value.type || selectedMaterial.value.category || '').toUpperCase().trim();
 
-  // Usa a inteligência do dicionário (Se for linha, traz gaiola. Se não achar, traz as Ruas)
-  const smartLocations = mapArmazens[categoria] || defaultLocations;
+  let smartLocations = [];
+  if (categoria.includes('LINHA')) {
+    smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
+  } else if (categoria.includes('AVIAMENTO')) {
+    smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
+  } else if (categoria.includes('ELASTICO') || categoria.includes('ELÁSTICO')) {
+    smartLocations = dbLocations.value.filter(loc => 
+      loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
+    );
+  } else if (categoria.includes('FERRAMENTA')) {
+    smartLocations = dbLocations.value.filter(loc => 
+      loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
+    );
+  }
 
-  return smartLocations.map(loc => ({ value: loc, label: loc }))
+  if (smartLocations.length === 0) {
+    const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
+    smartLocations = dbLocations.value.filter(loc => 
+      !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
+    );
+    if (smartLocations.length === 0) {
+      smartLocations = dbLocations.value;
+    }
+  }
+
+  return smartLocations.map(loc => ({ value: loc.name, label: loc.name }));
 })
 
 // 🚀 A MÁGICA 2: Auto-selecionar a prateleira para poupar cliques do usuário
@@ -351,35 +347,61 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
   if (!newMat) return;
 
   if (newType === 'SAIDA') {
-    // Procura a primeira prateleira que tenha saldo e já deixa selecionada
     const hasStock = (newMat.locations || []).find(ml => ml.quantity > 0)
     if (hasStock) {
       form.value.location = hasStock.location.name
     } else {
-      form.value.location = '' // Força o erro para ele não conseguir salvar
+      form.value.location = ''
     }
   } else {
     // 🎯 NA ENTRADA: Sugere a primeira prateleira correta baseada na categoria!
-    const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim()
-    const smartLocations = mapArmazens[categoria] || defaultLocations;
+    const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim();
+    let smartLocations = [];
+    if (categoria.includes('LINHA')) {
+      smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
+    } else if (categoria.includes('AVIAMENTO')) {
+      smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
+    } else if (categoria.includes('ELASTICO') || categoria.includes('ELÁSTICO')) {
+      smartLocations = dbLocations.value.filter(loc => 
+        loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
+      );
+    } else if (categoria.includes('FERRAMENTA')) {
+      smartLocations = dbLocations.value.filter(loc => 
+        loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
+      );
+    }
 
-    // Já preenche o form com o destino ideal para o operador não precisar clicar
-    form.value.location = smartLocations[0];
+    if (smartLocations.length === 0) {
+      const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
+      smartLocations = dbLocations.value.filter(loc => 
+        !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
+      );
+      if (smartLocations.length === 0) {
+        smartLocations = dbLocations.value;
+      }
+    }
+
+    if (smartLocations.length > 0) {
+      form.value.location = smartLocations[0].name;
+    } else {
+      form.value.location = '';
+    }
   }
 })
 
 async function fetchData() {
   try {
-    // O Axios dispara as duas requisições juntas usando a URL base
-    const [matRes, histRes] = await Promise.all([
+    const [matRes, histRes, originsRes, locationsRes] = await Promise.all([
       api.get('/materials'),
-      api.get('/movements')
+      api.get('/movements'),
+      api.get('/settings/origins'),
+      api.get('/settings/locations')
     ]);
 
-    // O status 200 é garantido se chegou aqui.
-    // Os dados já estão decodificados na propriedade .data de cada resposta.
     materials.value = matRes.data;
     history.value = histRes.data;
+    origensSobra.value = originsRes.data.map(o => o.name);
+    dbLocations.value = locationsRes.data;
 
   } catch (error) {
     console.error("Erro no fetchData:", error);

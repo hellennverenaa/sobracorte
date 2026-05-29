@@ -48,3 +48,6 @@ novos_dados.json
 **/dados_antigos.json
 **/backups/
 backend/src/generated/
+
+.agent/
+data

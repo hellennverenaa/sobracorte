@@ -290,100 +290,95 @@ function showNotification(type, message) {
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
-} // AQUI ESTÁ A CHAVE QUE FALTAVA! SALVADORA DA PÁTRIA!
+}
 
-// 1. PRIMEIRO: Criamos o Form (Isso TEM que vir antes do Computed e do Watch)
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
+const categories = ref(["Todos"]);
+const dbCategories = ref([]);
+const dbLocations = ref([]);
 
-// 2. DEPOIS: A Inteligência de Zoneamento (Dicionário)
-const mapArmazens = {
-  LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
-  AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
-  ELASTICO: ["Prateleira de Elásticos", "Caixas de Elástico"],
-  FERRAMENTAIS: ["Armário de Ferramentas", "Sala da Manutenção"],
-};
+async function fetchSettings() {
+  try {
+    const [catsRes, locsRes] = await Promise.all([
+      api.get('/settings/categories'),
+      api.get('/settings/locations')
+    ]);
+    dbCategories.value = catsRes.data;
+    dbLocations.value = locsRes.data;
+    categories.value = ["Todos", ...catsRes.data.map(c => c.name)];
+  } catch (e) {
+    console.error("Erro ao carregar configurações de categorias/localizações:", e);
+  }
+}
 
-// Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
-const defaultLocations = ["Rua 03 - Caixote 58 - Nível 01",
-  "Rua 03 - Caixote 58 - Nível 02",
-  "Rua 03 - Caixote 58 - Nível 03",
-  "Rua 03 - Caixote 58 - Nível 04",
-  "Rua 03 - Caixote 60 - Nível 01",
-  "Rua 03 - Caixote 60 - Nível 02",
-  "Rua 03 - Caixote 60 - Nível 03"
-];
-
-// 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
-  if (!form.value.type) return []; // Retorna vazio se não escolheu a categoria
+  if (!form.value.type) return []; 
 
   const categoriaSelecionada = String(form.value.type).toUpperCase().trim();
 
-  // Se a categoria for especial (Linha, Aviamento...), puxa do dicionário.
-  // Se não for, puxa a lista padrão (defaultLocations).
-  return mapArmazens[categoriaSelecionada] || defaultLocations;
+  if (categoriaSelecionada.includes('LINHA')) {
+    const filtered = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
+    if (filtered.length > 0) return filtered.map(l => l.name);
+  }
+  if (categoriaSelecionada.includes('AVIAMENTO')) {
+    const filtered = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
+    if (filtered.length > 0) return filtered.map(l => l.name);
+  }
+  if (categoriaSelecionada.includes('ELASTICO') || categoriaSelecionada.includes('ELÁSTICO')) {
+    const filtered = dbLocations.value.filter(loc => 
+      loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
+    );
+    if (filtered.length > 0) return filtered.map(l => l.name);
+  }
+  if (categoriaSelecionada.includes('FERRAMENTA')) {
+    const filtered = dbLocations.value.filter(loc => 
+      loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
+    );
+    if (filtered.length > 0) return filtered.map(l => l.name);
+  }
+
+  const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
+  const generalLocations = dbLocations.value.filter(loc => 
+    !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
+  );
+
+  return generalLocations.length > 0 ? generalLocations.map(l => l.name) : dbLocations.value.map(l => l.name);
 });
 
-// 3.5 DICIONÁRIO DE ALMOXARIFADO E BLOQUEIO DA ARQUITETA
-const categoriasAlmoxarifadoM2 = [
-  "TECIDO", "SINTETICO", "FILME", "EVA", "ESPUMA", "FORRO", "MANTA", "MICROFIBRA", "REFORÇO", "PAPEL SUBLIMACAO", "OUTROS"
-];
-// Couro separado para Metros lineares
-const categoriasAlmoxarifadoM = ["COURO"];
-
-// A TRAVA: Computa instantaneamente se o campo de unidade deve ser bloqueado (disabled)
 const isUnitLocked = computed(() => {
-  return categoriasAlmoxarifadoM2.includes(form.value.type) ||
-    categoriasAlmoxarifadoM.includes(form.value.type);
+  const selectedCatName = form.value.type;
+  if (!selectedCatName) return false;
+  const foundCat = dbCategories.value.find(c => c.name === selectedCatName);
+  return foundCat ? (foundCat.unitLock === 'm2' || foundCat.unitLock === 'm') : false;
 });
 
-// 4. O OBSERVADOR TURBINADO
 watch(
   () => form.value.type,
   (newType, oldType) => {
-    // Regra 1: Limpa a localização se mudar de ideia
     if (newType !== oldType && oldType !== undefined && oldType !== "") {
       form.value.location = "";
     }
 
-    // Regra 2: Inteligência da Unidade de Medida
     if (newType) {
       const isCreating = !editingItem.value;
       const userChangedCategory = oldType !== "" && oldType !== undefined;
 
       if (isCreating || userChangedCategory) {
-        if (categoriasAlmoxarifadoM2.includes(newType)) {
-          form.value.unit = "m²"; // Trava no m²
-        } else if (categoriasAlmoxarifadoM.includes(newType)) {
-          form.value.unit = "m"; // Trava o Couro no m
-        } else if (userChangedCategory) {
-          form.value.unit = ""; // Deixa livre para Aviamentos e Linhas
+        const foundCat = dbCategories.value.find(c => c.name === newType);
+        if (foundCat) {
+          if (foundCat.unitLock === 'm2') {
+            form.value.unit = "m²"; 
+          } else if (foundCat.unitLock === 'm') {
+            form.value.unit = "m"; 
+          } else if (userChangedCategory) {
+            form.value.unit = ""; 
+          }
         }
       }
     }
   }
 );
 
-const categories = [
-  "Todos",
-  "TECIDO",
-  "LINHA",
-  "ELASTICO",
-  "AVIAMENTO",
-  "COURO",
-  "SINTETICO",
-  "SOLADO",
-  "FILME",
-  "EVA",
-  "ESPUMA",
-  "FORRO",
-  "MANTA",
-  "MICROFIBRA",
-  "FERRAMENTAIS",
-  "REFORÇO",
-  "PAPEL SUBLIMACAO",
-  "OUTROS",
-];
 
 // Adicionamos o 'config = {}' para aceitar os parâmetros do Dashboard!
 async function fetchMaterials(config = {}) {
@@ -592,5 +587,7 @@ async function confirmDelete(item) {
   }
 }
 
-onMounted(fetchMaterials);
+onMounted(async () => {
+  await Promise.all([fetchMaterials(), fetchSettings()]);
+});
 </script>

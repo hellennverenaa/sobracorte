@@ -10,6 +10,7 @@ import Movement from '@/pages/Movement.vue'
 import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
+import Settings from '@/pages/Settings.vue'
 
 const routes = [
   { 
@@ -70,6 +71,15 @@ const routes = [
       requiresAuth: true,
       roles: ['admin', 'lider'] 
     } 
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings,
+    meta: {
+      requiresAuth: true,
+      roles: ['admin'] // Apenas Admin pode gerenciar configurações
+    }
   },
 ]
 

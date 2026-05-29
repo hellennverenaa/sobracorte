@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
-  LogOut, Menu, X, FileBarChart 
+  LogOut, Menu, X, FileBarChart, Settings
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
@@ -18,11 +18,12 @@ function logout() {
 }
 
 const menuItems = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Materiais', path: '/materials', icon: Package },
-  { label: 'Movimentação', path: '/movement', icon: ArrowLeftRight },
-  { label: 'Relatórios', path: '/reports', icon: FileBarChart }, // NOVO
-  { label: 'Usuários', path: '/users', icon: Users } // Só admin vê
+  { label: 'Dashboard',    path: '/',          icon: LayoutDashboard },
+  { label: 'Materiais',    path: '/materials',  icon: Package },
+  { label: 'Movimentação', path: '/movement',   icon: ArrowLeftRight },
+  { label: 'Relatórios',   path: '/reports',    icon: FileBarChart },
+  { label: 'Usuários',     path: '/users',      icon: Users },
+  { label: 'Configurações', path: '/settings',  icon: Settings, role: 'admin' } // Só admin vê
 ]
 </script>
 
