@@ -94,7 +94,7 @@ function handleSubmit() {
            </p>
         </div>
         <div class="relative z-10 text-sm text-indigo-300/60 font-medium">
-          &copy; 2026 Grupo DASS - Sistema Consumo SEST v2.0
+          &copy; 2026 Grupo DASS - Equipe de Desenvolvimento SEST v2.0
         </div>
       </div>
 
