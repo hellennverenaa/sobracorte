@@ -7,21 +7,25 @@ import {
   TrendingUp, TrendingDown, Package, AlertOctagon,
   PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
 } from 'lucide-vue-next'
-const { fetchStats, fetchMaterials, fetchMovements, request } = useApi()
+
+const { fetchStats, request } = useApi()
 
 // --- ESTADOS ---
-const realStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
+const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 
-const materials = ref([])
-const movements = ref([])
-const isLoading = ref(true)
+// Gráficos: refs simples — os loops/reduce pesados foram movidos para o banco
+const pieChartData    = ref([]) // alimentado por GET /api/dashboard/distribuicao
+const origemChartData = ref([]) // alimentado por GET /api/dashboard/origem-sobras
+const topMaterials    = ref([]) // alimentado por GET /api/dashboard/top-materiais
+
+const isLoading       = ref(true)
 const hoveredCategory = ref(null)
-const hoveredOrigem = ref(null)
-const isUpdating = ref(false)
-const currentTime = ref(new Date())
-let refreshInterval = null
-let clockInterval = null
+const hoveredOrigem   = ref(null)
+const isUpdating      = ref(false)
+const currentTime     = ref(new Date())
+let refreshInterval   = null
+let clockInterval     = null
 
 // --- ANIMAÇÃO DE NÚMEROS ---
 function animateValue(key, start, end, duration = 1000) {
@@ -38,9 +42,9 @@ function animateValue(key, start, end, duration = 1000) {
 }
 
 watch(() => realStats.value.totalMaterials, (n, o) => animateValue('totalMaterials', o || 0, n))
-watch(() => realStats.value.lowStock, (n, o) => animateValue('lowStock', o || 0, n))
+watch(() => realStats.value.lowStock,       (n, o) => animateValue('lowStock',       o || 0, n))
 watch(() => realStats.value.totalMovements, (n, o) => animateValue('totalMovements', o || 0, n))
-watch(() => realStats.value.totalEntries, (n, o) => animateValue('totalEntries', o || 0, n))
+watch(() => realStats.value.totalEntries,   (n, o) => animateValue('totalEntries',   o || 0, n))
 
 // --- LÓGICA DE NEGÓCIO ---
 
@@ -49,66 +53,55 @@ function formatNumber(value) {
   return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
-// Para a Barra de Progresso e o Giro (Proteção contra NaN)
+// Barra de Progresso e Giro (lê de displayStats — custo zero)
 const totalExitsDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0;
-  const ent = Number(displayStats.value.totalEntries) || 0;
-  return Math.max(0, mov - ent);
+  const mov = Number(displayStats.value.totalMovements) || 0
+  const ent = Number(displayStats.value.totalEntries)   || 0
+  return Math.max(0, mov - ent)
 })
 
 const efficiencyRateDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0;
-  if (mov === 0) return 0;
-  return Math.round((totalExitsDisplay.value / mov) * 100);
+  const mov = Number(displayStats.value.totalMovements) || 0
+  if (mov === 0) return 0
+  return Math.round((totalExitsDisplay.value / mov) * 100)
 })
 
-// GRÁFICO DE PIZZA (Proteção Matemática)
-const pieChartData = computed(() => {
-  if (materials.value.length === 0) return []
-  const groups = {}
-  let totalQty = 0
-
-  materials.value.forEach(m => {
-    const tipo = (m.tipo || m.type || 'outros').toLowerCase().trim()
-    // Garante que a quantidade vire um NÚMERO real, mesmo se vier com vírgula
-    const qtdStr = String(m.quantidade || m.quantity || '0').replace(',', '.')
-    const qtd = parseFloat(qtdStr) || 0
-
-    if (!groups[tipo]) groups[tipo] = 0
-    groups[tipo] += qtd
-    totalQty += qtd
-  })
-
-  return Object.keys(groups).map(key => ({
-    label: key.charAt(0).toUpperCase() + key.slice(1),
-    value: groups[key],
-    percent: totalQty > 0 ? (groups[key] / totalQty) * 100 : 0,
-    color: getColorForCategory(key)
-  })).sort((a, b) => b.value - a.value).slice(0, 5)
-})
+// --- PALETA DE CORES (idêntica à lógica original) ---
 
 function getColorForCategory(cat) {
   const catLower = String(cat).toLowerCase().trim()
   const colors = {
     'sintetico': '#1d4ed8',
-    'couro': '#854d0e',
-    'tecido': '#047857',
-    'solado': '#334155',
-    'quimico': '#b91c1c',
-    'filme': '#4f46e5',    // Azul Indigo (A cor que vai aparecer agora!)
-    'forro': '#0ea5e9',    // Azul Claro
-    'linha': '#d946ef',    // Rosa/Fuchsia
-    'elastico': '#f59e0b', // Laranja
-    'aviamento': '#ec4899',// Rosa Claro
-    'outro': '#94a3b8'     // Cinza
+    'couro':     '#854d0e',
+    'tecido':    '#047857',
+    'solado':    '#334155',
+    'quimico':   '#b91c1c',
+    'filme':     '#4f46e5',
+    'forro':     '#0ea5e9',
+    'linha':     '#d946ef',
+    'elastico':  '#f59e0b',
+    'aviamento': '#ec4899',
+    'outro':     '#94a3b8'
   }
   return colors[catLower] || '#64748b'
 }
 
+const origemColors = [
+  '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
+  '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'
+]
+
+// maxMaterialValue — leitura barata; banco já devolve ordenado
+const maxMaterialValue = computed(() => {
+  if (topMaterials.value.length === 0) return 1
+  return Number(topMaterials.value[0].quantity) || 1
+})
+
+// Estilos conic-gradient — apenas leituras de refs simples (custo zero)
 const pieChartStyle = computed(() => {
-  if (pieChartData.value.length === 0) return { background: '#e2e8f0' } // Cinza se vazio
+  if (pieChartData.value.length === 0) return { background: '#e2e8f0' }
   let gradientStr = ''
-  let currentDeg = 0
+  let currentDeg  = 0
   pieChartData.value.forEach((slice, index) => {
     const degrees = (slice.percent / 100) * 360
     gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + degrees}deg`
@@ -118,43 +111,10 @@ const pieChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-// GRÁFICO DE PIZZA - ORIGEM DAS SOBRAS (apenas entradas)
-const origemChartData = computed(() => {
-  const entradas = movements.value.filter(m => String(m.tipo || '').toLowerCase() === 'entrada')
-  if (entradas.length === 0) return []
-
-  const groups = {}
-  let totalQty = 0
-
-  entradas.forEach(m => {
-    const origem = (m.origem || 'Outros').trim()
-    const qtdStr = String(m.quantidade || '0').replace(',', '.')
-    const qtd = parseFloat(qtdStr) || 0
-    if (!groups[origem]) groups[origem] = 0
-    groups[origem] += qtd
-    totalQty += qtd
-  })
-
-  const origemColors = [
-    '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
-    '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'
-  ]
-
-  return Object.keys(groups)
-    .map((key, i) => ({
-      label: key,
-      value: groups[key],
-      percent: totalQty > 0 ? (groups[key] / totalQty) * 100 : 0,
-      color: origemColors[i % origemColors.length]
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5)
-})
-
 const origemChartStyle = computed(() => {
   if (origemChartData.value.length === 0) return { background: '#e2e8f0' }
   let gradientStr = ''
-  let currentDeg = 0
+  let currentDeg  = 0
   origemChartData.value.forEach((slice, index) => {
     const degrees = (slice.percent / 100) * 360
     gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + degrees}deg`
@@ -164,70 +124,103 @@ const origemChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-// RANKING (Top 5)
-const topMaterials = computed(() => {
-  return [...materials.value]
-    .sort((a, b) => {
-      const qA = parseFloat(String(a.quantidade || a.quantity || '0').replace(',', '.')) || 0;
-      const qB = parseFloat(String(b.quantidade || b.quantity || '0').replace(',', '.')) || 0;
-      return qB - qA;
-    })
-    .slice(0, 5)
-})
-
-const maxMaterialValue = computed(() => {
-  if (topMaterials.value.length === 0) return 1
-  return parseFloat(String(topMaterials.value[0].quantidade || topMaterials.value[0].quantity || '0').replace(',', '.')) || 1
-})
+// --- Helper: request seguro que nunca derruba o Promise.all ---
+// O request() do useApi relança erros HTTP (401, 404, 500).
+// Isolamos cada chamada analítica para que a falha de uma não
+// cancele as demais nem apague os cards de KPI.
+async function safeRequest(endpoint, fallback = []) {
+  try {
+    const data = await request(endpoint)
+    return Array.isArray(data) ? data : fallback
+  } catch (err) {
+    console.warn(`[Dashboard] Falha ao buscar ${endpoint}:`, err?.response?.status ?? err.message)
+    return fallback
+  }
+}
 
 // --- CARREGAMENTO ---
 async function loadData() {
-  isUpdating.value = true;
+  isUpdating.value = true
   try {
-    // 1. O Axios já nos entrega o dado limpo. 
-    // Se a sua API devolve { totalMaterials: 10, ... }, rawStats já será esse objeto!
-    const statsData = await fetchStats();
-    console.log("🔍 DADOS DA API /stats:", statsData);
+    // Dispara todas as requisições em paralelo.
+    // fetchStats tem seu próprio try/catch interno e nunca lança.
+    // safeRequest garante que 401/404 retorna [] ao invés de explodir.
+    const [statsData, distribuicaoRaw, origemRaw, topRaw] = await Promise.all([
+      fetchStats(),
+      safeRequest('/dashboard/distribuicao'),
+      safeRequest('/dashboard/origem-sobras'),
+      safeRequest('/dashboard/top-materiais')
+    ])
 
+    // 1. Cards de KPI — fetchStats sempre retorna um objeto válido
     realStats.value = {
       totalMaterials: statsData.totalMaterials || statsData.total_materials || 0,
-      lowStock: statsData.lowStock || statsData.low_stock || 0,
-      totalMovements: statsData.totalMovements || statsData.movimentacoes || 0,
-      totalEntries: statsData.totalEntries || statsData.entradas || 0
-    };
+      lowStock:       statsData.lowStock       || statsData.low_stock       || 0,
+      totalMovements: statsData.totalMovements || statsData.movimentacoes   || 0,
+      totalEntries:   statsData.totalEntries   || statsData.entradas        || 0
+    }
 
-    // 2. DICA DE OURO DO AXIOS PARA PARÂMETROS:
-    // Em vez de passar a string '_limit=1000' (que o fetch usava para concatenar na URL),
-    // o ideal com o Axios é passar como um objeto de configuração!
-    const materialsData = await fetchMaterials({ params: { _limit: 1000 } });
+    // 2. Gráfico de Distribuição por categoria
+    //    Backend: [{ type: 'tecido', _sum: { quantity: 120.5 } }, ...]
+    const totalDist = distribuicaoRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    pieChartData.value = distribuicaoRaw
+      .map(item => {
+        const label = String(item.type || 'outros')
+        const value = Number(item._sum?.quantity) || 0
+        return {
+          label:   label.charAt(0).toUpperCase() + label.slice(1),
+          value,
+          percent: totalDist > 0 ? (value / totalDist) * 100 : 0,
+          color:   getColorForCategory(label)
+        }
+      })
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
 
-    // Como o fetchMaterials já foi refatorado para o Axios, ele devolve o array direto (ou o objeto data)
-    const materialsArray = materialsData.data || materialsData.materials || materialsData;
+    // 3. Gráfico de Origem das Sobras
+    //    Backend: [{ origem: 'Consumo', _sum: { quantity: 45.0 } }, ...]
+    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    origemChartData.value = origemRaw
+      .map((item, i) => {
+        const value = Number(item._sum?.quantity) || 0
+        return {
+          label:   item.origem || 'Outros',
+          value,
+          percent: totalOrigem > 0 ? (value / totalOrigem) * 100 : 0,
+          color:   origemColors[i % origemColors.length]
+        }
+      })
+      .slice(0, 5)
 
-    materials.value = Array.isArray(materialsArray) ? materialsArray : [];
-
-    // Carrega movimentações para o gráfico de Origem
-    const movData = await fetchMovements();
-    movements.value = movData.data || movData || [];
+    // 4. Top 5 Materiais — banco entrega ordenado e limitado a 5
+    //    Backend: [{ id, code, name, quantity, unit }, ...]
+    topMaterials.value = topRaw.map(m => ({
+      ...m,
+      // Aliases de compatibilidade com o template existente (não alterar)
+      codigo:     m.code,
+      descricao:  m.name,
+      quantidade: m.quantity,
+      unidade:    m.unit
+    }))
 
   } catch (error) {
-    console.error("Erro dashboard:", error);
+    console.error('Erro inesperado no dashboard:', error)
   } finally {
-    isLoading.value = false;
-    setTimeout(() => isUpdating.value = false, 800);
+    isLoading.value = false
+    setTimeout(() => isUpdating.value = false, 800)
   }
 }
 
 onMounted(() => {
-  loadData();
-  clockInterval = setInterval(() => { currentTime.value = new Date(); }, 1000);
-  refreshInterval = setInterval(loadData, 60000);
-});
+  loadData()
+  clockInterval   = setInterval(() => { currentTime.value = new Date() }, 1000)
+  refreshInterval = setInterval(loadData, 60000)
+})
 
 onUnmounted(() => {
-  clearInterval(refreshInterval);
-  clearInterval(clockInterval);
-});
+  clearInterval(refreshInterval)
+  clearInterval(clockInterval)
+})
 </script>
 
 <template>

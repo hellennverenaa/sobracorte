@@ -31,4 +31,50 @@ export class DashboardController {
       return res.status(500).json({ error: 'Erro interno no banco de dados ao buscar indicadores.' });
     }
   }
+
+  /**
+   * Rota para alimentar o Gráfico de Distribuição por tipo de material
+   */
+ async getDistribuicao(req: Request, res: Response) {
+    try {
+      const distribuicao = await prisma.material.groupBy({
+        by: ['type'],
+        _sum: {
+          quantity: true,
+        },
+        // Como o 'type' é obrigatório no seu Schema, não precisamos (nem podemos) filtrar por null.
+        // O Prisma fará o agrupamento direto usando o índice que criamos!
+      });
+
+      return res.json(distribuicao);
+    } catch (error) {
+      console.error('[Dashboard] Erro na rota de distribuição:', error);
+      return res.status(500).json({ error: 'Erro interno ao processar distribuição.' });
+    }
+  }
+
+  /**
+   * Rota para buscar os 5 materiais com maior acúmulo (Top 5)
+   */
+  async getTopMateriais(req: Request, res: Response) {
+    try {
+      const materiais = await prisma.material.findMany({
+        orderBy: {
+          quantity: 'desc'
+        },
+        take: 5,
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          quantity: true,
+          unit: true
+        }
+      });
+      return res.json(materiais);
+    } catch (error) {
+      console.error('Erro ao buscar maiores acúmulos do dashboard:', error);
+      return res.status(500).json({ error: 'Erro interno no banco de dados ao buscar maiores acúmulos.' });
+    }
+  }
 }

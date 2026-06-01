@@ -39,7 +39,9 @@ routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialCont
 
 // Rotas de Dashboard
 routes.get('/stats', materialController.stats);
-routes.get('/api/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
+routes.get('/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
+routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistribuicao);
+routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMateriais);
 
 // Rotas de Movimentações
 routes.get('/movements', movementController.index);

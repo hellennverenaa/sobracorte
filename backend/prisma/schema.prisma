@@ -27,6 +27,8 @@ model Material {
   // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan na busca)
   @@index([name])
   @@index([code])
+  @@index([type]) // Para acelerar o agrupamento do gráfico de distribuição.
+  @@index([quantity(sort: Desc)]) // Para otimizar a busca do Top 5 maiores acúmulos.
   @@schema("sobra_corte")
 }
 
