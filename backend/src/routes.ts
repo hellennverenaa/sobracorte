@@ -6,6 +6,7 @@ import { MovementController } from './controllers/MovementController';
 import { ReportController } from './controllers/ReportController';
 import { SettingsController } from './controllers/SettingsController';
 import { ImportController } from './controllers/ImportController';
+import { DashboardController } from './controllers/DashboardController';
 import { prisma } from './prisma'; // <-- Conexão com o banco!
 import { requireRole, requireAuth } from './middlewares/roleMiddleware'; // <-- Nosso Cão de Guarda!
 
@@ -20,6 +21,7 @@ const materialController = new MaterialController();
 const movementController = new MovementController();
 const settingsController = new SettingsController();
 const importController = new ImportController();
+const dashboardController = new DashboardController();
 
 
 //  Rotas de Login (Aberta)
@@ -37,6 +39,7 @@ routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialCont
 
 // Rotas de Dashboard
 routes.get('/stats', materialController.stats);
+routes.get('/api/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
 
 // Rotas de Movimentações
 routes.get('/movements', movementController.index);
