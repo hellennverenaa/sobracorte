@@ -258,7 +258,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import { Lock } from 'lucide-vue-next'
-import { authApi, api } from '../services/httpClient'
+import { api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
 import { useAuthStore } from '@/stores/auth'
@@ -469,11 +469,9 @@ async function saveItem() {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem salvar materiais.");
   }
 
-  // BARREIRA DE SEGURANÇA (Validações da Arquiteta)
   if (!form.value.code) {
     return showNotification("error", "O código do material é obrigatório!");
   }
-  // Verifica se tem alguma letra ou caractere especial misturado nos números
   if (!/^\d+$/.test(form.value.code)) {
     return showNotification("error", "O código deve conter APENAS números!");
   }
@@ -492,24 +490,23 @@ async function saveItem() {
     const user = userJson ? JSON.parse(userJson) : null;
     const userId = user ? user.id : 1;
 
-    // A MÁGICA DA LIMPEZA: Pegamos APENAS os dados dos inputs do formulário!
     const payloadLimpo = {
       code: form.value.code,
       name: form.value.name,
-      quantity: Number(form.value.quantity),
       unit: form.value.unit,
       type: form.value.type,
       observation: form.value.observation,
-      location: form.value.location,
       userId: userId
     };
 
-    // O Axios resolve o caminho de forma super declarativa!
+    if (!editingItem.value) {
+      payloadLimpo.quantity = Number(form.value.quantity);
+      payloadLimpo.location = form.value.location;
+    }
+
     if (editingItem.value) {
-      // Mandando a maleta limpa no PUT
       await api.put(`/materials/${editingItem.value.id}`, payloadLimpo);
     } else {
-      // Mandando a maleta limpa no POST
       await api.post('/materials', payloadLimpo);
     }
 

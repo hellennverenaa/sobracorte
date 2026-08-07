@@ -1,9 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-// Importação das Páginas
 import Login from '@/pages/Login.vue'
-import Register from '@/pages/Register.vue'
 import Dashboard from '@/pages/Dashboard.vue'
 import Materials from '@/pages/Materials.vue'
 import Movement from '@/pages/Movement.vue'
@@ -19,11 +17,6 @@ const routes = [
     component: Login 
   },
   { 
-    path: '/register', 
-    name: 'Register', 
-    component: Register 
-  },
-  { 
     path: '/', 
     name: 'Dashboard', 
     component: Dashboard, 
@@ -35,7 +28,6 @@ const routes = [
     component: Materials, 
     meta: { 
       requiresAuth: true,
-      // AGORA TODOS PODEM ENTRAR (para ver), mas só alguns cadastram (controlado no botão)
       roles: ['admin', 'lider', 'movimentador', 'leitor'] 
     } 
   },
@@ -45,7 +37,7 @@ const routes = [
     component: Movement, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador'] // Leitor NÃO movimenta
+      roles: ['admin', 'lider', 'movimentador']
     } 
   },
   { 
@@ -60,7 +52,7 @@ const routes = [
     component: Users, 
     meta: { 
       requiresAuth: true, 
-      roles: ['admin'] // Apenas Admin Master
+      roles: ['admin']
     } 
   },
   { 
@@ -78,7 +70,7 @@ const routes = [
     component: Settings,
     meta: {
       requiresAuth: true,
-      roles: ['admin'] // Apenas Admin pode gerenciar configurações
+      roles: ['admin']
     }
   },
 ]
@@ -88,7 +80,6 @@ const router = createRouter({
   routes
 })
 
-// --- GUARDIÃO DE ROTAS ---
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const userRole = authStore.user?.role
@@ -97,7 +88,6 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } 
   else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    console.warn('Acesso negado: Você não tem permissão para acessar esta página.')
     if (from.name !== 'Dashboard' && from.name !== 'Login') {
       next('/')
     } else {

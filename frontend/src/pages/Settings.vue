@@ -39,9 +39,7 @@
         </button>
       </div>
 
-      <!-- ========================================= -->
       <!-- ABA 1: CATEGORIAS                         -->
-      <!-- ========================================= -->
       <div v-if="activeTab === 'categories'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -132,9 +130,7 @@
         </div>
       </div>
 
-      <!-- ========================================= -->
       <!-- ABA 2: UNIDADES DE MEDIDA                 -->
-      <!-- ========================================= -->
       <div v-if="activeTab === 'units'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -203,9 +199,7 @@
         </div>
       </div>
 
-      <!-- ========================================= -->
       <!-- ABA 3: LOCALIZAÇÕES                       -->
-      <!-- ========================================= -->
       <div v-if="activeTab === 'locations'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -270,9 +264,7 @@
         </div>
       </div>
 
-      <!-- ========================================= -->
       <!-- ABA 4: ORIGENS                            -->
-      <!-- ========================================= -->
       <div v-if="activeTab === 'origins'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -320,9 +312,7 @@
         </div>
       </div>
 
-      <!-- ========================================= -->
       <!-- ABA 5: IMPORTAR CSV                       -->
-      <!-- ========================================= -->
       <div v-if="activeTab === 'import'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           
@@ -552,9 +542,7 @@ async function handleConfirmedAction() {
   }
 }
 
-// ============================================================
 // CATEGORIAS
-// ============================================================
 const categories = ref([])
 const loadingCategory = ref(false)
 const newCategory = ref({ name: '', defaultUnitId: '', unitLocked: false })
@@ -607,9 +595,7 @@ async function deleteCategory(cat) {
   })
 }
 
-// ============================================================
-// UNIDADES DE MEDIDA (100% DINÂMICO VIA API)
-// ============================================================
+// UNIDADES DE MEDIDA
 const units = ref([])
 const loadingUnit = ref(false)
 const newUnit = ref({ name: '', symbol: '' })
@@ -661,9 +647,7 @@ async function deleteUnit(unit) {
   })
 }
 
-// ============================================================
 // LOCALIZAÇÕES
-// ============================================================
 const locations = ref([])
 const loadingLocation = ref(false)
 const newLocation = ref({ name: '', categoryId: '' })
@@ -718,9 +702,7 @@ async function deleteLocation(loc) {
   })
 }
 
-// ============================================================
 // ORIGENS
-// ============================================================
 const origins = ref([])
 const loadingOrigin = ref(false)
 const newOrigin = ref('')
@@ -769,9 +751,7 @@ async function deleteOrigin(orig) {
   })
 }
 
-// ============================================================
 // IMPORTAÇÃO CSV
-// ============================================================
 const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
@@ -839,9 +819,7 @@ async function importCSV() {
   }
 }
 
-// ============================================================
 // INICIALIZAÇÃO
-// ============================================================
 onMounted(async () => {
   await Promise.all([fetchCategories(), fetchUnits(), fetchLocations(), fetchOrigins()])
 })

@@ -12,8 +12,8 @@ const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
 
-function logout() {
-  authStore.logout()
+async function logout() {
+  await authStore.logout()
   router.push('/login')
 }
 

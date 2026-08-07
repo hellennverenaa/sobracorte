@@ -97,7 +97,6 @@ function getDatesFromPeriod(period) {
   }
 }
 
-// --- GERAR RELATÓRIO (Buscando do PostgreSQL) ---
 async function generateReport() {
   loading.value = true
   hasSearched.value = true
@@ -111,24 +110,17 @@ async function generateReport() {
       return
     }
 
-    // A MÁGICA: O Backend (Postgres) faz a busca pesada por data usando nossos índices!
     const queryUrl = `/reports/movements?dataInicio=${dates.start}&dataFim=${dates.end}`
     const apiData = await request(queryUrl)
 
-   // O Frontend faz apenas os filtros "leves" de interface (Material e Tipo de Movimento)
     reportData.value = apiData.filter(mov => {
-      
-      // 1. Filtro de Tipo de Material (A MÁGICA LIGADA AQUI 🚀)
       if (filters.value.tipoMaterial !== 'todos') {
-        // Pega o tipo que veio do banco (se não vier, assume 'outros')
         const tipoMat = String(mov.material?.type || mov.material?.tipo || 'outros').toLowerCase();
-        // Se for diferente do que o usuário selecionou, joga fora da tabela
         if (tipoMat !== filters.value.tipoMaterial.toLowerCase()) {
           return false;
         }
       }
 
-      // 2. Filtro de Tipo de Movimento (ENTRADA/SAIDA)
       if (filters.value.tipoMovimento !== 'todos') {
         if (mov.tipo.toLowerCase() !== filters.value.tipoMovimento.toLowerCase()) {
           return false;
@@ -324,19 +316,16 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
 </template>
 
 <style>
-/* 🚀 MÁGICA: Remove os cabeçalhos e rodapés automáticos do navegador (Links e Datas do Chrome) */
 @page {
   margin: 0cm; 
 }
 
 @media print {
-  /* Limpeza de tela e fundo branco */
   body { background: white !important; }
   aside, header, footer, nav { display: none !important; }
   .print\:hidden { display: none !important; }
   .print\:block { display: block !important; }
   
-  /* 🚀 A BOMBA NUCLEAR: Destranca TODOS os elementos da página */
   * {
     overflow: visible !important;
     height: auto !important;
@@ -344,7 +333,6 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
     min-height: auto !important;
   }
 
-  /* Garante que o container principal ocupe 100% da folha */
   #app, main { 
     margin: 0 !important; 
     padding: 0 !important;
