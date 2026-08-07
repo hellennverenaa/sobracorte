@@ -7,7 +7,7 @@ const isLocal = import.meta.env.DEV;
 
 // 1. LOGIN: Local roda puro na 2399. Produção usa o /api do Gateway!
 export const authApi = axios.create({
-  baseURL: isLocal ? "http://localhost:2399" : `${ip}:2399/api`,
+  baseURL: isLocal ? "http://10.100.1.43:2399/api" : `${ip}:2399/api`,
   withCredentials: true
 });
 

@@ -10,6 +10,7 @@ import Movement from '@/pages/Movement.vue'
 import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
+import Settings from '@/pages/Settings.vue'
 
 const routes = [
   { 
@@ -71,6 +72,15 @@ const routes = [
       roles: ['admin', 'lider'] 
     } 
   },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings,
+    meta: {
+      requiresAuth: true,
+      roles: ['admin'] // Apenas Admin pode gerenciar configurações
+    }
+  },
 ]
 
 const router = createRouter({
@@ -87,7 +97,7 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } 
   else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    alert('Acesso negado: Você não tem permissão para acessar esta página.')
+    console.warn('Acesso negado: Você não tem permissão para acessar esta página.')
     if (from.name !== 'Dashboard' && from.name !== 'Login') {
       next('/')
     } else {

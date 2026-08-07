@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useApi } from '@/composables/useApi'
-import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileText, FileBarChart } from 'lucide-vue-next'
+import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileText, FileBarChart, CheckCircle, XCircle } from 'lucide-vue-next'
 import { exportToCSV } from '@/utils/export'
+import { api } from '@/services/httpClient'
 
 const { request } = useApi()
 
@@ -11,6 +12,13 @@ const { request } = useApi()
 const loading = ref(false)
 const reportData = ref([])
 const hasSearched = ref(false)
+
+// --- NOTIFICAÇÕES TOAST ---
+const notification = ref({ show: false, type: 'success', message: '' })
+function showNotification(type, message) {
+  notification.value = { show: true, type, message }
+  setTimeout(() => { notification.value.show = false }, 3500)
+}
 
 // Filtros
 const filters = ref({
@@ -22,24 +30,28 @@ const filters = ref({
 })
 
 // Opções de Filtro Sincronizadas
-const materialTypes = [
-  { value: 'todos', label: 'Todos os Materiais' },
-  { value: 'tecido', label: 'Tecido' },
-  { value: 'linha', label: 'Linha' },
-  { value: 'elastico', label: 'Elástico' },
-  { value: 'aviamento', label: 'Aviamento' },
-  { value: 'couro', label: 'Couro' },
-  { value: 'sintetico', label: 'Sintético' },
-  { value: 'solado', label: 'Solado' },
-  { value: 'filme', label: 'Filme' },
-  { value: 'eva', label: 'EVA' },
-  { value: 'espuma', label: 'Espuma' },
-  { value: 'forro', label: 'Forro' },
-  { value: 'manta', label: 'Manta' },
-  { value: 'microfibra', label: 'Microfibra' },
-  { value: 'ferramentais', label: 'Ferramentais' },
-  { value: 'outros', label: 'Outros' }
-]
+const materialTypes = ref([
+  { value: 'todos', label: 'Todos os Materiais' }
+])
+
+async function fetchCategories() {
+  try {
+    const res = await api.get('/settings/categories')
+    materialTypes.value = [
+      { value: 'todos', label: 'Todos os Materiais' },
+      ...res.data.map(cat => ({
+        value: cat.name.toLowerCase(),
+        label: cat.name.charAt(0).toUpperCase() + cat.name.slice(1).toLowerCase()
+      }))
+    ]
+  } catch (err) {
+    console.error("Erro ao carregar categorias para o relatório:", err)
+  }
+}
+
+onMounted(() => {
+  fetchCategories()
+})
 
 const periods = [
   { value: 'hoje', label: 'Hoje' },
@@ -94,7 +106,7 @@ async function generateReport() {
   try {
     const dates = getDatesFromPeriod(filters.value.periodo)
     if (!dates) {
-      alert("Selecione as datas de início e fim.")
+      showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
       loading.value = false
       return
     }
@@ -128,7 +140,7 @@ async function generateReport() {
 
   } catch (err) {
     console.error(err)
-    alert("Erro ao gerar relatório. Verifique a conexão com o servidor.")
+    showNotification('error', "Erro ao gerar relatório. Verifique a conexão com o servidor.")
   } finally {
     loading.value = false
   }
@@ -167,6 +179,19 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
 
 <template>
   <Layout>
+    <!-- Toast Notification -->
+    <transition name="fade-down">
+      <div v-if="notification.show"
+        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
+        :class="notification.type === 'success'
+          ? 'bg-emerald-500 text-white'
+          : 'bg-red-500 text-white'">
+        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
+        <XCircle v-else class="w-4 h-4" />
+        {{ notification.message }}
+      </div>
+    </transition>
+
     <div class="max-w-6xl mx-auto px-4 py-8">
       
       <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden">

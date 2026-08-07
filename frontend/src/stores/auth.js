@@ -43,7 +43,10 @@ const defineNivelUsuario = (userData) => {
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null,
-    isAuthenticated: !!localStorage.getItem('user')
+    isAuthenticated: !!localStorage.getItem('user'),
+    unidades: [],
+    isLoadingUnidades: false,
+    unidadesError: null
   }),
 
   actions: {
@@ -62,36 +65,98 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    // --- LOGIN VIA API DA FÁBRICA ---
-    async login(user, password) {
+    // =========================================================================
+    //  [ÁREA DA AUTOMAÇÃO BACKEND] - ENDPOINT DE UNIDADES ATIVAS
+    // =========================================================================
+    // ATENÇÃO EQUIPE DE T.I. / INFRA:
+    // O backend do dass_auth_service (Ivoti) deve prover a rota GET abaixo.
+    // Ela deve consultar o banco do Unix e retornar a lista de unidades operacionais.
+    // Exemplo de resposta esperada:
+    // [
+    //   { code: 'VDC', name: 'Vitória da Conquista' },
+    //   { code: 'STJ', name: 'Santo Antônio de Jesus' },
+    //   { code: 'SEST', name: 'Santo Estêvão' },
+    //   { code: 'ITB', name: 'Itaberaba' }
+    // ]
+    // =========================================================================
+    async fetchUnidades() {
+      this.isLoadingUnidades = true;
+      this.unidadesError = null;
+
+      // Fallback seguro de Unidades Padrão DASS para manter o sistema operacional caso o backend ainda não possua a rota
+      const fallbackUnidades = [
+        { code: 'VDC', name: 'Vitória da Conquista (VDC)' },
+        { code: 'STJ', name: 'Santo Antônio de Jesus (STJ)' },
+        { code: 'SEST', name: 'Santo Estêvão (SEST)' },
+        { code: 'ITB', name: 'Itaberaba (ITB)' }
+      ];
+
       try {
-        const response = await authApi.post("/auth/login", { usuario: user, senha: password })
+        // Tentativa de requisição via Axios para o endpoint do dass_auth_service
+        const response = await authApi.get('/auth/unidades');
+        
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+          this.unidades = response.data.map(item => ({
+            code: item.code || item.sigla || item.id || item,
+            name: item.name || item.nome || item.descricao || item
+          }));
+        } else if (response.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+          this.unidades = response.data.data.map(item => ({
+            code: item.code || item.sigla || item.id || item,
+            name: item.name || item.nome || item.descricao || item
+          }));
+        } else {
+          console.warn('⚠️ Endpoint de unidades retornou lista vazia. Aplicando fallback DASS.');
+          this.unidades = fallbackUnidades;
+        }
+      } catch (err) {
+        console.warn('⚠️ Endpoint /auth/unidades indisponível. Aplicando fallback de unidades DASS:', err.message);
+        this.unidades = fallbackUnidades;
+        this.unidadesError = 'Falha ao buscar unidades dinâmicas. Utilizando lista padrão de fábrica.';
+      } finally {
+        this.isLoadingUnidades = false;
+      }
+      return this.unidades;
+    },
+
+    // =========================================================================
+    //  [ÁREA DA AUTOMAÇÃO BACK-END] - INTEGRAÇÃO DASS_AUTH_SERVICE
+    // =========================================================================
+    // ATENÇÃO EQUIPE DE T.I. / INFRA:
+    // 1. A requisição envia 'usuario', 'senha' e 'unidade' via POST para o dass_auth_service.
+    // 2. O servidor deve validar a coluna 'unidade' no Unix e realizar
+    //    o roteamento para a base de dados clonada correspondente.
+    // 3. Para ajustar o IP/Porta do servidor em desenvolvimento/produção,
+    //    consulte a constante 'baseURL' em frontend/src/services/httpClient.ts
+    // =========================================================================
+    async login(user, password, unidade) {
+      try {
+        const response = await authApi.post("/auth/login", { 
+          usuario: user, 
+          senha: password,
+          unidade: unidade 
+        })
 
         const payload = response.data
-
 
         // Processa o Token da DASS
         const tokenPayload = payload.data.token.split(".")[1]
         const apiUser = JSON.parse(atob(tokenPayload))
 
         // Chamar callback para backend sobracorte registrar usuario (se necessario)
-        //TODO: Modificar essa função para se o usuário já estiver cadastrado retornar o usuário, se não estiver cadastrar e retorna o usuário:
         let userSobraCorte = null;
         try {
-          // 🚀 AQUI ESTÁ O SEGREDO: O await garante que o banco vai responder!
           const checkResponse = await api.post("/auth/check-user", { user: apiUser });
           userSobraCorte = checkResponse.data.user;
         } catch (err) {
-          console.warn("⚠️ Falha ao buscar cargo no banco local. Usando RH DASS.");
+          console.warn("Falha ao buscar cargo no banco local. Usando RH DASS.");
         }
 
         // 4. Inteligência de Níveis
         let finalRole = 'leitor';
         if (userSobraCorte && userSobraCorte.role) {
-          // Se achou no banco, USA O DO BANCO (O Admin do Hendrius entra aqui!)
           finalRole = userSobraCorte.role;
         } else {
-          // Inteligência de RH (Fallback)
           const funcaoUpper = String(apiUser.funcao || '').toUpperCase().trim();
           if (funcaoUpper.includes('LIDER') || funcaoUpper.includes('LÍDER') || funcaoUpper.includes('ANALISTA') || funcaoUpper.includes('COORDENADOR') || funcaoUpper.includes('GERENTE')) {
             finalRole = 'lider';
@@ -107,7 +172,7 @@ export const useAuthStore = defineStore('auth', {
           finalRole = 'admin';
         }
 
-        // 🚀 6. CONSTRUÇÃO BLINDADA DO USUÁRIO (Adeus Bug do Fantasma!)
+        //  6. CONSTRUÇÃO BLINDADA DO USUÁRIO
         const finalUser = {
           id: userSobraCorte ? userSobraCorte.id : apiUser.id,
           nome: apiUser.nome || apiUser.usuario,
@@ -115,11 +180,12 @@ export const useAuthStore = defineStore('auth', {
           email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
           setor: apiUser.setor || 'NÃO DEFINIDO',
           funcao: apiUser.funcao || 'NÃO DEFINIDO',
-          role: finalRole, // O cargo 'admin' entra aqui perfeitamente
+          role: finalRole,
+          unidade: unidade,
           token: payload.data.token
         }
 
-        console.log("🚀 Usuário Montado com Sucesso:", finalUser);
+        console.log("Usuário Montado com Sucesso:", finalUser);
 
         this.user = finalUser
         this.isAuthenticated = true
@@ -130,19 +196,26 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         console.error("🔍 Erro capturado no Axios:", error);
 
-        // 1. O Axios esconde a resposta do backend dentro de error.response.data
-        // Vamos pescar a mensagem exata ("Usuário ou senha inválidos") e jogar pro Vue!
-        if (error.response && error.response.data && error.response.data.error) {
-          throw new Error(error.response.data.error);
+        // 1. Se o erro for 401 (Não Autorizado), sabemos na hora que é credencial inválida!
+        if (error.response && error.response.status === 401) {
+          // Tenta ler a mensagem que vem da API, se ela não vier, usa um padrão nosso.
+          const msgBackend = error.response.data?.message || error.response.data?.error || "Usuário ou senha incorretos.";
+          throw new Error(msgBackend);
         }
 
-        // 2. Tratamento para Banco de Dados Caído / Network Error
+        // 2. Outros erros mapeados pelo backend (ex: 400 Bad Request, 404 Not Found)
+        if (error.response && error.response.data) {
+          const outrMsg = error.response.data.message || error.response.data.error;
+          if (outrMsg) throw new Error(outrMsg);
+        }
+
+        // 3. Tratamento para Banco de Dados Caído / Sem Internet (Network Error)
         if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
           throw new Error("O serviço da fábrica está temporariamente indisponível.");
         }
 
-        // 3. Trava de segurança final
-        throw new Error("Ocorreu um erro ao processar o login.");
+        // 4. Trava de segurança final (Fallback)
+        throw new Error("Ocorreu um erro ao processar o login. Tente novamente.");
       }
     },
 

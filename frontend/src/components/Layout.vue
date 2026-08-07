@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
-  LogOut, Menu, X, FileBarChart 
+  LogOut, Menu, X, FileBarChart, Settings
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
@@ -18,11 +18,12 @@ function logout() {
 }
 
 const menuItems = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Materiais', path: '/materials', icon: Package },
-  { label: 'Movimentação', path: '/movement', icon: ArrowLeftRight },
-  { label: 'Relatórios', path: '/reports', icon: FileBarChart }, // NOVO
-  { label: 'Usuários', path: '/users', icon: Users } // Só admin vê
+  { label: 'Dashboard',    path: '/',          icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Materiais',    path: '/materials',  icon: Package,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Movimentação', path: '/movement',   icon: ArrowLeftRight,  roles: ['admin', 'lider', 'movimentador'] },
+  { label: 'Relatórios',   path: '/reports',    icon: FileBarChart,    roles: ['admin', 'lider'] },
+  { label: 'Usuários',     path: '/users',      icon: Users,           roles: ['admin'] },
+  { label: 'Configurações', path: '/settings',  icon: Settings,        roles: ['admin'] }
 ]
 </script>
 
@@ -48,7 +49,7 @@ const menuItems = [
           v-for="item in menuItems" 
           :key="item.path" 
           :to="item.path"
-          v-show="!item.role || authStore.user?.role === item.role"
+          v-show="!item.roles || item.roles.includes(authStore.user?.role)"
           class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm"
           :class="route.path === item.path ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
           @click="isSidebarOpen = false"

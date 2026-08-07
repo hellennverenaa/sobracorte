@@ -11,27 +11,10 @@
 
     <div class="flex flex-col h-full">
       <div class="flex flex-col sm:flex-row gap-5 items-center justify-end w-full sm:w-auto ml-auto my-8">
-
-        <label v-if="authStore.user?.role === 'admin'"
-          class="cursor-pointer bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition flex items-center gap-2 shadow-md relative overflow-hidden group">
-          <Upload class="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-          <span v-if="importLoading">Enviando...</span>
-          <span v-else>Importar Planilha</span>
-          <input type="file" accept=".csv" class="hidden" @change="handleFileUpload" :disabled="importLoading" />
-        </label>
-
-
-
         <button v-if="authStore.can('cadastrar_materiais')" @click="openCreateModal"
           class="bg-blue-600 hover:bg-blue-800 text-white px-6 py-2 rounded flex items-center gap-2 shadow-sm transition-colors">
           <span>Novo Material</span>
         </button>
-      </div>
-
-      <div v-if="importResult" class="mt-4 p-3 rounded-lg text-sm font-bold flex items-center justify-between"
-        :class="importResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'">
-        {{ importResult }}
-        <button @click="importResult = null" class="underline opacity-70 hover:opacity-100">Fechar</button>
       </div>
 
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex gap-4">
@@ -197,19 +180,20 @@
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Unidade</label>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="block text-sm font-bold text-gray-700">Unidade</label>
+                  <span v-if="isUnitLocked" class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    <Lock class="w-3.5 h-3.5" />
+                    Definido pela Categoria
+                  </span>
+                </div>
                 <select v-model="form.unit" required :disabled="isUnitLocked"
-                  class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed bg-white"
                   :class="!form.unit ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a unidade...</option>
-                  <option value="und" class="text-gray-900">Unidade (und)</option>
-                  <option value="kg" class="text-gray-900">Quilograma (kg)</option>
-                  <option value="m" class="text-gray-900">Metro (m)</option>
-                  <option value="m²" class="text-gray-900">Metro Quadrado (m²)</option>
-                  <option value="g" class="text-gray-900">Grama (g)</option>
-                  <option value="par" class="text-gray-900">Par</option>
-                  <option value="cx" class="text-gray-900">Caixa</option>
-                  <option value="rl" class="text-gray-900">Rolo</option>
+                  <option v-for="u in dbUnits" :key="u.id" :value="u.symbol" class="text-gray-900">
+                    {{ u.name }} ({{ u.symbol }})
+                  </option>
                 </select>
               </div>
             </div>
@@ -254,13 +238,26 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO CORPORATIVO -->
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
   </Layout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
-import { Upload } from 'lucide-vue-next'
+import ConfirmModal from "@/components/ConfirmModal.vue";
+import { Lock } from 'lucide-vue-next'
 import { authApi, api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
@@ -272,10 +269,6 @@ const selectedCategory = ref("Todos");
 const showCreateModal = ref(false);
 const editingItem = ref(null);
 const viewingItem = ref(null);
-
-const showImportModal = ref(false)
-const importLoading = ref(false)
-const importResult = ref(null)
 
 
 
@@ -290,100 +283,132 @@ function showNotification(type, message) {
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
-} // AQUI ESTÁ A CHAVE QUE FALTAVA! SALVADORA DA PÁTRIA!
+}
 
-// 1. PRIMEIRO: Criamos o Form (Isso TEM que vir antes do Computed e do Watch)
+// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
+const confirmState = ref({
+  show: false,
+  title: '',
+  message: '',
+  confirmText: 'Excluir',
+  variant: 'danger',
+  loading: false,
+  action: null
+});
+
+function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
+  confirmState.value = {
+    show: true,
+    title,
+    message,
+    confirmText,
+    variant,
+    loading: false,
+    action
+  };
+}
+
+async function handleConfirmedAction() {
+  if (typeof confirmState.value.action === 'function') {
+    confirmState.value.loading = true;
+    try {
+      await confirmState.value.action();
+    } finally {
+      confirmState.value.loading = false;
+      confirmState.value.show = false;
+    }
+  }
+}
+
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
+const categories = ref(["Todos"]);
+const dbCategories = ref([]);
+const dbLocations = ref([]);
+const dbUnits = ref([]);
 
-// 2. DEPOIS: A Inteligência de Zoneamento (Dicionário)
-const mapArmazens = {
-  LINHA: ["Gaiola de Linhas", "Estante Linhas A", "Estante Linhas B"],
-  AVIAMENTO: ["Gaveteiro Aviamentos", "Prateleira Aviamentos"],
-  ELASTICO: ["Prateleira de Elásticos", "Caixas de Elástico"],
-  FERRAMENTAIS: ["Armário de Ferramentas", "Sala da Manutenção"],
-};
+async function fetchSettings() {
+  try {
+    const [catsRes, locsRes, unitsRes] = await Promise.all([
+      api.get('/settings/categories'),
+      api.get('/settings/locations'),
+      api.get('/settings/units')
+    ]);
+    dbCategories.value = catsRes.data;
+    dbLocations.value = locsRes.data;
+    dbUnits.value = unitsRes.data;
+    categories.value = ["Todos", ...catsRes.data.map(c => c.name)];
+  } catch (e) {
+    console.error("Erro ao carregar configurações de categorias/localizações/unidades:", e);
+  }
+}
 
-// Prateleiras padrão para todo o resto do estoque (Couro, Tecido, Filme, etc.)
-const defaultLocations = ["Rua 03 - Caixote 58 - Nível 01",
-  "Rua 03 - Caixote 58 - Nível 02",
-  "Rua 03 - Caixote 58 - Nível 03",
-  "Rua 03 - Caixote 58 - Nível 04",
-  "Rua 03 - Caixote 60 - Nível 01",
-  "Rua 03 - Caixote 60 - Nível 02",
-  "Rua 03 - Caixote 60 - Nível 03"
-];
-
-// 3. A MÁGICA COMPUTADA: Muda as opções baseada na Categoria
 const availableLocations = computed(() => {
-  if (!form.value.type) return []; // Retorna vazio se não escolheu a categoria
+  if (!form.value.type) return []; 
 
   const categoriaSelecionada = String(form.value.type).toUpperCase().trim();
+  const catObj = dbCategories.value.find(c => String(c.name).toUpperCase().trim() === categoriaSelecionada);
 
-  // Se a categoria for especial (Linha, Aviamento...), puxa do dicionário.
-  // Se não for, puxa a lista padrão (defaultLocations).
-  return mapArmazens[categoriaSelecionada] || defaultLocations;
+  // 1. Filtragem relacional estrita (por categoryId ou pelo objeto category.name vindo do Prisma)
+  const filtradasRelacionais = dbLocations.value.filter(loc => {
+    if (catObj && loc.categoryId && loc.categoryId === catObj.id) {
+      return true;
+    }
+    if (loc.category && String(loc.category.name).toUpperCase().trim() === categoriaSelecionada) {
+      return true;
+    }
+    return false;
+  });
+
+  if (filtradasRelacionais.length > 0) {
+    return filtradasRelacionais.map(l => l.name);
+  }
+
+  // Fallback seguro: se a localização for legada e não possuir vínculo relacional no banco, permite a lista total
+  return dbLocations.value.map(l => l.name);
 });
 
-// 3.5 DICIONÁRIO DE ALMOXARIFADO E BLOQUEIO DA ARQUITETA
-const categoriasAlmoxarifadoM2 = [
-  "TECIDO", "SINTETICO", "FILME", "EVA", "ESPUMA", "FORRO", "MANTA", "MICROFIBRA", "REFORÇO", "PAPEL SUBLIMACAO", "OUTROS"
-];
-// Couro separado para Metros lineares
-const categoriasAlmoxarifadoM = ["COURO"];
-
-// A TRAVA: Computa instantaneamente se o campo de unidade deve ser bloqueado (disabled)
 const isUnitLocked = computed(() => {
-  return categoriasAlmoxarifadoM2.includes(form.value.type) ||
-    categoriasAlmoxarifadoM.includes(form.value.type);
+  const selectedCatName = form.value.type;
+  if (!selectedCatName) return false;
+  const foundCat = dbCategories.value.find(
+    c => String(c.name).toUpperCase().trim() === String(selectedCatName).toUpperCase().trim()
+  );
+  if (!foundCat) return false;
+  if (foundCat.unitLocked && foundCat.defaultUnit) return true;
+  return foundCat.unitLock === 'm2' || foundCat.unitLock === 'm';
 });
 
-// 4. O OBSERVADOR TURBINADO
 watch(
   () => form.value.type,
   (newType, oldType) => {
-    // Regra 1: Limpa a localização se mudar de ideia
     if (newType !== oldType && oldType !== undefined && oldType !== "") {
       form.value.location = "";
     }
 
-    // Regra 2: Inteligência da Unidade de Medida
     if (newType) {
       const isCreating = !editingItem.value;
       const userChangedCategory = oldType !== "" && oldType !== undefined;
 
       if (isCreating || userChangedCategory) {
-        if (categoriasAlmoxarifadoM2.includes(newType)) {
-          form.value.unit = "m²"; // Trava no m²
-        } else if (categoriasAlmoxarifadoM.includes(newType)) {
-          form.value.unit = "m"; // Trava o Couro no m
-        } else if (userChangedCategory) {
-          form.value.unit = ""; // Deixa livre para Aviamentos e Linhas
+        const foundCat = dbCategories.value.find(
+          c => String(c.name).toUpperCase().trim() === String(newType).toUpperCase().trim()
+        );
+        if (foundCat) {
+          if (foundCat.unitLocked && foundCat.defaultUnit) {
+            form.value.unit = foundCat.defaultUnit.symbol;
+          } else if (foundCat.unitLock === 'm2') {
+            form.value.unit = "m²"; 
+          } else if (foundCat.unitLock === 'm') {
+            form.value.unit = "m"; 
+          } else if (userChangedCategory) {
+            form.value.unit = ""; 
+          }
         }
       }
     }
   }
 );
 
-const categories = [
-  "Todos",
-  "TECIDO",
-  "LINHA",
-  "ELASTICO",
-  "AVIAMENTO",
-  "COURO",
-  "SINTETICO",
-  "SOLADO",
-  "FILME",
-  "EVA",
-  "ESPUMA",
-  "FORRO",
-  "MANTA",
-  "MICROFIBRA",
-  "FERRAMENTAIS",
-  "REFORÇO",
-  "PAPEL SUBLIMACAO",
-  "OUTROS",
-];
 
 // Adicionamos o 'config = {}' para aceitar os parâmetros do Dashboard!
 async function fetchMaterials(config = {}) {
@@ -402,67 +427,6 @@ async function fetchMaterials(config = {}) {
     // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
     return [];
   }
-}
-
-// Lógica de Leitura de CSV nativa (sem bibliotecas pesadas)
-async function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  importLoading.value = true;
-  importResult.value = "";
-
-  const reader = new FileReader();
-
-  reader.onload = async (e) => {
-    try {
-      const text = e.target.result;
-      const delimiter = text.indexOf(';') !== -1 ? ';' : ',';
-      const lines = text.split('\n').filter(line => line.trim() !== '');
-
-      if (lines.length < 2) {
-        throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
-      }
-
-      const items = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        // 🚀 MÁGICA 1: Quebra as colunas e ARRANCA todas as aspas duplas!
-        const row = lines[i].split(delimiter).map(col => col.replace(/"/g, '').trim());
-
-        // 🚀 MÁGICA 2: Limpeza pesada de números Brasileiros
-        // Pega o valor, ex: "1.500,50" ou "15"
-        let rawQtd = row[2] || '0';
-        rawQtd = rawQtd.replace(/\./g, ''); // Arranca o ponto de milhar -> "1500,50"
-        rawQtd = rawQtd.replace(',', '.');  // Troca a vírgula por ponto -> "1500.50"
-
-        // Agora o mapeamento fica limpinho:
-        items.push({
-          codigo: row[0] || '',
-          nome: row[1] || '',
-          quantidade: Number(rawQtd) || 0,
-          unidade: row[3] || '',
-          tipo: row[4] || ''
-        });
-      }
-
-      // Envia para o backend
-      const response = await api.post('/materials/bulk', { materiais: items });
-
-      importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
-      fetchMaterials();
-
-    } catch (error) {
-      console.error("Erro no CSV:", error);
-      const errorMsg = error.response?.data?.error || error.message || "Verifique a formatação do CSV.";
-      importResult.value = `❌ Erro ao importar: ${errorMsg}`;
-    } finally {
-      importLoading.value = false;
-      event.target.value = null;
-    }
-  };
-
-  reader.readAsText(file);
 }
 
 const paginatedMaterials = computed(() => {
@@ -573,24 +537,26 @@ async function confirmDelete(item) {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem excluir materiais.");
   }
 
-  if (confirm("Tem certeza? A exclusão será registrada.")) {
-    try {
-      // AXIOS: Chama o método delete direto, passando apenas a rota final
-      await api.delete(`/materials/${item.id}`);
-
-      // Se a execução chegou aqui, o status é 200 (Sucesso Garantido!)
-      showNotification("success", "Material excluído com sucesso!");
-      fetchMaterials();
-
-    } catch (error) {
-      console.error("Erro ao excluir:", error);
-
-      // Captura a mensagem do backend caso ele impeça a exclusão (ex: material com saldo)
-      const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
-      showNotification("error", errorMsg);
+  openConfirmModal({
+    title: "Excluir Material",
+    message: `Tem certeza que deseja excluir o material "${item.name}" (${item.code})? A exclusão será registrada no histórico do sistema.`,
+    confirmText: "Sim, Excluir Material",
+    variant: "danger",
+    action: async () => {
+      try {
+        await api.delete(`/materials/${item.id}`);
+        showNotification("success", "Material excluído com sucesso!");
+        fetchMaterials();
+      } catch (error) {
+        console.error("Erro ao excluir:", error);
+        const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
+        showNotification("error", errorMsg);
+      }
     }
-  }
+  });
 }
 
-onMounted(fetchMaterials);
+onMounted(async () => {
+  await Promise.all([fetchMaterials(), fetchSettings()]);
+});
 </script>

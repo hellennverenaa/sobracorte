@@ -1,0 +1,312 @@
+import { Request, Response } from 'express';
+import { prisma } from '../prisma';
+
+export class SettingsController {
+
+  // ============================================================
+  // 🏷️ CATEGORIAS — governa os valores permitidos de Material.type
+  // ============================================================
+
+  async getCategories(req: Request, res: Response) {
+    try {
+      const categories = await prisma.categoryConfig.findMany({
+        orderBy: { name: 'asc' },
+        include: { defaultUnit: true }
+      });
+      res.json(categories);
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error);
+      res.status(500).json({ error: 'Erro ao buscar categorias' });
+    }
+  }
+
+  async createCategory(req: Request, res: Response) {
+    try {
+      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
+      }
+      const category = await prisma.categoryConfig.create({
+        data: {
+          name: String(name).trim().toUpperCase(),
+          unitLock: unitLock || 'livre',
+          defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
+          unitLocked: Boolean(unitLocked)
+        },
+        include: { defaultUnit: true }
+      });
+      res.status(201).json(category);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Essa categoria já existe.' });
+      }
+      console.error('Erro ao criar categoria:', error);
+      res.status(500).json({ error: 'Erro ao criar categoria' });
+    }
+  }
+
+  async updateCategory(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+
+      const category = await prisma.categoryConfig.update({
+        where: { id },
+        data: {
+          name: name ? String(name).trim().toUpperCase() : undefined,
+          unitLock: unitLock !== undefined ? unitLock : undefined,
+          defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
+          unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
+        },
+        include: { defaultUnit: true }
+      });
+      res.json(category);
+    } catch (error: any) {
+      console.error('Erro ao atualizar categoria:', error);
+      res.status(500).json({ error: 'Erro ao atualizar categoria' });
+    }
+  }
+
+  async deleteCategory(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const category = await prisma.categoryConfig.findUnique({ where: { id } });
+      if (!category) {
+        return res.status(404).json({ error: 'Categoria não encontrada.' });
+      }
+      const materiaisVinculados = await prisma.material.count({
+        where: { type: category.name }
+      });
+      if (materiaisVinculados > 0) {
+        return res.status(409).json({
+          error: `Não é possível excluir: ${materiaisVinculados} material(is) usa(m) esta categoria.`
+        });
+      }
+      await prisma.categoryConfig.delete({ where: { id } });
+      res.json({ message: 'Categoria excluída com sucesso.' });
+    } catch (error: any) {
+      if (error.code === 'P2003') {
+        return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
+      }
+      console.error('Erro ao excluir categoria:', error);
+      res.status(500).json({ error: 'Erro ao excluir categoria' });
+    }
+  }
+
+  // ============================================================
+  // 📐 UNIDADES DE MEDIDA — CRUD dinâmico para UnitConfig
+  // ============================================================
+
+  async getUnits(req: Request, res: Response) {
+    try {
+      let units = await prisma.unitConfig.findMany({
+        where: { active: true },
+        orderBy: { symbol: 'asc' }
+      });
+
+      // Semeadura inicial automática se a tabela estiver vazia
+      if (units.length === 0) {
+        const initialUnits = [
+          { name: 'Metro', symbol: 'm' },
+          { name: 'Metro Quadrado', symbol: 'm²' },
+          { name: 'Quilograma', symbol: 'kg' },
+          { name: 'Grama', symbol: 'g' },
+          { name: 'Unidade', symbol: 'un' },
+          { name: 'Par', symbol: 'par' },
+          { name: 'Rolo', symbol: 'rolo' },
+          { name: 'Centímetro', symbol: 'cm' },
+          { name: 'Litro', symbol: 'l' },
+          { name: 'Caixa', symbol: 'cx' }
+        ];
+        await prisma.unitConfig.createMany({
+          data: initialUnits,
+          skipDuplicates: true
+        });
+        units = await prisma.unitConfig.findMany({
+          where: { active: true },
+          orderBy: { symbol: 'asc' }
+        });
+      }
+
+      res.json(units);
+    } catch (error) {
+      console.error('Erro ao buscar unidades:', error);
+      res.status(500).json({ error: 'Erro ao buscar unidades de medida' });
+    }
+  }
+
+  async createUnit(req: Request, res: Response) {
+    try {
+      const { name, symbol } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'O nome da unidade é obrigatório.' });
+      }
+      if (!symbol || !String(symbol).trim()) {
+        return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
+      }
+
+      const cleanSymbol = String(symbol).trim();
+      const cleanName = String(name).trim();
+
+      const existing = await prisma.unitConfig.findUnique({ where: { symbol: cleanSymbol } });
+      if (existing) {
+        if (!existing.active) {
+          const reactivated = await prisma.unitConfig.update({
+            where: { id: existing.id },
+            data: { name: cleanName, active: true }
+          });
+          return res.status(200).json(reactivated);
+        }
+        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
+      }
+
+      const unit = await prisma.unitConfig.create({
+        data: {
+          name: cleanName,
+          symbol: cleanSymbol,
+          active: true
+        }
+      });
+      res.status(201).json(unit);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
+      }
+      console.error('Erro ao criar unidade:', error);
+      res.status(500).json({ error: 'Erro ao criar unidade de medida' });
+    }
+  }
+
+  async deleteUnit(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const unit = await prisma.unitConfig.findUnique({ where: { id } });
+      if (!unit) {
+        return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+
+      await prisma.unitConfig.update({
+        where: { id },
+        data: { active: false }
+      });
+      res.json({ message: 'Unidade desativada com sucesso.' });
+    } catch (error: any) {
+      console.error('Erro ao desativar unidade:', error);
+      res.status(500).json({ error: 'Erro ao desativar unidade de medida' });
+    }
+  }
+
+  // ============================================================
+  // 📍 LOCALIZAÇÕES — tabela Location já existente
+  // ============================================================
+
+  async getLocations(req: Request, res: Response) {
+    try {
+      const locations = await prisma.location.findMany({
+        orderBy: { name: 'asc' },
+        include: { category: true }
+      });
+      res.json(locations);
+    } catch (error) {
+      console.error('Erro ao buscar localizações:', error);
+      res.status(500).json({ error: 'Erro ao buscar localizações' });
+    }
+  }
+
+  async createLocation(req: Request, res: Response) {
+    try {
+      const { name, categoryId } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
+      }
+      if (!categoryId) {
+        return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
+      }
+      const location = await prisma.location.create({
+        data: {
+          name: String(name).trim(),
+          categoryId: Number(categoryId)
+        },
+        include: { category: true }
+      });
+      res.status(201).json(location);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Essa localização já existe.' });
+      }
+      console.error('Erro ao criar localização:', error);
+      res.status(500).json({ error: 'Erro ao criar localização' });
+    }
+  }
+
+  async deleteLocation(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const materiaisVinculados = await prisma.materialLocation.count({
+        where: { locationId: id, quantity: { gt: 0 } }
+      });
+      if (materiaisVinculados > 0) {
+        return res.status(409).json({
+          error: `Não é possível excluir: ${materiaisVinculados} material(is) tem saldo nesta localização.`
+        });
+      }
+      await prisma.location.delete({ where: { id } });
+      res.json({ message: 'Localização excluída com sucesso.' });
+    } catch (error: any) {
+      if (error.code === 'P2003') {
+        return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
+      }
+      console.error('Erro ao excluir localização:', error);
+      res.status(500).json({ error: 'Erro ao excluir localização' });
+    }
+  }
+
+  // ============================================================
+  // 🔖 ORIGENS — governa os valores permitidos de Movement.origem
+  // ============================================================
+
+  async getOrigins(req: Request, res: Response) {
+    try {
+      const origins = await prisma.originConfig.findMany({
+        orderBy: { name: 'asc' }
+      });
+      res.json(origins);
+    } catch (error) {
+      console.error('Erro ao buscar origens:', error);
+      res.status(500).json({ error: 'Erro ao buscar origens' });
+    }
+  }
+
+  async createOrigin(req: Request, res: Response) {
+    try {
+      const { name } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
+      }
+      const origin = await prisma.originConfig.create({
+        data: { name: String(name).trim() }
+      });
+      res.status(201).json(origin);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Essa origem já existe.' });
+      }
+      console.error('Erro ao criar origem:', error);
+      res.status(500).json({ error: 'Erro ao criar origem' });
+    }
+  }
+
+  async deleteOrigin(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      await prisma.originConfig.delete({ where: { id } });
+      res.json({ message: 'Origem excluída com sucesso.' });
+    } catch (error: any) {
+      if (error.code === 'P2003') {
+        return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
+      }
+      console.error('Erro ao excluir origem:', error);
+      res.status(500).json({ error: 'Erro ao excluir origem' });
+    }
+  }
+}
