@@ -1,190 +1,212 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useApi } from '@/composables/useApi'
-import { Lock, Mail, User, ArrowRight, CheckCircle, AlertTriangle, X, ShieldAlert } from 'lucide-vue-next'
+import { Lock, User, Building2, ArrowRight, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { request } = useApi()
 
 // Estados do Formulário
-const isRegistering = ref(false)
-const name = ref('')
-const email = ref('')
+const username = ref('')
 const password = ref('')
-const confirmPassword = ref('')
+const unidade = ref('')
 const error = ref('')
 const isLoading = ref(false)
 
-// Estados do Modal "Esqueci Senha"
-const showForgotModal = ref(false)
+// Carrega as unidades ativas ao montar a tela
+onMounted(async () => {
+  try {
+    await authStore.fetchUnidades()
+  } catch (err) {
+    console.error('Erro ao carregar unidades:', err)
+  }
+})
 
-// --- LOGIN ---
+// Tentar recarregar unidades dinâmicas em caso de falha
+async function handleRetryFetchUnidades() {
+  await authStore.fetchUnidades()
+}
+
+// --- SUBMIT DO LOGIN ---
 async function handleLogin() {
   error.value = ''
+
+  if (!unidade.value) {
+    error.value = 'Por favor, selecione a unidade DASS.'
+    return
+  }
+
+  if (!username.value.trim()) {
+    error.value = 'Por favor, informe seu Usuário Unix.'
+    return
+  }
+
+  if (!password.value) {
+    error.value = 'Por favor, informe a senha.'
+    return
+  }
+
   isLoading.value = true
   try {
-    await authStore.login(email.value, password.value)
+    await authStore.login(username.value.trim(), password.value, unidade.value)
     router.push('/')
   } catch (err) {
-    error.value = err.message || 'Erro ao conectar.'
+    error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'
   } finally {
     isLoading.value = false
   }
-}
-
-// --- CADASTRO ---
-async function handleRegister() {
-  error.value = ''
-  if (password.value !== confirmPassword.value) {
-    error.value = 'As senhas não coincidem.'
-    return
-  }
-  if (password.value.length < 4) {
-    error.value = 'A senha deve ter no mínimo 4 caracteres.'
-    return
-  }
-  isLoading.value = true
-  try {
-    const existing = await request(`/users?email=${email.value}`)
-    if (existing && existing.length > 0) throw new Error('Este email já está cadastrado.')
-
-    const newUser = {
-      nome: name.value,
-      email: email.value,
-      password: password.value,
-      role: 'operador',
-      data_cadastro: new Date().toISOString()
-    }
-    await request('/users', { method: 'POST', body: JSON.stringify(newUser) })
-    await authStore.login(email.value, password.value)
-    router.push('/')
-  } catch (err) {
-    error.value = err.message || 'Erro ao criar conta.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-function handleSubmit() {
-  if (isRegistering.value) handleRegister()
-  else handleLogin()
 }
 </script>
 
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
     
-    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl flex flex-col md:flex-row min-h-[600px]">
+    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-5xl flex flex-col md:flex-row min-h-[620px]">
       
+      <!-- PAINEL ESQUERDO: BRANDING DASS -->
       <div class="md:w-1/2 bg-gradient-to-br from-indigo-900 to-slate-900 p-12 text-white flex flex-col justify-between relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
            <div class="absolute right-0 top-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
            <div class="absolute left-0 bottom-0 w-64 h-64 bg-purple-500 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
         </div>
+        
         <div class="relative z-10">
            <div class="w-12 h-12 bg-white/10 rounded-xl backdrop-blur-md flex items-center justify-center mb-6 border border-white/20">
              <span class="font-black text-2xl">D</span>
            </div>
            <h1 class="text-5xl font-black tracking-tight mb-4">Sobras DASS</h1>
-           <p class="text-indigo-200 text-lg leading-relaxed">
+           <p class="text-indigo-200 text-lg leading-relaxed mb-6">
              Gestão inteligente de resíduos e estoque para a indústria calçadista.
            </p>
+
+           <div class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3 py-1.5 rounded-full text-xs text-indigo-200">
+             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+             Sistema Multi-Unidade Integrado ao Unix
+           </div>
         </div>
-        <div class="relative z-10 text-sm text-indigo-300/60 font-medium">
+
+        <div class="relative z-10 text-sm text-indigo-300/60 font-medium pt-8">
           &copy; 2026 Grupo DASS - Equipe de Desenvolvimento SEST v2.0
         </div>
       </div>
 
-      <div class="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
-        <div class="max-w-md mx-auto w-full">
-          <h2 class="text-3xl font-bold text-gray-900 mb-2">{{ isRegistering ? 'Criar Conta' : 'Bem-vindo de volta' }}</h2>
-          <p class="text-gray-500 mb-8">{{ isRegistering ? 'Preencha os dados para se registrar.' : 'Faça login para acessar o painel.' }}</p>
+      <!-- PAINEL DIREITO: FORMULÁRIO DE LOGIN -->
+      <div class="md:w-1/2 p-10 md:p-12 flex flex-col justify-between bg-white relative">
+        <div class="max-w-md mx-auto w-full my-auto">
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h2>
+          <p class="text-gray-500 mb-6">Selecione sua unidade e informe suas credenciais Unix para acessar.</p>
 
-          <form @submit.prevent="handleSubmit" class="space-y-5">
-            <div v-if="isRegistering" class="space-y-1 animate-fade-in">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Nome Completo</label>
+          <form @submit.prevent="handleLogin" class="space-y-4">
+            
+            <!-- CAMPO: UNIDADE DASS (DROPDOWN DINÂMICO) -->
+            <div class="space-y-1">
+              <div class="flex justify-between items-center">
+                <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Unidade DASS</label>
+                <button 
+                  v-if="authStore.unidadesError" 
+                  type="button" 
+                  @click="handleRetryFetchUnidades"
+                  class="text-xs text-indigo-600 font-bold hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw class="w-3 h-3" /> Recarregar
+                </button>
+              </div>
+              <div class="relative">
+                <Building2 class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
+                <select 
+                  v-model="unidade" 
+                  class="w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800 font-medium appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="authStore.isLoadingUnidades"
+                  required
+                >
+                  <option value="" disabled selected>
+                    {{ authStore.isLoadingUnidades ? 'Carregando unidades...' : 'Selecione a Unidade' }}
+                  </option>
+                  <option 
+                    v-for="item in authStore.unidades" 
+                    :key="item.code" 
+                    :value="item.code"
+                  >
+                    {{ item.name }}
+                  </option>
+                </select>
+                <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  ▼
+                </div>
+              </div>
+              <p v-if="authStore.unidadesError" class="text-xs text-amber-600 font-medium mt-1">
+                {{ authStore.unidadesError }}
+              </p>
+            </div>
+
+            <!-- CAMPO: USUÁRIO UNIX -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Usuário Unix</label>
               <div class="relative">
                 <User class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input v-model="name" type="text" placeholder="Seu Nome" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <input 
+                  v-model="username" 
+                  type="text" 
+                  placeholder="Ex: hellen.magalhaes" 
+                  class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800 font-medium" 
+                  required 
+                />
               </div>
             </div>
 
+            <!-- CAMPO: SENHA -->
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Email Corporativo</label>
-              <div class="relative">
-                <Mail class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input v-model="email" type="text" placeholder="Usuario Dass" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
-              </div>
-            </div>
-
-            <div class="space-y-1">
-               <div class="flex justify-between items-center">
-                 <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Senha</label>
-                 <button v-if="!isRegistering" type="button" @click="showForgotModal = true" class="text-xs font-bold text-indigo-600 hover:underline">Esqueceu?</button>
-               </div>
+              <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Senha</label>
               <div class="relative">
                 <Lock class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input v-model="password" type="password" placeholder="••••••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
+                <input 
+                  v-model="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800 font-medium" 
+                  required 
+                />
               </div>
             </div>
 
-            <div v-if="isRegistering" class="space-y-1 animate-fade-in">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Confirmar Senha</label>
-              <div class="relative">
-                <Lock class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input v-model="confirmPassword" type="password" placeholder="••••••••" class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" required />
-              </div>
-            </div>
-
+            <!-- MENSAGEM DE ERRO -->
             <div v-if="error" class="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl text-sm font-bold animate-shake">
-              <AlertTriangle class="w-5 h-5" /> {{ error }}
+              <AlertTriangle class="w-5 h-5 shrink-0" /> 
+              <span>{{ error }}</span>
             </div>
 
-            <button type="submit" :disabled="isLoading" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed">
-              <span v-if="!isLoading">{{ isRegistering ? 'Criar Conta' : 'Acessar Sistema' }}</span>
-              <span v-else>Processando...</span>
+            <!-- BOTÃO SUBMIT -->
+            <button 
+              type="submit" 
+              :disabled="isLoading || authStore.isLoadingUnidades" 
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            >
+              <span v-if="!isLoading">Acessar Sistema</span>
+              <span v-else>Autenticando...</span>
               <ArrowRight v-if="!isLoading" class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
 
-          <div class="mt-8 text-center border-t border-gray-100 pt-6">
-            <p class="text-sm text-gray-500 mb-2">{{ isRegistering ? 'Já tem uma conta?' : 'Não tem acesso?' }}</p>
-            <button @click="isRegistering = !isRegistering; error = ''" class="text-indigo-600 font-bold hover:underline">
-              {{ isRegistering ? 'Fazer Login' : 'Criar nova conta' }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="showForgotModal" class="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center p-8 animate-fade-in">
-          <div class="w-full max-w-sm bg-white border border-gray-200 shadow-2xl rounded-2xl p-6 relative text-center">
-            <button @click="showForgotModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X class="w-5 h-5" /></button>
-            
-            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert class="w-8 h-8" />
-            </div>
-            
-            <h3 class="text-xl font-bold text-gray-900 mb-2">Recuperação de Acesso</h3>
-            <p class="text-gray-500 text-sm mb-6">
-              Por motivos de segurança, a redefinição de senha deve ser realizada por um administrador.
+          <!-- INFORMAÇÕES E LINKS DO PORTAL UNIX -->
+          <div class="mt-6 border-t border-gray-100 pt-5 text-center">
+            <p class="text-xs text-gray-500 mb-2">
+              Esqueceu sua senha ou precisa de uma nova conta?
             </p>
-
-            <div class="bg-gray-50 p-4 rounded-xl text-sm border border-gray-200 mb-6">
-              <p class="font-bold text-gray-700">Entre em contato:</p>
-              <a href="mailto:hellen.magalhaes@grupodass.com.br" class="text-indigo-600 break-all font-medium hover:underline">
-                hellen.magalhaes@grupodass.com.br
-              </a>
-            </div>
-            
-            <button @click="showForgotModal = false" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-colors">
-              Entendido
-            </button>
+            <a 
+              href="http://10.100.1.43/unix/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100 transition-colors"
+            >
+              <span>Gerenciar acesso no Portal Unix</span>
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
           </div>
-        </div>
 
+        </div>
       </div>
+
     </div>
   </div>
 </template>
@@ -192,6 +214,4 @@ function handleSubmit() {
 <style scoped>
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 .animate-shake { animation: shake 0.3s ease-in-out; }
-.animate-fade-in { animation: fadeIn 0.3s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
