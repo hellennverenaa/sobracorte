@@ -1,133 +1,103 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { MovementRequestError, parseMovementInput } from '../movements/validation';
 
 export class MovementController {
-  async index(req: Request, res: Response) {
+  async index(_req: Request, res: Response) {
     try {
       const movements = await prisma.movement.findMany({
         take: 100,
         orderBy: { createdAt: 'desc' },
-        include: { material: true }
+        include: { material: true },
       });
 
-      const formatted = movements.map(m => ({
-        ...m,
-        id: m.id,
-        tipo: m.type,
-        quantidade: m.quantity,
-        data: m.createdAt,
-        motivo: m.reason,
-        observacao: m.reason,
-        usuario: m.operatorName,
-        operador: m.operatorName,
-        origem: m.origem,
-        material: m.material,
-        nomeMaterial: m.material?.name || m.material?.code
-      }));
-
-      res.json(formatted);
-    } catch (error) {
-      res.status(500).json({ error: 'Erro nas movimentações' });
+      res.json(movements.map((movement) => ({
+        ...movement,
+        tipo: movement.type,
+        quantidade: movement.quantity,
+        data: movement.createdAt,
+        motivo: movement.reason,
+        observacao: movement.reason,
+        usuario: movement.operatorName,
+        operador: movement.operatorName,
+        nomeMaterial: movement.material?.name || movement.material?.code,
+      })));
+    } catch {
+      res.status(500).json({ error: 'Erro ao buscar movimentações.' });
     }
   }
 
   async create(req: Request, res: Response) {
-    // 🔍 LOG NÍVEL 1: Rastreamento de Payload — PRIMEIRA LINHA DA FUNÇÃO
-    console.log('📦 CHEGOU NO BACKEND:', req.body);
-
     try {
-      const materialId = Number(req.body.materialId || req.body.material_id);
-      const quantidade = Number(req.body.quantidade || req.body.quantity);
-      const tipo = String(req.body.tipo || req.body.type).toLowerCase();
-      const locationName = String(req.body.location || 'Não definido').trim(); // Recebe a prateleira
-      const origem = req.body.origem || null; // Recebe a origem da sobra
+      const input = parseMovementInput(req.body);
+      const operatorId = req.user?.matricula ? String(req.user.matricula) : null;
+      const operatorName = req.user?.nome || req.user?.usuario;
 
-      // 🔄 LOG NÍVEL 2: Rastreamento de execução antes de chamar o banco
-      console.log('🔄 TENTANDO SALVAR NO BANCO...');
-      console.log('   ↳ materialId:', materialId, '| quantidade:', quantidade, '| tipo:', tipo, '| location:', locationName);
-
-      let result: any;
-      try {
-        result = await prisma.$transaction(async (tx) => {
-
-          // 1. Acha ou Cria a Localização (Prateleira) dentro da transação
-          let loc = await tx.location.findUnique({ where: { name: locationName } });
-          if (!loc) {
-            loc = await tx.location.create({ data: { name: locationName } });
-          }
-          console.log("Localizacao:", loc)
-
-          // 2. Cria o Registro de Movimentação Histórica
-          const movement = await tx.movement.create({
-            data: {
-              materialId: materialId,
-              type: tipo,
-              quantity: quantidade,
-              origem: tipo === 'entrada' ? origem : null, // Grava no banco apenas se for ENTRADA
-              reason: req.body.observacao || req.body.reason || '',
-              operatorName: req.body.usuario || 'Usuário DASS'
-            }
-          });
-
-          // 3. Regra de Negócio: Atualiza o Total e a Prateleira Específica
-          if (tipo === 'entrada') {
-            // Incrementa no Total Geral
-            await tx.material.update({
-              where: { id: materialId },
-              data: { quantity: { increment: quantidade } }
-            });
-
-            // Incrementa na Prateleira Específica (Upsert)
-            await tx.materialLocation.upsert({
-              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-              update: { quantity: { increment: quantidade } },
-              create: { materialId: materialId, locationId: loc.id, quantity: quantidade }
-            });
-
-          } else if (tipo === 'saida') {
-            // TRAVA DE SEGURANÇA DBA: Verifica saldo na Prateleira antes de dar saída
-            const matLoc = await tx.materialLocation.findUnique({
-              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } }
-            });
-
-            if (!matLoc || Number(matLoc.quantity || 0) < quantidade) {
-              // Se não tiver saldo, aborta a transação e joga o erro
-              throw new Error(`Estoque insuficiente na localização: ${loc.name}`);
-            }
-
-            // Decrementa no Total Geral
-            await tx.material.update({
-              where: { id: materialId },
-              data: { quantity: { decrement: quantidade } }
-            });
-
-            // Decrementa na Prateleira Específica
-            await tx.materialLocation.update({
-              where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-              data: { quantity: { decrement: quantidade } }
-            });
-          }
-
-          return movement;
-        });
-
-        console.log('✅ TRANSAÇÃO CONCLUÍDA COM SUCESSO! ID gerado:', result?.id);
-        res.json(result);
-
-      } catch (prismaError: any) {
-        // 🚨 LOG NÍVEL 3: Erro Fatal do Prisma — nunca silencia o erro do banco
-        console.error('🚨 ERRO FATAL NO PRISMA:', prismaError);
-        console.error('   ↳ Código do erro:', prismaError?.code);
-        console.error('   ↳ Meta:', prismaError?.meta);
-        return res.status(500).json({
-          error: prismaError.message || 'Erro interno ao salvar movimentação'
-        });
+      if (!operatorName) {
+        return res.status(401).json({ error: 'Operador não identificado.' });
       }
 
-    } catch (error: any) {
-      // Captura erros de validação/negócio (ex: estoque insuficiente) antes de chegar no Prisma
-      console.error('⚠️ ERRO DE VALIDAÇÃO/NEGÓCIO:', error.message);
-      res.status(400).json({ error: error.message || 'Erro ao salvar movimentação' });
+      const result = await prisma.$transaction(async (tx) => {
+        const [material, location] = await Promise.all([
+          tx.material.findUnique({ where: { id: input.materialId }, select: { id: true } }),
+          tx.location.findUnique({ where: { name: input.location }, select: { id: true } }),
+        ]);
+
+        if (!material) throw new MovementRequestError('Material não encontrado.', 404);
+        if (!location) throw new MovementRequestError('Localização não encontrada.', 404);
+
+        if (input.type === 'entrada') {
+          await tx.material.update({
+            where: { id: input.materialId },
+            data: { quantity: { increment: input.quantity } },
+          });
+          await tx.materialLocation.upsert({
+            where: { materialId_locationId: { materialId: input.materialId, locationId: location.id } },
+            update: { quantity: { increment: input.quantity } },
+            create: { materialId: input.materialId, locationId: location.id, quantity: input.quantity },
+          });
+        } else {
+          const locationUpdate = await tx.materialLocation.updateMany({
+            where: {
+              materialId: input.materialId,
+              locationId: location.id,
+              quantity: { gte: input.quantity },
+            },
+            data: { quantity: { decrement: input.quantity } },
+          });
+          if (locationUpdate.count === 0) {
+            throw new MovementRequestError(`Estoque insuficiente na localização: ${input.location}`, 409);
+          }
+
+          const materialUpdate = await tx.material.updateMany({
+            where: { id: input.materialId, quantity: { gte: input.quantity } },
+            data: { quantity: { decrement: input.quantity } },
+          });
+          if (materialUpdate.count === 0) {
+            throw new Error('Saldo total inconsistente com o saldo da localização.');
+          }
+        }
+
+        return tx.movement.create({
+          data: {
+            materialId: input.materialId,
+            type: input.type,
+            quantity: input.quantity,
+            origem: input.origin,
+            reason: input.reason,
+            operatorId,
+            operatorName,
+          },
+        });
+      });
+
+      return res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof MovementRequestError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      console.error('Erro interno ao salvar movimentação.');
+      return res.status(500).json({ error: 'Erro interno ao salvar movimentação.' });
     }
   }
 }
