@@ -97,7 +97,7 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } 
   else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    alert('Acesso negado: Você não tem permissão para acessar esta página.')
+    console.warn('Acesso negado: Você não tem permissão para acessar esta página.')
     if (from.name !== 'Dashboard' && from.name !== 'Login') {
       next('/')
     } else {

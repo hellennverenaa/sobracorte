@@ -238,12 +238,25 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO CORPORATIVO -->
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
   </Layout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
+import ConfirmModal from "@/components/ConfirmModal.vue";
 import { Lock } from 'lucide-vue-next'
 import { authApi, api } from '../services/httpClient'
 
@@ -270,6 +283,41 @@ function showNotification(type, message) {
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
+}
+
+// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
+const confirmState = ref({
+  show: false,
+  title: '',
+  message: '',
+  confirmText: 'Excluir',
+  variant: 'danger',
+  loading: false,
+  action: null
+});
+
+function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
+  confirmState.value = {
+    show: true,
+    title,
+    message,
+    confirmText,
+    variant,
+    loading: false,
+    action
+  };
+}
+
+async function handleConfirmedAction() {
+  if (typeof confirmState.value.action === 'function') {
+    confirmState.value.loading = true;
+    try {
+      await confirmState.value.action();
+    } finally {
+      confirmState.value.loading = false;
+      confirmState.value.show = false;
+    }
+  }
 }
 
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
@@ -489,23 +537,23 @@ async function confirmDelete(item) {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem excluir materiais.");
   }
 
-  if (confirm("Tem certeza? A exclusão será registrada.")) {
-    try {
-      // AXIOS: Chama o método delete direto, passando apenas a rota final
-      await api.delete(`/materials/${item.id}`);
-
-      // Se a execução chegou aqui, o status é 200 (Sucesso Garantido!)
-      showNotification("success", "Material excluído com sucesso!");
-      fetchMaterials();
-
-    } catch (error) {
-      console.error("Erro ao excluir:", error);
-
-      // Captura a mensagem do backend caso ele impeça a exclusão (ex: material com saldo)
-      const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
-      showNotification("error", errorMsg);
+  openConfirmModal({
+    title: "Excluir Material",
+    message: `Tem certeza que deseja excluir o material "${item.name}" (${item.code})? A exclusão será registrada no histórico do sistema.`,
+    confirmText: "Sim, Excluir Material",
+    variant: "danger",
+    action: async () => {
+      try {
+        await api.delete(`/materials/${item.id}`);
+        showNotification("success", "Material excluído com sucesso!");
+        fetchMaterials();
+      } catch (error) {
+        console.error("Erro ao excluir:", error);
+        const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir.";
+        showNotification("error", errorMsg);
+      }
     }
-  }
+  });
 }
 
 onMounted(async () => {

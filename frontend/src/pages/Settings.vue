@@ -475,12 +475,25 @@
       </div>
 
     </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO CORPORATIVO -->
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
   </Layout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
@@ -502,6 +515,41 @@ const notification = ref({ show: false, type: 'success', message: '' })
 function showNotification(type, message) {
   notification.value = { show: true, type, message }
   setTimeout(() => { notification.value.show = false }, 3500)
+}
+
+// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
+const confirmState = ref({
+  show: false,
+  title: '',
+  message: '',
+  confirmText: 'Excluir',
+  variant: 'danger',
+  loading: false,
+  action: null
+})
+
+function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
+  confirmState.value = {
+    show: true,
+    title,
+    message,
+    confirmText,
+    variant,
+    loading: false,
+    action
+  }
+}
+
+async function handleConfirmedAction() {
+  if (typeof confirmState.value.action === 'function') {
+    confirmState.value.loading = true
+    try {
+      await confirmState.value.action()
+    } finally {
+      confirmState.value.loading = false
+      confirmState.value.show = false
+    }
+  }
 }
 
 // ============================================================
@@ -541,15 +589,22 @@ async function addCategory() {
 }
 
 async function deleteCategory(cat) {
-  if (!confirm(`Excluir a categoria "${cat.name}"?`)) return
-  try {
-    await api.delete(`/settings/categories/${cat.id}`)
-    showNotification('success', `Categoria "${cat.name}" excluída.`)
-    await fetchCategories()
-  } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao excluir categoria.'
-    showNotification('error', msg)
-  }
+  openConfirmModal({
+    title: 'Excluir Categoria de Material',
+    message: `Tem certeza que deseja excluir a categoria "${cat.name}"? Esta ação é irreversível.`,
+    confirmText: 'Sim, Excluir Categoria',
+    variant: 'danger',
+    action: async () => {
+      try {
+        await api.delete(`/settings/categories/${cat.id}`)
+        showNotification('success', `Categoria "${cat.name}" excluída.`)
+        await fetchCategories()
+      } catch (e) {
+        const msg = e.response?.data?.error || 'Erro ao excluir categoria.'
+        showNotification('error', msg)
+      }
+    }
+  })
 }
 
 // ============================================================
@@ -588,15 +643,22 @@ async function addUnit() {
 }
 
 async function deleteUnit(unit) {
-  if (!confirm(`Desativar a unidade de medida "${unit.name} (${unit.symbol})"?`)) return
-  try {
-    await api.delete(`/settings/units/${unit.id}`)
-    showNotification('success', `Unidade de medida desativada.`)
-    await fetchUnits()
-  } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao desativar unidade.'
-    showNotification('error', msg)
-  }
+  openConfirmModal({
+    title: 'Desativar Unidade de Medida',
+    message: `Tem certeza que deseja desativar a unidade "${unit.name} (${unit.symbol})"?`,
+    confirmText: 'Desativar Unidade',
+    variant: 'danger',
+    action: async () => {
+      try {
+        await api.delete(`/settings/units/${unit.id}`)
+        showNotification('success', `Unidade de medida desativada.`)
+        await fetchUnits()
+      } catch (e) {
+        const msg = e.response?.data?.error || 'Erro ao desativar unidade.'
+        showNotification('error', msg)
+      }
+    }
+  })
 }
 
 // ============================================================
@@ -638,15 +700,22 @@ async function addLocation() {
 }
 
 async function deleteLocation(loc) {
-  if (!confirm(`Excluir a localização "${loc.name}"?`)) return
-  try {
-    await api.delete(`/settings/locations/${loc.id}`)
-    showNotification('success', `Localização excluída.`)
-    await fetchLocations()
-  } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao excluir localização.'
-    showNotification('error', msg)
-  }
+  openConfirmModal({
+    title: 'Excluir Localização',
+    message: `Tem certeza que deseja excluir a localização "${loc.name}"?`,
+    confirmText: 'Excluir Localização',
+    variant: 'danger',
+    action: async () => {
+      try {
+        await api.delete(`/settings/locations/${loc.id}`)
+        showNotification('success', `Localização excluída.`)
+        await fetchLocations()
+      } catch (e) {
+        const msg = e.response?.data?.error || 'Erro ao excluir localização.'
+        showNotification('error', msg)
+      }
+    }
+  })
 }
 
 // ============================================================
@@ -682,15 +751,22 @@ async function addOrigin() {
 }
 
 async function deleteOrigin(orig) {
-  if (!confirm(`Excluir a origem "${orig.name}"?`)) return
-  try {
-    await api.delete(`/settings/origins/${orig.id}`)
-    showNotification('success', `Origem excluída.`)
-    await fetchOrigins()
-  } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao excluir origem.'
-    showNotification('error', msg)
-  }
+  openConfirmModal({
+    title: 'Excluir Origem de Sobra',
+    message: `Tem certeza que deseja excluir a origem "${orig.name}"?`,
+    confirmText: 'Excluir Origem',
+    variant: 'danger',
+    action: async () => {
+      try {
+        await api.delete(`/settings/origins/${orig.id}`)
+        showNotification('success', `Origem excluída.`)
+        await fetchOrigins()
+      } catch (e) {
+        const msg = e.response?.data?.error || 'Erro ao excluir origem.'
+        showNotification('error', msg)
+      }
+    }
+  })
 }
 
 // ============================================================
