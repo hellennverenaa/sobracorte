@@ -32,13 +32,16 @@ model Material {
   @@schema("sobra_corte")
 }
 
-// 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, sem digitação livre)
+// 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, vinculados à Categoria)
 model Location {
-  id   Int    @id @default(autoincrement())
-  name String @unique // Ex: "Prateleira A", "Corredor 2"
+  id         Int             @id @default(autoincrement())
+  name       String          @unique // Ex: "Prateleira A", "Corredor 2"
+  categoryId Int?
+  category   CategoryConfig? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   materials MaterialLocation[]
 
+  @@index([categoryId])
   @@schema("sobra_corte")
 }
 
@@ -136,14 +139,31 @@ model UsuariosDass {
   @@schema("autenticacao")
 }
 
+// 📐 TABELA DE CONFIGURAÇÃO: Unidades de Medida Permitidas
+model UnitConfig {
+  id         Int              @id @default(autoincrement())
+  name       String           // Ex: "Metro Quadrado", "Quilograma", "Unidade"
+  symbol     String           @unique // Ex: "m²", "kg", "un", "m", "g", "par", "rolo", "cm", "l", "cx"
+  active     Boolean          @default(true)
+  categories CategoryConfig[]
+
+  @@index([symbol])
+  @@schema("sobra_corte")
+}
+
 // 🏷️ TABELA DE CONFIGURAÇÃO: Valores permitidos para Material.type
 // Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
 model CategoryConfig {
-  id       Int    @id @default(autoincrement())
-  name     String @unique // Ex: "TECIDO", "COURO", "LINHA"
-  unitLock String @default("livre") // "m2" | "m" | "livre"
+  id            Int         @id @default(autoincrement())
+  name          String      @unique // Ex: "TECIDO", "COURO", "LINHA"
+  unitLock      String      @default("livre") // "m2" | "m" | "livre" (Legado)
+  unitLocked    Boolean     @default(false)
+  defaultUnitId Int?
+  defaultUnit   UnitConfig? @relation(fields: [defaultUnitId], references: [id], onDelete: SetNull)
+  locations     Location[]
 
   @@index([name])
+  @@index([defaultUnitId])
   @@schema("sobra_corte")
 }
 

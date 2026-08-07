@@ -149,7 +149,7 @@ export const useAuthStore = defineStore('auth', {
           const checkResponse = await api.post("/auth/check-user", { user: apiUser });
           userSobraCorte = checkResponse.data.user;
         } catch (err) {
-          console.warn("⚠️ Falha ao buscar cargo no banco local. Usando RH DASS.");
+          console.warn("Falha ao buscar cargo no banco local. Usando RH DASS.");
         }
 
         // 4. Inteligência de Níveis
@@ -196,15 +196,26 @@ export const useAuthStore = defineStore('auth', {
       } catch (error) {
         console.error("🔍 Erro capturado no Axios:", error);
 
-        if (error.response && error.response.data && error.response.data.error) {
-          throw new Error(error.response.data.error);
+        // 1. Se o erro for 401 (Não Autorizado), sabemos na hora que é credencial inválida!
+        if (error.response && error.response.status === 401) {
+          // Tenta ler a mensagem que vem da API, se ela não vier, usa um padrão nosso.
+          const msgBackend = error.response.data?.message || error.response.data?.error || "Usuário ou senha incorretos.";
+          throw new Error(msgBackend);
         }
 
+        // 2. Outros erros mapeados pelo backend (ex: 400 Bad Request, 404 Not Found)
+        if (error.response && error.response.data) {
+          const outrMsg = error.response.data.message || error.response.data.error;
+          if (outrMsg) throw new Error(outrMsg);
+        }
+
+        // 3. Tratamento para Banco de Dados Caído / Sem Internet (Network Error)
         if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
           throw new Error("O serviço da fábrica está temporariamente indisponível.");
         }
 
-        throw new Error("Ocorreu um erro ao processar o login.");
+        // 4. Trava de segurança final (Fallback)
+        throw new Error("Ocorreu um erro ao processar o login. Tente novamente.");
       }
     },
 

@@ -197,19 +197,20 @@
               </div>
 
               <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Unidade</label>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="block text-sm font-bold text-gray-700">Unidade</label>
+                  <span v-if="isUnitLocked" class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    <Lock class="w-3.5 h-3.5" />
+                    Definido pela Categoria
+                  </span>
+                </div>
                 <select v-model="form.unit" required :disabled="isUnitLocked"
-                  class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed bg-white"
                   :class="!form.unit ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a unidade...</option>
-                  <option value="und" class="text-gray-900">Unidade (und)</option>
-                  <option value="kg" class="text-gray-900">Quilograma (kg)</option>
-                  <option value="m" class="text-gray-900">Metro (m)</option>
-                  <option value="m²" class="text-gray-900">Metro Quadrado (m²)</option>
-                  <option value="g" class="text-gray-900">Grama (g)</option>
-                  <option value="par" class="text-gray-900">Par</option>
-                  <option value="cx" class="text-gray-900">Caixa</option>
-                  <option value="rl" class="text-gray-900">Rolo</option>
+                  <option v-for="u in dbUnits" :key="u.id" :value="u.symbol" class="text-gray-900">
+                    {{ u.name }} ({{ u.symbol }})
+                  </option>
                 </select>
               </div>
             </div>
@@ -260,7 +261,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
-import { Upload } from 'lucide-vue-next'
+import { Upload, Lock } from 'lucide-vue-next'
 import { authApi, api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
@@ -296,18 +297,21 @@ const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location
 const categories = ref(["Todos"]);
 const dbCategories = ref([]);
 const dbLocations = ref([]);
+const dbUnits = ref([]);
 
 async function fetchSettings() {
   try {
-    const [catsRes, locsRes] = await Promise.all([
+    const [catsRes, locsRes, unitsRes] = await Promise.all([
       api.get('/settings/categories'),
-      api.get('/settings/locations')
+      api.get('/settings/locations'),
+      api.get('/settings/units')
     ]);
     dbCategories.value = catsRes.data;
     dbLocations.value = locsRes.data;
+    dbUnits.value = unitsRes.data;
     categories.value = ["Todos", ...catsRes.data.map(c => c.name)];
   } catch (e) {
-    console.error("Erro ao carregar configurações de categorias/localizações:", e);
+    console.error("Erro ao carregar configurações de categorias/localizações/unidades:", e);
   }
 }
 
@@ -315,41 +319,36 @@ const availableLocations = computed(() => {
   if (!form.value.type) return []; 
 
   const categoriaSelecionada = String(form.value.type).toUpperCase().trim();
+  const catObj = dbCategories.value.find(c => String(c.name).toUpperCase().trim() === categoriaSelecionada);
 
-  if (categoriaSelecionada.includes('LINHA')) {
-    const filtered = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
-    if (filtered.length > 0) return filtered.map(l => l.name);
-  }
-  if (categoriaSelecionada.includes('AVIAMENTO')) {
-    const filtered = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
-    if (filtered.length > 0) return filtered.map(l => l.name);
-  }
-  if (categoriaSelecionada.includes('ELASTICO') || categoriaSelecionada.includes('ELÁSTICO')) {
-    const filtered = dbLocations.value.filter(loc => 
-      loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
-    );
-    if (filtered.length > 0) return filtered.map(l => l.name);
-  }
-  if (categoriaSelecionada.includes('FERRAMENTA')) {
-    const filtered = dbLocations.value.filter(loc => 
-      loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
-    );
-    if (filtered.length > 0) return filtered.map(l => l.name);
+  // 1. Filtragem relacional estrita (por categoryId ou pelo objeto category.name vindo do Prisma)
+  const filtradasRelacionais = dbLocations.value.filter(loc => {
+    if (catObj && loc.categoryId && loc.categoryId === catObj.id) {
+      return true;
+    }
+    if (loc.category && String(loc.category.name).toUpperCase().trim() === categoriaSelecionada) {
+      return true;
+    }
+    return false;
+  });
+
+  if (filtradasRelacionais.length > 0) {
+    return filtradasRelacionais.map(l => l.name);
   }
 
-  const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
-  const generalLocations = dbLocations.value.filter(loc => 
-    !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
-  );
-
-  return generalLocations.length > 0 ? generalLocations.map(l => l.name) : dbLocations.value.map(l => l.name);
+  // Fallback seguro: se a localização for legada e não possuir vínculo relacional no banco, permite a lista total
+  return dbLocations.value.map(l => l.name);
 });
 
 const isUnitLocked = computed(() => {
   const selectedCatName = form.value.type;
   if (!selectedCatName) return false;
-  const foundCat = dbCategories.value.find(c => c.name === selectedCatName);
-  return foundCat ? (foundCat.unitLock === 'm2' || foundCat.unitLock === 'm') : false;
+  const foundCat = dbCategories.value.find(
+    c => String(c.name).toUpperCase().trim() === String(selectedCatName).toUpperCase().trim()
+  );
+  if (!foundCat) return false;
+  if (foundCat.unitLocked && foundCat.defaultUnit) return true;
+  return foundCat.unitLock === 'm2' || foundCat.unitLock === 'm';
 });
 
 watch(
@@ -364,9 +363,13 @@ watch(
       const userChangedCategory = oldType !== "" && oldType !== undefined;
 
       if (isCreating || userChangedCategory) {
-        const foundCat = dbCategories.value.find(c => c.name === newType);
+        const foundCat = dbCategories.value.find(
+          c => String(c.name).toUpperCase().trim() === String(newType).toUpperCase().trim()
+        );
         if (foundCat) {
-          if (foundCat.unitLock === 'm2') {
+          if (foundCat.unitLocked && foundCat.defaultUnit) {
+            form.value.unit = foundCat.defaultUnit.symbol;
+          } else if (foundCat.unitLock === 'm2') {
             form.value.unit = "m²"; 
           } else if (foundCat.unitLock === 'm') {
             form.value.unit = "m"; 

@@ -10,7 +10,8 @@ export class SettingsController {
   async getCategories(req: Request, res: Response) {
     try {
       const categories = await prisma.categoryConfig.findMany({
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
+        include: { defaultUnit: true }
       });
       res.json(categories);
     } catch (error) {
@@ -21,15 +22,18 @@ export class SettingsController {
 
   async createCategory(req: Request, res: Response) {
     try {
-      const { name, unitLock } = req.body;
+      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
       const category = await prisma.categoryConfig.create({
         data: {
           name: String(name).trim().toUpperCase(),
-          unitLock: unitLock || 'livre'
-        }
+          unitLock: unitLock || 'livre',
+          defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
+          unitLocked: Boolean(unitLocked)
+        },
+        include: { defaultUnit: true }
       });
       res.status(201).json(category);
     } catch (error: any) {
@@ -41,10 +45,31 @@ export class SettingsController {
     }
   }
 
+  async updateCategory(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+
+      const category = await prisma.categoryConfig.update({
+        where: { id },
+        data: {
+          name: name ? String(name).trim().toUpperCase() : undefined,
+          unitLock: unitLock !== undefined ? unitLock : undefined,
+          defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
+          unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
+        },
+        include: { defaultUnit: true }
+      });
+      res.json(category);
+    } catch (error: any) {
+      console.error('Erro ao atualizar categoria:', error);
+      res.status(500).json({ error: 'Erro ao atualizar categoria' });
+    }
+  }
+
   async deleteCategory(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      // Verifica se há materiais usando essa categoria antes de excluir
       const category = await prisma.categoryConfig.findUnique({ where: { id } });
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
@@ -69,13 +94,117 @@ export class SettingsController {
   }
 
   // ============================================================
+  // 📐 UNIDADES DE MEDIDA — CRUD dinâmico para UnitConfig
+  // ============================================================
+
+  async getUnits(req: Request, res: Response) {
+    try {
+      let units = await prisma.unitConfig.findMany({
+        where: { active: true },
+        orderBy: { symbol: 'asc' }
+      });
+
+      // Semeadura inicial automática se a tabela estiver vazia
+      if (units.length === 0) {
+        const initialUnits = [
+          { name: 'Metro', symbol: 'm' },
+          { name: 'Metro Quadrado', symbol: 'm²' },
+          { name: 'Quilograma', symbol: 'kg' },
+          { name: 'Grama', symbol: 'g' },
+          { name: 'Unidade', symbol: 'un' },
+          { name: 'Par', symbol: 'par' },
+          { name: 'Rolo', symbol: 'rolo' },
+          { name: 'Centímetro', symbol: 'cm' },
+          { name: 'Litro', symbol: 'l' },
+          { name: 'Caixa', symbol: 'cx' }
+        ];
+        await prisma.unitConfig.createMany({
+          data: initialUnits,
+          skipDuplicates: true
+        });
+        units = await prisma.unitConfig.findMany({
+          where: { active: true },
+          orderBy: { symbol: 'asc' }
+        });
+      }
+
+      res.json(units);
+    } catch (error) {
+      console.error('Erro ao buscar unidades:', error);
+      res.status(500).json({ error: 'Erro ao buscar unidades de medida' });
+    }
+  }
+
+  async createUnit(req: Request, res: Response) {
+    try {
+      const { name, symbol } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'O nome da unidade é obrigatório.' });
+      }
+      if (!symbol || !String(symbol).trim()) {
+        return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
+      }
+
+      const cleanSymbol = String(symbol).trim();
+      const cleanName = String(name).trim();
+
+      const existing = await prisma.unitConfig.findUnique({ where: { symbol: cleanSymbol } });
+      if (existing) {
+        if (!existing.active) {
+          const reactivated = await prisma.unitConfig.update({
+            where: { id: existing.id },
+            data: { name: cleanName, active: true }
+          });
+          return res.status(200).json(reactivated);
+        }
+        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
+      }
+
+      const unit = await prisma.unitConfig.create({
+        data: {
+          name: cleanName,
+          symbol: cleanSymbol,
+          active: true
+        }
+      });
+      res.status(201).json(unit);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
+      }
+      console.error('Erro ao criar unidade:', error);
+      res.status(500).json({ error: 'Erro ao criar unidade de medida' });
+    }
+  }
+
+  async deleteUnit(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const unit = await prisma.unitConfig.findUnique({ where: { id } });
+      if (!unit) {
+        return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+
+      await prisma.unitConfig.update({
+        where: { id },
+        data: { active: false }
+      });
+      res.json({ message: 'Unidade desativada com sucesso.' });
+    } catch (error: any) {
+      console.error('Erro ao desativar unidade:', error);
+      res.status(500).json({ error: 'Erro ao desativar unidade de medida' });
+    }
+  }
+
+  // ============================================================
   // 📍 LOCALIZAÇÕES — tabela Location já existente
   // ============================================================
 
   async getLocations(req: Request, res: Response) {
     try {
       const locations = await prisma.location.findMany({
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
+        include: { category: true }
       });
       res.json(locations);
     } catch (error) {
@@ -86,12 +215,19 @@ export class SettingsController {
 
   async createLocation(req: Request, res: Response) {
     try {
-      const { name } = req.body;
+      const { name, categoryId } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
+      if (!categoryId) {
+        return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
+      }
       const location = await prisma.location.create({
-        data: { name: String(name).trim() }
+        data: {
+          name: String(name).trim(),
+          categoryId: Number(categoryId)
+        },
+        include: { category: true }
       });
       res.status(201).json(location);
     } catch (error: any) {
@@ -106,7 +242,6 @@ export class SettingsController {
   async deleteLocation(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      // Verifica se há materiais alocados nessa localização
       const materiaisVinculados = await prisma.materialLocation.count({
         where: { locationId: id, quantity: { gt: 0 } }
       });

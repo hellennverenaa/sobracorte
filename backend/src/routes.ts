@@ -110,9 +110,15 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
 // Categorias (governa Material.type)
 routes.get('/settings/categories',    requireAuth, settingsController.getCategories);
 routes.post('/settings/categories',   requireAuth, requireRole(['admin']), settingsController.createCategory);
+routes.put('/settings/categories/:id', requireAuth, requireRole(['admin']), settingsController.updateCategory);
 routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin']), settingsController.deleteCategory);
 
-// Localizações (tabela Location já existente)
+// Unidades de Medida (tabela UnitConfig)
+routes.get('/settings/units', requireAuth, settingsController.getUnits);
+routes.post('/settings/units', requireAuth, requireRole(['admin']), settingsController.createUnit);
+routes.delete('/settings/units/:id', requireAuth, requireRole(['admin']), settingsController.deleteUnit);
+
+// Localizações (tabela Location)
 routes.get('/settings/locations',    requireAuth, settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, requireRole(['admin']), settingsController.createLocation);
 routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin']), settingsController.deleteLocation);

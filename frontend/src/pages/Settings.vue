@@ -27,7 +27,7 @@
       </transition>
 
       <!-- Tabs -->
-      <div class="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
+      <div class="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
         <button v-for="tab in tabs" :key="tab.key"
           @click="activeTab = tab.key"
           class="px-5 py-2 rounded-lg text-sm font-bold transition-all"
@@ -50,38 +50,53 @@
             </h2>
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Material.type</span>
           </div>
+          
           <!-- Formulário de adição -->
           <div class="px-6 py-4 border-b border-gray-100 bg-indigo-50/30">
-            <form @submit.prevent="addCategory" class="flex gap-3 items-end flex-wrap">
-              <div class="flex-1 min-w-[180px]">
+            <form @submit.prevent="addCategory" class="flex gap-4 items-end flex-wrap">
+              <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Categoria</label>
-                <input v-model="newCategory.name" required placeholder="Ex: TECIDO, COURO..."
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase"
+                <input v-model="newCategory.name" required placeholder="Ex: TECIDO, COURO, TINTAS..."
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase bg-white"
                   style="text-transform: uppercase" />
               </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Bloqueada</label>
-                <select v-model="newCategory.unitLock"
-                  class="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
-                  <option value="livre">Livre (usuário escolhe)</option>
-                  <option value="m2">Fixar em m²</option>
-                  <option value="m">Fixar em m (metro linear)</option>
+              
+              <div class="w-64 min-w-[180px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
+                <select v-model="newCategory.defaultUnitId"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
+                  <option value="">Nenhuma (Livre para escolha)</option>
+                  <option v-for="unit in units" :key="unit.id" :value="unit.id">
+                    {{ unit.name }} ({{ unit.symbol }})
+                  </option>
                 </select>
               </div>
+
+              <div class="flex items-center gap-2 pb-2">
+                <input type="checkbox" id="unitLockedCheck" v-model="newCategory.unitLocked"
+                  class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer" />
+                <label for="unitLockedCheck" class="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
+                  <Lock class="w-3.5 h-3.5 text-amber-600" />
+                  Bloquear Unidade
+                </label>
+              </div>
+
               <button type="submit" :disabled="loadingCategory"
-                class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50">
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 ml-auto">
                 <Plus class="w-4 h-4" />
                 Adicionar
               </button>
             </form>
           </div>
+
           <!-- Lista -->
           <div v-if="loadingCategory" class="p-8 text-center text-gray-400">Carregando...</div>
           <table v-else class="w-full text-left">
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome</th>
-                <th class="px-6 py-3 text-center">Unidade Bloqueada</th>
+                <th class="px-6 py-3 text-center">Unidade Padrão</th>
+                <th class="px-6 py-3 text-center">Regra de Trava</th>
                 <th class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
@@ -89,11 +104,17 @@
               <tr v-for="cat in categories" :key="cat.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 font-bold text-gray-800 font-mono text-sm">{{ cat.name }}</td>
                 <td class="px-6 py-3 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-xs font-bold border"
-                    :class="cat.unitLock === 'livre'
-                      ? 'bg-gray-100 text-gray-600 border-gray-200'
-                      : 'bg-indigo-50 text-indigo-700 border-indigo-100'">
-                    {{ cat.unitLock === 'livre' ? 'Livre' : cat.unitLock === 'm2' ? 'm²' : 'm (metro)' }}
+                  <span v-if="cat.defaultUnit" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
+                    {{ cat.defaultUnit.name }} ({{ cat.defaultUnit.symbol }})
+                  </span>
+                  <span v-else class="text-xs text-gray-400 italic">Livre</span>
+                </td>
+                <td class="px-6 py-3 text-center">
+                  <span v-if="cat.unitLocked" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <Lock class="w-3 h-3" /> Bloqueada
+                  </span>
+                  <span v-else class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
+                    Livre
                   </span>
                 </td>
                 <td class="px-6 py-3 text-center">
@@ -104,7 +125,7 @@
                 </td>
               </tr>
               <tr v-if="categories.length === 0">
-                <td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -112,7 +133,78 @@
       </div>
 
       <!-- ========================================= -->
-      <!-- ABA 2: LOCALIZAÇÕES                       -->
+      <!-- ABA 2: UNIDADES DE MEDIDA                 -->
+      <!-- ========================================= -->
+      <div v-if="activeTab === 'units'" class="space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <h2 class="font-bold text-gray-800 flex items-center gap-2">
+              <Ruler class="w-4 h-4 text-purple-500" /> Unidades de Medida
+            </h2>
+            <span class="text-xs text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full font-bold">100% Dinâmico via API</span>
+          </div>
+
+          <!-- Formulário de adição de Unidade -->
+          <div class="px-6 py-4 border-b border-gray-100 bg-purple-50/30">
+            <form @submit.prevent="addUnit" class="flex gap-3 items-end flex-wrap">
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Unidade</label>
+                <input v-model="newUnit.name" required placeholder="Ex: Metro Quadrado, Litro, Caixa..."
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
+              </div>
+              <div class="w-48 min-w-[140px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sigla / Símbolo</label>
+                <input v-model="newUnit.symbol" required placeholder="Ex: m², l, cx, un..."
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400 bg-white font-mono" />
+              </div>
+              <button type="submit" :disabled="loadingUnit"
+                class="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 transition flex items-center gap-2 disabled:opacity-50">
+                <Plus class="w-4 h-4" /> Adicionar Unidade
+              </button>
+            </form>
+          </div>
+
+          <!-- Lista de Unidades -->
+          <div v-if="loadingUnit" class="p-8 text-center text-gray-400">Carregando...</div>
+          <table v-else class="w-full text-left">
+            <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
+              <tr>
+                <th class="px-6 py-3">Nome da Unidade</th>
+                <th class="px-6 py-3 text-center">Sigla / Símbolo</th>
+                <th class="px-6 py-3 text-center">Status</th>
+                <th class="px-6 py-3 text-center">Ação</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <tr v-for="unit in units" :key="unit.id" class="hover:bg-gray-50/50 transition-colors">
+                <td class="px-6 py-3 text-sm text-gray-800 font-medium">{{ unit.name }}</td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2.5 py-1 rounded-md text-xs font-bold font-mono bg-purple-50 text-purple-700 border border-purple-100">
+                    {{ unit.symbol }}
+                  </span>
+                </td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    Ativa
+                  </span>
+                </td>
+                <td class="px-6 py-3 text-center">
+                  <button @click="deleteUnit(unit)"
+                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Desativar unidade">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="units.length === 0">
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma unidade de medida cadastrada.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========================================= -->
+      <!-- ABA 3: LOCALIZAÇÕES                       -->
       <!-- ========================================= -->
       <div v-if="activeTab === 'locations'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -120,14 +212,24 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <MapPin class="w-4 h-4 text-emerald-500" /> Localizações de Armazenamento
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">tabela Location</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vinculadas à Categoria</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
-            <form @submit.prevent="addLocation" class="flex gap-3 items-end">
-              <div class="flex-1">
+            <form @submit.prevent="addLocation" class="flex gap-3 items-end flex-wrap">
+              <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
-                <input v-model="newLocation" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400" />
+                <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+              </div>
+              <div class="w-64 min-w-[180px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria Vinculada</label>
+                <select v-model="newLocation.categoryId" required
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
+                  <option value="" disabled selected>Selecione a Categoria...</option>
+                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                    {{ cat.name }}
+                  </option>
+                </select>
               </div>
               <button type="submit" :disabled="loadingLocation"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
@@ -140,12 +242,19 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
+                <th class="px-6 py-3 text-center">Categoria Vinculada</th>
                 <th class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
               <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2.5 py-1 rounded-full text-xs font-bold border"
+                    :class="loc.category ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-100 text-gray-400 border-gray-200'">
+                    {{ loc.category ? loc.category.name : 'Não vinculada' }}
+                  </span>
+                </td>
                 <td class="px-6 py-3 text-center">
                   <button @click="deleteLocation(loc)"
                     class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50">
@@ -154,7 +263,7 @@
                 </td>
               </tr>
               <tr v-if="locations.length === 0">
-                <td colspan="2" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
+                <td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -162,7 +271,7 @@
       </div>
 
       <!-- ========================================= -->
-      <!-- ABA 3: ORIGENS                            -->
+      <!-- ABA 4: ORIGENS                            -->
       <!-- ========================================= -->
       <div v-if="activeTab === 'origins'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -177,7 +286,7 @@
               <div class="flex-1">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Origem</label>
                 <input v-model="newOrigin" required placeholder="Ex: Devolução de Produção"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400" />
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
               </div>
               <button type="submit" :disabled="loadingOrigin"
                 class="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition flex items-center gap-2 disabled:opacity-50">
@@ -212,7 +321,7 @@
       </div>
 
       <!-- ========================================= -->
-      <!-- ABA 4: IMPORTAR CSV                       -->
+      <!-- ABA 5: IMPORTAR CSV                       -->
       <!-- ========================================= -->
       <div v-if="activeTab === 'import'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -290,16 +399,17 @@ import { ref, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { api } from '@/services/httpClient'
 import {
-  Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet,
+  Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock,
   Plus, Trash2, Upload, CheckCircle, XCircle
 } from 'lucide-vue-next'
 
 // --- TABS ---
 const tabs = [
-  { key: 'categories', label: 'Categorias',   icon: Tag },
-  { key: 'locations',  label: 'Localizações', icon: MapPin },
-  { key: 'origins',    label: 'Origens',      icon: GitBranch },
-  { key: 'import',     label: 'Importar CSV', icon: FileSpreadsheet },
+  { key: 'categories', label: 'Categorias',        icon: Tag },
+  { key: 'units',      label: 'Unidades de Medida', icon: Ruler },
+  { key: 'locations',  label: 'Localizações',      icon: MapPin },
+  { key: 'origins',    label: 'Origens',           icon: GitBranch },
+  { key: 'import',     label: 'Importar CSV',      icon: FileSpreadsheet },
 ]
 const activeTab = ref('categories')
 
@@ -315,7 +425,7 @@ function showNotification(type, message) {
 // ============================================================
 const categories = ref([])
 const loadingCategory = ref(false)
-const newCategory = ref({ name: '', unitLock: 'livre' })
+const newCategory = ref({ name: '', defaultUnitId: '', unitLocked: false })
 
 async function fetchCategories() {
   loadingCategory.value = true
@@ -332,9 +442,13 @@ async function fetchCategories() {
 async function addCategory() {
   if (!newCategory.value.name.trim()) return
   try {
-    await api.post('/settings/categories', newCategory.value)
-    showNotification('success', `Categoria "${newCategory.value.name}" criada!`)
-    newCategory.value = { name: '', unitLock: 'livre' }
+    await api.post('/settings/categories', {
+      name: newCategory.value.name.trim(),
+      defaultUnitId: newCategory.value.defaultUnitId ? Number(newCategory.value.defaultUnitId) : null,
+      unitLocked: Boolean(newCategory.value.unitLocked)
+    })
+    showNotification('success', `Categoria "${newCategory.value.name}" criada com sucesso!`)
+    newCategory.value = { name: '', defaultUnitId: '', unitLocked: false }
     await fetchCategories()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar categoria.'
@@ -355,11 +469,58 @@ async function deleteCategory(cat) {
 }
 
 // ============================================================
+// UNIDADES DE MEDIDA (100% DINÂMICO VIA API)
+// ============================================================
+const units = ref([])
+const loadingUnit = ref(false)
+const newUnit = ref({ name: '', symbol: '' })
+
+async function fetchUnits() {
+  loadingUnit.value = true
+  try {
+    const res = await api.get('/settings/units')
+    units.value = res.data
+  } catch (e) {
+    showNotification('error', 'Erro ao carregar unidades de medida.')
+  } finally {
+    loadingUnit.value = false
+  }
+}
+
+async function addUnit() {
+  if (!newUnit.value.name.trim() || !newUnit.value.symbol.trim()) return
+  try {
+    await api.post('/settings/units', {
+      name: newUnit.value.name.trim(),
+      symbol: newUnit.value.symbol.trim()
+    })
+    showNotification('success', `Unidade "${newUnit.value.name} (${newUnit.value.symbol})" cadastrada!`)
+    newUnit.value = { name: '', symbol: '' }
+    await fetchUnits()
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Erro ao criar unidade de medida.'
+    showNotification('error', msg)
+  }
+}
+
+async function deleteUnit(unit) {
+  if (!confirm(`Desativar a unidade de medida "${unit.name} (${unit.symbol})"?`)) return
+  try {
+    await api.delete(`/settings/units/${unit.id}`)
+    showNotification('success', `Unidade de medida desativada.`)
+    await fetchUnits()
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Erro ao desativar unidade.'
+    showNotification('error', msg)
+  }
+}
+
+// ============================================================
 // LOCALIZAÇÕES
 // ============================================================
 const locations = ref([])
 const loadingLocation = ref(false)
-const newLocation = ref('')
+const newLocation = ref({ name: '', categoryId: '' })
 
 async function fetchLocations() {
   loadingLocation.value = true
@@ -374,11 +535,17 @@ async function fetchLocations() {
 }
 
 async function addLocation() {
-  if (!newLocation.value.trim()) return
+  if (!newLocation.value.name.trim()) return
+  if (!newLocation.value.categoryId) {
+    return showNotification('error', 'Selecione a Categoria Vinculada.')
+  }
   try {
-    await api.post('/settings/locations', { name: newLocation.value.trim() })
-    showNotification('success', `Localização "${newLocation.value}" criada!`)
-    newLocation.value = ''
+    await api.post('/settings/locations', {
+      name: newLocation.value.name.trim(),
+      categoryId: Number(newLocation.value.categoryId)
+    })
+    showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
+    newLocation.value = { name: '', categoryId: '' }
     await fetchLocations()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar localização.'
@@ -496,7 +663,7 @@ async function importCSV() {
 // INICIALIZAÇÃO
 // ============================================================
 onMounted(async () => {
-  await Promise.all([fetchCategories(), fetchLocations(), fetchOrigins()])
+  await Promise.all([fetchCategories(), fetchUnits(), fetchLocations(), fetchOrigins()])
 })
 </script>
 
