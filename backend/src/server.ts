@@ -1,60 +1,36 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import { routes } from './routes';
-import rateLimit from 'express-rate-limit';
-import { Request, Response } from "express"
-import cookieParser from "cookie-parser"
+import express, { Request, Response } from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { loadServerConfig } from "./config/dotenv";
+import { routes } from "./routes";
 
+const config = loadServerConfig();
 const app = express();
 
-// CONFIGURAÇÃO DE CORS PARA AMBIENTES COM AUTENTICAÇÃO (JWT/Cookies)
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://10.100.1.43'], // Diz exatamente quem pode fazer requisições
-  credentials: true,               // Permite que o Frontend envie Tokens/Cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'Origin', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count'] // Libera o cabeçalho de paginação (se você usar)
+  origin: config.corsOrigins,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With"],
+  exposedHeaders: ["X-Total-Count"],
 }));
-
-// LIBERANDO A CATRACA PARA ARQUIVOS GRANDES (CSVs de Importação)
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.json({ limit: '50mb' }));
-app.use(cookieParser())
-
-
-
-// ==========================================
-// CAMADA DE SEGURANÇA (SecOps)
-// ==========================================
-
-// 1. HELMET: O Capacete. Ele esconde dos hackers que o servidor roda Node.js/Express 
-// e blinda os cabeçalhos HTTP contra ataques de injeção.
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(cookieParser());
 app.use(helmet());
-
-// 2. RATE LIMITING: O Segurança da Porta (Anti Força-Bruta e DDoS)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // Janela de 15 minutos
-  max: 150, // Limite de 150 requisições por IP a cada 15 minutos
-  message: { error: '⚠️ Tráfego suspeito detectado. Acesso bloqueado temporariamente por 15 minutos.' }
-});
-app.use(limiter);
-
-// ==========================================
-// CONFIGURAÇÕES PADRÃO DO EXPRESS
-// ==========================================
-// Nota: express.json() já foi configurado acima com limit 50mb
-
-// Engatando o "roteador" no nosso motor principal
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: { error: "⚠️ Tráfego suspeito detectado. Acesso bloqueado temporariamente por 15 minutos." },
+}));
 app.use(routes);
 
-app.get("/", (req: Request, res: Response) => {
-  res.json({
-    message: "Api sorbra corte runnig."
-  })
-})
+app.get("/", (_req: Request, res: Response) => {
+  res.json({ message: "Api sorbra corte runnig." });
+});
 
-const PORT = Number(process.env.PORT) || 3333;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Servidor SOBRACORTE blindado e rodando na porta ${PORT}`);
+app.listen(config.port, "0.0.0.0", () => {
+  console.log(`Servidor SobraCorte disponível na porta ${config.port}.`);
 });

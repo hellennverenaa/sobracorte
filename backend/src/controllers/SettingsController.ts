@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 
-export class SettingsController {
+function hasPrismaCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error
+    && (error as { code?: unknown }).code === code;
+}
 
-  // ============================================================
-  // 🏷️ CATEGORIAS — governa os valores permitidos de Material.type
-  // ============================================================
+export class SettingsController {
 
   async getCategories(req: Request, res: Response) {
     try {
@@ -36,8 +37,8 @@ export class SettingsController {
         include: { defaultUnit: true }
       });
       res.status(201).json(category);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa categoria já existe.' });
       }
       console.error('Erro ao criar categoria:', error);
@@ -61,7 +62,7 @@ export class SettingsController {
         include: { defaultUnit: true }
       });
       res.json(category);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao atualizar categoria:', error);
       res.status(500).json({ error: 'Erro ao atualizar categoria' });
     }
@@ -84,18 +85,14 @@ export class SettingsController {
       }
       await prisma.categoryConfig.delete({ where: { id } });
       res.json({ message: 'Categoria excluída com sucesso.' });
-    } catch (error: any) {
-      if (error.code === 'P2003') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }
       console.error('Erro ao excluir categoria:', error);
       res.status(500).json({ error: 'Erro ao excluir categoria' });
     }
   }
-
-  // ============================================================
-  // 📐 UNIDADES DE MEDIDA — CRUD dinâmico para UnitConfig
-  // ============================================================
 
   async getUnits(req: Request, res: Response) {
     try {
@@ -104,7 +101,6 @@ export class SettingsController {
         orderBy: { symbol: 'asc' }
       });
 
-      // Semeadura inicial automática se a tabela estiver vazia
       if (units.length === 0) {
         const initialUnits = [
           { name: 'Metro', symbol: 'm' },
@@ -168,8 +164,8 @@ export class SettingsController {
         }
       });
       res.status(201).json(unit);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
       }
       console.error('Erro ao criar unidade:', error);
@@ -190,15 +186,11 @@ export class SettingsController {
         data: { active: false }
       });
       res.json({ message: 'Unidade desativada com sucesso.' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao desativar unidade:', error);
       res.status(500).json({ error: 'Erro ao desativar unidade de medida' });
     }
   }
-
-  // ============================================================
-  // 📍 LOCALIZAÇÕES — tabela Location já existente
-  // ============================================================
 
   async getLocations(req: Request, res: Response) {
     try {
@@ -230,8 +222,8 @@ export class SettingsController {
         include: { category: true }
       });
       res.status(201).json(location);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa localização já existe.' });
       }
       console.error('Erro ao criar localização:', error);
@@ -252,18 +244,14 @@ export class SettingsController {
       }
       await prisma.location.delete({ where: { id } });
       res.json({ message: 'Localização excluída com sucesso.' });
-    } catch (error: any) {
-      if (error.code === 'P2003') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }
       console.error('Erro ao excluir localização:', error);
       res.status(500).json({ error: 'Erro ao excluir localização' });
     }
   }
-
-  // ============================================================
-  // 🔖 ORIGENS — governa os valores permitidos de Movement.origem
-  // ============================================================
 
   async getOrigins(req: Request, res: Response) {
     try {
@@ -287,8 +275,8 @@ export class SettingsController {
         data: { name: String(name).trim() }
       });
       res.status(201).json(origin);
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa origem já existe.' });
       }
       console.error('Erro ao criar origem:', error);
@@ -301,8 +289,8 @@ export class SettingsController {
       const id = Number(req.params.id);
       await prisma.originConfig.delete({ where: { id } });
       res.json({ message: 'Origem excluída com sucesso.' });
-    } catch (error: any) {
-      if (error.code === 'P2003') {
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }
       console.error('Erro ao excluir origem:', error);

@@ -1,21 +1,16 @@
 module.exports = {
   apps: [
     {
-      name: "sobracorte-db",
-      // Truque para Windows: Chamamos o CMD, não o NPM direto
-      cwd: "./frontend",
-      script: "cmd.exe",
-      args: "/c npm run db",
+      name: 'sobracorte-api',
+      cwd: './backend',
+      script: 'dist/src/server.js',
+      env: {
+        NODE_ENV: 'production'
+      },
       watch: false,
-      autorestart: true
-    },
-    {
-      name: "sobracorte-site",
-      cwd: "./frontend",
-      script: "cmd.exe",
-      args: "/c npm run dev",
-      watch: false,
-      autorestart: true
+      autorestart: true,
+      max_restarts: 10,
+      restart_delay: 1000
     }
   ]
 };
