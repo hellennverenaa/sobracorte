@@ -11,27 +11,10 @@
 
     <div class="flex flex-col h-full">
       <div class="flex flex-col sm:flex-row gap-5 items-center justify-end w-full sm:w-auto ml-auto my-8">
-
-        <label v-if="authStore.user?.role === 'admin'"
-          class="cursor-pointer bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-slate-700 transition flex items-center gap-2 shadow-md relative overflow-hidden group">
-          <Upload class="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-          <span v-if="importLoading">Enviando...</span>
-          <span v-else>Importar Planilha</span>
-          <input type="file" accept=".csv" class="hidden" @change="handleFileUpload" :disabled="importLoading" />
-        </label>
-
-
-
         <button v-if="authStore.can('cadastrar_materiais')" @click="openCreateModal"
           class="bg-blue-600 hover:bg-blue-800 text-white px-6 py-2 rounded flex items-center gap-2 shadow-sm transition-colors">
           <span>Novo Material</span>
         </button>
-      </div>
-
-      <div v-if="importResult" class="mt-4 p-3 rounded-lg text-sm font-bold flex items-center justify-between"
-        :class="importResult.includes('❌') ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'">
-        {{ importResult }}
-        <button @click="importResult = null" class="underline opacity-70 hover:opacity-100">Fechar</button>
       </div>
 
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex gap-4">
@@ -261,7 +244,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
-import { Upload, Lock } from 'lucide-vue-next'
+import { Lock } from 'lucide-vue-next'
 import { authApi, api } from '../services/httpClient'
 
 // 1. LINHA PARA IMPORTAR:
@@ -273,10 +256,6 @@ const selectedCategory = ref("Todos");
 const showCreateModal = ref(false);
 const editingItem = ref(null);
 const viewingItem = ref(null);
-
-const showImportModal = ref(false)
-const importLoading = ref(false)
-const importResult = ref(null)
 
 
 
@@ -400,67 +379,6 @@ async function fetchMaterials(config = {}) {
     // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
     return [];
   }
-}
-
-// Lógica de Leitura de CSV nativa (sem bibliotecas pesadas)
-async function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  importLoading.value = true;
-  importResult.value = "";
-
-  const reader = new FileReader();
-
-  reader.onload = async (e) => {
-    try {
-      const text = e.target.result;
-      const delimiter = text.indexOf(';') !== -1 ? ';' : ',';
-      const lines = text.split('\n').filter(line => line.trim() !== '');
-
-      if (lines.length < 2) {
-        throw new Error("O arquivo CSV está vazio ou não tem cabeçalhos.");
-      }
-
-      const items = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        // 🚀 MÁGICA 1: Quebra as colunas e ARRANCA todas as aspas duplas!
-        const row = lines[i].split(delimiter).map(col => col.replace(/"/g, '').trim());
-
-        // 🚀 MÁGICA 2: Limpeza pesada de números Brasileiros
-        // Pega o valor, ex: "1.500,50" ou "15"
-        let rawQtd = row[2] || '0';
-        rawQtd = rawQtd.replace(/\./g, ''); // Arranca o ponto de milhar -> "1500,50"
-        rawQtd = rawQtd.replace(',', '.');  // Troca a vírgula por ponto -> "1500.50"
-
-        // Agora o mapeamento fica limpinho:
-        items.push({
-          codigo: row[0] || '',
-          nome: row[1] || '',
-          quantidade: Number(rawQtd) || 0,
-          unidade: row[3] || '',
-          tipo: row[4] || ''
-        });
-      }
-
-      // Envia para o backend
-      const response = await api.post('/materials/bulk', { materiais: items });
-
-      importResult.value = `Sucesso! ${response.data.inseridos || items.length} materiais importados.`;
-      fetchMaterials();
-
-    } catch (error) {
-      console.error("Erro no CSV:", error);
-      const errorMsg = error.response?.data?.error || error.message || "Verifique a formatação do CSV.";
-      importResult.value = `❌ Erro ao importar: ${errorMsg}`;
-    } finally {
-      importLoading.value = false;
-      event.target.value = null;
-    }
-  };
-
-  reader.readAsText(file);
 }
 
 const paginatedMaterials = computed(() => {
