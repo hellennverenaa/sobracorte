@@ -8,6 +8,9 @@ export interface DecodedToken {
     nivel: string;
     unidade: string;
     funcao: string;
+    nome?: string;
+    email?: string;
+    role?: string;
 }
 
 declare global {
