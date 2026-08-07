@@ -325,67 +325,151 @@
       <!-- ========================================= -->
       <div v-if="activeTab === 'import'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-            <h2 class="font-bold text-gray-800 flex items-center gap-2">
-              <FileSpreadsheet class="w-4 h-4 text-blue-500" /> Importar Materiais Dublados (CSV)
-            </h2>
-            <p class="text-sm text-gray-500 mt-1">
-              Compatível com <strong>Materiais_Dublados - FILA.csv</strong> e <strong>Materiais_Dublados - NIKE.csv</strong>.
-              Apenas o código e a descrição são extraídos. Materiais duplicados são ignorados automaticamente.
-            </p>
+          
+          <!-- Cabeçalho da Aba -->
+          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="font-bold text-gray-800 flex items-center gap-2 text-lg">
+                <FileSpreadsheet class="w-5 h-5 text-blue-600" /> Importação de Materiais em Lote (CSV)
+              </h2>
+              <p class="text-sm text-gray-500 mt-0.5">
+                Cadastre novos materiais em lote na base de dados do SobraCorte através de planilhas formatadas.
+              </p>
+            </div>
+            
+            <!-- Botão de Download do Modelo de Exemplo -->
+            <button @click="downloadCSVTemplate"
+              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition flex items-center gap-2 shrink-0 self-start md:self-auto cursor-pointer">
+              <Download class="w-4 h-4" /> Baixar Modelo de Exemplo (.csv)
+            </button>
           </div>
 
-          <div class="p-6 space-y-5">
-            <!-- Upload area -->
-            <div class="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-indigo-300 hover:bg-indigo-50/20 transition-all cursor-pointer relative"
-              @dragover.prevent @drop.prevent="handleDrop">
-              <FileSpreadsheet class="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p class="text-gray-500 font-medium mb-2">Arraste o arquivo CSV aqui ou</p>
-              <label class="cursor-pointer bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2">
-                <Upload class="w-4 h-4" /> Selecionar arquivo
-                <input type="file" accept=".csv" class="hidden" @change="handleFileSelect" :disabled="importing" />
-              </label>
-              <p class="text-xs text-gray-400 mt-3">Apenas arquivos .csv</p>
+          <div class="p-6 space-y-6">
+
+            <!-- CARD DE INSTRUÇÕES E FORMATO EXIGIDO (UX/UI VISUAL) -->
+            <div class="bg-gradient-to-br from-slate-50 to-blue-50/40 border border-blue-100 rounded-2xl p-6 space-y-4">
+              <div class="flex items-center gap-2 text-blue-900 font-bold text-sm">
+                <HelpCircle class="w-4 h-4 text-blue-600" />
+                <span>Padrão Exigido para o Arquivo CSV</span>
+              </div>
+              
+              <p class="text-xs text-gray-600 leading-relaxed">
+                Para garantir o processamento correto e evitar rejeição, seu arquivo <strong>.csv</strong> deve utilizar delimitador por <strong>ponto e vírgula (;)</strong> ou <strong>vírgula (,)</strong> e conter as colunas especificadas abaixo no cabeçalho (primeira linha):
+              </p>
+
+              <!-- Tabela de Colunas -->
+              <div class="overflow-x-auto rounded-xl border border-blue-100 bg-white">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-blue-50/70 text-blue-900 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th class="px-4 py-2">Coluna</th>
+                      <th class="px-4 py-2">Obrigatoriedade</th>
+                      <th class="px-4 py-2">Descrição & Exemplo</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">codigo</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Código único do material. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">1001</code></td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">descricao</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Descrição completa do material. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO SINTETICO PRETO 1.4MM</code></td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">categoria</td>
+                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
+                      <td class="px-4 py-2.5">Nome da Categoria cadastrada. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO</code> (Padrão: GERAL)</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">unidade</td>
+                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
+                      <td class="px-4 py-2.5">Sigla da unidade de medida. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">m²</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">kg</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">un</code> (Padrão: UN)</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">quantidade</td>
+                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
+                      <td class="px-4 py-2.5">Saldo inicial numérico. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">150.0</code> (Padrão: 0)</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Bloco de Exemplo Visual -->
+              <div class="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono overflow-x-auto shadow-inner">
+                <div class="text-slate-400 text-[10px] mb-2 font-sans font-bold uppercase tracking-wider flex items-center justify-between">
+                  <span>Exemplo de Arquivo CSV Válido</span>
+                  <span>Codificação: UTF-8</span>
+                </div>
+                <code>codigo;descricao;categoria;unidade;quantidade</code><br />
+                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0</code><br />
+                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0</code><br />
+                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5</code>
+              </div>
             </div>
 
-            <!-- Preview do arquivo selecionado -->
+            <!-- Upload Area -->
+            <div class="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-indigo-400 hover:bg-indigo-50/20 transition-all cursor-pointer relative"
+              @dragover.prevent @drop.prevent="handleDrop">
+              <FileSpreadsheet class="w-12 h-12 text-blue-500/60 mx-auto mb-3" />
+              <p class="text-gray-700 font-bold mb-1 text-sm">Arraste e solte o arquivo CSV aqui</p>
+              <p class="text-xs text-gray-400 mb-4">ou clique no botão abaixo para navegar nos arquivos</p>
+              
+              <label class="cursor-pointer bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2 shadow-md shadow-indigo-200">
+                <Upload class="w-4 h-4" /> Selecionar Arquivo .CSV
+                <input type="file" accept=".csv" class="hidden" @change="handleFileSelect" :disabled="importing" />
+              </label>
+            </div>
+
+            <!-- Preview do Arquivo Selecionado -->
             <div v-if="selectedFile" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <FileSpreadsheet class="w-8 h-8 text-blue-500" />
+                <FileSpreadsheet class="w-8 h-8 text-blue-600" />
                 <div>
-                  <p class="font-bold text-blue-800 text-sm">{{ selectedFile.name }}</p>
+                  <p class="font-bold text-blue-900 text-sm">{{ selectedFile.name }}</p>
                   <p class="text-xs text-blue-500">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
                 </div>
               </div>
-              <button @click="selectedFile = null; importResult = null" class="text-blue-300 hover:text-red-400 transition">
+              <button @click="selectedFile = null; importResult = null" class="text-blue-400 hover:text-red-500 transition">
                 <XCircle class="w-5 h-5" />
               </button>
             </div>
 
-            <!-- Botão de importar -->
+            <!-- Botão de Confirmação -->
             <button v-if="selectedFile" @click="importCSV" :disabled="importing"
-              class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-200">
+              class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-200 cursor-pointer">
               <span v-if="importing" class="animate-spin">⏳</span>
               <Upload v-else class="w-4 h-4" />
-              {{ importing ? 'Importando...' : 'Confirmar Importação' }}
+              {{ importing ? 'Processando e Validando Planilha...' : 'Confirmar Importação de Materiais' }}
             </button>
 
-            <!-- Resultado da importação -->
-            <div v-if="importResult" class="rounded-xl p-4 border font-medium text-sm"
+            <!-- Feedback Amigável de Erro ou Sucesso -->
+            <div v-if="importResult" class="rounded-xl p-5 border font-medium text-sm transition-all"
               :class="importResult.error
-                ? 'bg-red-50 border-red-100 text-red-700'
-                : 'bg-emerald-50 border-emerald-100 text-emerald-700'">
-              <div class="flex items-start gap-2">
-                <CheckCircle v-if="!importResult.error" class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" />
-                <XCircle v-else class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p class="font-bold">{{ importResult.error || importResult.message }}</p>
-                  <p v-if="!importResult.error" class="text-xs mt-1 opacity-80">
-                    {{ importResult.inseridos }} inseridos · {{ importResult.ignorados }} já existiam (ignorados) · {{ importResult.processados }} processados no total
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800'">
+              <div class="flex items-start gap-3">
+                <XCircle v-if="importResult.error" class="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <CheckCircle v-else class="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                
+                <div class="space-y-1">
+                  <p class="font-bold text-sm leading-snug">
+                    {{ importResult.error ? 'Falha na Validação da Planilha' : importResult.message }}
+                  </p>
+                  
+                  <p v-if="importResult.error" class="text-xs text-red-700 leading-relaxed">
+                    {{ importResult.error }}
+                  </p>
+                  
+                  <p v-else class="text-xs text-emerald-700 leading-relaxed opacity-90">
+                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
                   </p>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -399,7 +483,7 @@ import { ref, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { api } from '@/services/httpClient'
 import {
-  Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock,
+  Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
   Plus, Trash2, Upload, CheckCircle, XCircle
 } from 'lucide-vue-next'
 
@@ -616,6 +700,26 @@ const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
 
+function downloadCSVTemplate() {
+  const content = "codigo;descricao;categoria;unidade;quantidade\n" +
+                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
+                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
+                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n" +
+                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0\n";
+  
+  // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', 'modelo_importacao_sobracorte.csv')
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+  showNotification('success', 'Modelo de exemplo baixado com sucesso!')
+}
+
 function handleFileSelect(event) {
   const file = event.target.files[0]
   if (file) {
@@ -651,7 +755,7 @@ async function importCSV() {
     showNotification('success', `${res.data.inseridos} materiais importados com sucesso!`)
     selectedFile.value = null
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao importar o arquivo.'
+    const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
     importResult.value = { error: msg }
     showNotification('error', msg)
   } finally {
