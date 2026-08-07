@@ -63,61 +63,60 @@ cd sobracorte
 
 ### 2. Configurar Variáveis de Ambiente
 
-Crie um arquivo `.env` na pasta `backend/` contendo a string de conexão com o PostgreSQL:
+O projeto usa sempre o arquivo `.env`, tanto localmente quanto na VPS. Crie `backend/.env`:
 
 ```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/sobra_corte?schema=sobra_corte"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=sobra_corte"
 PORT=3333
+PRIVATE_KEY="mesmo JWT_SECRET configurado no dass_auth_service"
+CORS_ORIGINS="http://localhost:3000"
 ```
+
+Crie também `frontend/.env`:
+
+```env
+VITE_AUTH_API_URL="http://localhost:2399/api"
+VITE_SOBRACORTE_API_URL="http://localhost:2399/api/sobracorte"
+VITE_PORTAL_UNIX_URL="http://10.100.1.43/unix/"
+VITE_DEV_PORT=3000
+```
+
+Na VPS, mantenha os mesmos nomes de arquivo e altere somente os valores. As variáveis do frontend são incorporadas ao bundle durante `npm run build`.
 
 ### 3. Instalar Dependências
 
-#### Backend:
+Na raiz do `sobracorte`:
 
 ```bash
-cd backend
 npm install
+npm --prefix backend ci
+npm --prefix frontend ci
 ```
 
-#### Frontend:
+### 4. Preparar o banco local
 
 ```bash
-cd ../frontend
-npm install
+npm run db:deploy
 ```
 
-### 4. Gerar o Cliente do Prisma
-
-```bash
-cd ../backend
-npx prisma generate
-```
+Esse comando aplica somente migrations SQL versionadas. O `build` gera o cliente Prisma automaticamente.
 
 ### 5. Executar em Modo de Desenvolvimento
 
-#### Executar Backend:
+Com o `dass_auth_service` e o `api-gateway` do ambiente já ativos, execute apenas:
 
 ```bash
-cd backend
-npm run dev
-# Servidor rodando em http://localhost:3333
+npm run dev:backend
+npm run dev:frontend
 ```
 
-#### Executar Frontend:
-
-```bash
-cd frontend
-npm run dev
-# Aplicação rodando em http://localhost:5173/sobra_corte/
-```
+O auth existente fica em `2400`, o gateway em `2399`, o backend em `3333` e o frontend em `3000`. O navegador acessa `/api/auth` e `/api/sobracorte` pelo gateway existente.
 
 ---
 
 ## Implantação e Deploy em Produção
 
-Para instruções detalhadas de implantação no servidor da fábrica DASS, consulte o manual dedicado:
-
-📖 **[GUIA_DEPLOY_PRODUCAO.md](file:///home/hellen/Documentos/PROJETOS/sobracorte/GUIA_DEPLOY_PRODUCAO.md)**
+Para detalhes do backend e das variáveis obrigatórias, consulte o [README do backend](backend/README.md).
 
 ### Comando Seguro de Migração em Produção:
 
@@ -129,4 +128,4 @@ npx prisma generate
 ```
 
 > [!CAUTION]
-> **É ESTRITAMENTE PROIBIDO** utilizar `npx prisma db push` em ambiente de produção. Utilize sempre `npx prisma migrate deploy`.
+> Em produção e no ambiente de testes, aplique somente as migrations versionadas com `npx prisma migrate deploy`.
