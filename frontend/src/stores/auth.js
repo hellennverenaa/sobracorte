@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // =========================================================================
-    // 🚀 [ÁREA DA AUTOMAÇÃO BACKEND] - ENDPOINT DE UNIDADES ATIVAS
+    //  [ÁREA DA AUTOMAÇÃO BACKEND] - ENDPOINT DE UNIDADES ATIVAS
     // =========================================================================
     // ATENÇÃO EQUIPE DE T.I. / INFRA:
     // O backend do dass_auth_service (Ivoti) deve prover a rota GET abaixo.
@@ -120,13 +120,13 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // =========================================================================
-    // 🚀 [ÁREA DA AUTOMAÇÃO BACK-END] - INTEGRAÇÃO DASS_AUTH_SERVICE
+    //  [ÁREA DA AUTOMAÇÃO BACK-END] - INTEGRAÇÃO DASS_AUTH_SERVICE
     // =========================================================================
     // ATENÇÃO EQUIPE DE T.I. / INFRA:
     // 1. A requisição envia 'usuario', 'senha' e 'unidade' via POST para o dass_auth_service.
-    // 2. O servidor de Ivoti deve validar a coluna 'unidade' no Unix e realizar
+    // 2. O servidor deve validar a coluna 'unidade' no Unix e realizar
     //    o roteamento para a base de dados clonada correspondente.
-    // 3. Para ajustar o IP/Porta do servidor Ivoti em desenvolvimento/produção,
+    // 3. Para ajustar o IP/Porta do servidor em desenvolvimento/produção,
     //    consulte a constante 'baseURL' em frontend/src/services/httpClient.ts
     // =========================================================================
     async login(user, password, unidade) {
@@ -172,7 +172,7 @@ export const useAuthStore = defineStore('auth', {
           finalRole = 'admin';
         }
 
-        // 🚀 6. CONSTRUÇÃO BLINDADA DO USUÁRIO
+        //  6. CONSTRUÇÃO BLINDADA DO USUÁRIO
         const finalUser = {
           id: userSobraCorte ? userSobraCorte.id : apiUser.id,
           nome: apiUser.nome || apiUser.usuario,
@@ -185,7 +185,7 @@ export const useAuthStore = defineStore('auth', {
           token: payload.data.token
         }
 
-        console.log("🚀 Usuário Montado com Sucesso:", finalUser);
+        console.log("Usuário Montado com Sucesso:", finalUser);
 
         this.user = finalUser
         this.isAuthenticated = true

@@ -1,10 +1,10 @@
-# 🚀 Guia de Integração - `dass_auth_service` (Unix Multi-Unidade)
+# Guia de Integração - `dass_auth_service` (Unix Multi-Unidade)
 
-Este documento foi preparado para a equipe de **T.I. / Infraestrutura (Ivoti)** para orientar a vinculação e automação do backend com o novo modelo **Multi-Unidade** do sistema **Sobras DASS**.
+Este documento foi preparado para a equipe de **T.I. / Infraestrutura** para orientar a vinculação e automação do backend com o novo modelo **Multi-Unidade** do sistema **Sobras DASS**.
 
 ---
 
-## 📁 Onde estão as alterações no Frontend?
+## Onde estão as alterações no Frontend?
 
 Todas as modificações de autenticação e seleção de unidade estão concentradas nos seguintes arquivos:
 
@@ -23,9 +23,11 @@ Todas as modificações de autenticação e seleção de unidade estão concentr
 ## 🛠️ Contrato dos Endpoints Esperados (`dass_auth_service`)
 
 ### 1. `GET /auth/unidades` (ou `/api/unidades-ativas`)
+
 - **Objetivo**: Retornar dinamicamente as unidades ativas e configuradas no banco Unix para popular o dropdown no login.
 - **Método**: `GET`
 - **Exemplo de Resposta HTTP 200 OK**:
+
 ```json
 [
   { "code": "VDC", "name": "Vitória da Conquista" },
@@ -34,14 +36,17 @@ Todas as modificações de autenticação e seleção de unidade estão concentr
   { "code": "ITB", "name": "Itaberaba" }
 ]
 ```
-*(Nota: O frontend possui suporte automático para mapeamento de propriedades como `code`/`sigla`/`id` e `name`/`nome`/`descricao`)*.
+
+_(Nota: O frontend possui suporte automático para mapeamento de propriedades como `code`/`sigla`/`id` e `name`/`nome`/`descricao`)_.
 
 ---
 
 ### 2. `POST /auth/login`
+
 - **Objetivo**: Autenticar o usuário Unix na unidade selecionada e prover o token JWT para acesso.
 - **Método**: `POST`
 - **Payload Enviado pelo Frontend**:
+
 ```json
 {
   "usuario": "nome.sobrenome",
@@ -49,6 +54,7 @@ Todas as modificações de autenticação e seleção de unidade estão concentr
   "unidade": "SEST"
 }
 ```
+
 - **Ação do Backend de Ivoti**:
   1. Validar a credencial `usuario` e `senha` no serviço Unix.
   2. Validar a coluna `unidade` e realizar o roteamento de conexão para o banco de dados correspondente daquela fábrica.
@@ -56,27 +62,29 @@ Todas as modificações de autenticação e seleção de unidade estão concentr
 
 ---
 
-## 🏷️ Marcações de Código para a Equipe de T.I.
+## Marcações de Código para a Equipe de T.I.
 
 No arquivo `frontend/src/stores/auth.js`, você encontrará dois blocos de comentários visíveis demarcando os pontos exatos da automação:
 
 ### Bloco 1: Endpoint de Unidades Ativas
+
 ```javascript
 // =========================================================================
-// 🚀 [ÁREA DA AUTOMAÇÃO BACKEND] - ENDPOINT DE UNIDADES ATIVAS
+//  [ÁREA DA AUTOMAÇÃO BACKEND] - ENDPOINT DE UNIDADES ATIVAS
 // =========================================================================
 ```
 
 ### Bloco 2: Dispatch do Login Multi-Unidade
+
 ```javascript
 // =========================================================================
-// 🚀 [ÁREA DA AUTOMAÇÃO BACK-END] - INTEGRAÇÃO DASS_AUTH_SERVICE
+//  [ÁREA DA AUTOMAÇÃO BACK-END] - INTEGRAÇÃO DASS_AUTH_SERVICE
 // =========================================================================
 ```
 
 ---
 
-## 🌐 Ajuste do IP e Porta do Servidor Ivoti
+## Ajuste do IP e Porta do Servidor
 
 Para alterar a URL base do servidor `dass_auth_service` em produção ou homologação, edite o arquivo `frontend/src/services/httpClient.ts`:
 
@@ -84,11 +92,12 @@ Para alterar a URL base do servidor `dass_auth_service` em produção ou homolog
 // frontend/src/services/httpClient.ts
 export const authApi = axios.create({
   baseURL: isLocal ? "http://localhost:2399" : `${ip}:2399/api`,
-  withCredentials: true
+  withCredentials: true,
 });
 ```
 
 Caso queira ajustar o IP padrão da fábrica, configure a variável em `frontend/src/utils/ip.js`:
+
 ```javascript
 // frontend/src/utils/ip.js
 // const baseApi = "http://10.100.1.43:2399/api"
@@ -96,6 +105,6 @@ Caso queira ajustar o IP padrão da fábrica, configure a variável em `frontend
 
 ---
 
-## 🛡️ Mecanismo de Fallback para Garantia de Operação
+## Mecanismo de Fallback para Garantia de Operação
 
-Enquanto a rota `GET /auth/unidades` não for disponibilizada no servidor de Ivoti, o frontend aplicará automaticamente o **fallback seguro de unidades padrão DASS** (`VDC`, `STJ`, `SEST`, `ITB`), garantindo que o sistema continue funcional durante a fase de transição.
+Enquanto a rota `GET /auth/unidades` não for disponibilizada no servidor, o frontend aplicará automaticamente o **fallback seguro de unidades padrão DASS** (`VDC`, `STJ`, `SEST`, `ITB`), garantindo que o sistema continue funcional durante a fase de transição.
