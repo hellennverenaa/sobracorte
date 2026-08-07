@@ -8,16 +8,16 @@ import {
   PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
 } from 'lucide-vue-next'
 
-const { fetchStats, request } = useApi()
+const { fetchStats, fetchDistribuicao, fetchOrigemSobras, fetchTopMateriais } = useApi()
 
 // --- ESTADOS ---
 const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 
 // Gráficos: refs simples — os loops/reduce pesados foram movidos para o banco
-const pieChartData    = ref([]) // alimentado por GET /api/dashboard/distribuicao
-const origemChartData = ref([]) // alimentado por GET /api/dashboard/origem-sobras
-const topMaterials    = ref([]) // alimentado por GET /api/dashboard/top-materiais
+const pieChartData    = ref([]) // alimentado por GET /dashboard/distribuicao
+const origemChartData = ref([]) // alimentado por GET /dashboard/origem-sobras
+const topMaterials    = ref([]) // alimentado por GET /dashboard/top-materiais
 
 const isLoading       = ref(true)
 const hoveredCategory = ref(null)
@@ -124,35 +124,45 @@ const origemChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-// --- Helper: request seguro que nunca derruba o Promise.all ---
-// O request() do useApi relança erros HTTP (401, 404, 500).
-// Isolamos cada chamada analítica para que a falha de uma não
-// cancele as demais nem apague os cards de KPI.
-async function safeRequest(endpoint, fallback = []) {
+// --- Helper: executa chamadas analíticas de forma segura garantindo fallback ---
+async function safeFetch(apiFn, fallback = []) {
   try {
-    const data = await request(endpoint)
+    const data = await apiFn()
     return Array.isArray(data) ? data : fallback
   } catch (err) {
-    console.warn(`[Dashboard] Falha ao buscar ${endpoint}:`, err?.response?.status ?? err.message)
+    if (err?.response?.status === 429) {
+      console.warn(`[Dashboard] Rate limit atingido (HTTP 429). Mantendo dados estáticos.`)
+    } else if (err?.response?.status === 404) {
+      console.warn(`[Dashboard] Rota não encontrada (HTTP 404). Retornando fallback.`)
+    } else {
+      console.warn(`[Dashboard] Falha na requisição:`, err?.response?.status ?? err?.message)
+    }
     return fallback
   }
 }
 
-// --- CARREGAMENTO ---
+// Micro-atraso para intercalar os lotes e aliviar o servidor / reverse proxy
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+let isFetchingData = false
+
+// --- CARREGAMENTO OTIMIZADO & ESCALONADO EM LOTES (MITIGAÇÃO HTTP 429 E 404) ---
 async function loadData() {
+  if (isFetchingData) return
+  isFetchingData = true
   isUpdating.value = true
+
   try {
-    // Dispara todas as requisições em paralelo.
-    // fetchStats tem seu próprio try/catch interno e nunca lança.
-    // safeRequest garante que 401/404 retorna [] ao invés de explodir.
-    const [statsData, distribuicaoRaw, origemRaw, topRaw] = await Promise.all([
+    // LOTE 1: KPIs Principais + Distribuição por Categoria
+    const batch1Results = await Promise.allSettled([
       fetchStats(),
-      safeRequest('/dashboard/distribuicao'),
-      safeRequest('/dashboard/origem-sobras'),
-      safeRequest('/dashboard/top-materiais')
+      safeFetch(fetchDistribuicao)
     ])
 
-    // 1. Cards de KPI — fetchStats sempre retorna um objeto válido
+    const statsData = batch1Results[0].status === 'fulfilled' ? batch1Results[0].value : { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
+    const distribuicaoRaw = batch1Results[1].status === 'fulfilled' ? batch1Results[1].value : []
+
+    // 1. Cards de KPI
     realStats.value = {
       totalMaterials: statsData.totalMaterials || statsData.total_materials || 0,
       lowStock:       statsData.lowStock       || statsData.low_stock       || 0,
@@ -160,8 +170,7 @@ async function loadData() {
       totalEntries:   statsData.totalEntries   || statsData.entradas        || 0
     }
 
-    // 2. Gráfico de Distribuição por categoria
-    //    Backend: [{ type: 'tecido', _sum: { quantity: 120.5 } }, ...]
+    // 2. Gráfico de Distribuição por Categoria
     const totalDist = distribuicaoRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
     pieChartData.value = distribuicaoRaw
       .map(item => {
@@ -177,8 +186,19 @@ async function loadData() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
 
+    // Pausa de 60ms entre requisições para desobstruir a fila do Rate Limiter
+    await delay(60)
+
+    // LOTE 2: Origem das Sobras + Top 5 Materiais
+    const batch2Results = await Promise.allSettled([
+      safeFetch(fetchOrigemSobras),
+      safeFetch(fetchTopMateriais)
+    ])
+
+    const origemRaw = batch2Results[0].status === 'fulfilled' ? batch2Results[0].value : []
+    const topRaw = batch2Results[1].status === 'fulfilled' ? batch2Results[1].value : []
+
     // 3. Gráfico de Origem das Sobras
-    //    Backend: [{ origem: 'Consumo', _sum: { quantity: 45.0 } }, ...]
     const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
     origemChartData.value = origemRaw
       .map((item, i) => {
@@ -192,11 +212,9 @@ async function loadData() {
       })
       .slice(0, 5)
 
-    // 4. Top 5 Materiais — banco entrega ordenado e limitado a 5
-    //    Backend: [{ id, code, name, quantity, unit }, ...]
+    // 4. Top 5 Materiais
     topMaterials.value = topRaw.map(m => ({
       ...m,
-      // Aliases de compatibilidade com o template existente (não alterar)
       codigo:     m.code,
       descricao:  m.name,
       quantidade: m.quantity,
@@ -207,6 +225,7 @@ async function loadData() {
     console.error('Erro inesperado no dashboard:', error)
   } finally {
     isLoading.value = false
+    isFetchingData = false
     setTimeout(() => isUpdating.value = false, 800)
   }
 }
