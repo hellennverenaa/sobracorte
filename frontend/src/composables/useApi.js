@@ -86,10 +86,31 @@ export function useApi() {
 
   const fetchLocations = () => request('/locations')
 
+  const fetchCategories = () => request('/settings/categories')
+  const createCategory = (data) => request('/settings/categories', { method: 'POST', body: JSON.stringify(data) })
+  const updateCategory = (id, data) => request(`/settings/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  const deleteCategory = (id) => request(`/settings/categories/${id}`, { method: 'DELETE' })
+
+  const fetchUnits = () => request('/settings/units')
+  const createUnit = (data) => request('/settings/units', { method: 'POST', body: JSON.stringify(data) })
+  const deleteUnit = (id) => request(`/settings/units/${id}`, { method: 'DELETE' })
+
+  const fetchSettingsLocations = () => request('/settings/locations')
+  const createLocation = (data) => request('/settings/locations', { method: 'POST', body: JSON.stringify(data) })
+  const deleteLocation = (id) => request(`/settings/locations/${id}`, { method: 'DELETE' })
+
+  const fetchOrigins = () => request('/settings/origins')
+  const createOrigin = (data) => request('/settings/origins', { method: 'POST', body: JSON.stringify(data) })
+  const deleteOrigin = (id) => request(`/settings/origins/${id}`, { method: 'DELETE' })
+
   return {
     request, fetchMaterials, createMaterial, updateMaterial, deleteMaterial,
     fetchStats, fetchDistribuicao, fetchOrigemSobras, fetchTopMateriais,
-    createMovement, fetchMovements, fetchLocations,
+    createMovement, fetchMovements, fetchLocations,fetchCategories, createCategory, updateCategory, deleteCategory,
+    fetchUnits, createUnit, deleteUnit,
+    fetchSettingsLocations, createLocation, deleteLocation,
+    fetchOrigins, createOrigin, deleteOrigin,
     isLoading, error
   }
+  
 }
