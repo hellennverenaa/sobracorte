@@ -56,23 +56,31 @@ export function useApi() {
   const updateMaterial = (id, data) => request(`/materials/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
   const deleteMaterial = (id) => request(`/materials/${id}`, { method: 'DELETE' })
 
- const fetchStats = async () => {
-  try {
-    // O Axios faz o GET, junta a URL, resolve o JSON e os interceptadores injetam o Token!
-    const response = await api.get('/stats', {
-      params: { 
-        t: new Date().getTime() // Cache-busting feito do jeito elegante
+  const fetchStats = async () => {
+    try {
+      // O Axios faz o GET, junta a URL, resolve o JSON e os interceptadores injetam o Token!
+      const response = await api.get('/stats', {
+        params: { 
+          t: new Date().getTime() // Cache-busting feito do jeito elegante
+        }
+      });
+
+      return response.data || { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 };
+
+    } catch (e) {
+      if (e.response?.status === 429) {
+        console.warn('[useApi] Rate limit atingido em /stats (HTTP 429). Mantendo estabilidade.');
+      } else {
+        console.error('Erro ao buscar stats:', e);
       }
-    });
-
-    return response.data;
-
-  } catch (e) {
-    console.error('Erro ao buscar stats:', e);
-    // Se o backend cair ou o token expirar, devolvemos zerado para não quebrar os cards na tela
-    return { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 };
+      // Se o backend cair, der rate limit ou o token expirar, devolvemos zerado para não quebrar os cards na tela
+      return { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 };
+    }
   }
-}
+  const fetchDistribuicao = () => request('/dashboard/distribuicao')
+  const fetchOrigemSobras = () => request('/dashboard/origem-sobras')
+  const fetchTopMateriais = () => request('/dashboard/top-materiais')
+
   const createMovement = (data) => request('/movements', { method: 'POST', body: JSON.stringify(data) })
   const fetchMovements = () => request('/movements')
 
@@ -80,7 +88,8 @@ export function useApi() {
 
   return {
     request, fetchMaterials, createMaterial, updateMaterial, deleteMaterial,
-    fetchStats, createMovement, fetchMovements, fetchLocations,
+    fetchStats, fetchDistribuicao, fetchOrigemSobras, fetchTopMateriais,
+    createMovement, fetchMovements, fetchLocations,
     isLoading, error
   }
 }
