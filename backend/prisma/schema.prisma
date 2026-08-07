@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   //url      = env("DATABASE_URL")
-  schemas  = ["public", "sobra_corte", "autenticacao"]
+  schemas  = ["sobra_corte", "autenticacao"]
 }
 
 model Material {
@@ -26,7 +26,6 @@ model Material {
 
   // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan na busca)
   @@index([name])
-  @@index([code])
   @@index([type]) // Para acelerar o agrupamento do gráfico de distribuição.
   @@index([quantity(sort: Desc)]) // Para otimizar a busca do Top 5 maiores acúmulos.
   @@schema("sobra_corte")
@@ -103,8 +102,6 @@ model User {
   dassInfo      UsuariosDass? @relation(fields: [matriculaDass], references: [matricula])
 
   // ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
-  @@index([usuario])
-  @@index([email])
   @@schema("sobra_corte")
 }
 
@@ -147,7 +144,6 @@ model UnitConfig {
   active     Boolean          @default(true)
   categories CategoryConfig[]
 
-  @@index([symbol])
   @@schema("sobra_corte")
 }
 
@@ -162,7 +158,6 @@ model CategoryConfig {
   defaultUnit   UnitConfig? @relation(fields: [defaultUnitId], references: [id], onDelete: SetNull)
   locations     Location[]
 
-  @@index([name])
   @@index([defaultUnitId])
   @@schema("sobra_corte")
 }
@@ -173,6 +168,5 @@ model OriginConfig {
   id   Int    @id @default(autoincrement())
   name String @unique // Ex: "Consumo", "Dublagem / Tirada"
 
-  @@index([name])
   @@schema("sobra_corte")
 }
