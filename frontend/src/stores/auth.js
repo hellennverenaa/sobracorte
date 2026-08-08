@@ -16,6 +16,22 @@ function decodeJwtPayload(token) {
   return JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')))
 }
 
+function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
+  const apiUser = decodeJwtPayload(token)
+  return {
+    id: syncedUser?.id ?? apiUser.id,
+    nome: apiUser.nome || apiUser.usuario,
+    usuario: apiUser.usuario,
+    email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
+    setor: apiUser.setor || 'NÃO DEFINIDO',
+    funcao: apiUser.funcao || 'NÃO DEFINIDO',
+    role: syncedUser.role,
+    token,
+    unit,
+    isGlobalAdmin,
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => {
     const user = loadStoredUser()
@@ -23,12 +39,37 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    checkAuth() {
-      this.user = loadStoredUser()
-      this.isAuthenticated = Boolean(this.user)
+    clearSession() {
+      this.user = null
+      this.isAuthenticated = false
+      localStorage.removeItem('user')
+      sessionStorage.removeItem('expirationTime')
     },
 
-    async login(user, password) {
+    async restoreSession() {
+      const stored = loadStoredUser()
+      if (!stored?.unit?.code) {
+        this.clearSession()
+        return false
+      }
+      try {
+        const response = await authApi.post('/auth/me', null, { withCredentials: true })
+        const token = response.data?.data?.token
+        if (!token) throw new Error('Sessão inválida.')
+        const synced = await api.post('/auth/check-user', null, {
+          headers: { Authorization: `Bearer ${token}`, 'X-Dass-Unit': stored.unit.code },
+        })
+        this.user = buildSessionUser(token, synced.data.user, synced.data.unit, synced.data.isGlobalAdmin)
+        this.isAuthenticated = true
+        localStorage.setItem('user', JSON.stringify(this.user))
+        return true
+      } catch {
+        this.clearSession()
+        return false
+      }
+    },
+
+    async login(user, password, unitCode) {
       try {
         const response = await authApi.post("/auth/login", { 
           usuario: user,
@@ -37,23 +78,17 @@ export const useAuthStore = defineStore('auth', {
 
         const payload = response.data
 
-        const apiUser = decodeJwtPayload(payload.data.token)
-
         const checkResponse = await api.post('/auth/check-user', null, {
-          headers: { Authorization: `Bearer ${payload.data.token}` }
+          headers: { Authorization: `Bearer ${payload.data.token}`, 'X-Dass-Unit': unitCode }
         });
         const userSobraCorte = checkResponse.data.user;
 
-        const finalUser = {
-          id: userSobraCorte ? userSobraCorte.id : apiUser.id,
-          nome: apiUser.nome || apiUser.usuario,
-          usuario: apiUser.usuario,
-          email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
-          setor: apiUser.setor || 'NÃO DEFINIDO',
-          funcao: apiUser.funcao || 'NÃO DEFINIDO',
-          role: userSobraCorte.role,
-          token: payload.data.token
-        }
+        const finalUser = buildSessionUser(
+          payload.data.token,
+          userSobraCorte,
+          checkResponse.data.unit,
+          checkResponse.data.isGlobalAdmin,
+        )
 
         this.user = finalUser
         this.isAuthenticated = true
@@ -62,6 +97,10 @@ export const useAuthStore = defineStore('auth', {
         return true
 
       } catch (error) {
+        if (error.response?.status === 403) {
+          try { await authApi.post('/auth/logout') } catch {}
+          this.clearSession()
+        }
         if (error.response && error.response.status === 401) {
           const msgBackend = error.response.data?.message || error.response.data?.error || "Usuário ou senha incorretos.";
           throw new Error(msgBackend);
@@ -84,10 +123,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         await authApi.post('/auth/logout')
       } finally {
-        this.user = null
-        this.isAuthenticated = false
-        localStorage.removeItem('user')
-        sessionStorage.removeItem('expirationTime')
+        this.clearSession()
       }
     },
 

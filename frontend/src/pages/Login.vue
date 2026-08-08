@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
+import { api } from '@/services/httpClient'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -11,6 +12,22 @@ const username = ref('')
 const password = ref('')
 const error = ref('')
 const isLoading = ref(false)
+const units = ref([])
+const selectedUnit = ref('')
+const unitsLoading = ref(true)
+
+onMounted(async () => {
+  try {
+    const response = await api.get('/factory-units')
+    units.value = Array.isArray(response.data?.data) ? response.data.data : []
+    selectedUnit.value = units.value[0]?.code || ''
+    if (units.value.length === 0) error.value = 'Nenhuma unidade está disponível para acesso.'
+  } catch {
+    error.value = 'Não foi possível carregar as unidades. O login está indisponível.'
+  } finally {
+    unitsLoading.value = false
+  }
+})
 
 async function handleLogin() {
   error.value = ''
@@ -24,10 +41,14 @@ async function handleLogin() {
     error.value = 'Por favor, informe a senha.'
     return
   }
+  if (!selectedUnit.value) {
+    error.value = 'Selecione uma unidade.'
+    return
+  }
 
   isLoading.value = true
   try {
-    await authStore.login(username.value.trim(), password.value)
+    await authStore.login(username.value.trim(), password.value, selectedUnit.value)
     router.push('/')
   } catch (err) {
     error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'
@@ -74,6 +95,20 @@ async function handleLogin() {
           <p class="text-gray-500 mb-6">Informe suas credenciais Unix para acessar.</p>
 
           <form @submit.prevent="handleLogin" class="space-y-4">
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Unidade</label>
+              <select
+                v-model="selectedUnit"
+                :disabled="unitsLoading || units.length === 0"
+                class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800 font-medium disabled:opacity-60"
+                required
+              >
+                <option value="" disabled>{{ unitsLoading ? 'Carregando unidades...' : 'Selecione uma unidade' }}</option>
+                <option v-for="unit in units" :key="unit.code" :value="unit.code">
+                  {{ unit.code }} — {{ unit.name }}
+                </option>
+              </select>
+            </div>
             
             <div class="space-y-1">
               <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Usuário Unix</label>
@@ -110,7 +145,7 @@ async function handleLogin() {
 
             <button 
               type="submit" 
-              :disabled="isLoading"
+              :disabled="isLoading || unitsLoading || units.length === 0"
               class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed mt-2"
             >
               <span v-if="!isLoading">Acessar Sistema</span>
