@@ -11,6 +11,7 @@ export class SettingsController {
   async getCategories(req: Request, res: Response) {
     try {
       const categories = await prisma.categoryConfig.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' },
         include: { defaultUnit: true }
       });
@@ -27,12 +28,19 @@ export class SettingsController {
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
+      if (defaultUnitId) {
+        const unit = await prisma.unitConfig.findFirst({
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
+        });
+        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
       const category = await prisma.categoryConfig.create({
         data: {
           name: String(name).trim().toUpperCase(),
           unitLock: unitLock || 'livre',
           defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
-          unitLocked: Boolean(unitLocked)
+          unitLocked: Boolean(unitLocked),
+          factoryUnitId: req.tenant!.id
         },
         include: { defaultUnit: true }
       });
@@ -51,6 +59,14 @@ export class SettingsController {
       const id = Number(req.params.id);
       const { name, unitLock, defaultUnitId, unitLocked } = req.body;
 
+      const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
+      if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
+      if (defaultUnitId) {
+        const unit = await prisma.unitConfig.findFirst({
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
+        });
+        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
       const category = await prisma.categoryConfig.update({
         where: { id },
         data: {
@@ -71,19 +87,24 @@ export class SettingsController {
   async deleteCategory(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const category = await prisma.categoryConfig.findUnique({ where: { id } });
+      const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
       const materiaisVinculados = await prisma.material.count({
-        where: { type: category.name }
+        where: { factoryUnitId: req.tenant!.id, type: category.name }
       });
       if (materiaisVinculados > 0) {
         return res.status(409).json({
           error: `Não é possível excluir: ${materiaisVinculados} material(is) usa(m) esta categoria.`
         });
       }
-      await prisma.categoryConfig.delete({ where: { id } });
+      await prisma.$transaction([
+        prisma.location.updateMany({
+          where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
+        }),
+        prisma.categoryConfig.delete({ where: { id } }),
+      ]);
       res.json({ message: 'Categoria excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -97,7 +118,7 @@ export class SettingsController {
   async getUnits(req: Request, res: Response) {
     try {
       let units = await prisma.unitConfig.findMany({
-        where: { active: true },
+        where: { factoryUnitId: req.tenant!.id, active: true },
         orderBy: { symbol: 'asc' }
       });
 
@@ -115,11 +136,11 @@ export class SettingsController {
           { name: 'Caixa', symbol: 'cx' }
         ];
         await prisma.unitConfig.createMany({
-          data: initialUnits,
+          data: initialUnits.map((unit) => ({ ...unit, factoryUnitId: req.tenant!.id })),
           skipDuplicates: true
         });
         units = await prisma.unitConfig.findMany({
-          where: { active: true },
+          where: { factoryUnitId: req.tenant!.id, active: true },
           orderBy: { symbol: 'asc' }
         });
       }
@@ -144,7 +165,9 @@ export class SettingsController {
       const cleanSymbol = String(symbol).trim();
       const cleanName = String(name).trim();
 
-      const existing = await prisma.unitConfig.findUnique({ where: { symbol: cleanSymbol } });
+      const existing = await prisma.unitConfig.findUnique({
+        where: { factoryUnitId_symbol: { factoryUnitId: req.tenant!.id, symbol: cleanSymbol } },
+      });
       if (existing) {
         if (!existing.active) {
           const reactivated = await prisma.unitConfig.update({
@@ -160,7 +183,8 @@ export class SettingsController {
         data: {
           name: cleanName,
           symbol: cleanSymbol,
-          active: true
+          active: true,
+          factoryUnitId: req.tenant!.id
         }
       });
       res.status(201).json(unit);
@@ -176,7 +200,7 @@ export class SettingsController {
   async deleteUnit(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const unit = await prisma.unitConfig.findUnique({ where: { id } });
+      const unit = await prisma.unitConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!unit) {
         return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
@@ -195,6 +219,7 @@ export class SettingsController {
   async getLocations(req: Request, res: Response) {
     try {
       const locations = await prisma.location.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' },
         include: { category: true }
       });
@@ -214,10 +239,15 @@ export class SettingsController {
       if (!categoryId) {
         return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
       }
+      const category = await prisma.categoryConfig.findFirst({
+        where: { id: Number(categoryId), factoryUnitId: req.tenant!.id }, select: { id: true },
+      });
+      if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
       const location = await prisma.location.create({
         data: {
           name: String(name).trim(),
-          categoryId: Number(categoryId)
+          categoryId: Number(categoryId),
+          factoryUnitId: req.tenant!.id
         },
         include: { category: true }
       });
@@ -235,14 +265,15 @@ export class SettingsController {
     try {
       const id = Number(req.params.id);
       const materiaisVinculados = await prisma.materialLocation.count({
-        where: { locationId: id, quantity: { gt: 0 } }
+        where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
       });
       if (materiaisVinculados > 0) {
         return res.status(409).json({
           error: `Não é possível excluir: ${materiaisVinculados} material(is) tem saldo nesta localização.`
         });
       }
-      await prisma.location.delete({ where: { id } });
+      const deleted = await prisma.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      if (deleted.count === 0) return res.status(404).json({ error: 'Localização não encontrada.' });
       res.json({ message: 'Localização excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -256,6 +287,7 @@ export class SettingsController {
   async getOrigins(req: Request, res: Response) {
     try {
       const origins = await prisma.originConfig.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' }
       });
       res.json(origins);
@@ -272,7 +304,7 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
       }
       const origin = await prisma.originConfig.create({
-        data: { name: String(name).trim() }
+        data: { name: String(name).trim(), factoryUnitId: req.tenant!.id }
       });
       res.status(201).json(origin);
     } catch (error: unknown) {
@@ -287,7 +319,8 @@ export class SettingsController {
   async deleteOrigin(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      await prisma.originConfig.delete({ where: { id } });
+      const deleted = await prisma.originConfig.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      if (deleted.count === 0) return res.status(404).json({ error: 'Origem não encontrada.' });
       res.json({ message: 'Origem excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {

@@ -3,9 +3,10 @@ import { prisma } from '../prisma';
 import { MovementRequestError, parseMovementInput } from '../movements/validation';
 
 export class MovementController {
-  async index(_req: Request, res: Response) {
+  async index(req: Request, res: Response) {
     try {
       const movements = await prisma.movement.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         take: 100,
         orderBy: { createdAt: 'desc' },
         include: { material: true },
@@ -39,8 +40,11 @@ export class MovementController {
 
       const result = await prisma.$transaction(async (tx) => {
         const [material, location] = await Promise.all([
-          tx.material.findUnique({ where: { id: input.materialId }, select: { id: true } }),
-          tx.location.findUnique({ where: { name: input.location }, select: { id: true } }),
+          tx.material.findFirst({ where: { id: input.materialId, factoryUnitId: req.tenant!.id }, select: { id: true } }),
+          tx.location.findUnique({
+            where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: input.location } },
+            select: { id: true },
+          }),
         ]);
 
         if (!material) throw new MovementRequestError('Material não encontrado.', 404);
@@ -54,13 +58,14 @@ export class MovementController {
           await tx.materialLocation.upsert({
             where: { materialId_locationId: { materialId: input.materialId, locationId: location.id } },
             update: { quantity: { increment: input.quantity } },
-            create: { materialId: input.materialId, locationId: location.id, quantity: input.quantity },
+            create: { materialId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id, quantity: input.quantity },
           });
         } else {
           const locationUpdate = await tx.materialLocation.updateMany({
             where: {
               materialId: input.materialId,
               locationId: location.id,
+              factoryUnitId: req.tenant!.id,
               quantity: { gte: input.quantity },
             },
             data: { quantity: { decrement: input.quantity } },
@@ -70,7 +75,7 @@ export class MovementController {
           }
 
           const materialUpdate = await tx.material.updateMany({
-            where: { id: input.materialId, quantity: { gte: input.quantity } },
+            where: { id: input.materialId, factoryUnitId: req.tenant!.id, quantity: { gte: input.quantity } },
             data: { quantity: { decrement: input.quantity } },
           });
           if (materialUpdate.count === 0) {
@@ -81,6 +86,7 @@ export class MovementController {
         return tx.movement.create({
           data: {
             materialId: input.materialId,
+            factoryUnitId: req.tenant!.id,
             type: input.type,
             quantity: input.quantity,
             origem: input.origin,

@@ -14,12 +14,15 @@ export class MaterialController {
   async index(req: Request, res: Response) {
     try {
       const { q, _page, _limit } = req.query;
-      const whereClause: Prisma.MaterialWhereInput = q ? {
-        OR: [
-          { name: { contains: String(q), mode: 'insensitive' } },
-          { code: { contains: String(q), mode: 'insensitive' } }
-        ]
-      } : {};
+      const whereClause: Prisma.MaterialWhereInput = {
+        factoryUnitId: req.tenant!.id,
+        ...(q ? {
+          OR: [
+            { name: { contains: String(q), mode: 'insensitive' } },
+            { code: { contains: String(q), mode: 'insensitive' } }
+          ]
+        } : {}),
+      };
 
       const totalItems = await prisma.material.count({ where: whereClause });
       res.set('X-Total-Count', totalItems.toString());
@@ -86,6 +89,7 @@ export class MaterialController {
 
       const movimentos = qtdInicial > 0 ? {
         create: {
+          factoryUnitId: req.tenant!.id,
           type: 'entrada',
           quantity: qtdInicial,
           reason: 'Saldo Inicial de Implantação',
@@ -95,8 +99,10 @@ export class MaterialController {
       } : undefined;
 
       const novo = await prisma.$transaction(async (tx) => {
-        let loc = await tx.location.findUnique({ where: { name: locationName } });
-        if (!loc) loc = await tx.location.create({ data: { name: locationName } });
+        let loc = await tx.location.findUnique({
+          where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
+        });
+        if (!loc) loc = await tx.location.create({ data: { name: locationName, factoryUnitId: req.tenant!.id } });
 
         return tx.material.create({
           data: {
@@ -106,6 +112,7 @@ export class MaterialController {
             unit: String(req.body.unidade || req.body.unit || 'UN'),
             type: String(req.body.tipo || req.body.type || 'outros'),
             observation: String(req.body.observacoes || req.body.observation || ''),
+            factoryUnitId: req.tenant!.id,
             locations: { create: { locationId: loc.id, quantity: qtdInicial } },
             movements: movimentos,
           },
@@ -135,13 +142,19 @@ export class MaterialController {
       }
 
       const atualizado = await prisma.$transaction(async (tx) => {
+        const existingMaterial = await tx.material.findFirst({
+          where: { id: materialId, factoryUnitId: req.tenant!.id }, select: { id: true },
+        });
+        if (!existingMaterial) throw new Error('MATERIAL_NOT_FOUND');
         if (locationName) {
-          const loc = await tx.location.findUnique({ where: { name: locationName } });
+          const loc = await tx.location.findUnique({
+            where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
+          });
           if (!loc) throw new Error('LOCATION_NOT_FOUND');
           await tx.materialLocation.upsert({
             where: { materialId_locationId: { materialId, locationId: loc.id } },
             update: {},
-            create: { materialId, locationId: loc.id, quantity: 0 },
+            create: { materialId, locationId: loc.id, factoryUnitId: req.tenant!.id, quantity: 0 },
           });
         }
 
@@ -162,6 +175,9 @@ export class MaterialController {
       if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
         return res.status(404).json({ error: 'Localização não encontrada.' });
       }
+      if (error instanceof Error && error.message === 'MATERIAL_NOT_FOUND') {
+        return res.status(404).json({ error: 'Material não encontrado.' });
+      }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return res.status(404).json({ error: 'Material não encontrado.' });
       }
@@ -172,7 +188,10 @@ export class MaterialController {
 
   async delete(req: Request, res: Response) {
     try {
-      await prisma.material.delete({ where: { id: Number(req.params.id) } });
+      const result = await prisma.material.deleteMany({
+        where: { id: Number(req.params.id), factoryUnitId: req.tenant!.id },
+      });
+      if (result.count === 0) return res.status(404).json({ error: 'Material não encontrado.' });
       res.json({ message: 'Deletado com sucesso' });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao deletar material' });
@@ -182,10 +201,10 @@ export class MaterialController {
   async stats(req: Request, res: Response) {
     try {
       const [totalMaterials, lowStock, totalMovements, totalEntries] = await Promise.all([
-        prisma.material.count(), 
-        prisma.material.count({ where: { quantity: { lte: 10 } } }), 
-        prisma.movement.count(), 
-        prisma.movement.count({ where: { type: 'entrada' } }) 
+        prisma.material.count({ where: { factoryUnitId: req.tenant!.id } }),
+        prisma.material.count({ where: { factoryUnitId: req.tenant!.id, quantity: { lte: 10 } } }),
+        prisma.movement.count({ where: { factoryUnitId: req.tenant!.id } }),
+        prisma.movement.count({ where: { factoryUnitId: req.tenant!.id, type: 'entrada' } })
       ]);
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {
@@ -202,6 +221,7 @@ export class MaterialController {
       }
 
       const dadosLimpos = (materiais as ImportedMaterial[]).map((m) => ({
+        factoryUnitId: req.tenant!.id,
         code: String(m.code || '').trim(),
         name: String(m.name || '').trim().toUpperCase(),
         quantity: Number(String(m.quantity).replace(',', '.')) || 0,

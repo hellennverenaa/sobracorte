@@ -13,7 +13,7 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With", "X-Dass-Unit"],
   exposedHeaders: ["X-Total-Count"],
 }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));

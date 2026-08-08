@@ -5,6 +5,7 @@ export class ReportController {
   async inventory(req: Request, res: Response) {
     try {
       const materials = await prisma.material.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { quantity: 'desc' }
       });
 
@@ -28,7 +29,7 @@ export class ReportController {
     try {
       const { dataInicio, dataFim } = req.query;
 
-      let dateFilter = {};
+      let dateFilter: Record<string, unknown> = { factoryUnitId: req.tenant!.id };
       
       if (dataInicio && dataFim) {
         const start = new Date(String(dataInicio));
@@ -37,6 +38,7 @@ export class ReportController {
         end.setHours(23, 59, 59, 999); 
 
         dateFilter = {
+          factoryUnitId: req.tenant!.id,
           createdAt: {
             gte: start,
             lte: end,

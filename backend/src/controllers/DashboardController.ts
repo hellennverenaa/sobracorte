@@ -10,6 +10,7 @@ export class DashboardController {
       const dadosGrafico = await prisma.movement.groupBy({
         by: ['origem'],
         where: {
+          factoryUnitId: req.tenant!.id,
           origem: {
             not: null, // Ignora registros de histórico antigos que não tinham origem
           },
@@ -39,6 +40,7 @@ export class DashboardController {
     try {
       const distribuicao = await prisma.material.groupBy({
         by: ['type'],
+        where: { factoryUnitId: req.tenant!.id },
         _sum: {
           quantity: true,
         },
@@ -59,6 +61,7 @@ export class DashboardController {
   async getTopMateriais(req: Request, res: Response) {
     try {
       const materiais = await prisma.material.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: {
           quantity: 'desc'
         },

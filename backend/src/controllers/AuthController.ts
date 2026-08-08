@@ -11,7 +11,7 @@ function serializeUser<T extends { matriculaDass: bigint | null }>(user: T) {
   };
 }
 
-async function syncUser(user: AuthenticatedUser) {
+async function syncUser(user: AuthenticatedUser, factoryUnitId: number) {
   const usuario = String(user.usuario || '').toUpperCase().trim();
   if (!usuario) throw new Error('Token sem identificação de usuário.');
 
@@ -25,25 +25,32 @@ async function syncUser(user: AuthenticatedUser) {
   };
 
   return prisma.user.upsert({
-    where: { usuario },
+    where: { factoryUnitId_usuario: { factoryUnitId, usuario } },
     update: commonData,
     create: {
       usuario,
       ...commonData,
       role: deriveInitialRole({ usuario, funcao: user.funcao }),
+      factoryUnitId,
     },
   });
 }
 
 export class AuthController {
   async checkUser(req: Request, res: Response) {
-    if (!req.user) {
+    if (!req.user || !req.tenant) {
       return res.status(401).json({ error: 'Usuário não autenticado.' });
     }
 
     try {
-      const user = await syncUser(req.user);
-      return res.status(200).json({ message: 'Usuário sincronizado com sucesso.', user: serializeUser(user) });
+      const user = await syncUser(req.user, req.tenant.id);
+      const effectiveUser = req.isGlobalAdmin ? { ...user, role: 'admin' } : user;
+      return res.status(200).json({
+        message: 'Usuário sincronizado com sucesso.',
+        user: serializeUser(effectiveUser),
+        unit: req.tenant,
+        isGlobalAdmin: Boolean(req.isGlobalAdmin),
+      });
     } catch (error) {
       console.error('Erro ao sincronizar usuário autenticado.');
       return res.status(500).json({ error: 'Erro interno ao processar usuário.' });

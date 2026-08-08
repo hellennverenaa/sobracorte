@@ -147,6 +147,7 @@ export class ImportController {
 
       const result = await prisma.material.createMany({
         data: materiais.map(m => ({
+          factoryUnitId: req.tenant!.id,
           code: m.code,
           name: m.name,
           quantity: m.quantity,

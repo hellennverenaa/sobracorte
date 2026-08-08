@@ -13,10 +13,18 @@ export interface DecodedToken {
     role?: string;
 }
 
+export interface TenantContext {
+    id: number;
+    code: string;
+    name: string;
+}
+
 declare global {
     namespace Express {
         interface Request {
             user?: DecodedToken
+            tenant?: TenantContext
+            isGlobalAdmin?: boolean
         }
     }
 }

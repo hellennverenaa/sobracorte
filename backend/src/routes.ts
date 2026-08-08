@@ -22,6 +22,18 @@ const movementController = new MovementController();
 const settingsController = new SettingsController();
 const importController = new ImportController();
 const dashboardController = new DashboardController();
+routes.get('/factory-units', async (_req, res) => {
+  try {
+    const units = await prisma.factoryUnit.findMany({
+      where: { active: true },
+      orderBy: { code: 'asc' },
+      select: { code: true, name: true },
+    });
+    return res.json({ data: units });
+  } catch {
+    return res.status(500).json({ error: 'Erro ao carregar unidades.' });
+  }
+});
 routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
 routes.get('/materials', requireAuth, materialController.index);
@@ -44,6 +56,7 @@ routes.get('/reports/movements', requireAuth, requireRole(['lider']), reportCont
 routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
+      where: { factoryUnitId: req.tenant!.id },
       orderBy: { nome: 'asc' }
     });
 
@@ -71,10 +84,12 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
       return res.status(400).json({ error: 'Nível de acesso inválido' });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: id },
-      data: { role: role }
+    const result = await prisma.user.updateMany({
+      where: { id, factoryUnitId: req.tenant!.id },
+      data: { role }
     });
+    if (result.count === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const updatedUser = await prisma.user.findFirstOrThrow({ where: { id, factoryUnitId: req.tenant!.id } });
 
     const safeUser = {
       ...updatedUser,
@@ -95,13 +110,13 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
   }
 
   try {
-    const target = await prisma.user.findUnique({ where: { id }, select: { usuario: true } });
+    const target = await prisma.user.findFirst({ where: { id, factoryUnitId: req.tenant!.id }, select: { usuario: true } });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
     if (target.usuario === req.user?.usuario) {
       return res.status(409).json({ error: 'Não é possível remover o próprio usuário.' });
     }
 
-    await prisma.user.delete({ where: { id } });
+    await prisma.user.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
     return res.json({ message: 'Usuário removido com sucesso.' });
   } catch {
     return res.status(500).json({ error: 'Erro interno ao remover usuário' });

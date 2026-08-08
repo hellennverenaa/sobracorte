@@ -2,8 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
+import { requireActiveTenant, resolveTenantRequest, TenantAuthorizationError } from '../auth/tenant';
 
-export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   let token = req.cookies.token;
 
   if (!token && req.headers.authorization) {
@@ -22,9 +23,26 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   }
 
   try {
-    req.user = verifyAccessToken(token, vars.PRIVATE_KEY);
+    const user = verifyAccessToken(token, vars.PRIVATE_KEY);
+    const { requestedUnit, isGlobalAdmin } = resolveTenantRequest(
+      user,
+      req.get('X-Dass-Unit'),
+      vars.GLOBAL_ADMIN_REGISTRATIONS,
+    );
+
+    const tenant = await requireActiveTenant(requestedUnit, (code) => prisma.factoryUnit.findFirst({
+        where: { code, active: true },
+        select: { id: true, code: true, name: true },
+      }));
+
+    req.user = user;
+    req.tenant = tenant;
+    req.isGlobalAdmin = isGlobalAdmin;
     next();
   } catch (error) {
+      if (error instanceof TenantAuthorizationError) {
+        return res.status(error.status).json({ error: error.message });
+      }
       if (error instanceof Error && error.name === "TokenExpiredError") {
         return res.status(401).json({ message: "Token expirado", expired: true });
       }
@@ -43,8 +61,16 @@ export const requireRole = (allowedRoles: string[]) => {
     }
 
     try {
+      if (!req.tenant) return res.status(401).json({ error: 'Unidade não identificada.' });
+      if (req.isGlobalAdmin) {
+        req.user = { ...apiUser, role: 'admin' };
+        return next();
+      }
       const user = await prisma.user.findUnique({
-        where: { usuario: String(apiUser.usuario).toUpperCase().trim() }
+        where: { factoryUnitId_usuario: {
+          factoryUnitId: req.tenant.id,
+          usuario: String(apiUser.usuario).toUpperCase().trim(),
+        } }
       });
 
       const userRole = user?.role;

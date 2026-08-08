@@ -9,55 +9,83 @@ datasource db {
   schemas  = ["sobra_corte", "autenticacao"]
 }
 
+model FactoryUnit {
+  id     Int     @id @default(autoincrement())
+  code   String  @unique
+  name   String
+  active Boolean @default(true)
+
+  materials         Material[]
+  locations         Location[]
+  materialLocations MaterialLocation[]
+  movements         Movement[]
+  users             User[]
+  units             UnitConfig[]
+  categories        CategoryConfig[]
+  origins           OriginConfig[]
+
+  @@schema("sobra_corte")
+}
+
 model Material {
-  id          Int      @id @default(autoincrement())
-  code        String   @unique
-  name        String
-  quantity    Float // Saldo Total na fábrica
-  unit        String
-  type        String
-  observation String?  @default("")
-  minStock    Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int         @id @default(autoincrement())
+  code          String
+  name          String
+  quantity      Float // Saldo Total na fábrica
+  unit          String
+  type          String
+  observation   String?     @default("")
+  minStock      Float       @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
   movements Movement[]
   locations MaterialLocation[] // Relação com os múltiplos locais
 
   // 🚀 ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan na busca)
-  @@index([name])
-  @@index([type]) // Para acelerar o agrupamento do gráfico de distribuição.
-  @@index([quantity(sort: Desc)]) // Para otimizar a busca do Top 5 maiores acúmulos.
+  @@unique([factoryUnitId, code])
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, name])
+  @@index([factoryUnitId, type])
+  @@index([factoryUnitId, quantity(sort: Desc)])
   @@schema("sobra_corte")
 }
 
 // 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, vinculados à Categoria)
 model Location {
-  id         Int             @id @default(autoincrement())
-  name       String          @unique // Ex: "Prateleira A", "Corredor 2"
-  categoryId Int?
-  category   CategoryConfig? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  id            Int             @id @default(autoincrement())
+  name          String
+  categoryId    Int?
+  factoryUnitId Int
+  factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])
+  category      CategoryConfig? @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
 
   materials MaterialLocation[]
 
-  @@index([categoryId])
+  @@unique([factoryUnitId, name])
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, categoryId])
   @@schema("sobra_corte")
 }
 
 // 🔗 TABELA DE JUNÇÃO (Material <-> Localização)
 model MaterialLocation {
-  materialId Int
-  locationId Int
+  materialId    Int
+  locationId    Int
+  factoryUnitId Int
 
   // Se no futuro você quiser saber QUANTOS kg tem em CADA prateleira separadamente, 
   // nós já deixamos o campo de quantidade aqui pronto para uso!
   quantity Float? @default(0)
 
-  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  factoryUnit FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+  material    Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  location    Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
 
   @@id([materialId, locationId]) // Impede que o mesmo material seja duplicado no mesmo local
-  @@index([locationId]) // 🚀 ÍNDICE: Acelera a busca para saber "O que tem na prateleira X?"
+  @@index([factoryUnitId, locationId])
   @@schema("sobra_corte")
 }
 
@@ -71,37 +99,43 @@ model Movement {
   reason    String?
   createdAt DateTime @default(now())
 
-  materialId Int
-  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  materialId    Int
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+  material      Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
 
   // DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
   operatorId   String? // Matrícula vinda da DASS
   operatorName String? // Nome vindo da DASS
 
-  @@index([materialId])
-  @@index([createdAt]) // ÍNDICE: Faz o Top 5 e o Histórico carregarem em milissegundos
-  @@index([origem, createdAt]) // ÍNDICE NOVO: Essencial para o Gráfico de Pizza não dar gargalo
+  @@index([factoryUnitId, materialId])
+  @@index([factoryUnitId, createdAt])
+  @@index([factoryUnitId, origem, createdAt])
   @@schema("sobra_corte")
 }
 
 // TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
 model User {
   id      Int     @id @default(autoincrement())
-  usuario String  @unique // Matrícula/Login da DASS (Ex: HELLEN.MAGALHAES)
+  usuario String
   nome    String
-  email   String  @unique
+  email   String
   setor   String?
   funcao  String? // Cargo que vem do RH
   role    String  @default("leitor") // Nível de acesso manual do nosso sistema
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
   // Apenas a chave estrangeira para ligar com a DASS
-  matriculaDass BigInt?       @unique
+  matriculaDass BigInt?
   dassInfo      UsuariosDass? @relation(fields: [matriculaDass], references: [matricula])
 
-  // ÍNDICES DE ALTA PERFORMANCE (Evita Full Table Scan no momento do Login)
+  @@unique([factoryUnitId, usuario])
+  @@unique([factoryUnitId, email])
+  @@unique([factoryUnitId, matriculaDass])
   @@schema("sobra_corte")
 }
 
@@ -129,7 +163,7 @@ model UsuariosDass {
   rfid         BigInt?
 
   // Relação com a tabela User do app
-  userApp User?
+  userApps User[]
 
   @@id([id, codigoBarras, matricula], map: "usuarios_pk")
   @@map("usuarios")
@@ -138,12 +172,16 @@ model UsuariosDass {
 
 // 📐 TABELA DE CONFIGURAÇÃO: Unidades de Medida Permitidas
 model UnitConfig {
-  id         Int              @id @default(autoincrement())
-  name       String           // Ex: "Metro Quadrado", "Quilograma", "Unidade"
-  symbol     String           @unique // Ex: "m²", "kg", "un", "m", "g", "par", "rolo", "cm", "l", "cx"
-  active     Boolean          @default(true)
-  categories CategoryConfig[]
+  id            Int              @id @default(autoincrement())
+  name          String // Ex: "Metro Quadrado", "Quilograma", "Unidade"
+  symbol        String
+  active        Boolean          @default(true)
+  factoryUnitId Int
+  factoryUnit   FactoryUnit      @relation(fields: [factoryUnitId], references: [id])
+  categories    CategoryConfig[]
 
+  @@unique([factoryUnitId, symbol])
+  @@unique([id, factoryUnitId])
   @@schema("sobra_corte")
 }
 
@@ -151,22 +189,29 @@ model UnitConfig {
 // Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
 model CategoryConfig {
   id            Int         @id @default(autoincrement())
-  name          String      @unique // Ex: "TECIDO", "COURO", "LINHA"
+  name          String
   unitLock      String      @default("livre") // "m2" | "m" | "livre" (Legado)
   unitLocked    Boolean     @default(false)
   defaultUnitId Int?
-  defaultUnit   UnitConfig? @relation(fields: [defaultUnitId], references: [id], onDelete: SetNull)
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+  defaultUnit   UnitConfig? @relation(fields: [defaultUnitId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     Location[]
 
-  @@index([defaultUnitId])
+  @@unique([factoryUnitId, name])
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, defaultUnitId])
   @@schema("sobra_corte")
 }
 
 // 🔖 TABELA DE CONFIGURAÇÃO: Valores permitidos para Movement.origem
 // Substitui o array hardcoded no frontend (Consumo, Dublagem / Tirada, etc.)
 model OriginConfig {
-  id   Int    @id @default(autoincrement())
-  name String @unique // Ex: "Consumo", "Dublagem / Tirada"
+  id            Int         @id @default(autoincrement())
+  name          String
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
+  @@unique([factoryUnitId, name])
   @@schema("sobra_corte")
 }
