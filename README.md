@@ -70,7 +70,10 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=sobr
 PORT=3333
 PRIVATE_KEY="mesmo JWT_SECRET configurado no dass_auth_service"
 CORS_ORIGINS="http://localhost:3000"
+GLOBAL_ADMIN_REGISTRATIONS="12345,67890"
 ```
+
+`GLOBAL_ADMIN_REGISTRATIONS` aceita matrículas inteiras positivas sem duplicatas. Use uma string vazia quando não houver administradores globais.
 
 Crie também `frontend/.env`:
 
