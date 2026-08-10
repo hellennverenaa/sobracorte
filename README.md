@@ -1,6 +1,6 @@
 # SobraCorte — Sistema Corporativo de Gestão de Resíduos, Inventário e Planejamento (Grupo Dass)
 
-Sistema corporativo de alta performance voltado ao controle de estoque de materiais, sobras de produção, inventário de insumos de corte/dublagem, rastreabilidade de movimentações e planejamento das linhas de calçados/vestuário do **Grupo Dass**.
+Sistema corporativo voltado ao controle de estoque de materiais, sobras de produção, inventário de insumos de corte/dublagem, rastreabilidade de movimentações e planejamento das linhas de calçados/vestuário do **Grupo Dass**.
 
 ---
 
