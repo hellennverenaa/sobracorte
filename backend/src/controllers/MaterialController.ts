@@ -30,7 +30,7 @@ export class MaterialController {
       const requestedPage = Number(_page);
       const requestedLimit = Number(_limit);
       const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-      const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 10000) : 10000;
+      const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 500) : 100;
       const skip = (page - 1) * limit;
 
       const materials = await prisma.material.findMany({
@@ -87,24 +87,13 @@ export class MaterialController {
         return res.status(400).json({ error: 'O saldo inicial deve ser um número maior ou igual a zero.' });
       }
 
-      const movimentos = qtdInicial > 0 ? {
-        create: {
-          factoryUnitId: req.tenant!.id,
-          type: 'entrada',
-          quantity: qtdInicial,
-          reason: 'Saldo Inicial de Implantação',
-          operatorId: req.user?.matricula ? String(req.user.matricula) : null,
-          operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação'
-        }
-      } : undefined;
-
       const novo = await prisma.$transaction(async (tx) => {
         let loc = await tx.location.findUnique({
           where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
         });
         if (!loc) loc = await tx.location.create({ data: { name: locationName, factoryUnitId: req.tenant!.id } });
 
-        return tx.material.create({
+        const material = await tx.material.create({
           data: {
             code: String(req.body.codigo || req.body.code),
             name: String(req.body.descricao || req.body.name),
@@ -114,14 +103,29 @@ export class MaterialController {
             observation: String(req.body.observacoes || req.body.observation || ''),
             factoryUnitId: req.tenant!.id,
             locations: { create: { locationId: loc.id, quantity: qtdInicial } },
-            movements: movimentos,
           },
         });
+
+        if (qtdInicial > 0) {
+          await tx.movement.create({
+            data: {
+              materialId: material.id,
+              factoryUnitId: req.tenant!.id,
+              type: 'entrada',
+              quantity: qtdInicial,
+              reason: 'Saldo Inicial de Implantação',
+              operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+              operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação',
+            },
+          });
+        }
+
+        return material;
       });
       
       res.status(201).json(novo);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if ((error as any)?.code === 'P2002' || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
         return res.status(409).json({ error: 'Já existe um material com esse código.' });
       }
       console.error('Erro interno ao criar material.');
@@ -194,6 +198,7 @@ export class MaterialController {
       if (result.count === 0) return res.status(404).json({ error: 'Material não encontrado.' });
       res.json({ message: 'Deletado com sucesso' });
     } catch (error) {
+      console.error('Erro ao deletar material:', error);
       res.status(500).json({ error: 'Erro ao deletar material' });
     }
   }
@@ -208,6 +213,7 @@ export class MaterialController {
       ]);
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {
+      console.error('Erro nas estatísticas:', error);
       res.status(500).json({ error: 'Erro nas estatísticas' });
     }
   }
@@ -217,31 +223,76 @@ export class MaterialController {
       const { materiais } = req.body;
 
       if (!Array.isArray(materiais) || materiais.length === 0) {
-        return res.status(400).json({ error: "O payload deve ser um array de materiais." });
+        return res.status(400).json({ error: 'O payload deve ser um array de materiais.' });
       }
 
       const dadosLimpos = (materiais as ImportedMaterial[]).map((m) => ({
-        factoryUnitId: req.tenant!.id,
         code: String(m.code || '').trim(),
         name: String(m.name || '').trim().toUpperCase(),
         quantity: Number(String(m.quantity).replace(',', '.')) || 0,
         unit: String(m.unit || 'UN').toUpperCase(),
-        type: String(m.type || 'OUTRO').toLowerCase()
-      })).filter((m) => m.name !== '');
+        type: String(m.type || 'OUTRO').toLowerCase(),
+      })).filter((m) => m.code !== '' && m.name !== '');
 
-      const result = await prisma.material.createMany({
-        data: dadosLimpos,
-        skipDuplicates: true,
-      });
+      let inseridos = 0;
+      let ignorados = 0;
 
-      return res.status(201).json({ 
-        message: "Importação concluída com sucesso.", 
-        inseridos: result.count 
+      for (const item of dadosLimpos) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            let loc = await tx.location.findUnique({
+              where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: 'GERAL' } },
+            });
+            if (!loc) {
+              loc = await tx.location.create({ data: { name: 'GERAL', factoryUnitId: req.tenant!.id } });
+            }
+
+            const material = await tx.material.create({
+              data: {
+                factoryUnitId: req.tenant!.id,
+                code: item.code,
+                name: item.name,
+                quantity: item.quantity,
+                unit: item.unit,
+                type: item.type,
+                observation: 'Importado via lote (API)',
+                locations: { create: { locationId: loc.id, quantity: item.quantity } },
+              },
+            });
+
+            if (item.quantity > 0) {
+              await tx.movement.create({
+                data: {
+                  materialId: material.id,
+                  factoryUnitId: req.tenant!.id,
+                  type: 'entrada',
+                  quantity: item.quantity,
+                  reason: 'Saldo Inicial de Implantação',
+                  operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+                  operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação',
+                },
+              });
+            }
+          });
+          inseridos++;
+        } catch (err: any) {
+          if (err?.code === 'P2002') {
+            ignorados++; // duplicado — pula silenciosamente
+          } else {
+            throw err; // outro erro — aborta
+          }
+        }
+      }
+
+      return res.status(201).json({
+        message: 'Importação concluída com sucesso.',
+        inseridos,
+        ignorados,
       });
 
     } catch (error) {
-      console.error("Erro no Bulk Insert:", error);
-      return res.status(500).json({ error: "Erro interno ao processar o lote." });
+      console.error('Erro no Bulk Insert:', error);
+      return res.status(500).json({ error: 'Erro interno ao processar o lote.' });
     }
   }
 }

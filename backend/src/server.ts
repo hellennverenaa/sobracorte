@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
@@ -16,8 +16,9 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With", "X-Dass-Unit"],
   exposedHeaders: ["X-Total-Count"],
 }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-app.use(express.json({ limit: "50mb" }));
+app.set('trust proxy', 1);
+app.use(express.urlencoded({ limit: "2mb", extended: true }));
+app.use(express.json({ limit: "2mb" }));
 app.use(cookieParser());
 app.use(helmet());
 app.use(rateLimit({
@@ -28,7 +29,12 @@ app.use(rateLimit({
 app.use(routes);
 
 app.get("/", (_req: Request, res: Response) => {
-  res.json({ message: "Api sorbra corte runnig." });
+  res.json({ message: "API SobraCorte running." });
+});
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[Global Error Handler]', err);
+  res.status(500).json({ error: 'Erro interno no servidor.' });
 });
 
 app.listen(config.port, "0.0.0.0", () => {

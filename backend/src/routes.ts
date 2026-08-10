@@ -13,7 +13,10 @@ import { isUserRole } from './auth/roles';
 
 const routes = Router();
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 const reportController = new ReportController();
 const authController = new AuthController();
@@ -30,7 +33,8 @@ routes.get('/factory-units', async (_req, res) => {
       select: { code: true, name: true },
     });
     return res.json({ data: units });
-  } catch {
+  } catch (error) {
+    console.error('Erro ao carregar unidades:', error);
     return res.status(500).json({ error: 'Erro ao carregar unidades.' });
   }
 });
@@ -118,7 +122,8 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
 
     await prisma.user.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
     return res.json({ message: 'Usuário removido com sucesso.' });
-  } catch {
+  } catch (error) {
+    console.error('Erro ao remover usuário:', error);
     return res.status(500).json({ error: 'Erro interno ao remover usuário' });
   }
 });

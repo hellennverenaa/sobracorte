@@ -145,24 +145,61 @@ export class ImportController {
         });
       }
 
-      const result = await prisma.material.createMany({
-        data: materiais.map(m => ({
-          factoryUnitId: req.tenant!.id,
-          code: m.code,
-          name: m.name,
-          quantity: m.quantity,
-          unit: m.unit,
-          type: m.type,
-          observation: 'Importado via planilha de materiais CSV',
-        })),
-        skipDuplicates: true,
-      });
+      let inseridos = 0;
+      let ignorados = 0;
+
+      for (const item of materiais) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            let loc = await tx.location.findUnique({
+              where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: 'GERAL' } },
+            });
+            if (!loc) {
+              loc = await tx.location.create({ data: { name: 'GERAL', factoryUnitId: req.tenant!.id } });
+            }
+
+            const material = await tx.material.create({
+              data: {
+                factoryUnitId: req.tenant!.id,
+                code: item.code,
+                name: item.name,
+                quantity: item.quantity,
+                unit: item.unit,
+                type: item.type,
+                observation: 'Importado via planilha de materiais CSV',
+                locations: { create: { locationId: loc.id, quantity: item.quantity } },
+              },
+            });
+
+            if (item.quantity > 0) {
+              await tx.movement.create({
+                data: {
+                  materialId: material.id,
+                  factoryUnitId: req.tenant!.id,
+                  type: 'entrada',
+                  quantity: item.quantity,
+                  reason: 'Saldo Inicial de Implantação',
+                  operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+                  operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação',
+                },
+              });
+            }
+          });
+          inseridos++;
+        } catch (err: any) {
+          if (err?.code === 'P2002') {
+            ignorados++;
+          } else {
+            throw err;
+          }
+        }
+      }
 
       return res.status(201).json({
         message: 'Importação concluída com sucesso.',
-        inseridos: result.count,
+        inseridos,
         processados: materiais.length,
-        ignorados: materiais.length - result.count,
+        ignorados,
       });
 
     } catch (error: unknown) {

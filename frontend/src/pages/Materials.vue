@@ -257,11 +257,12 @@
 import { ref, computed, onMounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
-import { Lock } from 'lucide-vue-next'
-import { api } from '../services/httpClient'
-
-// 1. LINHA PARA IMPORTAR:
-import { useAuthStore } from '@/stores/auth'
+import { Lock } from 'lucide-vue-next';
+import { api } from '../services/httpClient';
+import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/composables/useToast';
+import { useConfirmModal } from '@/composables/useConfirmModal';
+import { formatNumber } from '@/utils/format';
 
 const materials = ref([]);
 const search = ref("");
@@ -272,53 +273,9 @@ const viewingItem = ref(null);
 
 
 
-// 2. ADICIONE ESTA LINHA PARA CRIAR A VARIÁVEL:
-const authStore = useAuthStore()
-
-// TAREFA 1: Sistema de Notificações Elegante
-const notification = ref({ show: false, type: "", message: "" });
-
-function showNotification(type, message) {
-  notification.value = { show: true, type, message };
-  setTimeout(() => {
-    notification.value.show = false;
-  }, 3000);
-}
-
-// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-});
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
+const authStore = useAuthStore();
+const { notification, showNotification } = useToast();
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
 const categories = ref(["Todos"]);
@@ -410,21 +367,13 @@ watch(
 );
 
 
-// Adicionamos o 'config = {}' para aceitar os parâmetros do Dashboard!
 async function fetchMaterials(config = {}) {
   try {
-    // O Axios faz o GET, junta a baseURL e aplica os parâmetros se existirem
     const response = await api.get('/materials', config);
-
-    // O Axios já entrega o JSON mastigado no response.data
     materials.value = response.data;
-
-    // Retornamos o dado para caso outra tela (como o Dashboard) esteja chamando
     return response.data;
-
   } catch (e) {
-    console.error("Erro ao buscar materiais:", e);
-    // Em caso de erro, garantimos que não quebre a tela retornando um array vazio
+    console.error('Erro ao buscar materiais:', e);
     return [];
   }
 }
@@ -434,17 +383,13 @@ const paginatedMaterials = computed(() => {
     .filter((m) => {
       const term = search.value.toLowerCase();
       return (
-        (selectedCategory.value === "Todos" || m.type === selectedCategory.value) &&
+        (selectedCategory.value === 'Todos' || m.type === selectedCategory.value) &&
         (m.name.toLowerCase().includes(term) || String(m.code).toLowerCase().includes(term))
       );
     })
     .sort((a, b) => b.id - a.id)
     .slice(0, 50);
 });
-
-function formatNumber(num) {
-  return Number(num).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
-}
 
 function openCreateModal() {
   editingItem.value = null;

@@ -52,7 +52,7 @@ export class AuthController {
         isGlobalAdmin: Boolean(req.isGlobalAdmin),
       });
     } catch (error) {
-      console.error('Erro ao sincronizar usuário autenticado.');
+      console.error('Erro ao sincronizar usuário autenticado.', error);
       return res.status(500).json({ error: 'Erro interno ao processar usuário.' });
     }
   }

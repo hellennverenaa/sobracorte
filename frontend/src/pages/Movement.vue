@@ -2,22 +2,7 @@
   <Layout>
     <div class="flex flex-col h-full px-6 pt-6 bg-gray-50/50 relative">
 
-      <transition name="fade-down">
-        <div v-if="notification.show"
-          class="absolute top-6 right-6 z-[99] px-6 py-3 rounded-xl shadow-xl font-bold flex items-center gap-3 text-sm animate-fade-in"
-          :class="notification.style">
-          <svg v-if="notification.type === 'success'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
-            viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-          </svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>{{ notification.message }}</span>
-        </div>
-      </transition>
+
 
       <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-800 tracking-tight">Movimentações</h1>
@@ -269,6 +254,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { api } from '../services/httpClient'
+import { useToast } from '@/composables/useToast'
+import { formatNumber, formatDate } from '@/utils/format'
 
 const dbLocations = ref([]);
 const origensSobra = ref([]);
@@ -281,7 +268,7 @@ const searchQuery = ref('')
 const selectedMaterial = ref(null)
 const showDropdown = ref(false)
 const historySearch = ref('')
-const notification = ref({ show: false, message: '', type: 'success', style: '' })
+const { notification, showNotification } = useToast()
 
 const locationOptions = computed(() => {
   if (form.value.type === 'SAIDA') {
@@ -439,30 +426,6 @@ function filterMaterials() {
   showDropdown.value = true
 }
 
-function formatNumber(num) {
-  return Number(num || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-}
-
-function formatDate(date) {
-  if (!date) return '-';
-  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-function showNotification(message, type = 'success', moveType = 'SAIDA') {
-  notification.value.message = message;
-  notification.value.type = type;
-
-  if (type === 'success') {
-    notification.value.style = moveType === 'ENTRADA'
-      ? 'bg-gradient-to-r from-red-500 to-red-600 text-red-50'
-      : 'bg-gradient-to-r from-green-500 to-green-600 text-green-50';
-  } else {
-    notification.value.style = 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-50';
-  }
-
-  notification.value.show = true;
-  setTimeout(() => notification.value.show = false, 3000);
-}
 
 async function submitMovement() {
   if (!selectedMaterial.value) {

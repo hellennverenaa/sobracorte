@@ -5,6 +5,7 @@ import { useApi } from '@/composables/useApi'
 import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileText, FileBarChart, CheckCircle, XCircle } from 'lucide-vue-next'
 import { exportToCSV } from '@/utils/export'
 import { api } from '@/services/httpClient'
+import { useToast } from '@/composables/useToast'
 
 const { request } = useApi()
 
@@ -13,12 +14,7 @@ const loading = ref(false)
 const reportData = ref([])
 const hasSearched = ref(false)
 
-// --- NOTIFICAÇÕES TOAST ---
-const notification = ref({ show: false, type: 'success', message: '' })
-function showNotification(type, message) {
-  notification.value = { show: true, type, message }
-  setTimeout(() => { notification.value.show = false }, 3500)
-}
+const { notification, showNotification } = useToast()
 
 // Filtros
 const filters = ref({
@@ -171,18 +167,6 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <transition name="fade-down">
-      <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-        :class="notification.type === 'success'
-          ? 'bg-emerald-500 text-white'
-          : 'bg-red-500 text-white'">
-        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-        <XCircle v-else class="w-4 h-4" />
-        {{ notification.message }}
-      </div>
-    </transition>
 
     <div class="max-w-6xl mx-auto px-4 py-8">
       

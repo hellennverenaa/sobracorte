@@ -5,6 +5,8 @@ import Layout from "@/components/Layout.vue";
 import { Trash2, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle } from "lucide-vue-next";
 import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import { useToast } from '@/composables/useToast';
+import { useConfirmModal } from '@/composables/useConfirmModal';
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -13,45 +15,8 @@ const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
 
-const notification = ref({ show: false, type: 'success', message: '' });
-function showNotification(type, message) {
-  notification.value = { show: true, type, message };
-  setTimeout(() => { notification.value.show = false; }, 3500);
-}
-
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-});
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
+const { notification, showNotification } = useToast();
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
 const roleOptions = [
   { value: "admin", label: "Admin Master", icon: Shield, color: "text-purple-600 bg-purple-100" },
@@ -145,18 +110,6 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <transition name="fade-down">
-      <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-        :class="notification.type === 'success'
-          ? 'bg-emerald-500 text-white'
-          : 'bg-red-500 text-white'">
-        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-        <XCircle v-else class="w-4 h-4" />
-        {{ notification.message }}
-      </div>
-    </transition>
 
     <div class="p-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-center mb-8">
@@ -290,17 +243,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal de Confirmação Corporativo -->
-    <ConfirmModal
-      :show="confirmState.show"
-      :title="confirmState.title"
-      :message="confirmState.message"
-      :confirm-text="confirmState.confirmText"
-      :variant="confirmState.variant"
-      :loading="confirmState.loading"
-      @confirm="handleConfirmedAction"
-      @cancel="confirmState.show = false"
-    />
   </Layout>
 </template>
 

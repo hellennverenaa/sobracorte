@@ -6,7 +6,8 @@ export class ReportController {
     try {
       const materials = await prisma.material.findMany({
         where: { factoryUnitId: req.tenant!.id },
-        orderBy: { quantity: 'desc' }
+        orderBy: { quantity: 'desc' },
+        take: 2000,
       });
 
       const formatted = materials.map(m => ({
@@ -56,23 +57,16 @@ export class ReportController {
       const formatted = movements.map(m => ({
         id: m.id,
         data: m.createdAt,
-        data_hora: m.createdAt,
         tipo: m.type.toUpperCase(),
         quantidade: m.quantity,
         motivo: m.reason || '-',
         usuario: m.operatorName || 'Sistema',
-        responsavel: m.operatorName || 'Sistema',
-        
         material: {
           codigo: m.material.code,
           descricao: m.material.name,
           tipo: m.material.type,
-          unidade: m.material.unit
+          unidade: m.material.unit,
         },
-        
-        codigo: m.material.code,
-        nomeMaterial: m.material.name,
-        unidade: m.material.unit
       }));
 
       res.json(formatted);
