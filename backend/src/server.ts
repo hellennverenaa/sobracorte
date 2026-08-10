@@ -10,7 +10,11 @@ const app = express();
 
 // CONFIGURAÇÃO DE CORS PARA AMBIENTES COM AUTENTICAÇÃO (JWT/Cookies)
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://10.100.1.43'], // Diz exatamente quem pode fazer requisições
+  origin: ['http://localhost:3000',
+    'http://localhost:5173',
+    'http://10.100.1.43',   // Diz exatamente quem pode fazer requisições
+    'http://10.100.1.43:3000',
+    'http://10.100.1.43:5173'],
   credentials: true,               // Permite que o Frontend envie Tokens/Cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Cache-Control', 'Origin', 'X-Requested-With'],
@@ -46,7 +50,7 @@ app.use(limiter);
 // Nota: express.json() já foi configurado acima com limit 50mb
 
 // Engatando o "roteador" no nosso motor principal
-app.use(routes);
+app.use('/api', routes);
 
 app.get("/", (req: Request, res: Response) => {
   res.json({

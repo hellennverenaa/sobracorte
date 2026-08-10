@@ -495,10 +495,27 @@ import { ref, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
+import { useApi } from '@/composables/useApi'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
   Plus, Trash2, Upload, CheckCircle, XCircle
 } from 'lucide-vue-next'
+
+// --- COMPOSABLE DE API ---
+const {
+  fetchCategories: apiFetchCategories,
+  createCategory: apiCreateCategory,
+  deleteCategory: apiDeleteCategory,
+  fetchUnits: apiFetchUnits,
+  createUnit: apiCreateUnit,
+  deleteUnit: apiDeleteUnit,
+  fetchSettingsLocations: apiFetchLocations,
+  createLocation: apiCreateLocation,
+  deleteLocation: apiDeleteLocation,
+  fetchOrigins: apiFetchOrigins,
+  createOrigin: apiCreateOrigin,
+  deleteOrigin: apiDeleteOrigin
+} = useApi()
 
 // --- TABS ---
 const tabs = [
@@ -562,8 +579,8 @@ const newCategory = ref({ name: '', defaultUnitId: '', unitLocked: false })
 async function fetchCategories() {
   loadingCategory.value = true
   try {
-    const res = await api.get('/settings/categories')
-    categories.value = res.data
+    const data = await apiFetchCategories()
+    categories.value = Array.isArray(data) ? data : []
   } catch (e) {
     showNotification('error', 'Erro ao carregar categorias.')
   } finally {
@@ -574,7 +591,7 @@ async function fetchCategories() {
 async function addCategory() {
   if (!newCategory.value.name.trim()) return
   try {
-    await api.post('/settings/categories', {
+    await apiCreateCategory({
       name: newCategory.value.name.trim(),
       defaultUnitId: newCategory.value.defaultUnitId ? Number(newCategory.value.defaultUnitId) : null,
       unitLocked: Boolean(newCategory.value.unitLocked)
@@ -583,7 +600,7 @@ async function addCategory() {
     newCategory.value = { name: '', defaultUnitId: '', unitLocked: false }
     await fetchCategories()
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao criar categoria.'
+    const msg = e.response?.data?.error || e.message || 'Erro ao criar categoria.'
     showNotification('error', msg)
   }
 }
@@ -596,11 +613,11 @@ async function deleteCategory(cat) {
     variant: 'danger',
     action: async () => {
       try {
-        await api.delete(`/settings/categories/${cat.id}`)
+        await apiDeleteCategory(cat.id)
         showNotification('success', `Categoria "${cat.name}" excluída.`)
         await fetchCategories()
       } catch (e) {
-        const msg = e.response?.data?.error || 'Erro ao excluir categoria.'
+        const msg = e.response?.data?.error || e.message || 'Erro ao excluir categoria.'
         showNotification('error', msg)
       }
     }
@@ -617,8 +634,8 @@ const newUnit = ref({ name: '', symbol: '' })
 async function fetchUnits() {
   loadingUnit.value = true
   try {
-    const res = await api.get('/settings/units')
-    units.value = res.data
+    const data = await apiFetchUnits()
+    units.value = Array.isArray(data) ? data : []
   } catch (e) {
     showNotification('error', 'Erro ao carregar unidades de medida.')
   } finally {
@@ -629,7 +646,7 @@ async function fetchUnits() {
 async function addUnit() {
   if (!newUnit.value.name.trim() || !newUnit.value.symbol.trim()) return
   try {
-    await api.post('/settings/units', {
+    await apiCreateUnit({
       name: newUnit.value.name.trim(),
       symbol: newUnit.value.symbol.trim()
     })
@@ -637,7 +654,7 @@ async function addUnit() {
     newUnit.value = { name: '', symbol: '' }
     await fetchUnits()
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao criar unidade de medida.'
+    const msg = e.response?.data?.error || e.message || 'Erro ao criar unidade de medida.'
     showNotification('error', msg)
   }
 }
@@ -650,11 +667,11 @@ async function deleteUnit(unit) {
     variant: 'danger',
     action: async () => {
       try {
-        await api.delete(`/settings/units/${unit.id}`)
+        await apiDeleteUnit(unit.id)
         showNotification('success', `Unidade de medida desativada.`)
         await fetchUnits()
       } catch (e) {
-        const msg = e.response?.data?.error || 'Erro ao desativar unidade.'
+        const msg = e.response?.data?.error || e.message || 'Erro ao desativar unidade.'
         showNotification('error', msg)
       }
     }
@@ -671,8 +688,8 @@ const newLocation = ref({ name: '', categoryId: '' })
 async function fetchLocations() {
   loadingLocation.value = true
   try {
-    const res = await api.get('/settings/locations')
-    locations.value = res.data
+    const data = await apiFetchLocations()
+    locations.value = Array.isArray(data) ? data : []
   } catch (e) {
     showNotification('error', 'Erro ao carregar localizações.')
   } finally {
@@ -686,7 +703,7 @@ async function addLocation() {
     return showNotification('error', 'Selecione a Categoria Vinculada.')
   }
   try {
-    await api.post('/settings/locations', {
+    await apiCreateLocation({
       name: newLocation.value.name.trim(),
       categoryId: Number(newLocation.value.categoryId)
     })
@@ -694,7 +711,7 @@ async function addLocation() {
     newLocation.value = { name: '', categoryId: '' }
     await fetchLocations()
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao criar localização.'
+    const msg = e.response?.data?.error || e.message || 'Erro ao criar localização.'
     showNotification('error', msg)
   }
 }
@@ -707,11 +724,11 @@ async function deleteLocation(loc) {
     variant: 'danger',
     action: async () => {
       try {
-        await api.delete(`/settings/locations/${loc.id}`)
+        await apiDeleteLocation(loc.id)
         showNotification('success', `Localização excluída.`)
         await fetchLocations()
       } catch (e) {
-        const msg = e.response?.data?.error || 'Erro ao excluir localização.'
+        const msg = e.response?.data?.error || e.message || 'Erro ao excluir localização.'
         showNotification('error', msg)
       }
     }
@@ -728,8 +745,8 @@ const newOrigin = ref('')
 async function fetchOrigins() {
   loadingOrigin.value = true
   try {
-    const res = await api.get('/settings/origins')
-    origins.value = res.data
+    const data = await apiFetchOrigins()
+    origins.value = Array.isArray(data) ? data : []
   } catch (e) {
     showNotification('error', 'Erro ao carregar origens.')
   } finally {
@@ -740,12 +757,12 @@ async function fetchOrigins() {
 async function addOrigin() {
   if (!newOrigin.value.trim()) return
   try {
-    await api.post('/settings/origins', { name: newOrigin.value.trim() })
+    await apiCreateOrigin({ name: newOrigin.value.trim() })
     showNotification('success', `Origem "${newOrigin.value}" criada!`)
     newOrigin.value = ''
     await fetchOrigins()
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao criar origem.'
+    const msg = e.response?.data?.error || e.message || 'Erro ao criar origem.'
     showNotification('error', msg)
   }
 }
@@ -758,11 +775,11 @@ async function deleteOrigin(orig) {
     variant: 'danger',
     action: async () => {
       try {
-        await api.delete(`/settings/origins/${orig.id}`)
+        await apiDeleteOrigin(orig.id)
         showNotification('success', `Origem excluída.`)
         await fetchOrigins()
       } catch (e) {
-        const msg = e.response?.data?.error || 'Erro ao excluir origem.'
+        const msg = e.response?.data?.error || e.message || 'Erro ao excluir origem.'
         showNotification('error', msg)
       }
     }
@@ -783,7 +800,6 @@ function downloadCSVTemplate() {
                   "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n" +
                   "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0\n";
   
-  // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -802,7 +818,7 @@ function handleFileSelect(event) {
     selectedFile.value = file
     importResult.value = null
   }
-  event.target.value = null // reset input
+  event.target.value = null
 }
 
 function handleDrop(event) {
