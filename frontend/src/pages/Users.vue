@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
 import { Trash2, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle } from "lucide-vue-next";
-import { authApi, api } from '../services/httpClient'
+import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
 
 const auth = useAuthStore();
@@ -13,14 +13,12 @@ const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
 
-// --- NOTIFICAÇÕES TOAST ---
 const notification = ref({ show: false, type: 'success', message: '' });
 function showNotification(type, message) {
   notification.value = { show: true, type, message };
   setTimeout(() => { notification.value.show = false; }, 3500);
 }
 
-// --- MODAL DE CONFIRMAÇÃO ---
 const confirmState = ref({
   show: false,
   title: '',
@@ -55,7 +53,6 @@ async function handleConfirmedAction() {
   }
 }
 
-// Opções de Níveis de Acesso
 const roleOptions = [
   { value: "admin", label: "Admin Master", icon: Shield, color: "text-purple-600 bg-purple-100" },
   { value: "lider", label: "Líder", icon: UserCheck, color: "text-blue-600 bg-blue-100" },
@@ -63,19 +60,13 @@ const roleOptions = [
   { value: "leitor", label: "Leitor", icon: Eye, color: "text-gray-600 bg-gray-100" },
 ];
 
-// Carregar usuários do banco local
 const fetchUsers = async () => {
   loading.value = true;
   try {
-    // O Axios resolve TUDO em uma linha:
-    // URL base, Headers, Credentials e o GET automático.
     const response = await api.get('/users');
-
-    // Os dados já vêm convertidos do JSON direto na propriedade 'data'
     users.value = response.data;
 
   } catch (error) {
-    // Se der 401 Unauthorized de novo, o Axios pula direto pra cá!
     const errorMsg = error.response?.data?.error || error.message;
     console.error("Erro ao buscar usuários:", errorMsg);
   } finally {
@@ -83,18 +74,12 @@ const fetchUsers = async () => {
   }
 };
 
-// Salvar alteração de nível
 const saveUserRole = async () => {
   if (!editingUser.value) return;
 
   try {
-    // O Axios resolve o PUT de forma limpa:
-    // Passamos apenas a rota final e o objeto puro que será salvo.
-    // O Content-Type, o credentials e o JSON.stringify já estão embutidos.
     await api.put(`/users/${editingUser.value.id}`, editingUser.value);
 
-    // Se chegou aqui, o Status 200 (Sucesso) é garantido!
-    // A MÁGICA: Atualiza a tabela na tela imediatamente!
     const index = users.value.findIndex((u) => u.id === editingUser.value.id);
     if (index !== -1) {
       users.value[index].role = editingUser.value.role;
@@ -110,15 +95,12 @@ const saveUserRole = async () => {
   }
 };
 
-// Abrir modal de edição
 const openEditModal = (user) => {
-  // Cria uma cópia para não alterar a tabela antes de salvar
   editingUser.value = { ...user };
   showEditModal.value = true;
 };
 
 
-// Excluir usuário (opcional, cuidado!)
 const deleteUser = (userTarget) => {
   const userId = typeof userTarget === 'object' ? userTarget.id : userTarget;
   const userName = typeof userTarget === 'object' ? (userTarget.nome || userTarget.usuario) : 'este usuário';
@@ -141,7 +123,6 @@ const deleteUser = (userTarget) => {
     }
   });
 };
-// Filtro de busca
 const filteredUsers = computed(() => {
   if (!searchTerm.value) return users.value;
   const term = searchTerm.value.toLowerCase();
@@ -153,9 +134,8 @@ const filteredUsers = computed(() => {
   );
 });
 
-// Função auxiliar para pegar a cor/label do cargo
 const getRoleInfo = (role) => {
-  return roleOptions.find((r) => r.value === role) || roleOptions[3]; // Fallback para leitor
+  return roleOptions.find((r) => r.value === role) || roleOptions[3];
 };
 
 onMounted(() => {

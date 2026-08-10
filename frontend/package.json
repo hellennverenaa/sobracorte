@@ -6,7 +6,6 @@
   "dependencies": {
     "autoprefixer": "^10.4.17",
     "axios": "^1.19.0",
-    "json-server": "^1.0.0-beta.3",
     "lucide-vue-next": "^0.344.0",
     "pinia": "^2.0.0",
     "postcss": "^8.4.35",
@@ -16,10 +15,7 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
-    "db": "json-server --watch db.json --port 3001 --host 0.0.0.0",
-    "backup": "node backup.js",
-    "predb": "npm run backup"
+    "build": "vite build"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

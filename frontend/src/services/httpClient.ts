@@ -1,19 +1,14 @@
 /// <reference types="vite/client" />
 import { attachInterceptors } from "./interceptors/interceptor"
-import { ip } from "../utils/ip"
 import axios from "axios"
 
-const isLocal = import.meta.env.DEV;
-
-// 1. LOGIN: Local roda puro na 2399. Produção usa o /api do Gateway!
 export const authApi = axios.create({
-  baseURL: isLocal ? "http://10.100.1.43:2399/api" : `${ip}:2399/api`,
+  baseURL: import.meta.env.VITE_AUTH_API_URL,
   withCredentials: true
 });
 
-// 2. MATERIAIS: Local bate direto na 3333. Produção passa pela pasta sobracorte.
 export const api = axios.create({
-  baseURL: isLocal ? "http://localhost:3333" : `${ip}:2399/api/sobracorte`,
+  baseURL: import.meta.env.VITE_SOBRACORTE_API_URL,
   withCredentials: true
 });
 

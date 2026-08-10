@@ -1,13 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
-import { useApi } from '@/composables/useApi'
-import { User, Mail, Shield, Key, Save, CheckCircle, AlertTriangle } from 'lucide-vue-next'
+import { User, Mail, Shield, CheckCircle, AlertTriangle } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
-const {  } = useApi()
-
 const user = ref({ ...authStore.user }) // Clona os dados para editar
 const currentPassword = ref('')
 const newPassword = ref('')

@@ -7,12 +7,12 @@ import { ReportController } from './controllers/ReportController';
 import { SettingsController } from './controllers/SettingsController';
 import { ImportController } from './controllers/ImportController';
 import { DashboardController } from './controllers/DashboardController';
-import { prisma } from './prisma'; // <-- Conexão com o banco!
-import { requireRole, requireAuth } from './middlewares/roleMiddleware'; // <-- Nosso Cão de Guarda!
+import { prisma } from './prisma';
+import { requireRole, requireAuth } from './middlewares/roleMiddleware';
+import { isUserRole } from './auth/roles';
 
 const routes = Router();
 
-// Multer: memoryStorage — o arquivo fica em RAM (req.file.buffer), sem tocar o disco
 const upload = multer({ storage: multer.memoryStorage() });
 
 const reportController = new ReportController();
@@ -22,47 +22,31 @@ const movementController = new MovementController();
 const settingsController = new SettingsController();
 const importController = new ImportController();
 const dashboardController = new DashboardController();
+routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
-
-//  Rotas de Login (Aberta)
-routes.post('/auth/login', authController.login);
-
-// Rota callback para registrar usuaruo no banco sobracorte
-routes.post("/auth/check-user", authController.checkUser)
-
-// Rotas de Materiais
 routes.get('/materials', requireAuth, materialController.index);
 routes.post('/materials', requireAuth, requireRole(['lider']), materialController.create);
 routes.put('/materials/:id', requireAuth, requireRole(['lider']), materialController.update);
 routes.delete('/materials/:id', requireAuth, requireRole(['lider']), materialController.delete);
 routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
 
-// Rotas de Dashboard
-routes.get('/stats', materialController.stats);
+routes.get('/stats', requireAuth, materialController.stats);
 routes.get('/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
 routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistribuicao);
 routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMateriais);
 
-// Rotas de Movimentações
-routes.get('/movements', movementController.index);
+routes.get('/movements', requireAuth, movementController.index);
 routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), movementController.create);
 
-// Relatórios
 routes.get('/reports/inventory', requireAuth, requireRole(['lider']), reportController.inventory);
 routes.get('/reports/movements', requireAuth, requireRole(['lider']), reportController.movements);
 
-// ==========================================================
-// 👥 ROTAS DE GESTÃO DE USUÁRIOS (SobraCorte DB)
-// ==========================================================
-
-// Listar Usuários do Banco Real (Com proteção contra o BigInt)
 routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       orderBy: { nome: 'asc' }
     });
 
-    //  A MÁGICA: Converte o BigInt para Number antes de virar JSON!
     const safeUsers = users.map(user => ({
       ...user,
       matriculaDass: user.matriculaDass ? Number(user.matriculaDass) : null
@@ -75,20 +59,23 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   }
 });
 
-// Atualizar Nível de Acesso no Banco Real
-//  A CORREÇÃO: Colocamos o Porteiro e dizemos que só ADMIN entra!
-// Atualizar Nível de Acesso no Banco Real
 routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { role } = req.body;
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Usuário inválido' });
+    }
+    if (!isUserRole(role)) {
+      return res.status(400).json({ error: 'Nível de acesso inválido' });
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: id },
       data: { role: role }
     });
 
-    // A VACINA: Converte o BigInt para Number antes de devolver pro Vue.js!
     const safeUser = {
       ...updatedUser,
       matriculaDass: updatedUser.matriculaDass ? Number(updatedUser.matriculaDass) : null
@@ -97,41 +84,47 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
     res.json(safeUser);
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error);
-    // Mudei para 500 para fazer mais sentido, caso dê um erro real de banco
     res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
   }
 });
 
-// ==========================================================
-// ⚙️ ROTAS DE CONFIGURAÇÕES (apenas admin)
-// Gerencia os valores de domínio que alimentam os selects do frontend
-// ==========================================================
+routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Usuário inválido' });
+  }
 
-// Categorias (governa Material.type)
+  try {
+    const target = await prisma.user.findUnique({ where: { id }, select: { usuario: true } });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (target.usuario === req.user?.usuario) {
+      return res.status(409).json({ error: 'Não é possível remover o próprio usuário.' });
+    }
+
+    await prisma.user.delete({ where: { id } });
+    return res.json({ message: 'Usuário removido com sucesso.' });
+  } catch {
+    return res.status(500).json({ error: 'Erro interno ao remover usuário' });
+  }
+});
+
 routes.get('/settings/categories',    requireAuth, settingsController.getCategories);
 routes.post('/settings/categories',   requireAuth, requireRole(['admin']), settingsController.createCategory);
 routes.put('/settings/categories/:id', requireAuth, requireRole(['admin']), settingsController.updateCategory);
 routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin']), settingsController.deleteCategory);
 
-// Unidades de Medida (tabela UnitConfig)
 routes.get('/settings/units', requireAuth, settingsController.getUnits);
 routes.post('/settings/units', requireAuth, requireRole(['admin']), settingsController.createUnit);
 routes.delete('/settings/units/:id', requireAuth, requireRole(['admin']), settingsController.deleteUnit);
 
-// Localizações (tabela Location)
 routes.get('/settings/locations',    requireAuth, settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, requireRole(['admin']), settingsController.createLocation);
 routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin']), settingsController.deleteLocation);
 
-// Origens de sobra (governa Movement.origem)
 routes.get('/settings/origins',    requireAuth, settingsController.getOrigins);
 routes.post('/settings/origins',   requireAuth, requireRole(['admin']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin']), settingsController.deleteOrigin);
 
-// ==========================================================
-// 📥 ROTA DE IMPORTAÇÃO DE CSV (apenas admin)
-// Recebe arquivo .csv via multipart/form-data (campo: "arquivo")
-// ==========================================================
 routes.post('/import/csv', requireAuth, requireRole(['admin']), upload.single('arquivo'), importController.importCSV);
 
 export { routes };

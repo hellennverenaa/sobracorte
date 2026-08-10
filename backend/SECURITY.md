@@ -42,9 +42,9 @@ O sistema adota o princípio de **Default Deny** (Negação Padrão). Qualquer u
 ## 🚀 Fluxo de Autenticação
 
 1. O usuário digita as credenciais na tela de Login.
-2. O Backend envia a requisição para a API de Autenticação da DASS.
-3. Se aprovado, a API da DASS devolve um Token JWT com os dados do RH.
-4. O Backend lê o Token, analisa o cargo, e salva/atualiza o usuário na tabela `User` local (mantendo os privilégios editados por Admins).
+2. O Gateway encaminha `/api/auth/login` para o serviço central de autenticação.
+3. Se aprovado, o serviço central devolve um Token JWT com os dados do RH.
+4. O Frontend chama `/api/sobracorte/auth/check-user`; o Backend valida o JWT, analisa o cargo e sincroniza a tabela `User` local, mantendo privilégios editados por Admins.
 5. O Backend devolve o usuário formatado para o Frontend.
 6. O Frontend ajusta a interface (mostra/esconde botões) com base na propriedade `role`.
 

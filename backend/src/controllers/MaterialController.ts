@@ -1,11 +1,20 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { Prisma } from '../generated/prisma';
+
+type ImportedMaterial = {
+  code?: unknown;
+  name?: unknown;
+  quantity?: unknown;
+  unit?: unknown;
+  type?: unknown;
+};
 
 export class MaterialController {
   async index(req: Request, res: Response) {
     try {
       const { q, _page, _limit } = req.query;
-      const whereClause: any = q ? {
+      const whereClause: Prisma.MaterialWhereInput = q ? {
         OR: [
           { name: { contains: String(q), mode: 'insensitive' } },
           { code: { contains: String(q), mode: 'insensitive' } }
@@ -15,16 +24,16 @@ export class MaterialController {
       const totalItems = await prisma.material.count({ where: whereClause });
       res.set('X-Total-Count', totalItems.toString());
 
-      // 🚀 1. AUMENTADO PARA 10.000 (Traz todo o estoque do ERP para a pesquisa do Vue funcionar)
-      const page = Number(_page) || 1;
-      const limit = Number(_limit) || 10000; 
+      const requestedPage = Number(_page);
+      const requestedLimit = Number(_limit);
+      const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+      const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 10000) : 10000;
       const skip = (page - 1) * limit;
 
       const materials = await prisma.material.findMany({
         where: whereClause,
         skip: skip,
         take: limit,
-        // 🚀 2. A TRAVA DO DBA: Desempata a data usando o ID. O item nunca mais muda de lugar!
         orderBy: [
           { createdAt: 'desc' },
           { id: 'desc' } 
@@ -36,17 +45,13 @@ export class MaterialController {
         }
       });
 
-     const formatted = materials.map(m => {
-        // A MÁGICA: Filtra apenas as prateleiras que realmente têm saldo (> 0)
-        // Ignorando os "Não definido" vazios do passado.
-        const prateleirasComSaldo = m.locations.filter((ml: any) => ml.quantity > 0);
+      const formatted = materials.map((m) => {
+        const prateleirasComSaldo = m.locations.filter((ml) => Number(ml.quantity) > 0);
         
         let localExibicao = 'Não definido';
         
         if (prateleirasComSaldo.length > 0) {
-          // Se tiver em apenas uma, mostra o nome dela. 
-          // Se o material estiver dividido, ele junta os nomes (Ex: "Prat A | Prat B")
-          localExibicao = prateleirasComSaldo.map((ml: any) => ml.location.name).join(' | ');
+          localExibicao = prateleirasComSaldo.map((ml) => ml.location.name).join(' | ');
         }
         
         return {
@@ -58,7 +63,7 @@ export class MaterialController {
           tipo: m.type,
           observacoes: m.observation,
           data_cadastro: m.createdAt,
-          location: localExibicao // Envia o nome real da prateleira para o Frontend
+          location: localExibicao
         };
       });
 
@@ -71,49 +76,48 @@ export class MaterialController {
 
   async create(req: Request, res: Response) {
     try {
-      const locationName = String(req.body.location || 'Não definido').trim();
-      const qtdInicial = Number(req.body.quantidade || req.body.quantity || 0);
+      const locationName = String(req.body.location || '').trim();
+      const qtdInicial = Number(req.body.quantidade ?? req.body.quantity ?? 0);
 
-      //  1. Busca se a Prateleira já existe no banco. Se não, cria na hora!
-      let loc = await prisma.location.findUnique({ where: { name: locationName } });
-      if (!loc) {
-        loc = await prisma.location.create({ data: { name: locationName } });
+      if (!locationName) return res.status(400).json({ error: 'A localização é obrigatória.' });
+      if (!Number.isFinite(qtdInicial) || qtdInicial < 0) {
+        return res.status(400).json({ error: 'O saldo inicial deve ser um número maior ou igual a zero.' });
       }
 
-      //  2. A MÁGICA: Prepara a auditoria. Se tiver saldo, gera uma ENTRADA automática.
       const movimentos = qtdInicial > 0 ? {
         create: {
           type: 'entrada',
           quantity: qtdInicial,
           reason: 'Saldo Inicial de Implantação',
-          operatorName: 'Sistema / Implantação' // Nome fixo para auditoria de cadastro
+          operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+          operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação'
         }
       } : undefined;
 
-      //  3. Cria o Material, a Prateleira e o Histórico em uma única transação atômica!
-      const novo = await prisma.material.create({
-        data: {
-          code: String(req.body.codigo || req.body.code),
-          name: String(req.body.descricao || req.body.name),
-          quantity: qtdInicial,
-          unit: String(req.body.unidade || req.body.unit || 'UN'),
-          type: String(req.body.tipo || req.body.type || 'outros'),
-          observation: String(req.body.observacoes || req.body.observation || ''),
-          
-          locations: {
-            create: {
-              locationId: loc.id,
-              quantity: qtdInicial
-            }
+      const novo = await prisma.$transaction(async (tx) => {
+        let loc = await tx.location.findUnique({ where: { name: locationName } });
+        if (!loc) loc = await tx.location.create({ data: { name: locationName } });
+
+        return tx.material.create({
+          data: {
+            code: String(req.body.codigo || req.body.code),
+            name: String(req.body.descricao || req.body.name),
+            quantity: qtdInicial,
+            unit: String(req.body.unidade || req.body.unit || 'UN'),
+            type: String(req.body.tipo || req.body.type || 'outros'),
+            observation: String(req.body.observacoes || req.body.observation || ''),
+            locations: { create: { locationId: loc.id, quantity: qtdInicial } },
+            movements: movimentos,
           },
-          
-          movements: movimentos // Injeção do Histórico Automático
-        }
+        });
       });
       
-      res.json(novo);
+      res.status(201).json(novo);
     } catch (error) {
-      console.error("Erro na criação:", error); // Bom deixar isso aqui para debugar se precisar
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return res.status(409).json({ error: 'Já existe um material com esse código.' });
+      }
+      console.error('Erro interno ao criar material.');
       res.status(500).json({ error: 'Erro ao criar material. Verifique duplicidade.' });
     }
   }
@@ -122,49 +126,46 @@ export class MaterialController {
     try {
       const materialId = Number(req.params.id);
       const locationName = req.body.location ? String(req.body.location).trim() : null;
-      
-      // 1. Pega a quantidade que veio na Maleta Limpa do Frontend
-      const novaQtd = req.body.quantity !== undefined ? Number(req.body.quantity) : undefined;
 
-      console.log("Nova solicitacao de att material: ", req.body);
-      
-      if (locationName) {
-        let loc = await prisma.location.findUnique({ where: { name: locationName } });
-        if (!loc) {
-          loc = await prisma.location.create({ data: { name: locationName } });
-        }
-
-        // 2. A CORREÇÃO DE LÓGICA: Injeta o saldo na Prateleira!
-        // Como o saldo agora é > 0, ela vai aparecer na tela instantaneamente!
-        await prisma.materialLocation.upsert({
-          where: { materialId_locationId: { materialId: materialId, locationId: loc.id } },
-          update: { 
-            quantity: novaQtd !== undefined ? novaQtd : undefined 
-          }, 
-          create: { 
-            materialId: materialId, 
-            locationId: loc.id, 
-            quantity: novaQtd !== undefined ? novaQtd : 0 
-          }
-        });
+      if (!Number.isInteger(materialId) || materialId <= 0) {
+        return res.status(400).json({ error: 'Material inválido.' });
+      }
+      if (req.body.quantity !== undefined || req.body.quantidade !== undefined) {
+        return res.status(400).json({ error: 'O saldo só pode ser alterado por uma movimentação.' });
       }
 
-      // 3. Atualiza os dados básicos do Material
-      const atualizado = await prisma.material.update({
-        where: { id: materialId },
-        data: {
-          code: req.body.code !== undefined ? String(req.body.code) : undefined,
-          name: req.body.name !== undefined ? String(req.body.name) : undefined,
-          quantity: novaQtd,
-          unit: req.body.unit !== undefined ? String(req.body.unit) : undefined,
-          type: req.body.type !== undefined ? String(req.body.type) : undefined,
-          observation: req.body.observation !== undefined ? String(req.body.observation) : undefined,
+      const atualizado = await prisma.$transaction(async (tx) => {
+        if (locationName) {
+          const loc = await tx.location.findUnique({ where: { name: locationName } });
+          if (!loc) throw new Error('LOCATION_NOT_FOUND');
+          await tx.materialLocation.upsert({
+            where: { materialId_locationId: { materialId, locationId: loc.id } },
+            update: {},
+            create: { materialId, locationId: loc.id, quantity: 0 },
+          });
         }
+
+        return tx.material.update({
+          where: { id: materialId },
+          data: {
+            code: req.body.code !== undefined ? String(req.body.code) : undefined,
+            name: req.body.name !== undefined ? String(req.body.name) : undefined,
+            unit: req.body.unit !== undefined ? String(req.body.unit) : undefined,
+            type: req.body.type !== undefined ? String(req.body.type) : undefined,
+            observation: req.body.observation !== undefined ? String(req.body.observation) : undefined,
+          },
+        });
       });
       
       res.json(atualizado);
     } catch (error) {
-      console.error("Erro no update: ", error);
+      if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
+        return res.status(404).json({ error: 'Localização não encontrada.' });
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return res.status(404).json({ error: 'Material não encontrado.' });
+      }
+      console.error('Erro interno ao atualizar material.');
       res.status(500).json({ error: 'Erro ao atualizar material' });
     }
   }
@@ -194,28 +195,23 @@ export class MaterialController {
 
   async importBatch(req: Request, res: Response) {
     try {
-      // 1. Barreira de Segurança: Verifica se é ADMIN (adaptar conforme seu JWT payload)
-      // if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: "Acesso negado." });
-
       const { materiais } = req.body;
 
       if (!Array.isArray(materiais) || materiais.length === 0) {
         return res.status(400).json({ error: "O payload deve ser um array de materiais." });
       }
 
-      // 2. Mapeamento e Sanitização dos Dados
-      const dadosLimpos = materiais.map((m: any) => ({
+      const dadosLimpos = (materiais as ImportedMaterial[]).map((m) => ({
         code: String(m.code || '').trim(),
         name: String(m.name || '').trim().toUpperCase(),
         quantity: Number(String(m.quantity).replace(',', '.')) || 0,
         unit: String(m.unit || 'UN').toUpperCase(),
         type: String(m.type || 'OUTRO').toLowerCase()
-      })).filter((m: any) => m.name !== ''); // Remove linhas vazias
+      })).filter((m) => m.name !== '');
 
-      // 3. Execução em Lote no PostgreSQL
       const result = await prisma.material.createMany({
         data: dadosLimpos,
-        skipDuplicates: true, // Ignora registros com IDs/Códigos já existentes (ON CONFLICT DO NOTHING)
+        skipDuplicates: true,
       });
 
       return res.status(201).json({ 

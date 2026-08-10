@@ -268,7 +268,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
-import { authApi, api } from '../services/httpClient'
+import { api } from '../services/httpClient'
 
 const dbLocations = ref([]);
 const origensSobra = ref([]);
@@ -283,10 +283,8 @@ const showDropdown = ref(false)
 const historySearch = ref('')
 const notification = ref({ show: false, message: '', type: 'success', style: '' })
 
-// 🚀 A MÁGICA 1: O Dropdown Inteligente com localizações dinâmicas
 const locationOptions = computed(() => {
   if (form.value.type === 'SAIDA') {
-    // 🛡️ NA SAÍDA: Filtra e mostra APENAS onde tem estoque real!
     if (!selectedMaterial.value) return [];
     const matLocations = selectedMaterial.value.locations || []
     const validLocations = matLocations
@@ -302,7 +300,6 @@ const locationOptions = computed(() => {
     return validLocations
   }
 
-  // 📦 NA ENTRADA:
   if (!selectedMaterial.value) {
     const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
     const generalLocations = dbLocations.value.filter(loc => 
@@ -342,7 +339,6 @@ const locationOptions = computed(() => {
   return smartLocations.map(loc => ({ value: loc.name, label: loc.name }));
 })
 
-// 🚀 A MÁGICA 2: Auto-selecionar a prateleira para poupar cliques do usuário
 watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
   if (!newMat) return;
 
@@ -354,7 +350,6 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
       form.value.location = ''
     }
   } else {
-    // 🎯 NA ENTRADA: Sugere a primeira prateleira correta baseada na categoria!
     const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim();
     let smartLocations = [];
     if (categoria.includes('LINHA')) {
@@ -406,7 +401,6 @@ async function fetchData() {
   } catch (error) {
     console.error("Erro no fetchData:", error);
 
-    // O Axios captura a falha se QUALQUER UMA das duas requisições quebrar (ex: 500 ou 401).
     const errorMsg = error.response?.data?.error || 'Erro ao carregar dados do servidor.';
     showNotification(`⚠️ ${errorMsg}`, 'error');
   }
@@ -426,13 +420,12 @@ const filteredHistory = computed(() => {
   if (historySearch.value) {
     const term = historySearch.value.toLowerCase().trim()
     list = list.filter(h => {
-      // 🚀 A CORREÇÃO: Busca usando os campos em inglês do Prisma ('code' e 'name')
       const codeMatch = h.material?.code && String(h.material.code).toLowerCase().includes(term)
       const nameMatch = h.material?.name && String(h.material.name).toLowerCase().includes(term)
       return codeMatch || nameMatch
     })
   }
-  return list.slice(0, 100) // Traz os últimos 100
+  return list.slice(0, 100)
 })
 
 function selectMaterial(mat) {
@@ -482,56 +475,39 @@ async function submitMovement() {
   if (!form.value.quantity || form.value.quantity <= 0) {
     return showNotification('Digite uma quantidade válida!', 'error');
   }
-  // A BARREIRA: Obriga a escolher a prateleira!
   if (!form.value.location) {
     return showNotification('Selecione a prateleira de destino!', 'error');
   }
 
-  // NOVA TRAVA: Obriga a preencher a origem se for ENTRADA
   if (form.value.type === 'ENTRADA' && !form.value.origem) {
     return showNotification('Selecione a origem da sobra!', 'error');
   }
 
-  const userJson = localStorage.getItem('user');
-  const user = userJson ? JSON.parse(userJson) : null;
-
   try {
-    // 1. O Axios monta o POST, serializa o objeto para JSON e embute o Token.
-    // Perceba que guardamos a resposta inteira (opcional) ou já pulamos direto, 
-    // porque se deu sucesso, nem precisamos ler o "data" para continuar.
     await api.post('/movements', {
       materialId: Number(selectedMaterial.value.id),
       type: form.value.type,
       quantity: Number(form.value.quantity),
       reason: form.value.reason || '',
-      location: form.value.location, // A MÁGICA ENVIADA PARA O BANCO DE DADOS
-      // ENVIA PARA O BANCO (Só manda se for entrada)
-      origem: form.value.type === 'ENTRADA' ? form.value.origem : null,
-      usuario: user ? user.usuario : 'Sistema'
+      location: form.value.location,
+      origem: form.value.type === 'ENTRADA' ? form.value.origem : null
     });
 
-    // 2. Se a execução chegou aqui, é SUCESSO GARANTIDO (Status 200/201)!
     showNotification(`Registro de ${form.value.type} salvo!`, 'success', form.value.type);
 
     form.value.quantity = '';
     form.value.reason = '';
-    form.value.origem = ''; // Limpa o campo para a próxima
-    // Opcional: form.value.location = 'Não definido'
+    form.value.origem = '';
     searchQuery.value = '';
     selectedMaterial.value = null;
 
     await fetchData();
 
   } catch (e) {
-    // 3. O Axios lança QUALQUER erro HTTP (400, 500) ou de rede aqui para o catch.
-    // O Frontend NUNCA exibe sucesso se o backend retornar 400 ou 500.
     const httpStatus = e.response?.status;
     const errorMsg = e.response?.data?.error || e.message || 'Falha de conexão ou erro no servidor.';
 
-    console.error('🔴 [Frontend] Erro ao salvar movimentação:');
-    console.error('   ↳ HTTP Status:', httpStatus);
-    console.error('   ↳ Mensagem do backend:', errorMsg);
-    console.error('   ↳ Objeto completo do erro:', e.response?.data);
+    console.error(`Erro ao salvar movimentação (HTTP ${httpStatus || 'indisponível'}): ${errorMsg}`);
 
     showNotification(`❌ Erro ${httpStatus ? `(${httpStatus})` : ''}: ${errorMsg}`, 'error');
   }
