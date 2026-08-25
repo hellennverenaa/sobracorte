@@ -14,8 +14,9 @@ export class MaterialController {
   async index(req: Request, res: Response) {
     try {
       const { q, _page, _limit } = req.query;
+      // `factoryUnitId` é injetado automaticamente pelo Prisma $extends (tenantContext).
+      // Não é necessário incluí-lo manualmente aqui.
       const whereClause: Prisma.MaterialWhereInput = {
-        factoryUnitId: req.tenant!.id,
         ...(q ? {
           OR: [
             { name: { contains: String(q), mode: 'insensitive' } },
@@ -198,13 +199,14 @@ export class MaterialController {
     }
   }
 
-  async stats(req: Request, res: Response) {
+  async stats(_req: Request, res: Response) {
     try {
+      // `factoryUnitId` é injetado automaticamente pelo Prisma $extends (tenantContext).
       const [totalMaterials, lowStock, totalMovements, totalEntries] = await Promise.all([
-        prisma.material.count({ where: { factoryUnitId: req.tenant!.id } }),
-        prisma.material.count({ where: { factoryUnitId: req.tenant!.id, quantity: { lte: 10 } } }),
-        prisma.movement.count({ where: { factoryUnitId: req.tenant!.id } }),
-        prisma.movement.count({ where: { factoryUnitId: req.tenant!.id, type: 'entrada' } })
+        prisma.material.count(),
+        prisma.material.count({ where: { quantity: { lte: 10 } } }),
+        prisma.movement.count(),
+        prisma.movement.count({ where: { type: 'entrada' } })
       ]);
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {

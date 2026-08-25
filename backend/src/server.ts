@@ -13,8 +13,9 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With", "X-Dass-Unit"],
-  exposedHeaders: ["X-Total-Count"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Cache-Control", "Origin", "X-Requested-With", "X-Dass-Unit", "x-factory-unit-id"],
+  exposedHeaders: ["X-Total-Count", "x-factory-unit-id"],
+  optionsSuccessStatus: 200
 }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.json({ limit: "50mb" }));

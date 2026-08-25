@@ -36,6 +36,23 @@ export default defineConfig(({ mode }) => {
       port: devPort,
       host: true,
       open: true,
+      proxy: {
+        // Proxy para o serviço de Login (Portal Unix)
+        '/auth-proxy': {
+          target: 'http://10.100.1.43:2399',
+          changeOrigin: true,
+          secure: false,
+          cookieDomainRewrite: "localhost",
+          rewrite: (path) => path.replace(/^\/auth-proxy/, ''),
+        },
+        // Proxy para o Backend local do SobraCorte
+        '/sobracorte-api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/sobracorte-api/, ''),
+        },
+      },
     },
     build: {
       target: "esnext",

@@ -34,6 +34,7 @@ routes.get('/factory-units', async (_req, res) => {
     return res.status(500).json({ error: 'Erro ao carregar unidades.' });
   }
 });
+
 routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
 routes.get('/materials', requireAuth, materialController.index);

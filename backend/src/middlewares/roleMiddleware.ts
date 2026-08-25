@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
+import jwt from 'jsonwebtoken';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequest, TenantAuthorizationError } from '../auth/tenant';
+import { tenantStorage } from '../context/tenantContext';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   let token = req.cookies.token;
@@ -23,6 +25,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   }
 
   try {
+    const decodedComplete = jwt.decode(token, { complete: true });
     const user = verifyAccessToken(token, vars.PRIVATE_KEY);
     const { requestedUnit, isGlobalAdmin } = resolveTenantRequest(
       user,
@@ -30,6 +33,8 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       vars.GLOBAL_ADMIN_REGISTRATIONS,
     );
 
+    // `prisma.factoryUnit` é um modelo GLOBAL — o interceptor de tenant é
+    // ignorado para ele, portanto esta query é segura fora do contexto.
     const tenant = await requireActiveTenant(requestedUnit, (code) => prisma.factoryUnit.findFirst({
         where: { code, active: true },
         select: { id: true, code: true, name: true },
@@ -38,7 +43,11 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     req.user = user;
     req.tenant = tenant;
     req.isGlobalAdmin = isGlobalAdmin;
-    next();
+
+    // ── Ativa o contexto de tenant para toda a cadeia de execução downstream.
+    // A partir daqui, toda query do Prisma em modelos multi-tenant terá
+    // `factoryUnitId` injetado automaticamente pelo $extends em prisma.ts.
+    tenantStorage.run({ tenantId: tenant.id }, () => next());
   } catch (error) {
       if (error instanceof TenantAuthorizationError) {
         return res.status(error.status).json({ error: error.message });

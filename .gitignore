@@ -49,5 +49,7 @@ novos_dados.json
 **/backups/
 backend/src/generated/
 
+.agents/
 .agent/
 data
+skills-lock.json
