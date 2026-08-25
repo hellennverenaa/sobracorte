@@ -9,20 +9,60 @@ datasource db {
   schemas  = ["sobra_corte", "autenticacao"]
 }
 
+enum SectorType {
+  CORTE
+  APOIO
+  PRE_FABRICADO
+  EXPEDICAO
+  MONTAGEM
+
+  @@schema("sobra_corte")
+}
+
+enum ComponentType {
+  MATERIA_PRIMA
+  PECA_CORTADA
+  SOLADO
+  CABEDAL
+  PE_PRONTO
+
+  @@schema("sobra_corte")
+}
+
+enum FootSide {
+  E // Pé Esquerdo
+  D // Pé Direito
+
+  @@schema("sobra_corte")
+}
+
+enum MovementType {
+  ENTRADA
+  SAIDA
+  TRANSFERENCIA
+  REFUGO
+  CASAMENTO_PAR
+
+  @@schema("sobra_corte")
+}
+
 model FactoryUnit {
   id     Int     @id @default(autoincrement())
   code   String  @unique
   name   String
   active Boolean @default(true)
 
-  materials         Material[]
-  locations         Location[]
-  materialLocations MaterialLocation[]
-  movements         Movement[]
-  users             User[]
-  units             UnitConfig[]
-  categories        CategoryConfig[]
-  origins           OriginConfig[]
+  materials          Material[]
+  locations          Location[]
+  materialLocations  MaterialLocation[]
+  movements          Movement[]
+  users              User[]
+  units              UnitConfig[]
+  categories         CategoryConfig[]
+  origins            OriginConfig[]
+  stockItems         StockItem[]
+  stockItemLocations StockItemLocation[]
+  stockMovements     StockMovement[]
 
   @@schema("sobra_corte")
 }
@@ -62,7 +102,8 @@ model Location {
   factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])
   category      CategoryConfig? @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
 
-  materials MaterialLocation[]
+  materials      MaterialLocation[]
+  stockLocations StockItemLocation[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
@@ -213,5 +254,103 @@ model OriginConfig {
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
   @@unique([factoryUnitId, name])
+  @@schema("sobra_corte")
+}
+
+// =======================================================
+// 📦 TABELA UNIFICADA DE ESTOQUE MULTI-SETOR (5 SETORES)
+// =======================================================
+model StockItem {
+  id            Int            @id @default(autoincrement())
+  factoryUnitId Int
+  sector        SectorType     @default(CORTE)
+  componentType ComponentType?
+  quantity      Float          @default(0)
+  observation   String?        @default("")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // 🔹 CORTE (Matéria-Prima Bruta)
+  code          String?     // Código da matéria-prima
+  name          String?     // Descrição do material (ex: Couro Bovino Preto)
+  unit          String?     // m², kg, m, UN
+  type          String?     // Categoria (Couro, Tecido, Sintético)
+  minStock      Float?      @default(0)
+
+  // 🔹 APOIO (Peças Cortadas / Moldes)
+  pieceCode     String?     // Código do Molde / Peça avulsa
+  description   String?     // Descrição da peça (ex: Gáspea Externa)
+  materialColor String?     // Material e Cor da peça (ex: Napa Branca)
+
+  // 🔹 PRÉ-FABRICADO (Solas por Produto)
+  productName   String?     // Nome / Linha do Produto (ex: Pegasus 40)
+
+  // 🔹 EXPEDIÇÃO (Cabedais por SKU) & MONTAGEM (Pés Prontos por SKU)
+  sku           String?     // SKU / Modelo do Calçado (ex: NKE-PEG-38-BLK)
+
+  // 🔹 CAMPOS COMPARTILHADOS (Apoio, Pré-Fabricado, Expedição, Montagem)
+  color         String?     // Cor do componente
+  sizeGrade     String?     // Grade / Numeração (ex: "37/38", "40", "41")
+  footSide      FootSide?   // Lado: E (Esquerdo) | D (Direito) - Exclusivo Montagem
+
+  // Relações Multi-Tenant Compostas
+  factoryUnit   FactoryUnit         @relation(fields: [factoryUnitId], references: [id])
+  locations     StockItemLocation[]
+  movements     StockMovement[]
+
+  // 🚀 ÍNDICES COMPOSTOS ESTRATÉGICOS
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, sector, createdAt(sort: Desc)])
+  @@index([factoryUnitId, sector, productName, sizeGrade])
+  @@index([factoryUnitId, sector, sku, sizeGrade])
+  @@index([factoryUnitId, sector, sku, sizeGrade, footSide])
+  @@index([factoryUnitId, sector, pieceCode])
+  @@schema("sobra_corte")
+}
+
+// 📍 LOCALIZAÇÃO FÍSICA NO ESTOQUE (PRATELEIRAS/BOXES)
+model StockItemLocation {
+  stockItemId   Int
+  locationId    Int
+  factoryUnitId Int
+  quantity      Float       @default(0)
+
+  stockItem     StockItem   @relation(fields: [stockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  location      Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+
+  @@id([stockItemId, locationId])
+  @@unique([stockItemId, locationId, factoryUnitId])
+  @@index([factoryUnitId, locationId])
+  @@schema("sobra_corte")
+}
+
+// 🛡️ HISTÓRICO COMPLETO DE AUDITORIA & RASTREABILIDADE
+model StockMovement {
+  id                    Int          @id @default(autoincrement())
+  factoryUnitId         Int
+  stockItemId           Int
+  sector                SectorType
+  type                  MovementType
+  quantity              Float
+  
+  // Localizações de origem/destino
+  sourceLocationId      Int?
+  destinationLocationId Int?
+  
+  origem                String?      // Motivo cadastrado (Consumo, Refugo, Casamento, Transferência)
+  reason                String?      // Observação detalhada da ação
+  createdAt             DateTime     @default(now())
+
+  // Identificação do Operador
+  operatorId            String?      // Matrícula DASS
+  operatorName          String?      // Nome do usuário
+
+  factoryUnit           FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
+  stockItem             StockItem    @relation(fields: [stockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+
+  @@index([factoryUnitId, stockItemId])
+  @@index([factoryUnitId, sector, createdAt(sort: Desc)])
+  @@index([factoryUnitId, operatorId, createdAt])
   @@schema("sobra_corte")
 }
