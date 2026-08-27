@@ -14,6 +14,7 @@
 | **Fase 2** | Domain, Zod Discriminated Unions, Services ACID & Auditoria | ✅ Concluído | Validações estritas por setor, transações atômicas e serviço de histórico. |
 | **Fase 3** | API REST, Single Round-Trip & Matching Query Otimizada | ✅ Concluído | Endpoints consolidados (`/inventory/search`, `/inventory/batch`, `/inventory/mounting/matching-pairs`). |
 | **Fase 4** | Frontend Vue 3 (Formulários $\le 10$s, Hub de Abas, Matching e Auditoria) | ✅ Concluído | UX de chão de fábrica, atalhos de teclado e tela dedicada de casamento de pares. |
+| **Fase 5** | Governança RBAC & Integração às Configurações Dinâmicas Existentes | ✅ Concluído | Proteção com `requireRole` no backend, travas `authStore.can` no frontend e consumo de `/settings/*`. |
 
 ---
 

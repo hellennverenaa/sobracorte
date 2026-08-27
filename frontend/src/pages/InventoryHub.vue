@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
+import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
@@ -16,6 +17,10 @@ const showEntryForm = ref(false);
 const activeTab = ref<SectorType>('CORTE');
 const search = ref('');
 const selectedLocationFilter = ref('');
+
+// Configurações Dinâmicas
+const dbLocations = ref<any[]>([]);
+const dbOrigins = ref<any[]>([]);
 
 // Notificação padrão
 const notification = ref({
@@ -56,6 +61,19 @@ function selectTab(tab: SectorType) {
   stockStore.setActiveSector(tab);
 }
 
+async function fetchDynamicSettings() {
+  try {
+    const [locsRes, originsRes] = await Promise.all([
+      api.get('/settings/locations'),
+      api.get('/settings/origins'),
+    ]);
+    dbLocations.value = locsRes.data || [];
+    dbOrigins.value = originsRes.data || [];
+  } catch (err) {
+    console.error('Erro ao carregar configurações dinâmicas no InventoryHub:', err);
+  }
+}
+
 async function loadData() {
   await stockStore.fetchInventory({ q: search.value, sector: activeTab.value });
 }
@@ -84,7 +102,7 @@ function handleSearch() {
 function openMovementModal(item: any) {
   selectedItem.value = item;
   movementQuantity.value = 1;
-  movementReason.value = '';
+  movementReason.value = dbOrigins.value.length > 0 ? dbOrigins.value[0].name : '';
   movementType.value = 'SAIDA';
   destinationLocation.value = '';
   showMovementModal.value = true;
@@ -125,6 +143,7 @@ watch(activeTab, () => {
 
 onMounted(() => {
   stockStore.setActiveSector('CORTE');
+  fetchDynamicSettings();
   loadData();
 });
 
@@ -406,7 +425,7 @@ onUnmounted(() => {
                     </button>
 
                     <button
-                      v-if="authStore.can('movimentar_materiais') || authStore.can('cadastrar_materiais')"
+                      v-if="authStore.can('movimentar')"
                       @click="openMovementModal(item)"
                       class="text-gray-400 hover:text-blue-600 transition-colors"
                       title="Registrar Movimentação"
@@ -527,20 +546,35 @@ onUnmounted(() => {
               <label class="block font-bold text-gray-500 uppercase mb-1">Prateleira de Destino *</label>
               <input
                 v-model="destinationLocation"
+                list="modalDestLocations"
                 type="text"
                 placeholder="Ex: B-02"
                 class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 font-bold text-gray-800 text-sm uppercase"
+                required
               />
+              <datalist id="modalDestLocations">
+                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name" />
+              </datalist>
             </div>
 
             <div>
-              <label class="block font-bold text-gray-500 uppercase mb-1">Motivo / Justificativa</label>
-              <textarea
+              <label class="block font-bold text-gray-500 uppercase mb-1">Motivo / Origem (Configurações)</label>
+              <select
                 v-model="movementReason"
-                rows="2"
-                placeholder="Informe o motivo da baixa..."
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 text-gray-800"
-              ></textarea>
+                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-gray-800 text-sm font-medium mb-1"
+              >
+                <option v-for="orig in dbOrigins" :key="orig.id" :value="orig.name">
+                  {{ orig.name }}
+                </option>
+                <option value="Outros">Outros</option>
+              </select>
+              <input
+                v-if="movementReason === 'Outros'"
+                v-model="movementReason"
+                type="text"
+                placeholder="Especifique o motivo..."
+                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 text-gray-800 text-xs mt-1"
+              />
             </div>
           </div>
 

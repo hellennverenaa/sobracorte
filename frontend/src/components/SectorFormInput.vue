@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted } from 'vue';
+import { ref, reactive, nextTick, onMounted, computed } from 'vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
+import { api } from '@/services/httpClient';
 import { 
   Scissors, Wrench, Layers, Box, Footprints, 
-  Plus, Check, AlertCircle
+  Plus, Check, AlertCircle, Lock
 } from 'lucide-vue-next';
 
 const emit = defineEmits(['saved', 'cancel']);
@@ -16,6 +17,12 @@ const errorMessage = ref('');
 
 const firstInputRef = ref<HTMLInputElement | null>(null);
 
+// Dados Dinâmicos carregados do módulo de Configurações
+const dbCategories = ref<any[]>([]);
+const dbUnits = ref<any[]>([]);
+const dbLocations = ref<any[]>([]);
+const loadingSettings = ref(false);
+
 const formData = reactive({
   location: '',
   quantity: 1,
@@ -24,14 +31,20 @@ const formData = reactive({
   color: '',
   code: '',
   name: '',
-  unit: 'UN',
-  type: 'OUTROS',
+  unit: 'M2',
+  type: '',
   pieceCode: '',
   description: '',
   materialColor: '',
   productName: '',
   sku: '',
   footSide: 'E' as 'E' | 'D',
+});
+
+const isUnitLocked = computed(() => {
+  if (activeSector.value !== 'CORTE' || !formData.type) return false;
+  const cat = dbCategories.value.find(c => c.name === formData.type);
+  return Boolean(cat?.unitLocked);
 });
 
 const sectors = [
@@ -41,6 +54,37 @@ const sectors = [
   { id: 'EXPEDICAO' as SectorType, label: 'Expedição (Cabedais)', icon: Box },
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', icon: Footprints },
 ];
+
+async function fetchDynamicSettings() {
+  loadingSettings.value = true;
+  try {
+    const [catsRes, unitsRes, locsRes] = await Promise.all([
+      api.get('/settings/categories'),
+      api.get('/settings/units'),
+      api.get('/settings/locations'),
+    ]);
+
+    dbCategories.value = catsRes.data || [];
+    dbUnits.value = unitsRes.data || [];
+    dbLocations.value = locsRes.data || [];
+
+    if (dbCategories.value.length > 0 && !formData.type) {
+      formData.type = dbCategories.value[0].name;
+      onCategoryChange();
+    }
+  } catch (err) {
+    console.error('Erro ao carregar configurações dinâmicas:', err);
+  } finally {
+    loadingSettings.value = false;
+  }
+}
+
+function onCategoryChange() {
+  const selected = dbCategories.value.find(c => c.name === formData.type);
+  if (selected && selected.defaultUnit) {
+    formData.unit = selected.defaultUnit.symbol;
+  }
+}
 
 function selectSector(sector: SectorType) {
   activeSector.value = sector;
@@ -59,14 +103,16 @@ function resetForm() {
   formData.color = '';
   formData.code = '';
   formData.name = '';
-  formData.unit = 'UN';
-  formData.type = 'OUTROS';
+  formData.unit = dbUnits.value.length > 0 ? dbUnits.value[0].symbol : 'M2';
+  formData.type = dbCategories.value.length > 0 ? dbCategories.value[0].name : '';
   formData.pieceCode = '';
   formData.description = '';
   formData.materialColor = '';
   formData.productName = '';
   formData.sku = '';
   formData.footSide = 'E';
+
+  onCategoryChange();
 
   nextTick(() => {
     firstInputRef.value?.focus();
@@ -104,8 +150,8 @@ async function handleSubmit() {
         ...payloadItem,
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim().toUpperCase(),
-        unit: formData.unit.trim().toUpperCase() || 'UN',
-        type: formData.type.trim().toUpperCase() || 'OUTROS',
+        unit: (formData.unit || 'M2').trim().toUpperCase(),
+        type: (formData.type || 'OUTROS').trim().toUpperCase(),
       };
       break;
 
@@ -179,7 +225,8 @@ async function handleSubmit() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchDynamicSettings();
   firstInputRef.value?.focus();
 });
 </script>
@@ -193,7 +240,7 @@ onMounted(() => {
           Nova Entrada Rápida de Estoque
         </h3>
         <p class="text-xs text-gray-500 mt-0.5">
-          Formulário otimizado para cadastro contínuo no chão de fábrica
+          Formulário otimizado conectado às configurações ativas da fábrica
         </p>
       </div>
 
@@ -229,7 +276,7 @@ onMounted(() => {
     <!-- Campos por Setor -->
     <form @submit.prevent="handleSubmit" class="space-y-4">
       <!-- 1. CORTE -->
-      <div v-if="activeSector === 'CORTE'" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div v-if="activeSector === 'CORTE'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código Matéria-Prima *</label>
           <input
@@ -254,13 +301,38 @@ onMounted(() => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo / Categoria</label>
-          <input
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria (Dinâmica) *</label>
+          <select
             v-model="formData.type"
-            type="text"
-            placeholder="Ex: COURO, TECIDO, SINTETICO"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
-          />
+            @change="onCategoryChange"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
+            required
+          >
+            <option v-for="cat in dbCategories" :key="cat.id" :value="cat.name">
+              {{ cat.name }}
+            </option>
+            <option v-if="dbCategories.length === 0" value="OUTROS">OUTROS</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
+            <span>Unidade de Medida *</span>
+            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 font-bold flex items-center gap-0.5">
+              <Lock class="w-3 h-3" /> Travada
+            </span>
+          </label>
+          <select
+            v-model="formData.unit"
+            :disabled="isUnitLocked"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
+            required
+          >
+            <option v-for="unit in dbUnits" :key="unit.id" :value="unit.symbol">
+              {{ unit.name }} ({{ unit.symbol }})
+            </option>
+            <option v-if="dbUnits.length === 0" value="M2">M² (Metro Quadrado)</option>
+          </select>
         </div>
       </div>
 
@@ -453,17 +525,17 @@ onMounted(() => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização (Configurações) *</label>
           <input
             v-model="formData.location"
-            list="locationSuggestions"
+            list="dbLocationsSuggestions"
             type="text"
             placeholder="Ex: A-01, BOX-04"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-sm uppercase"
             required
           />
-          <datalist id="locationSuggestions">
-            <option v-for="loc in stockStore.filterLocations" :key="loc" :value="loc" />
+          <datalist id="dbLocationsSuggestions">
+            <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name" />
           </datalist>
         </div>
 

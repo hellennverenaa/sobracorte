@@ -2,12 +2,14 @@
 import { ref, onMounted } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, MatchingPair } from '@/stores/stockStore';
+import { useAuthStore } from '@/stores/auth';
 import { 
   Footprints, RefreshCw, CheckCircle2, AlertCircle, 
   MapPin, Check, ArrowRight
 } from 'lucide-vue-next';
 
 const stockStore = useStockStore();
+const authStore = useAuthStore();
 
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);
@@ -189,12 +191,14 @@ onMounted(() => {
               </div>
 
               <button
+                v-if="authStore.can('movimentar')"
                 @click="openConfirmModal(pair)"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-1.5 rounded flex items-center gap-1.5 text-xs shadow-sm transition-colors"
               >
                 <span>Casar e Baixar</span>
                 <ArrowRight class="w-3.5 h-3.5" />
               </button>
+              <span v-else class="text-[11px] text-gray-400 font-medium">Somente Leitura</span>
             </div>
           </div>
         </div>
