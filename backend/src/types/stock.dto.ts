@@ -109,10 +109,10 @@ export const ExecuteMatchSchema = z.object({
   reason: z.string().trim().optional().default('Casamento de par confirmado pelo operador'),
 });
 
-// 🔄 Movimentações de Saída / Refugo / Transferência
+// 🔄 Movimentações de Entrada / Saída / Refugo / Transferência
 export const CreateStockMovementSchema = z.object({
   stockItemId: z.number().int().positive('ID do item de estoque é obrigatório'),
-  type: z.enum(['SAIDA', 'REFUGO', 'TRANSFERENCIA']),
+  type: z.enum(['ENTRADA', 'SAIDA', 'REFUGO', 'TRANSFERENCIA']),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
   locationId: z.number().int().positive().optional(),
   destinationLocationId: z.number().int().positive().optional(),

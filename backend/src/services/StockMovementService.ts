@@ -26,7 +26,34 @@ export class StockMovementService {
       }
 
       // 2. Atualizar saldo do item
-      if (type === 'SAIDA' || type === 'REFUGO') {
+      if (type === 'ENTRADA') {
+        const newQty = item.quantity + quantity;
+        await tx.stockItem.update({
+          where: { id: item.id },
+          data: { quantity: newQty },
+        });
+
+        const targetLocationId = locationId || (item.locations[0]?.locationId);
+        if (targetLocationId) {
+          await tx.stockItemLocation.upsert({
+            where: {
+              stockItemId_locationId: {
+                stockItemId: item.id,
+                locationId: targetLocationId,
+              },
+            },
+            update: {
+              quantity: { increment: quantity },
+            },
+            create: {
+              stockItemId: item.id,
+              locationId: targetLocationId,
+              factoryUnitId,
+              quantity,
+            },
+          });
+        }
+      } else if (type === 'SAIDA' || type === 'REFUGO') {
         const newQty = item.quantity - quantity;
         await tx.stockItem.update({
           where: { id: item.id },
@@ -113,7 +140,7 @@ export class StockMovementService {
           quantity,
           sourceLocationId: locationId || null,
           destinationLocationId: destinationLocationId || null,
-          origem: origem || (type === 'REFUGO' ? 'Baixa por Refugo' : 'Consumo / Saída'),
+          origem: origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída'))),
           reason: reason || '',
           operatorId: operatorId || null,
           operatorName: operatorName || 'Operador',

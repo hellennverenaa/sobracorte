@@ -18,8 +18,12 @@ function decodeJwtPayload(token) {
 
 function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
   const apiUser = decodeJwtPayload(token)
+  const matricula = syncedUser?.matriculaDass || apiUser.matricula || apiUser.registration || apiUser.matriculaDass || syncedUser?.id || apiUser.id
   return {
     id: syncedUser?.id ?? apiUser.id,
+    matricula,
+    registration: matricula,
+    matriculaDass: matricula,
     nome: apiUser.nome || apiUser.usuario,
     usuario: apiUser.usuario,
     email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,

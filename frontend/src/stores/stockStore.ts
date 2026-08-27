@@ -192,11 +192,11 @@ export const useStockStore = defineStore('stock', {
     },
 
     /**
-     * Registro de movimentação (Saída, Refugo, Transferência) (POST /inventory/movements)
+     * Registro de movimentação (Entrada, Saída, Refugo, Transferência) (POST /inventory/movements)
      */
     async createMovement(payload: {
       stockItemId: number;
-      type: 'SAIDA' | 'REFUGO' | 'TRANSFERENCIA';
+      type: 'ENTRADA' | 'SAIDA' | 'REFUGO' | 'TRANSFERENCIA';
       quantity: number;
       locationId?: number;
       destinationLocationId?: number;

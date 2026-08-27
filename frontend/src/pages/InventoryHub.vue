@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
@@ -7,7 +7,8 @@ import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
-  Scissors, Wrench, Layers, Box, Footprints
+  Scissors, Wrench, Layers, Box, Footprints,
+  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle
 } from 'lucide-vue-next';
 
 const stockStore = useStockStore();
@@ -36,13 +37,15 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
   }, 4000);
 }
 
-// Modal de Movimentação Avulsa
+// Modal de Movimentação Unificado
 const showMovementModal = ref(false);
 const selectedItem = ref<any>(null);
-const movementType = ref<'SAIDA' | 'REFUGO' | 'TRANSFERENCIA'>('SAIDA');
-const movementQuantity = ref(1);
+const movementType = ref<'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA'>('SAIDA');
+const movementQuantity = ref<number | null>(null);
+const selectedLocationId = ref<number | null>(null);
+const destinationLocationId = ref<number | null>(null);
 const movementReason = ref('');
-const destinationLocation = ref('');
+const movementObservation = ref('');
 const movementLoading = ref(false);
 
 // Modal de Detalhes
@@ -99,19 +102,99 @@ function handleSearch() {
   }, 350);
 }
 
+// Opções de prateleiras onde o item selecionado possui vínculo
+const itemAllocatedLocations = computed(() => {
+  if (!selectedItem.value || !selectedItem.value.locations) return [];
+  return selectedItem.value.locations
+    .filter((locLink: any) => locLink.location)
+    .map((locLink: any) => ({
+      id: locLink.locationId || locLink.location.id,
+      name: locLink.location.name,
+      quantity: locLink.quantity || 0,
+    }));
+});
+
+// Prateleiras de destino disponíveis para transferência (exclui a prateleira de origem)
+const availableDestinationLocations = computed(() => {
+  return dbLocations.value.filter((loc: any) => loc.id !== selectedLocationId.value);
+});
+
+// Saldo disponível na prateleira de origem selecionada
+const selectedLocationBalance = computed(() => {
+  if (!selectedItem.value) return 0;
+  if (!selectedLocationId.value) return selectedItem.value.quantity || 0;
+  const found = itemAllocatedLocations.value.find((l: any) => l.id === selectedLocationId.value);
+  return found ? (found.quantity || 0) : (selectedItem.value.quantity || 0);
+});
+
+const maxAvailableBalance = computed(() => {
+  return selectedLocationBalance.value;
+});
+
+// Trava reativa de quantidade excedente
+const isExceedingBalance = computed(() => {
+  if (movementType.value === 'ENTRADA') return false;
+  const qty = Number(movementQuantity.value);
+  if (!qty || isNaN(qty) || qty <= 0) return false;
+  return qty > maxAvailableBalance.value;
+});
+
+// Validação completa para desabilitar o botão
+const isFormInvalid = computed(() => {
+  const qty = Number(movementQuantity.value);
+  if (!qty || isNaN(qty) || qty <= 0) return true;
+  if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
+  if (movementType.value === 'TRANSFERENCIA' && (!destinationLocationId.value || destinationLocationId.value === selectedLocationId.value)) return true;
+  if (!movementReason.value?.trim()) return true;
+  return false;
+});
+
 function openMovementModal(item: any) {
   selectedItem.value = item;
-  movementQuantity.value = 1;
-  movementReason.value = dbOrigins.value.length > 0 ? dbOrigins.value[0].name : '';
+  movementQuantity.value = null;
   movementType.value = 'SAIDA';
-  destinationLocation.value = '';
+  movementReason.value = dbOrigins.value.length > 0 ? dbOrigins.value[0].name : '';
+  movementObservation.value = '';
+
+  if (item.locations && item.locations.length > 0) {
+    selectedLocationId.value = item.locations[0].locationId || item.locations[0].location?.id || null;
+  } else if (dbLocations.value.length > 0) {
+    selectedLocationId.value = dbLocations.value[0].id;
+  } else {
+    selectedLocationId.value = null;
+  }
+
+  destinationLocationId.value = null;
   showMovementModal.value = true;
 }
 
 async function handleConfirmMovement() {
-  if (!selectedItem.value) return;
-  if (movementQuantity.value <= 0 || movementQuantity.value > selectedItem.value.quantity) {
-    showToast(`Quantidade inválida. Saldo disponível: ${selectedItem.value.quantity}`, 'error');
+  if (!selectedItem.value || isFormInvalid.value) return;
+
+  const qty = Number(movementQuantity.value);
+  if (isNaN(qty) || qty <= 0) {
+    showToast('A quantidade deve ser maior que zero.', 'error');
+    return;
+  }
+
+  if (movementType.value !== 'ENTRADA' && qty > maxAvailableBalance.value) {
+    showToast(`Quantidade excede o saldo disponível (${maxAvailableBalance.value})`, 'error');
+    return;
+  }
+
+  if (movementType.value === 'TRANSFERENCIA') {
+    if (!destinationLocationId.value) {
+      showToast('Selecione a prateleira de destino para a transferência.', 'error');
+      return;
+    }
+    if (selectedLocationId.value && selectedLocationId.value === destinationLocationId.value) {
+      showToast('A prateleira de destino deve ser diferente da prateleira de origem.', 'error');
+      return;
+    }
+  }
+
+  if (!movementReason.value.trim()) {
+    showToast('Selecione o motivo/origem da movimentação.', 'error');
     return;
   }
 
@@ -120,10 +203,13 @@ async function handleConfirmMovement() {
     await stockStore.createMovement({
       stockItemId: selectedItem.value.id,
       type: movementType.value,
-      quantity: Number(movementQuantity.value),
-      reason: movementReason.value,
+      quantity: qty,
+      locationId: selectedLocationId.value ? Number(selectedLocationId.value) : undefined,
+      destinationLocationId: destinationLocationId.value ? Number(destinationLocationId.value) : undefined,
+      origem: movementReason.value.trim(),
+      reason: movementObservation.value.trim() || undefined,
     });
-    showToast('Movimentação registrada com sucesso!');
+    showToast(`Movimentação (${movementType.value}) registrada com sucesso!`);
     showMovementModal.value = false;
     selectedItem.value = null;
   } catch (err: any) {
@@ -131,6 +217,34 @@ async function handleConfirmMovement() {
   } finally {
     movementLoading.value = false;
   }
+}
+
+function getItemUnitBadge(item: any) {
+  if (!item) return 'UN';
+  switch (item.sector) {
+    case 'CORTE':
+      return item.unit || 'UN';
+    case 'APOIO':
+      return 'PÇS';
+    case 'PRE_FABRICADO':
+      return 'PARES';
+    case 'EXPEDICAO':
+      return 'UN';
+    case 'MONTAGEM':
+      return 'PÉS';
+    default:
+      return 'UN';
+  }
+}
+
+function getItemIdentifier(item: any) {
+  if (!item) return '-';
+  return item.code || item.pieceCode || item.sku || item.productName || `Item #${item.id}`;
+}
+
+function getItemDescription(item: any) {
+  if (!item) return '';
+  return item.name || item.description || item.productName || item.sku || '';
 }
 
 function formatNumber(num: number) {
@@ -415,22 +529,24 @@ onUnmounted(() => {
 
                 <!-- Ações -->
                 <td class="px-4 py-3 text-center">
-                  <div class="flex items-center justify-center gap-3">
+                  <div class="flex items-center justify-center gap-2">
                     <button
                       @click="viewingItem = item"
-                      class="text-gray-400 hover:text-blue-600 transition-colors"
+                      class="text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors"
                       title="Visualizar Detalhes"
                     >
-                      <Eye class="w-4 h-4" />
+                      <Eye class="w-3.5 h-3.5" />
+                      <span class="hidden xl:inline">Detalhes</span>
                     </button>
 
                     <button
                       v-if="authStore.can('movimentar')"
                       @click="openMovementModal(item)"
-                      class="text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Registrar Movimentação"
+                      class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors"
+                      title="Registrar Movimentação de Estoque"
                     >
-                      <ArrowLeftRight class="w-4 h-4" />
+                      <ArrowLeftRight class="w-3.5 h-3.5" />
+                      <span>Movimentar</span>
                     </button>
                   </div>
                 </td>
@@ -507,91 +623,251 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Modal de Movimentação Padrão Materials.vue -->
-      <div v-if="showMovementModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-          <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h3 class="font-bold text-gray-800">Registrar Movimentação</h3>
-            <button @click="showMovementModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
+      <!-- 🌟 MODAL UNIFICADO ROBUSTO DE MOVIMENTAÇÃO DE ESTOQUE MULTI-SETOR -->
+      <div v-if="showMovementModal && selectedItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
+          <!-- Cabeçalho do Modal -->
+          <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-gray-800 text-base flex items-center gap-2">
+                <ArrowLeftRight class="w-5 h-5 text-blue-600" />
+                <span>Movimentar Estoque</span>
+              </h3>
+              <p class="text-xs text-gray-500">Registro com rastreabilidade auditável e controle por prateleira</p>
+            </div>
+            <button @click="showMovementModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none">
               &times;
             </button>
           </div>
 
-          <div class="p-6 space-y-4 text-xs">
+          <div class="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
+            <!-- Card de Resumo do Item Selecionado -->
+            <div class="bg-blue-50/60 border border-blue-100 rounded-lg p-3.5">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <span class="font-mono font-bold text-blue-800 text-sm bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs">
+                  {{ getItemIdentifier(selectedItem) }}
+                </span>
+                <span class="px-2 py-0.5 text-[11px] rounded-full font-bold bg-blue-100 text-blue-900 border border-blue-200 uppercase">
+                  SETOR {{ selectedItem.sector }}
+                </span>
+              </div>
+
+              <div class="text-xs font-semibold text-gray-800 mb-2">
+                {{ getItemDescription(selectedItem) }}
+                <span v-if="selectedItem.sizeGrade" class="text-gray-600 font-normal">
+                  - Grade: <strong>{{ selectedItem.sizeGrade }}</strong>
+                </span>
+                <span v-if="selectedItem.footSide" class="text-gray-600 font-normal ml-1">
+                  ({{ selectedItem.footSide === 'E' ? 'Pé Esquerdo' : 'Pé Direito' }})
+                </span>
+              </div>
+
+              <div class="flex items-center justify-between text-xs pt-2 border-t border-blue-100/80">
+                <span class="text-gray-600">Saldo Atual Total:</span>
+                <span class="font-bold text-gray-900 text-sm">
+                  {{ formatNumber(selectedItem.quantity) }}
+                  <span class="text-xs font-mono text-blue-700 bg-blue-100/70 px-1 py-0.5 rounded">
+                    {{ getItemUnitBadge(selectedItem) }}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <!-- Seletor Visual de Tipo de Operação (3 Botões Simplificados) -->
             <div>
-              <label class="block font-bold text-gray-500 uppercase mb-1">Tipo de Movimentação *</label>
+              <label class="block font-bold text-gray-600 uppercase mb-1.5 tracking-wide">
+                Tipo de Operação *
+              </label>
+              <div class="grid grid-cols-3 gap-2">
+                <!-- ENTRADA -->
+                <button
+                  type="button"
+                  @click="movementType = 'ENTRADA'"
+                  :class="movementType === 'ENTRADA'
+                    ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300 font-bold shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-emerald-50 hover:text-emerald-700'"
+                  class="border rounded-lg p-3 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+                >
+                  <ArrowDownRight class="w-4 h-4" />
+                  <span class="text-xs font-semibold">ENTRADA</span>
+                </button>
+
+                <!-- SAÍDA -->
+                <button
+                  type="button"
+                  @click="movementType = 'SAIDA'"
+                  :class="movementType === 'SAIDA'
+                    ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-300 font-bold shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-50 hover:text-amber-700'"
+                  class="border rounded-lg p-3 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+                >
+                  <ArrowUpRight class="w-4 h-4" />
+                  <span class="text-xs font-semibold">SAÍDA</span>
+                </button>
+
+                <!-- TRANSFERÊNCIA -->
+                <button
+                  type="button"
+                  @click="movementType = 'TRANSFERENCIA'"
+                  :class="movementType === 'TRANSFERENCIA'
+                    ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-300 font-bold shadow-sm'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700'"
+                  class="border rounded-lg p-3 flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+                >
+                  <ArrowLeftRight class="w-4 h-4" />
+                  <span class="text-xs font-semibold">TRANSFERÊNCIA</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quantidade a Movimentar -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="font-bold text-gray-600 uppercase tracking-wide">
+                  Quantidade a Movimentar *
+                </label>
+                <span v-if="movementType !== 'ENTRADA'" class="text-[11px] text-gray-500 font-medium">
+                  Saldo disponível na prateleira: <strong class="text-gray-700">{{ formatNumber(maxAvailableBalance) }} {{ getItemUnitBadge(selectedItem) }}</strong>
+                </span>
+                <span v-else class="text-[11px] text-emerald-600 font-semibold">
+                  Soma ao estoque existente
+                </span>
+              </div>
+              <div class="relative">
+                <input
+                  v-model.number="movementQuantity"
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  :class="isExceedingBalance ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/40 text-rose-900' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-900 bg-white'"
+                  class="w-full border p-2.5 rounded-lg outline-none focus:ring-1 font-bold text-sm"
+                  placeholder="0.00"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                  {{ getItemUnitBadge(selectedItem) }}
+                </span>
+              </div>
+
+              <!-- Alerta Visual em Vermelho quando ultrapassa o saldo disponível -->
+              <p v-if="isExceedingBalance" class="text-rose-600 font-bold text-xs mt-1.5 flex items-center gap-1">
+                <AlertCircle class="w-3.5 h-3.5 shrink-0" />
+                <span>Quantidade excede o saldo disponível ({{ formatNumber(maxAvailableBalance) }} {{ getItemUnitBadge(selectedItem) }})</span>
+              </p>
+            </div>
+
+            <!-- Prateleira de Origem / Alocada -->
+            <div>
+              <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
+                {{ movementType === 'TRANSFERENCIA' ? 'Prateleira de Origem *' : (movementType === 'ENTRADA' ? 'Prateleira de Destino/Entrada *' : 'Prateleira de Saída *') }}
+              </label>
+
+              <!-- Para Entrada: Todas as localizações da fábrica -->
               <select
-                v-model="movementType"
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-gray-800 text-sm"
+                v-if="movementType === 'ENTRADA'"
+                v-model.number="selectedLocationId"
+                class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option value="SAIDA">SAÍDA / CONSUMO</option>
-                <option value="REFUGO">BAIXA POR REFUGO</option>
-                <option value="TRANSFERENCIA">TRANSFERÊNCIA DE PRATELEIRA</option>
+                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.id">
+                  {{ loc.name }}
+                </option>
+              </select>
+
+              <!-- Para Saída e Transferência: Prateleiras onde o item já está alocado -->
+              <select
+                v-else
+                v-model.number="selectedLocationId"
+                class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
+              >
+                <option v-for="loc in (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : dbLocations)" :key="loc.id" :value="loc.id">
+                  {{ loc.name }} {{ loc.quantity !== undefined ? `(Saldo: ${formatNumber(loc.quantity)} ${getItemUnitBadge(selectedItem)})` : '' }}
+                </option>
               </select>
             </div>
 
-            <div>
-              <label class="block font-bold text-gray-500 uppercase mb-1">Quantidade a Movimentar *</label>
-              <input
-                v-model.number="movementQuantity"
-                type="number"
-                min="0.01"
-                step="any"
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 font-bold text-gray-800 text-sm"
-              />
-              <span class="text-[11px] text-gray-500 mt-1 block">Saldo disponível: {{ selectedItem?.quantity }}</span>
-            </div>
-
+            <!-- Prateleira de Destino (Somente Transferência) -->
             <div v-if="movementType === 'TRANSFERENCIA'">
-              <label class="block font-bold text-gray-500 uppercase mb-1">Prateleira de Destino *</label>
+              <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
+                Prateleira de Destino *
+              </label>
               <select
-                v-model="destinationLocation"
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-gray-800 text-sm"
+                v-model.number="destinationLocationId"
+                class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-bold text-blue-900 text-xs"
                 required
               >
-                <option value="" disabled selected>Selecione a Prateleira de Destino...</option>
-                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name">
+                <option :value="null" disabled>Selecione a prateleira de destino...</option>
+                <option v-for="loc in availableDestinationLocations" :key="loc.id" :value="loc.id">
                   {{ loc.name }}
                 </option>
               </select>
             </div>
 
+            <!-- Origem / Motivo da Movimentação (Configurações) -->
             <div>
-              <label class="block font-bold text-gray-500 uppercase mb-1">Motivo / Origem (Configurações)</label>
+              <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
+                Motivo / Origem da Sobra *
+              </label>
               <select
                 v-model="movementReason"
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-gray-800 text-sm font-medium mb-1"
+                class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white text-gray-800 text-xs font-medium"
               >
                 <option v-for="orig in dbOrigins" :key="orig.id" :value="orig.name">
                   {{ orig.name }}
                 </option>
-                <option value="Outros">Outros</option>
+                <option value="Consumo de Produção">Consumo de Produção</option>
+                <option value="Baixa por Refugo">Baixa por Refugo</option>
+                <option value="Ajuste de Inventário">Ajuste de Inventário</option>
+                <option value="Devolução de Setor">Devolução de Setor</option>
+                <option value="Outros">Outros (especificar nas observações)</option>
               </select>
-              <input
-                v-if="movementReason === 'Outros'"
-                v-model="movementReason"
-                type="text"
-                placeholder="Especifique o motivo..."
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 text-gray-800 text-xs mt-1"
-              />
+            </div>
+
+            <!-- Observações Operacionais -->
+            <div>
+              <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
+                Observações / Justificativa
+              </label>
+              <textarea
+                v-model="movementObservation"
+                rows="2"
+                placeholder="Detalhes operacionais sobre a movimentação..."
+                class="w-full border border-gray-300 p-2 rounded-lg outline-none focus:border-blue-500 text-gray-800 text-xs resize-none"
+              ></textarea>
+            </div>
+
+            <!-- Identificação do Operador Responsável -->
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <User class="w-4 h-4 text-gray-500" />
+                <div>
+                  <span class="text-[11px] text-gray-500 block">Operador Responsável</span>
+                  <span class="font-bold text-gray-800 text-xs">
+                    {{ authStore.user?.nome || authStore.user?.usuario || 'Operador Logado' }}
+                  </span>
+                </div>
+              </div>
+              <span class="text-[11px] font-mono bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-700 font-semibold">
+                Matrícula: {{ authStore.user?.registration || authStore.user?.matricula || authStore.user?.matriculaDass || authStore.user?.id || '-' }}
+              </span>
             </div>
           </div>
 
-          <div class="bg-gray-50 px-6 py-3 border-t flex justify-end gap-3">
+          <!-- Rodapé do Modal -->
+          <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-200 flex justify-end gap-3">
             <button
               type="button"
               @click="showMovementModal = false"
-              class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-4 py-2 rounded text-xs"
+              class="bg-white hover:bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-xs border border-gray-300 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="button"
-              :disabled="movementLoading"
+              :disabled="movementLoading || isFormInvalid"
               @click="handleConfirmMovement"
-              class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded text-xs shadow-sm disabled:opacity-50"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-xs shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
             >
-              {{ movementLoading ? 'Salvando...' : 'Confirmar Movimentação' }}
+              <RefreshCw v-if="movementLoading" class="w-3.5 h-3.5 animate-spin" />
+              <span>{{ movementLoading ? 'Registrando...' : `Confirmar ${movementType}` }}</span>
             </button>
           </div>
         </div>

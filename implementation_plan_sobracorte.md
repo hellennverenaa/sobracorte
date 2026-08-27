@@ -16,6 +16,7 @@
 | **Fase 4** | Frontend Vue 3 (Formulários $\le 10$s, Hub de Abas, Matching e Auditoria) | ✅ Concluído | UX de chão de fábrica, atalhos de teclado e tela dedicada de casamento de pares. |
 | **Fase 5** | Governança RBAC & Integração às Configurações Dinâmicas Existentes | ✅ Concluído | Proteção com `requireRole` no backend, travas `authStore.can` no frontend e consumo de `/settings/*`. |
 | **Cartão 5.3** | Padronização Estrita de Formulários & Vínculo Multi-Categoria | ✅ Concluído | Prateleiras em `<select>` rígido, máscara estrita de grade/tamanho e suporte a múltiplas categorias por localização. |
+| **Cartão 5.4** | Unificação Robusta do Fluxo de Movimentações no Estoque Multi-Setor | ✅ Concluído | Modal unificado (Entrada, Saída, Refugo, Transferência) com controle por prateleira e recarga instantânea. |
 | **Cartão 5.7** | Governança, Travas de Integridade & Auditoria de Configurações | ✅ Concluído | Verificação de vínculos ativos antes de mutações, trava para papéis não-admin e log de auditoria estruturado. |
 
 ---
