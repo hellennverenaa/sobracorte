@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
-  LogOut, Menu, X, FileBarChart, Settings
+  LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
@@ -18,12 +18,15 @@ async function logout() {
 }
 
 const menuItems = [
-  { label: 'Dashboard',    path: '/',          icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Materiais',    path: '/materials',  icon: Package,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Movimentação', path: '/movement',   icon: ArrowLeftRight,  roles: ['admin', 'lider', 'movimentador'] },
-  { label: 'Relatórios',   path: '/reports',    icon: FileBarChart,    roles: ['admin', 'lider'] },
-  { label: 'Usuários',     path: '/users',      icon: Users,           roles: ['admin'] },
-  { label: 'Configurações', path: '/settings',  icon: Settings,        roles: ['admin'] }
+  { label: 'Dashboard',           path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Estoque Multi-Setor', path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Casamento de Pares',  path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador'] },
+  { label: 'Histórico & Auditoria', path: '/stock-history', icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Materiais (Corte)',   path: '/materials',       icon: Package,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Movimentação',        path: '/movement',        icon: ArrowLeftRight,  roles: ['admin', 'lider', 'movimentador'] },
+  { label: 'Relatórios',          path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
+  { label: 'Usuários',            path: '/users',           icon: Users,           roles: ['admin'] },
+  { label: 'Configurações',       path: '/settings',        icon: Settings,        roles: ['admin'] }
 ]
 </script>
 

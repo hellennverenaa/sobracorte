@@ -12,8 +12,8 @@
 | **Fase 0** | Multi-Tenancy Automático (`AsyncLocalStorage` + `prisma.$extends`) | ✅ Concluído | Isolamento automático por `factoryUnitId` e verificação de chaves compostas. |
 | **Fase 1** | Banco de Dados, Schema Prisma, Índices Compostos & Migrations 5 Unidades | ✅ Concluído | Schema com 5 setores, enums, índices de matching e carga idempotente (SEST, STJ, ITB, VDC, ITP). |
 | **Fase 2** | Domain, Zod Discriminated Unions, Services ACID & Auditoria | ✅ Concluído | Validações estritas por setor, transações atômicas e serviço de histórico. |
-| **Fase 3** | API REST, Single Round-Trip & Matching Query Otimizada | ⏳ Próximo | Endpoints consolidados (`/inventory/search`, `/inventory/batch`, `/inventory/mounting/matching-pairs`). |
-| **Fase 4** | Frontend Vue 3 (Formulários $\le 10$s, Hub de Abas, Matching e Auditoria) | ⏳ A Fazer | UX de chão de fábrica, atalhos de teclado e tela dedicada de casamento de pares. |
+| **Fase 3** | API REST, Single Round-Trip & Matching Query Otimizada | ✅ Concluído | Endpoints consolidados (`/inventory/search`, `/inventory/batch`, `/inventory/mounting/matching-pairs`). |
+| **Fase 4** | Frontend Vue 3 (Formulários $\le 10$s, Hub de Abas, Matching e Auditoria) | ✅ Concluído | UX de chão de fábrica, atalhos de teclado e tela dedicada de casamento de pares. |
 
 ---
 

@@ -1,0 +1,400 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-sobra-corte-multisector-api",
+    "name": "SobraCorte - Multi-Setor Integration Tests",
+    "description": "Suíte de testes de integração automatizada para a API do SobraCorte cobrindo os 5 setores industriais (Corte, Apoio, Pré-Fabricado, Expedição, Montagem), busca Single Round-Trip, algoritmo de casamento de pés órfãos e auditoria atômica.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Header Multi-Tenant obrigatório",
+          "pm.request.headers.upsert({ key: 'X-Dass-Unit', value: pm.environment.get('unitCode') || 'SEST' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Inserção em Lote (POST /inventory/batch)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200 ou 201', function () {",
+              "    pm.expect([200, 201]).to.include(pm.response.code);",
+              "});",
+              "",
+              "pm.test('Resposta de sucesso na criação em lote', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.eql(true);",
+              "    pm.expect(jsonData.insertedCount).to.be.at.least(5);",
+              "    pm.expect(jsonData.items).to.be.an('array');",
+              "});",
+              "",
+              "pm.test('Armazena ID do item criado para testes posteriores', function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.items && jsonData.items.length > 0) {",
+              "        pm.environment.set('createdStockItemId', jsonData.items[0].id);",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"sector\": \"CORTE\",\n      \"code\": \"MP-COU-POSTMAN\",\n      \"name\": \"Couro Bovino Natural Teste Postman\",\n      \"quantity\": 25.5,\n      \"unit\": \"M2\",\n      \"type\": \"COURO\",\n      \"minStock\": 5,\n      \"location\": \"PRAT-A01\",\n      \"observation\": \"Lote de teste automatizado Postman\"\n    },\n    {\n      \"sector\": \"APOIO\",\n      \"pieceCode\": \"MOL-GAS-POSTMAN\",\n      \"description\": \"Gáspea Externa Teste\",\n      \"materialColor\": \"Napa Sintética Branca\",\n      \"sizeGrade\": \"39/40\",\n      \"quantity\": 10,\n      \"location\": \"BOX-B02\",\n      \"observation\": \"Peças cortadas de teste\"\n    },\n    {\n      \"sector\": \"PRE_FABRICADO\",\n      \"productName\": \"PEGASUS-TEST-POSTMAN\",\n      \"color\": \"BRANCO / GOMA\",\n      \"sizeGrade\": \"39\",\n      \"quantity\": 8,\n      \"location\": \"SOL-C03\",\n      \"observation\": \"Solados prontos\"\n    },\n    {\n      \"sector\": \"EXPEDICAO\",\n      \"sku\": \"CAB-PEGASUS-TEST\",\n      \"color\": \"PRETO / PRATA\",\n      \"sizeGrade\": \"39\",\n      \"quantity\": 6,\n      \"location\": \"EXP-D04\",\n      \"observation\": \"Cabedais prontos para montagem\"\n    },\n    {\n      \"sector\": \"MONTAGEM\",\n      \"sku\": \"NKE-PEG-TEST-MATCH\",\n      \"sizeGrade\": \"39\",\n      \"footSide\": \"E\",\n      \"quantity\": 2,\n      \"location\": \"MONT-E01\",\n      \"observation\": \"Pé Esquerdo cancelado em linha\"\n    },\n    {\n      \"sector\": \"MONTAGEM\",\n      \"sku\": \"NKE-PEG-TEST-MATCH\",\n      \"sizeGrade\": \"39\",\n      \"footSide\": \"D\",\n      \"quantity\": 2,\n      \"location\": \"MONT-D02\",\n      \"observation\": \"Pé Direito cancelado em linha\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/batch",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "batch"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02. Consulta Unificada Round-Trip (GET /inventory/search)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Retorno possui métricas dos 5 setores', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('metrics');",
+              "    pm.expect(jsonData.metrics.totalItems).to.be.a('number');",
+              "    pm.expect(jsonData.metrics.totalCorte).to.be.at.least(1);",
+              "    pm.expect(jsonData.metrics.totalApoio).to.be.at.least(1);",
+              "    pm.expect(jsonData.metrics.totalPreFabricado).to.be.at.least(1);",
+              "    pm.expect(jsonData.metrics.totalExpedicao).to.be.at.least(1);",
+              "    pm.expect(jsonData.metrics.totalMontagem).to.be.at.least(1);",
+              "});",
+              "",
+              "pm.test('Retorno possui abas de dados por setor', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('sectors');",
+              "    pm.expect(jsonData.sectors).to.have.property('corte');",
+              "    pm.expect(jsonData.sectors).to.have.property('apoio');",
+              "    pm.expect(jsonData.sectors).to.have.property('preFabricado');",
+              "    pm.expect(jsonData.sectors).to.have.property('expedicao');",
+              "    pm.expect(jsonData.sectors).to.have.property('montagem');",
+              "});",
+              "",
+              "pm.test('Retorno possui opções de filtros de prateleiras', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.filterOptions).to.have.property('locations');",
+              "    pm.expect(jsonData.filterOptions.locations).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/search?q=&page=1&limit=50",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": ""
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03. Localizar Pares Casáveis (GET /inventory/mounting/matching-pairs)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Retorna lista de pares casáveis', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('pairs');",
+              "    pm.expect(jsonData.pairs).to.be.an('array');",
+              "    pm.expect(jsonData.pairs.length).to.be.at.least(1);",
+              "});",
+              "",
+              "pm.test('Captura os IDs dos pés Esquerdo e Direito do par correspondente', function () {",
+              "    var jsonData = pm.response.json();",
+              "    var targetPair = jsonData.pairs.find(function(p) {",
+              "        return p.sku === 'NKE-PEG-TEST-MATCH' && p.sizeGrade === '39';",
+              "    }) || jsonData.pairs[0];",
+              "",
+              "    pm.expect(targetPair).to.not.be.undefined;",
+              "    pm.expect(targetPair.formablePairs).to.be.at.least(1);",
+              "    pm.expect(targetPair.leftLocations).to.not.be.empty;",
+              "    pm.expect(targetPair.rightLocations).to.not.be.empty;",
+              "",
+              "    pm.environment.set('leftFootStockItemId', targetPair.leftFootStockItemId);",
+              "    pm.environment.set('rightFootStockItemId', targetPair.rightFootStockItemId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/mounting/matching-pairs",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "mounting",
+            "matching-pairs"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04. Executar Casamento de Par (POST /inventory/mounting/execute-match)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Casamento executado com baixa atômica', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.eql(true);",
+              "    pm.expect(jsonData.matchedPairs).to.eql(1);",
+              "    pm.expect(jsonData.sku).to.eql('NKE-PEG-TEST-MATCH');",
+              "    pm.expect(jsonData.sizeGrade).to.eql('39');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"leftStockItemId\": {{leftFootStockItemId}},\n  \"rightStockItemId\": {{rightFootStockItemId}},\n  \"quantity\": 1,\n  \"reason\": \"Teste automatizado de casamento de par no Postman\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/mounting/execute-match",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "mounting",
+            "execute-match"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "05. Movimentação Avulsa (POST /inventory/movements)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200 ou 201', function () {",
+              "    pm.expect([200, 201]).to.include(pm.response.code);",
+              "});",
+              "",
+              "pm.test('Movimentação avulsa registrada com auditoria', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.eql(true);",
+              "    pm.expect(jsonData.type).to.eql('SAIDA');",
+              "    pm.expect(jsonData.quantity).to.eql(1);",
+              "    pm.expect(jsonData.movementId).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"stockItemId\": {{createdStockItemId}},\n  \"type\": \"SAIDA\",\n  \"quantity\": 1,\n  \"origem\": \"Consumo em Linha de Produção\",\n  \"reason\": \"Teste automatizado de saída de estoque no Postman\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/movements",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "movements"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "06. Histórico e Auditoria (GET /inventory/movements/history)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code é 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Retorno paginado de histórico de auditoria', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData.data).to.be.an('array');",
+              "    pm.expect(jsonData.data.length).to.be.at.least(1);",
+              "});",
+              "",
+              "pm.test('Histórico contém movimentações de ENTRADA e CASAMENTO_PAR', function () {",
+              "    var jsonData = pm.response.json();",
+              "    var types = jsonData.data.map(function(m) { return m.type; });",
+              "    pm.expect(types).to.include('ENTRADA');",
+              "    pm.expect(types).to.include('CASAMENTO_PAR');",
+              "});",
+              "",
+              "pm.test('Registros possuem identificação de operador e setor', function () {",
+              "    var jsonData = pm.response.json();",
+              "    var first = jsonData.data[0];",
+              "    pm.expect(first).to.have.property('sector');",
+              "    pm.expect(first).to.have.property('createdAt');",
+              "    pm.expect(first).to.have.property('type');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Dass-Unit",
+            "value": "{{unitCode}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/movements/history?page=1&limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "inventory",
+            "movements",
+            "history"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

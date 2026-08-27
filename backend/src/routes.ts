@@ -7,6 +7,9 @@ import { ReportController } from './controllers/ReportController';
 import { SettingsController } from './controllers/SettingsController';
 import { ImportController } from './controllers/ImportController';
 import { DashboardController } from './controllers/DashboardController';
+import { StockItemController } from './controllers/StockItemController';
+import { MountingPairController } from './controllers/MountingPairController';
+import { StockMovementController } from './controllers/StockMovementController';
 import { prisma } from './prisma';
 import { requireRole, requireAuth } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
@@ -22,6 +25,9 @@ const movementController = new MovementController();
 const settingsController = new SettingsController();
 const importController = new ImportController();
 const dashboardController = new DashboardController();
+const stockItemController = new StockItemController();
+const mountingPairController = new MountingPairController();
+const stockMovementController = new StockMovementController();
 routes.get('/factory-units', async (_req, res) => {
   try {
     const units = await prisma.factoryUnit.findMany({
@@ -42,6 +48,18 @@ routes.post('/materials', requireAuth, requireRole(['lider']), materialControlle
 routes.put('/materials/:id', requireAuth, requireRole(['lider']), materialController.update);
 routes.delete('/materials/:id', requireAuth, requireRole(['lider']), materialController.delete);
 routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
+
+// 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
+routes.post('/inventory/batch', requireAuth, stockItemController.createBatch);
+routes.get('/inventory/search', requireAuth, stockItemController.search);
+
+// 👞 CASAMENTO DE PARES NA MONTAGEM
+routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);
+routes.post('/inventory/mounting/execute-match', requireAuth, mountingPairController.executeMatch);
+
+// 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
+routes.post('/inventory/movements', requireAuth, stockMovementController.create);
+routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
 
 routes.get('/stats', requireAuth, materialController.stats);
 routes.get('/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);

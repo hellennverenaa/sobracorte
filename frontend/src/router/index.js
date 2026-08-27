@@ -5,6 +5,9 @@ import Login from '@/pages/Login.vue'
 import Dashboard from '@/pages/Dashboard.vue'
 import Materials from '@/pages/Materials.vue'
 import Movement from '@/pages/Movement.vue'
+import InventoryHub from '@/pages/InventoryHub.vue'
+import MountingMatchingPairs from '@/pages/MountingMatchingPairs.vue'
+import StockMovementHistory from '@/pages/StockMovementHistory.vue'
 import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
@@ -21,6 +24,34 @@ const routes = [
     name: 'Dashboard', 
     component: Dashboard, 
     meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/inventory', 
+    name: 'InventoryHub', 
+    component: InventoryHub, 
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+    } 
+  },
+  { 
+    path: '/mounting-pairs', 
+    alias: '/mounting-matching-pairs',
+    name: 'MountingMatchingPairs', 
+    component: MountingMatchingPairs, 
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider', 'movimentador'] 
+    } 
+  },
+  { 
+    path: '/stock-history', 
+    name: 'StockMovementHistory', 
+    component: StockMovementHistory, 
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+    } 
   },
   { 
     path: '/materials', 
