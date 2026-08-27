@@ -17,6 +17,9 @@
 | **Fase 5** | Governança RBAC & Integração às Configurações Dinâmicas Existentes | ✅ Concluído | Proteção com `requireRole` no backend, travas `authStore.can` no frontend e consumo de `/settings/*`. |
 | **Cartão 5.3** | Padronização Estrita de Formulários & Vínculo Multi-Categoria | ✅ Concluído | Prateleiras em `<select>` rígido, máscara estrita de grade/tamanho e suporte a múltiplas categorias por localização. |
 | **Cartão 5.4** | Unificação Robusta do Fluxo de Movimentações no Estoque Multi-Setor | ✅ Concluído | Modal unificado (Entrada, Saída, Refugo, Transferência) com controle por prateleira e recarga instantânea. |
+| **Cartão 5.5** | Consolidação do Sidebar com Single Round-Trip e Paginação de Alta Escala (>3.000 Itens) | ✅ Concluído | Query consolidada com take/skip, sincronização de URL via query params, paginação responsiva e redirects. |
+| **Unificação Material** | Integração Completa da Tabela Oficial `Material` (4.000+ Itens) no Estoque | ✅ Concluído | Leitura e gravação de CORTE apontando para `Material`, zero N+1 queries, filterOptions unificadas no search. |
+| **Dashboard Consolidado** | Single Round-Trip (`GET /dashboard/summary`) & Integração Total `StockMovement` | ✅ Concluído | Métricas analíticas unificadas de `StockMovement` + `Movement`, eliminação dos 4 requests separados no `Dashboard.vue`. |
 | **Cartão 5.7** | Governança, Travas de Integridade & Auditoria de Configurações | ✅ Concluído | Verificação de vínculos ativos antes de mutações, trava para papéis não-admin e log de auditoria estruturado. |
 
 ---

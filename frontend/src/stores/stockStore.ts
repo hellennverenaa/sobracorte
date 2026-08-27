@@ -20,6 +20,12 @@ export interface StockState {
   searchQuery: string;
   loading: boolean;
   error: string | null;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
   metrics: {
     totalItems: number;
     totalCorte: number;
@@ -35,7 +41,9 @@ export interface StockState {
     expedicao: { total: number; data: any[] };
     montagem: { total: number; data: any[] };
   };
-  filterLocations: string[];
+  filterLocations: Array<{ id: number; name: string }>;
+  filterOrigins: Array<{ id: number; name: string }>;
+  filterCategories: Array<{ id: number; name: string }>;
   matchingPairs: MatchingPair[];
   matchingPairsCount: number;
   history: {
@@ -53,6 +61,12 @@ export const useStockStore = defineStore('stock', {
     searchQuery: '',
     loading: false,
     error: null,
+    pagination: {
+      total: 0,
+      page: 1,
+      limit: 50,
+      totalPages: 1,
+    },
     metrics: {
       totalItems: 0,
       totalCorte: 0,
@@ -69,6 +83,8 @@ export const useStockStore = defineStore('stock', {
       montagem: { total: 0, data: [] },
     },
     filterLocations: [],
+    filterOrigins: [],
+    filterCategories: [],
     matchingPairs: [],
     matchingPairsCount: 0,
     history: {
@@ -107,11 +123,12 @@ export const useStockStore = defineStore('stock', {
       this.loading = true;
       this.error = null;
       try {
+        const targetSector = params?.sector ?? this.activeSector;
         const queryParams = {
           q: params?.q ?? this.searchQuery,
-          sector: params?.sector,
-          page: params?.page ?? 1,
-          limit: params?.limit ?? 50,
+          sector: targetSector,
+          page: params?.page ?? this.pagination.page,
+          limit: params?.limit ?? this.pagination.limit,
         };
 
         const response = await api.get('/inventory/search', { params: queryParams });
@@ -119,7 +136,12 @@ export const useStockStore = defineStore('stock', {
 
         this.metrics = data.metrics;
         this.sectors = data.sectors;
+        if (data.pagination) {
+          this.pagination = data.pagination;
+        }
         this.filterLocations = data.filterOptions?.locations || [];
+        this.filterOrigins = data.filterOptions?.origins || [];
+        this.filterCategories = data.filterOptions?.categories || [];
       } catch (err: any) {
         console.error('Erro ao carregar estoque:', err);
         this.error = err.response?.data?.error || 'Erro ao carregar dados do estoque.';

@@ -45,6 +45,7 @@ export function useApi() {
   return {
     request,
     fetchStats,
+    fetchDashboardSummary: () => request('/dashboard/summary'),
     fetchDistribuicao: () => request('/dashboard/distribuicao'),
     fetchOrigemSobras: () => request('/dashboard/origem-sobras'),
     fetchTopMateriais: () => request('/dashboard/top-materiais'),

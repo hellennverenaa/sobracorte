@@ -61,6 +61,8 @@ routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['lide
 routes.post('/inventory/movements', requireAuth, requireRole(['lider', 'movimentador']), stockMovementController.create);
 routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
 
+// 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
+routes.get('/dashboard/summary', requireAuth, dashboardController.getSummary);
 routes.get('/stats', requireAuth, materialController.stats);
 routes.get('/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
 routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistribuicao);

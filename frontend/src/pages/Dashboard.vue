@@ -8,16 +8,16 @@ import {
   PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
 } from 'lucide-vue-next'
 
-const { fetchStats, fetchDistribuicao, fetchOrigemSobras, fetchTopMateriais } = useApi()
+const { fetchDashboardSummary } = useApi()
 
 // --- ESTADOS ---
 const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
 
-// Gráficos: refs simples — os loops/reduce pesados foram movidos para o banco
-const pieChartData    = ref([]) // alimentado por GET /dashboard/distribuicao
-const origemChartData = ref([]) // alimentado por GET /dashboard/origem-sobras
-const topMaterials    = ref([]) // alimentado por GET /dashboard/top-materiais
+// Gráficos: alimentados em 1 única requisição consolidada (GET /dashboard/summary)
+const pieChartData    = ref([])
+const origemChartData = ref([])
+const topMaterials    = ref([])
 
 const isLoading       = ref(true)
 const hoveredCategory = ref(null)
@@ -124,50 +124,27 @@ const origemChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-// --- Helper: executa chamadas analíticas de forma segura garantindo fallback ---
-async function safeFetch(apiFn, fallback = []) {
-  try {
-    const data = await apiFn()
-    return Array.isArray(data) ? data : fallback
-  } catch (err) {
-    if (err?.response?.status === 429) {
-      console.warn(`[Dashboard] Rate limit atingido (HTTP 429). Mantendo dados estáticos.`)
-    } else if (err?.response?.status === 404) {
-      console.warn(`[Dashboard] Rota não encontrada (HTTP 404). Retornando fallback.`)
-    } else {
-      console.warn(`[Dashboard] Falha na requisição:`, err?.response?.status ?? err?.message)
-    }
-    return fallback
-  }
-}
-
-// Micro-atraso para intercalar os lotes e aliviar o servidor / reverse proxy
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
 let isFetchingData = false
 
-// --- CARREGAMENTO OTIMIZADO & ESCALONADO EM LOTES (MITIGAÇÃO HTTP 429 E 404) ---
+// --- CARREGAMENTO CONSOLIDADO SINGLE ROUND-TRIP (GET /dashboard/summary) ---
 async function loadData() {
   if (isFetchingData) return
   isFetchingData = true
   isUpdating.value = true
 
   try {
-    // LOTE 1: KPIs Principais + Distribuição por Categoria
-    const batch1Results = await Promise.allSettled([
-      fetchStats(),
-      safeFetch(fetchDistribuicao)
-    ])
-
-    const statsData = batch1Results[0].status === 'fulfilled' ? batch1Results[0].value : { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
-    const distribuicaoRaw = batch1Results[1].status === 'fulfilled' ? batch1Results[1].value : []
+    const summary = await fetchDashboardSummary()
+    const statsData = summary?.stats || { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
+    const distribuicaoRaw = summary?.distribuicao || []
+    const origemRaw = summary?.origemSobras || []
+    const topRaw = summary?.topMateriais || []
 
     // 1. Cards de KPI
     realStats.value = {
-      totalMaterials: statsData.totalMaterials || statsData.total_materials || 0,
-      lowStock:       statsData.lowStock       || statsData.low_stock       || 0,
-      totalMovements: statsData.totalMovements || statsData.movimentacoes   || 0,
-      totalEntries:   statsData.totalEntries   || statsData.entradas        || 0
+      totalMaterials: statsData.totalMaterials || 0,
+      lowStock:       statsData.lowStock       || 0,
+      totalMovements: statsData.totalMovements || 0,
+      totalEntries:   statsData.totalEntries   || 0
     }
 
     // 2. Gráfico de Distribuição por Categoria
@@ -185,18 +162,6 @@ async function loadData() {
       })
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
-
-    // Pausa de 60ms entre requisições para desobstruir a fila do Rate Limiter
-    await delay(60)
-
-    // LOTE 2: Origem das Sobras + Top 5 Materiais
-    const batch2Results = await Promise.allSettled([
-      safeFetch(fetchOrigemSobras),
-      safeFetch(fetchTopMateriais)
-    ])
-
-    const origemRaw = batch2Results[0].status === 'fulfilled' ? batch2Results[0].value : []
-    const topRaw = batch2Results[1].status === 'fulfilled' ? batch2Results[1].value : []
 
     // 3. Gráfico de Origem das Sobras
     const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
@@ -8,15 +9,29 @@ import SectorFormInput from '@/components/SectorFormInput.vue';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
-  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle
+  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-vue-next';
 
+const route = useRoute();
+const router = useRouter();
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
+const validSectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM'];
+
+function getSectorFromRoute(): SectorType {
+  const sec = (route.query.sector as string)?.toUpperCase();
+  if (validSectors.includes(sec as SectorType)) {
+    return sec as SectorType;
+  }
+  return 'CORTE';
+}
+
 const showEntryForm = ref(false);
-const activeTab = ref<SectorType>('CORTE');
-const search = ref('');
+const activeTab = ref<SectorType>(getSectorFromRoute());
+const search = ref((route.query.q as string) || '');
+const currentPage = ref(Number(route.query.page) || 1);
 const selectedLocationFilter = ref('');
 
 // Configurações Dinâmicas
@@ -59,26 +74,41 @@ const tabs = [
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', countKey: 'totalMontagem', icon: Footprints },
 ];
 
-function selectTab(tab: SectorType) {
+async function selectTab(tab: SectorType) {
   activeTab.value = tab;
+  currentPage.value = 1;
   stockStore.setActiveSector(tab);
+  router.replace({
+    query: {
+      ...route.query,
+      sector: tab,
+      page: 1,
+    },
+  });
+  await loadData(1);
 }
 
-async function fetchDynamicSettings() {
-  try {
-    const [locsRes, originsRes] = await Promise.all([
-      api.get('/settings/locations'),
-      api.get('/settings/origins'),
-    ]);
-    dbLocations.value = locsRes.data || [];
-    dbOrigins.value = originsRes.data || [];
-  } catch (err) {
-    console.error('Erro ao carregar configurações dinâmicas no InventoryHub:', err);
-  }
+async function changePage(page: number) {
+  if (page < 1 || page > stockStore.pagination.totalPages) return;
+  if (page === currentPage.value && stockStore.pagination.page === page) return;
+  currentPage.value = page;
+  router.replace({
+    query: {
+      ...route.query,
+      page: page > 1 ? page : undefined,
+    },
+  });
+  await loadData(page);
 }
 
-async function loadData() {
-  await stockStore.fetchInventory({ q: search.value, sector: activeTab.value });
+async function loadData(page: number = currentPage.value) {
+  currentPage.value = page;
+  await stockStore.fetchInventory({
+    q: search.value,
+    sector: activeTab.value,
+    page,
+    limit: 50,
+  });
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,13 +122,29 @@ function handleSearch() {
 
   // Se o usuário limpou o campo, executa a busca imediatamente sem aguardar o debounce
   if (!query) {
-    loadData();
+    currentPage.value = 1;
+    router.replace({
+      query: {
+        ...route.query,
+        q: undefined,
+        page: 1,
+      },
+    });
+    loadData(1);
     return;
   }
 
   // Debounce de 350ms para aguardar o término da digitação
   debounceTimer = setTimeout(() => {
-    loadData();
+    currentPage.value = 1;
+    router.replace({
+      query: {
+        ...route.query,
+        q: query,
+        page: 1,
+      },
+    });
+    loadData(1);
   }, 350);
 }
 
@@ -116,7 +162,7 @@ const itemAllocatedLocations = computed(() => {
 
 // Prateleiras de destino disponíveis para transferência (exclui a prateleira de origem)
 const availableDestinationLocations = computed(() => {
-  return dbLocations.value.filter((loc: any) => loc.id !== selectedLocationId.value);
+  return stockStore.filterLocations.filter((loc) => loc.id !== selectedLocationId.value);
 });
 
 // Saldo disponível na prateleira de origem selecionada
@@ -153,13 +199,13 @@ function openMovementModal(item: any) {
   selectedItem.value = item;
   movementQuantity.value = null;
   movementType.value = 'SAIDA';
-  movementReason.value = dbOrigins.value.length > 0 ? dbOrigins.value[0].name : '';
+  movementReason.value = stockStore.filterOrigins.length > 0 ? stockStore.filterOrigins[0].name : 'Consumo de Produção';
   movementObservation.value = '';
 
   if (item.locations && item.locations.length > 0) {
     selectedLocationId.value = item.locations[0].locationId || item.locations[0].location?.id || null;
-  } else if (dbLocations.value.length > 0) {
-    selectedLocationId.value = dbLocations.value[0].id;
+  } else if (stockStore.filterLocations.length > 0) {
+    selectedLocationId.value = stockStore.filterLocations[0].id;
   } else {
     selectedLocationId.value = null;
   }
@@ -212,6 +258,7 @@ async function handleConfirmMovement() {
     showToast(`Movimentação (${movementType.value}) registrada com sucesso!`);
     showMovementModal.value = false;
     selectedItem.value = null;
+    loadData(currentPage.value);
   } catch (err: any) {
     showToast(err.message || 'Erro ao registrar movimentação', 'error');
   } finally {
@@ -251,14 +298,25 @@ function formatNumber(num: number) {
   return Number(num || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-watch(activeTab, () => {
-  loadData();
-});
+watch(
+  () => route.query.sector,
+  (newSec) => {
+    if (newSec) {
+      const secUpper = (newSec as string).toUpperCase() as SectorType;
+      if (validSectors.includes(secUpper) && secUpper !== activeTab.value) {
+        activeTab.value = secUpper;
+        stockStore.setActiveSector(secUpper);
+        loadData(1);
+      }
+    }
+  }
+);
 
 onMounted(() => {
-  stockStore.setActiveSector('CORTE');
-  fetchDynamicSettings();
-  loadData();
+  const initialSector = getSectorFromRoute();
+  activeTab.value = initialSector;
+  stockStore.setActiveSector(initialSector);
+  loadData(currentPage.value);
 });
 
 onUnmounted(() => {
@@ -559,6 +617,68 @@ onUnmounted(() => {
               </tr>
             </tbody>
           </table>
+
+          <!-- 📄 BARRA DE PAGINAÇÃO DE ALTA ESCALA (>3.000 ITENS) -->
+          <div
+            v-if="stockStore.pagination.total > 0"
+            class="px-4 py-3 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 rounded-b"
+          >
+            <div class="flex items-center gap-1.5">
+              <span>Mostrando</span>
+              <span class="font-bold text-gray-900">
+                {{ (stockStore.pagination.page - 1) * stockStore.pagination.limit + 1 }}
+              </span>
+              <span>a</span>
+              <span class="font-bold text-gray-900">
+                {{ Math.min(stockStore.pagination.page * stockStore.pagination.limit, stockStore.pagination.total) }}
+              </span>
+              <span>de</span>
+              <span class="font-bold text-gray-900">{{ formatNumber(stockStore.pagination.total) }}</span>
+              <span>itens no setor {{ activeTab }}</span>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <button
+                @click="changePage(1)"
+                :disabled="stockStore.pagination.page <= 1"
+                class="px-2 py-1 rounded border bg-white border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Primeira Página"
+              >
+                <ChevronsLeft class="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                @click="changePage(stockStore.pagination.page - 1)"
+                :disabled="stockStore.pagination.page <= 1"
+                class="px-2.5 py-1 rounded border bg-white border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 transition-colors font-medium"
+              >
+                <ChevronLeft class="w-3.5 h-3.5" />
+                <span class="hidden sm:inline">Anterior</span>
+              </button>
+
+              <span class="px-3 py-1 font-bold text-gray-800 bg-white border border-gray-200 rounded shadow-2xs">
+                {{ stockStore.pagination.page }} / {{ stockStore.pagination.totalPages }}
+              </span>
+
+              <button
+                @click="changePage(stockStore.pagination.page + 1)"
+                :disabled="stockStore.pagination.page >= stockStore.pagination.totalPages"
+                class="px-2.5 py-1 rounded border bg-white border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 transition-colors font-medium"
+              >
+                <span class="hidden sm:inline">Próxima</span>
+                <ChevronRight class="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                @click="changePage(stockStore.pagination.totalPages)"
+                :disabled="stockStore.pagination.page >= stockStore.pagination.totalPages"
+                class="px-2 py-1 rounded border bg-white border-gray-200 text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Última Página"
+              >
+                <ChevronsRight class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -767,7 +887,7 @@ onUnmounted(() => {
                 v-model.number="selectedLocationId"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.id">
+                <option v-for="loc in stockStore.filterLocations" :key="loc.id" :value="loc.id">
                   {{ loc.name }}
                 </option>
               </select>
@@ -778,7 +898,7 @@ onUnmounted(() => {
                 v-model.number="selectedLocationId"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option v-for="loc in (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : dbLocations)" :key="loc.id" :value="loc.id">
+                <option v-for="loc in (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : stockStore.filterLocations)" :key="loc.id" :value="loc.id">
                   {{ loc.name }} {{ loc.quantity !== undefined ? `(Saldo: ${formatNumber(loc.quantity)} ${getItemUnitBadge(selectedItem)})` : '' }}
                 </option>
               </select>
@@ -810,7 +930,7 @@ onUnmounted(() => {
                 v-model="movementReason"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white text-gray-800 text-xs font-medium"
               >
-                <option v-for="orig in dbOrigins" :key="orig.id" :value="orig.name">
+                <option v-for="orig in stockStore.filterOrigins" :key="orig.id" :value="orig.name">
                   {{ orig.name }}
                 </option>
                 <option value="Consumo de Produção">Consumo de Produção</option>

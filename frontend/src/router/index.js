@@ -55,21 +55,11 @@ const routes = [
   },
   { 
     path: '/materials', 
-    name: 'Materials', 
-    component: Materials, 
-    meta: { 
-      requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
-    } 
+    redirect: to => ({ path: '/inventory', query: { ...to.query, sector: 'CORTE' } })
   },
   { 
     path: '/movement', 
-    name: 'Movement', 
-    component: Movement, 
-    meta: { 
-      requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador']
-    } 
+    redirect: '/inventory' 
   },
   { 
     path: '/profile', 
@@ -104,6 +94,10 @@ const routes = [
       roles: ['admin']
     }
   },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/inventory'
+  }
 ]
 
 const router = createRouter({
