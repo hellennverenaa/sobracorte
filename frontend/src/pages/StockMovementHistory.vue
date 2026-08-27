@@ -52,13 +52,20 @@ function getTypeBadge(type: string) {
       return { label: 'TRANSFERÊNCIA', class: 'bg-blue-100 text-blue-800 border-blue-200' };
     case 'CASAMENTO_PAR':
       return { label: 'CASAMENTO DE PAR', class: 'bg-purple-100 text-purple-900 border-purple-200 font-bold' };
+    case 'EXCLUSAO_CONFIGURACAO':
+      return { label: 'EXCLUSÃO CONFIG', class: 'bg-rose-100 text-rose-900 border-rose-300 font-bold' };
+    case 'EDICAO_CONFIGURACAO':
+      return { label: 'EDIÇÃO CONFIG', class: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
     default:
       return { label: type, class: 'bg-gray-100 text-gray-800 border-gray-200' };
   }
 }
 
-function formatItemDetails(item: any) {
-  if (!item) return 'Item não localizado';
+function formatItemDetails(item: any, mov?: any) {
+  if (mov && mov.sector === 'CONFIGURACOES') {
+    return mov.origem || 'Configurações de Domínio';
+  }
+  if (!item) return '-';
   switch (item.sector) {
     case 'CORTE':
       return `${item.code || ''} - ${item.name || ''}`;
@@ -87,7 +94,7 @@ onMounted(() => {
       <div class="flex flex-col sm:flex-row gap-3 items-center justify-between mx-4 my-4">
         <div>
           <h1 class="text-xl font-bold text-gray-800">Histórico & Auditoria de Movimentações</h1>
-          <p class="text-xs text-gray-500">Rastreabilidade completa de todas as entradas, saídas, transferências e casamentos de pares</p>
+          <p class="text-xs text-gray-500">Rastreabilidade completa de todas as entradas, saídas, transferências, casamentos de pares e configurações</p>
         </div>
 
         <button
@@ -114,6 +121,7 @@ onMounted(() => {
             <option value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
             <option value="EXPEDICAO">EXPEDIÇÃO (CABEDAIS)</option>
             <option value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
+            <option value="CONFIGURACOES">CONFIGURAÇÕES (DOMÍNIO)</option>
           </select>
         </div>
 
@@ -130,6 +138,8 @@ onMounted(() => {
             <option value="REFUGO">REFUGO</option>
             <option value="TRANSFERENCIA">TRANSFERÊNCIA</option>
             <option value="CASAMENTO_PAR">CASAMENTO DE PAR</option>
+            <option value="EXCLUSAO_CONFIGURACAO">EXCLUSÃO DE CONFIGURAÇÃO</option>
+            <option value="EDICAO_CONFIGURACAO">EDIÇÃO DE CONFIGURAÇÃO</option>
           </select>
         </div>
 
@@ -196,7 +206,7 @@ onMounted(() => {
                 </td>
 
                 <td class="px-4 py-3 text-sm text-gray-800 font-medium">
-                  {{ formatItemDetails(mov.stockItem) }}
+                  {{ formatItemDetails(mov.stockItem, mov) }}
                 </td>
 
                 <td class="px-4 py-3 text-right font-bold text-gray-800">

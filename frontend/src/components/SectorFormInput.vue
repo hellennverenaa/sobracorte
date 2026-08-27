@@ -84,6 +84,54 @@ function onCategoryChange() {
   if (selected && selected.defaultUnit) {
     formData.unit = selected.defaultUnit.symbol;
   }
+  // Resetar a prateleira quando a categoria for alterada
+  formData.location = '';
+}
+
+const availableLocations = computed(() => {
+  // Se for o setor CORTE, filtra estritamente pela categoria selecionada
+  if (activeSector.value === 'CORTE') {
+    if (!formData.type) return [];
+
+    const categoriaSelecionada = String(formData.type).toUpperCase().trim();
+    const catObj = dbCategories.value.find(
+      c => String(c.name).toUpperCase().trim() === categoriaSelecionada
+    );
+
+    // 1. Filtragem relacional (por categoryLinks, categoryId ou category.name)
+    const filtradasRelacionais = dbLocations.value.filter(loc => {
+      if (loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0) {
+        const matchLink = loc.categoryLinks.some((link: any) => 
+          (catObj && link.categoryId === catObj.id) ||
+          (link.category && String(link.category.name).toUpperCase().trim() === categoriaSelecionada)
+        );
+        if (matchLink) return true;
+      }
+      if (catObj && loc.categoryId && loc.categoryId === catObj.id) {
+        return true;
+      }
+      if (loc.category && String(loc.category.name).toUpperCase().trim() === categoriaSelecionada) {
+        return true;
+      }
+      return false;
+    });
+
+    return filtradasRelacionais;
+  }
+
+  // Para os demais setores, disponibiliza todas as prateleiras
+  return dbLocations.value;
+});
+
+function handleSizeGradeInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  // Permite estritamente dígitos numéricos e vírgula decimal (ex: 36, 36,5, 41,5)
+  let val = input.value.replace(/\./g, ',').replace(/[^\d,]/g, '');
+  const parts = val.split(',');
+  if (parts.length > 2) {
+    val = parts[0] + ',' + parts.slice(1).join('');
+  }
+  formData.sizeGrade = val;
 }
 
 function selectSector(sector: SectorType) {
@@ -376,8 +424,9 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
           <input
             v-model="formData.sizeGrade"
+            @input="handleSizeGradeInput"
             type="text"
-            placeholder="Ex: 38 ou 37/38"
+            placeholder="Ex: 38 ou 37,5"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
           />
@@ -413,8 +462,9 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
           <input
             v-model="formData.sizeGrade"
+            @input="handleSizeGradeInput"
             type="text"
-            placeholder="Ex: 39 ou 40"
+            placeholder="Ex: 39 ou 40,5"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
           />
@@ -450,8 +500,9 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
           <input
             v-model="formData.sizeGrade"
+            @input="handleSizeGradeInput"
             type="text"
-            placeholder="Ex: 41"
+            placeholder="Ex: 41 ou 41,5"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
           />
@@ -476,8 +527,9 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
           <input
             v-model="formData.sizeGrade"
+            @input="handleSizeGradeInput"
             type="text"
-            placeholder="Ex: 38"
+            placeholder="Ex: 38 ou 38,5"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
           />
@@ -526,17 +578,19 @@ onMounted(async () => {
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização (Configurações) *</label>
-          <input
+          <select
             v-model="formData.location"
-            list="dbLocationsSuggestions"
-            type="text"
-            placeholder="Ex: A-01, BOX-04"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-sm uppercase"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
             required
-          />
-          <datalist id="dbLocationsSuggestions">
-            <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name" />
-          </datalist>
+            :disabled="availableLocations.length === 0"
+          >
+            <option value="" disabled selected>
+              {{ availableLocations.length === 0 ? '(Nenhuma prateleira vinculada a esta categoria)' : 'Selecione a Prateleira...' }}
+            </option>
+            <option v-for="loc in availableLocations" :key="loc.id" :value="loc.name">
+              {{ loc.name }}
+            </option>
+          </select>
         </div>
 
         <div>

@@ -348,8 +348,15 @@ const availableLocations = computed(() => {
   const categoriaSelecionada = String(form.value.type).toUpperCase().trim();
   const catObj = dbCategories.value.find(c => String(c.name).toUpperCase().trim() === categoriaSelecionada);
 
-  // 1. Filtragem relacional estrita (por categoryId ou pelo objeto category.name vindo do Prisma)
+  // 1. Filtragem relacional estrita (por categoryLinks, categoryId ou pelo objeto category.name vindo do Prisma)
   const filtradasRelacionais = dbLocations.value.filter(loc => {
+    if (loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0) {
+      const matchLink = loc.categoryLinks.some(link => 
+        (catObj && link.categoryId === catObj.id) ||
+        (link.category && String(link.category.name).toUpperCase().trim() === categoriaSelecionada)
+      );
+      if (matchLink) return true;
+    }
     if (catObj && loc.categoryId && loc.categoryId === catObj.id) {
       return true;
     }

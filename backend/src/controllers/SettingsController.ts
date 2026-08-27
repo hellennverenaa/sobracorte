@@ -12,7 +12,7 @@ export class SettingsController {
     try {
       const categories = await prisma.categoryConfig.findMany({
         where: { factoryUnitId: req.tenant!.id },
-        orderBy: { name: 'asc' },
+        orderBy: { id: 'desc' },
         include: { defaultUnit: true }
       });
       res.json(categories);
@@ -67,17 +67,36 @@ export class SettingsController {
         });
         if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
-      const category = await prisma.categoryConfig.update({
-        where: { id },
-        data: {
-          name: name ? String(name).trim().toUpperCase() : undefined,
-          unitLock: unitLock !== undefined ? unitLock : undefined,
-          defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
-          unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
-        },
-        include: { defaultUnit: true }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const cat = await tx.categoryConfig.update({
+          where: { id },
+          data: {
+            name: name ? String(name).trim().toUpperCase() : undefined,
+            unitLock: unitLock !== undefined ? unitLock : undefined,
+            defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
+            unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
+          },
+          include: { defaultUnit: true }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EDICAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Categorias',
+            reason: `Edição de Categoria: ${existing.name}${name && name !== existing.name ? ` para ${name}` : ''}`
+          }
+        });
+
+        return cat;
       });
-      res.json(category);
+
+      res.json(updated);
     } catch (error: unknown) {
       console.error('Erro ao atualizar categoria:', error);
       res.status(500).json({ error: 'Erro ao atualizar categoria' });
@@ -91,20 +110,46 @@ export class SettingsController {
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
-      const materiaisVinculados = await prisma.material.count({
+
+      // 1. Verificar materiais ou stockItems vinculados
+      const materialCount = await prisma.material.count({
         where: { factoryUnitId: req.tenant!.id, type: category.name }
       });
-      if (materiaisVinculados > 0) {
-        return res.status(409).json({
-          error: `Não é possível excluir: ${materiaisVinculados} material(is) usa(m) esta categoria.`
+      const stockCount = await prisma.stockItem.count({
+        where: { factoryUnitId: req.tenant!.id, type: category.name }
+      });
+      const totalActive = materialCount + stockCount;
+
+      const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
+
+      if (totalActive > 0 && !isAdmin) {
+        return res.status(400).json({
+          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) usando esta categoria.`
         });
       }
-      await prisma.$transaction([
-        prisma.location.updateMany({
+
+      // 2. Execução transacional atômica com registro no histórico de auditoria
+      await prisma.$transaction(async (tx) => {
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EXCLUSAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Categorias',
+            reason: `Exclusão de Categoria: ${category.name}${totalActive > 0 ? ` (com ${totalActive} itens vinculados)` : ''}`
+          }
+        });
+
+        await tx.locationCategory.deleteMany({ where: { categoryId: id, factoryUnitId: req.tenant!.id } });
+        await tx.location.updateMany({
           where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
-        }),
-        prisma.categoryConfig.delete({ where: { id } }),
-      ]);
+        });
+        await tx.categoryConfig.delete({ where: { id } });
+      });
+
       res.json({ message: 'Categoria excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -119,7 +164,7 @@ export class SettingsController {
     try {
       let units = await prisma.unitConfig.findMany({
         where: { factoryUnitId: req.tenant!.id, active: true },
-        orderBy: { symbol: 'asc' }
+        orderBy: { id: 'desc' }
       });
 
       if (units.length === 0) {
@@ -141,7 +186,7 @@ export class SettingsController {
         });
         units = await prisma.unitConfig.findMany({
           where: { factoryUnitId: req.tenant!.id, active: true },
-          orderBy: { symbol: 'asc' }
+          orderBy: { id: 'desc' }
         });
       }
 
@@ -205,10 +250,41 @@ export class SettingsController {
         return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
 
-      await prisma.unitConfig.update({
-        where: { id },
-        data: { active: false }
+      const materialCount = await prisma.material.count({
+        where: { factoryUnitId: req.tenant!.id, unit: unit.symbol }
       });
+      const stockCount = await prisma.stockItem.count({
+        where: { factoryUnitId: req.tenant!.id, unit: unit.symbol }
+      });
+      const totalActive = materialCount + stockCount;
+
+      const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
+
+      if (totalActive > 0 && !isAdmin) {
+        return res.status(400).json({
+          error: `Não é possível desativar: existem ${totalActive} material(is) ou item(ns) usando esta unidade.`
+        });
+      }
+
+      await prisma.$transaction([
+        prisma.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EXCLUSAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Unidades',
+            reason: `Desativação de Unidade: ${unit.name} (${unit.symbol})${totalActive > 0 ? ` (com ${totalActive} itens vinculados)` : ''}`
+          }
+        }),
+        prisma.unitConfig.update({
+          where: { id },
+          data: { active: false }
+        })
+      ]);
+
       res.json({ message: 'Unidade desativada com sucesso.' });
     } catch (error: unknown) {
       console.error('Erro ao desativar unidade:', error);
@@ -220,8 +296,13 @@ export class SettingsController {
     try {
       const locations = await prisma.location.findMany({
         where: { factoryUnitId: req.tenant!.id },
-        orderBy: { name: 'asc' },
-        include: { category: true }
+        orderBy: { id: 'desc' },
+        include: {
+          category: true,
+          categoryLinks: {
+            include: { category: true }
+          }
+        }
       });
       res.json(locations);
     } catch (error) {
@@ -232,24 +313,52 @@ export class SettingsController {
 
   async createLocation(req: Request, res: Response) {
     try {
-      const { name, categoryId } = req.body;
+      const { name, categoryId, categoryIds } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
-      if (!categoryId) {
-        return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
+
+      // Suporta array de IDs ou único ID
+      let idsToLink: number[] = [];
+      if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+        idsToLink = categoryIds.map(Number).filter((id) => !isNaN(id) && id > 0);
+      } else if (categoryId) {
+        idsToLink = [Number(categoryId)];
       }
-      const category = await prisma.categoryConfig.findFirst({
-        where: { id: Number(categoryId), factoryUnitId: req.tenant!.id }, select: { id: true },
+
+      if (idsToLink.length === 0) {
+        return res.status(400).json({ error: 'Ao menos uma categoria vinculada é obrigatória.' });
+      }
+
+      const validCategories = await prisma.categoryConfig.findMany({
+        where: { id: { in: idsToLink }, factoryUnitId: req.tenant!.id },
+        select: { id: true }
       });
-      if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
+
+      if (validCategories.length === 0) {
+        return res.status(404).json({ error: 'Nenhuma categoria válida encontrada.' });
+      }
+
+      const finalCategoryIds = validCategories.map(c => c.id);
+      const primaryCategoryId = finalCategoryIds[0];
+
       const location = await prisma.location.create({
         data: {
           name: String(name).trim(),
-          categoryId: Number(categoryId),
-          factoryUnitId: req.tenant!.id
+          categoryId: primaryCategoryId,
+          factoryUnitId: req.tenant!.id,
+          categoryLinks: {
+            create: finalCategoryIds.map(cId => ({
+              categoryId: cId
+            }))
+          }
         },
-        include: { category: true }
+        include: {
+          category: true,
+          categoryLinks: {
+            include: { category: true }
+          }
+        }
       });
       res.status(201).json(location);
     } catch (error: unknown) {
@@ -261,19 +370,128 @@ export class SettingsController {
     }
   }
 
+  async updateLocation(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const { name, categoryIds } = req.body;
+
+      const existing = await prisma.location.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id }
+      });
+      if (!existing) {
+        return res.status(404).json({ error: 'Localização não encontrada.' });
+      }
+
+      let finalCategoryIds: number[] | undefined;
+      if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+        const validCategories = await prisma.categoryConfig.findMany({
+          where: { id: { in: categoryIds.map(Number) }, factoryUnitId: req.tenant!.id },
+          select: { id: true }
+        });
+        finalCategoryIds = validCategories.map(c => c.id);
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        if (finalCategoryIds && finalCategoryIds.length > 0) {
+          // Remove vínculos antigos
+          await tx.locationCategory.deleteMany({
+            where: { locationId: id, factoryUnitId: req.tenant!.id }
+          });
+          // Cria novos vínculos
+          await tx.locationCategory.createMany({
+            data: finalCategoryIds.map(cId => ({
+              locationId: id,
+              categoryId: cId,
+              factoryUnitId: req.tenant!.id
+            }))
+          });
+        }
+
+        const loc = await tx.location.update({
+          where: { id },
+          data: {
+            name: name ? String(name).trim() : undefined,
+            categoryId: finalCategoryIds && finalCategoryIds.length > 0 ? finalCategoryIds[0] : undefined
+          },
+          include: {
+            category: true,
+            categoryLinks: {
+              include: { category: true }
+            }
+          }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EDICAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Localizações',
+            reason: `Edição de Localização: ${existing.name}${name && name !== existing.name ? ` para ${name}` : ''}`
+          }
+        });
+
+        return loc;
+      });
+
+      res.json(updated);
+    } catch (error: unknown) {
+      console.error('Erro ao atualizar localização:', error);
+      res.status(500).json({ error: 'Erro ao atualizar localização' });
+    }
+  }
+
   async deleteLocation(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const materiaisVinculados = await prisma.materialLocation.count({
+      const location = await prisma.location.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id }
+      });
+      if (!location) {
+        return res.status(404).json({ error: 'Localização não encontrada.' });
+      }
+
+      // 1. Verificar vínculos em MaterialLocation (Corte legado) e StockItemLocation (Multi-setor)
+      const materialCount = await prisma.materialLocation.count({
         where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
       });
-      if (materiaisVinculados > 0) {
-        return res.status(409).json({
-          error: `Não é possível excluir: ${materiaisVinculados} material(is) tem saldo nesta localização.`
+      const stockCount = await prisma.stockItemLocation.count({
+        where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
+      });
+      const totalActive = materialCount + stockCount;
+
+      const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
+
+      if (totalActive > 0 && !isAdmin) {
+        return res.status(400).json({
+          error: `Não é possível excluir: existem ${totalActive} material(is) ou saldo(s) ativo(s) vinculado(s) a esta localização.`
         });
       }
-      const deleted = await prisma.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
-      if (deleted.count === 0) return res.status(404).json({ error: 'Localização não encontrada.' });
+
+      // 2. Execução transacional atômica com gravação de auditoria em StockMovement
+      await prisma.$transaction(async (tx) => {
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EXCLUSAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Localizações',
+            reason: `Exclusão de Localização: ${location.name}${totalActive > 0 ? ` (com ${totalActive} itens vinculados)` : ''}`
+          }
+        });
+
+        await tx.locationCategory.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
+        await tx.materialLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
+        await tx.stockItemLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
+        await tx.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      });
+
       res.json({ message: 'Localização excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -288,7 +506,7 @@ export class SettingsController {
     try {
       const origins = await prisma.originConfig.findMany({
         where: { factoryUnitId: req.tenant!.id },
-        orderBy: { name: 'asc' }
+        orderBy: { id: 'desc' }
       });
       res.json(origins);
     } catch (error) {
@@ -319,8 +537,45 @@ export class SettingsController {
   async deleteOrigin(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const deleted = await prisma.originConfig.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
-      if (deleted.count === 0) return res.status(404).json({ error: 'Origem não encontrada.' });
+      const origin = await prisma.originConfig.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id }
+      });
+      if (!origin) {
+        return res.status(404).json({ error: 'Origem não encontrada.' });
+      }
+
+      const movementCount = await prisma.movement.count({
+        where: { factoryUnitId: req.tenant!.id, origem: origin.name }
+      });
+      const stockMovementCount = await prisma.stockMovement.count({
+        where: { factoryUnitId: req.tenant!.id, origem: origin.name }
+      });
+      const totalActive = movementCount + stockMovementCount;
+
+      const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
+
+      if (totalActive > 0 && !isAdmin) {
+        return res.status(400).json({
+          error: `Não é possível excluir: existem ${totalActive} movimentação(ões) vinculadas a esta origem.`
+        });
+      }
+
+      await prisma.$transaction([
+        prisma.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EXCLUSAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Origens',
+            reason: `Exclusão de Origem de Sobra: ${origin.name}${totalActive > 0 ? ` (com ${totalActive} registros vinculados)` : ''}`
+          }
+        }),
+        prisma.originConfig.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } })
+      ]);
+
       res.json({ message: 'Origem excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {

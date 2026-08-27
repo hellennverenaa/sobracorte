@@ -6,6 +6,7 @@ export const SectorEnum = z.enum([
   'PRE_FABRICADO',
   'EXPEDICAO',
   'MONTAGEM',
+  'CONFIGURACOES',
 ]);
 
 export const ComponentTypeEnum = z.enum([
@@ -24,6 +25,8 @@ export const MovementTypeEnum = z.enum([
   'TRANSFERENCIA',
   'REFUGO',
   'CASAMENTO_PAR',
+  'EXCLUSAO_CONFIGURACAO',
+  'EDICAO_CONFIGURACAO',
 ]);
 
 // 🔹 1. CORTE: Matéria-Prima

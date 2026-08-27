@@ -206,54 +206,96 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <MapPin class="w-4 h-4 text-emerald-500" /> Localizações de Armazenamento
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vinculadas à Categoria</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vínculo multi-categoria</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
-            <form @submit.prevent="addLocation" class="flex gap-3 items-end flex-wrap">
-              <div class="flex-1 min-w-[200px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
-                <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+            <form @submit.prevent="addLocation" class="space-y-3">
+              <div class="flex gap-3 items-end flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                  <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
+                  <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                </div>
+                <button type="submit" :disabled="loadingLocation || newLocation.categoryIds.length === 0"
+                  class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50 h-10">
+                  <Plus class="w-4 h-4" /> Adicionar Localização
+                </button>
               </div>
-              <div class="w-64 min-w-[180px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria Vinculada</label>
-                <select v-model="newLocation.categoryId" required
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
-                  <option value="" disabled selected>Selecione a Categoria...</option>
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">
+                  Categorias Permitidas nesta Prateleira (Selecione uma ou mais)
+                </label>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="cat in categories"
+                    :key="cat.id"
+                    type="button"
+                    @click="toggleCategorySelection(cat.id)"
+                    class="px-3 py-1 rounded-full text-xs font-bold transition-all border"
+                    :class="newLocation.categoryIds.includes(cat.id)
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300'"
+                  >
                     {{ cat.name }}
-                  </option>
-                </select>
+                  </button>
+                </div>
+                <p v-if="newLocation.categoryIds.length === 0" class="text-[11px] text-amber-600 font-semibold mt-1">
+                  Selecione ao menos 1 categoria para vincular à prateleira.
+                </p>
               </div>
-              <button type="submit" :disabled="loadingLocation"
-                class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
-                <Plus class="w-4 h-4" /> Adicionar
-              </button>
             </form>
           </div>
+
           <div v-if="loadingLocation" class="p-8 text-center text-gray-400">Carregando...</div>
           <table v-else class="w-full text-left">
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
-                <th class="px-6 py-3 text-center">Categoria Vinculada</th>
-                <th class="px-6 py-3 text-center">Ação</th>
+                <th class="px-6 py-3 text-center">Categorias Permitidas</th>
+                <th class="px-6 py-3 text-center">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
               <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
                 <td class="px-6 py-3 text-center">
-                  <span class="px-2.5 py-1 rounded-full text-xs font-bold border"
-                    :class="loc.category ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-100 text-gray-400 border-gray-200'">
-                    {{ loc.category ? loc.category.name : 'Não vinculada' }}
-                  </span>
+                  <div class="flex flex-wrap items-center justify-center gap-1.5">
+                    <template v-if="loc.categoryLinks && loc.categoryLinks.length > 0">
+                      <span
+                        v-for="link in loc.categoryLinks"
+                        :key="link.categoryId"
+                        class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      >
+                        {{ link.category ? link.category.name : `Cat #${link.categoryId}` }}
+                      </span>
+                    </template>
+                    <span
+                      v-else-if="loc.category"
+                      class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    >
+                      {{ loc.category.name }}
+                    </span>
+                    <span v-else class="text-xs text-gray-400 italic">Não vinculada</span>
+                  </div>
                 </td>
                 <td class="px-6 py-3 text-center">
-                  <button @click="deleteLocation(loc)"
-                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50">
-                    <Trash2 class="w-4 h-4" />
-                  </button>
+                  <div class="flex items-center justify-center gap-2">
+                    <button
+                      @click="openEditLocationModal(loc)"
+                      class="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50"
+                      title="Editar Categorias"
+                    >
+                      <Pencil class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="deleteLocation(loc)"
+                      class="text-gray-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                      title="Excluir"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="locations.length === 0">
@@ -466,6 +508,73 @@
 
     </div>
 
+    <!-- MODAL DE EDIÇÃO DE LOCALIZAÇÃO (MULTI-CATEGORIA) -->
+    <div v-if="showEditLocationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
+        <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+          <h3 class="font-bold text-gray-800 flex items-center gap-2">
+            <MapPin class="w-4 h-4 text-emerald-600" />
+            Editar Localização & Categorias
+          </h3>
+          <button @click="showEditLocationModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
+            &times;
+          </button>
+        </div>
+
+        <form @submit.prevent="saveEditLocation" class="p-6 space-y-4 text-xs">
+          <div>
+            <label class="block font-bold text-gray-500 uppercase mb-1">Nome da Localização *</label>
+            <input
+              v-model="editingLocation.name"
+              type="text"
+              required
+              class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-500 uppercase mb-1.5">
+              Categorias Permitidas nesta Prateleira (Selecione uma ou mais) *
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="cat in categories"
+                :key="cat.id"
+                type="button"
+                @click="toggleEditCategorySelection(cat.id)"
+                class="px-3 py-1 rounded-full text-xs font-bold transition-all border"
+                :class="editingLocation.categoryIds.includes(cat.id)
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-emerald-300'"
+              >
+                {{ cat.name }}
+              </button>
+            </div>
+            <p v-if="editingLocation.categoryIds.length === 0" class="text-[11px] text-red-600 font-semibold mt-1">
+              Selecione ao menos 1 categoria permitida.
+            </p>
+          </div>
+
+          <div class="bg-gray-50 px-6 py-3 -mx-6 -mb-6 border-t flex justify-end gap-2 mt-6">
+            <button
+              type="button"
+              @click="showEditLocationModal = false"
+              class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg text-xs"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              :disabled="editingLocation.categoryIds.length === 0"
+              class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm disabled:opacity-50"
+            >
+              Salvar Alterações
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- MODAL DE CONFIRMAÇÃO CORPORATIVO -->
     <ConfirmModal
       :show="confirmState.show"
@@ -485,10 +594,13 @@ import { ref, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
+import { useAuthStore } from '@/stores/auth'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
-  Plus, Trash2, Upload, CheckCircle, XCircle
+  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil
 } from 'lucide-vue-next'
+
+const authStore = useAuthStore()
 
 // --- TABS ---
 const tabs = [
@@ -562,13 +674,14 @@ async function fetchCategories() {
 async function addCategory() {
   if (!newCategory.value.name.trim()) return
   try {
-    await api.post('/settings/categories', {
+    const res = await api.post('/settings/categories', {
       name: newCategory.value.name.trim(),
       defaultUnitId: newCategory.value.defaultUnitId ? Number(newCategory.value.defaultUnitId) : null,
       unitLocked: Boolean(newCategory.value.unitLocked)
     })
     showNotification('success', `Categoria "${newCategory.value.name}" criada com sucesso!`)
     newCategory.value = { name: '', defaultUnitId: '', unitLocked: false }
+    if (res.data) categories.value.unshift(res.data)
     await fetchCategories()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar categoria.'
@@ -577,10 +690,16 @@ async function addCategory() {
 }
 
 async function deleteCategory(cat) {
+  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Categoria' : 'Excluir Categoria de Material'
+  const message = isAdmin
+    ? `Atenção Admin: A categoria "${cat.name}" possui ou pode possuir materiais vinculados. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    : `Deseja excluir a categoria "${cat.name}"?`
+
   openConfirmModal({
-    title: 'Excluir Categoria de Material',
-    message: `Tem certeza que deseja excluir a categoria "${cat.name}"? Esta ação é irreversível.`,
-    confirmText: 'Sim, Excluir Categoria',
+    title,
+    message,
+    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Sim, Excluir Categoria',
     variant: 'danger',
     action: async () => {
       try {
@@ -615,12 +734,13 @@ async function fetchUnits() {
 async function addUnit() {
   if (!newUnit.value.name.trim() || !newUnit.value.symbol.trim()) return
   try {
-    await api.post('/settings/units', {
+    const res = await api.post('/settings/units', {
       name: newUnit.value.name.trim(),
       symbol: newUnit.value.symbol.trim()
     })
     showNotification('success', `Unidade "${newUnit.value.name} (${newUnit.value.symbol})" cadastrada!`)
     newUnit.value = { name: '', symbol: '' }
+    if (res.data) units.value.unshift(res.data)
     await fetchUnits()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar unidade de medida.'
@@ -629,10 +749,16 @@ async function addUnit() {
 }
 
 async function deleteUnit(unit) {
+  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const title = isAdmin ? '⚠️ Atenção Admin: Desativar Unidade' : 'Desativar Unidade de Medida'
+  const message = isAdmin
+    ? `Atenção Admin: A unidade "${unit.name} (${unit.symbol})" possui ou pode possuir materiais vinculados. A desativação forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    : `Deseja desativar a unidade "${unit.name} (${unit.symbol})"?`
+
   openConfirmModal({
-    title: 'Desativar Unidade de Medida',
-    message: `Tem certeza que deseja desativar a unidade "${unit.name} (${unit.symbol})"?`,
-    confirmText: 'Desativar Unidade',
+    title,
+    message,
+    confirmText: isAdmin ? 'Confirmar Desativação (Admin)' : 'Desativar Unidade',
     variant: 'danger',
     action: async () => {
       try {
@@ -650,7 +776,58 @@ async function deleteUnit(unit) {
 // LOCALIZAÇÕES
 const locations = ref([])
 const loadingLocation = ref(false)
-const newLocation = ref({ name: '', categoryId: '' })
+const newLocation = ref({ name: '', categoryIds: [] })
+const showEditLocationModal = ref(false)
+const editingLocation = ref({ id: 0, name: '', categoryIds: [] })
+
+function toggleCategorySelection(catId) {
+  const idx = newLocation.value.categoryIds.indexOf(catId)
+  if (idx > -1) {
+    newLocation.value.categoryIds.splice(idx, 1)
+  } else {
+    newLocation.value.categoryIds.push(catId)
+  }
+}
+
+function toggleEditCategorySelection(catId) {
+  const idx = editingLocation.value.categoryIds.indexOf(catId)
+  if (idx > -1) {
+    editingLocation.value.categoryIds.splice(idx, 1)
+  } else {
+    editingLocation.value.categoryIds.push(catId)
+  }
+}
+
+function openEditLocationModal(loc) {
+  const catIds = loc.categoryLinks && loc.categoryLinks.length > 0
+    ? loc.categoryLinks.map(l => l.categoryId)
+    : (loc.categoryId ? [loc.categoryId] : [])
+  editingLocation.value = {
+    id: loc.id,
+    name: loc.name,
+    categoryIds: [...catIds]
+  }
+  showEditLocationModal.value = true
+}
+
+async function saveEditLocation() {
+  if (!editingLocation.value.name.trim()) return
+  if (editingLocation.value.categoryIds.length === 0) {
+    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
+  }
+  try {
+    await api.put(`/settings/locations/${editingLocation.value.id}`, {
+      name: editingLocation.value.name.trim(),
+      categoryIds: editingLocation.value.categoryIds
+    })
+    showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
+    showEditLocationModal.value = false
+    await fetchLocations()
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Erro ao atualizar localização.'
+    showNotification('error', msg)
+  }
+}
 
 async function fetchLocations() {
   loadingLocation.value = true
@@ -666,16 +843,17 @@ async function fetchLocations() {
 
 async function addLocation() {
   if (!newLocation.value.name.trim()) return
-  if (!newLocation.value.categoryId) {
-    return showNotification('error', 'Selecione a Categoria Vinculada.')
+  if (newLocation.value.categoryIds.length === 0) {
+    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
   }
   try {
-    await api.post('/settings/locations', {
+    const res = await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
-      categoryId: Number(newLocation.value.categoryId)
+      categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
-    newLocation.value = { name: '', categoryId: '' }
+    newLocation.value = { name: '', categoryIds: [] }
+    if (res.data) locations.value.unshift(res.data)
     await fetchLocations()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar localização.'
@@ -684,10 +862,16 @@ async function addLocation() {
 }
 
 async function deleteLocation(loc) {
+  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Localização' : 'Excluir Localização'
+  const message = isAdmin
+    ? `Atenção Admin: A localização "${loc.name}" possui materiais vinculados. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    : `Deseja excluir a localização "${loc.name}"?`
+
   openConfirmModal({
-    title: 'Excluir Localização',
-    message: `Tem certeza que deseja excluir a localização "${loc.name}"?`,
-    confirmText: 'Excluir Localização',
+    title,
+    message,
+    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Excluir Localização',
     variant: 'danger',
     action: async () => {
       try {
@@ -722,9 +906,10 @@ async function fetchOrigins() {
 async function addOrigin() {
   if (!newOrigin.value.trim()) return
   try {
-    await api.post('/settings/origins', { name: newOrigin.value.trim() })
+    const res = await api.post('/settings/origins', { name: newOrigin.value.trim() })
     showNotification('success', `Origem "${newOrigin.value}" criada!`)
     newOrigin.value = ''
+    if (res.data) origins.value.unshift(res.data)
     await fetchOrigins()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar origem.'
@@ -733,10 +918,16 @@ async function addOrigin() {
 }
 
 async function deleteOrigin(orig) {
+  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Origem' : 'Excluir Origem de Sobra'
+  const message = isAdmin
+    ? `Atenção Admin: A origem "${orig.name}" possui movimentações vinculadas. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    : `Deseja excluir a origem "${orig.name}"?`
+
   openConfirmModal({
-    title: 'Excluir Origem de Sobra',
-    message: `Tem certeza que deseja excluir a origem "${orig.name}"?`,
-    confirmText: 'Excluir Origem',
+    title,
+    message,
+    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Excluir Origem',
     variant: 'danger',
     action: async () => {
       try {

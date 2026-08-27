@@ -544,17 +544,16 @@ onUnmounted(() => {
 
             <div v-if="movementType === 'TRANSFERENCIA'">
               <label class="block font-bold text-gray-500 uppercase mb-1">Prateleira de Destino *</label>
-              <input
+              <select
                 v-model="destinationLocation"
-                list="modalDestLocations"
-                type="text"
-                placeholder="Ex: B-02"
-                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 font-bold text-gray-800 text-sm uppercase"
+                class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-gray-800 text-sm"
                 required
-              />
-              <datalist id="modalDestLocations">
-                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name" />
-              </datalist>
+              >
+                <option value="" disabled selected>Selecione a Prateleira de Destino...</option>
+                <option v-for="loc in dbLocations" :key="loc.id" :value="loc.name">
+                  {{ loc.name }}
+                </option>
+              </select>
             </div>
 
             <div>
