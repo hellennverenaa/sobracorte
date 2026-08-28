@@ -76,9 +76,9 @@ const sectors = [
 const operationTypes = [
   { value: 'TODOS', label: 'Todas as Operações' },
   { value: 'ENTRADA', label: 'Entradas de Sobras' },
-  { value: 'SAIDA', label: 'Saídas / Reaproveitamento' },
+  { value: 'SAIDA', label: 'Saídas / Reaproveitamento (Inclui Casamentos)' },
   { value: 'TRANSFERENCIA', label: 'Transferências entre Prateleiras' },
-  { value: 'CASAMENTO_PAR', label: 'Casamento de Pares' },
+  { value: 'CASAMENTO_PAR', label: 'Casamento de Pares (Exclusivo Montagem)' },
   { value: 'REFUGO', label: 'Refugos / Descartes' },
 ]
 

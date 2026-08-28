@@ -117,21 +117,21 @@ export class DashboardController {
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'PRE_FABRICADO' }, _sum: { quantity: true } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'EXPEDICAO' } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'EXPEDICAO' }, _sum: { quantity: true } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM' } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM' }, _sum: { quantity: true } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'E' }, _sum: { quantity: true } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'D' }, _sum: { quantity: true } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, type: 'CASAMENTO_PAR' } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } }, _sum: { quantity: true } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'E', quantity: { gt: 0 } }, _sum: { quantity: true } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'D', quantity: { gt: 0 } }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, type: 'CASAMENTO_PAR' }, _sum: { quantity: true } }),
         // Entradas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'EXPEDICAO', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'ENTRADA' } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'ENTRADA' }, _sum: { quantity: true } }),
         // Saídas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'EXPEDICAO', type: { in: ['SAIDA', 'REFUGO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR'] } } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR'] } }, _sum: { quantity: true } }),
         // Parados >30d por setor
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
@@ -176,6 +176,8 @@ export class DashboardController {
       const corteStockEntries = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } });
       const corteStockExits = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO'] } } });
 
+      const totalParesCasados = Math.floor((Number(paresCasadosCount._sum?.quantity) || 0) / 2);
+
       const setores = {
         corte: {
           itemsCount: totalMaterialsCount,
@@ -208,12 +210,12 @@ export class DashboardController {
         montagem: {
           itemsCount: montagemCount,
           totalQuantity: Number(montagemQtyAgg._sum.quantity) || 0,
-          totalEntries: montagemEntriesCount,
-          totalExits: montagemExitsCount,
+          totalEntries: Number(montagemEntriesCount._sum?.quantity) || 0,
+          totalExits: Number(montagemExitsCount._sum?.quantity) || 0,
           totalParadosSemGiro: montagemStagnantCount,
           peEsq: Number(montagemEsqAgg._sum.quantity) || 0,
           peDir: Number(montagemDirAgg._sum.quantity) || 0,
-          paresCasados: paresCasadosCount,
+          paresCasados: totalParesCasados,
         },
       };
 

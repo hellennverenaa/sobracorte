@@ -114,7 +114,11 @@ export class ReportController {
       }
 
       if (rawType !== 'TODOS') {
-        stockWhere.type = rawType;
+        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
+          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
+        } else {
+          stockWhere.type = rawType;
+        }
       }
 
       if (rawOrigin && rawOrigin !== 'TODOS') {
@@ -152,7 +156,13 @@ export class ReportController {
       }
 
       if (rawType !== 'TODOS') {
-        legacyWhere.type = rawType.toLowerCase();
+        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
+          legacyWhere.type = 'saida';
+        } else if (rawType === 'CASAMENTO_PAR') {
+          legacyWhere.type = 'never_match';
+        } else {
+          legacyWhere.type = rawType.toLowerCase();
+        }
       }
 
       if (rawOrigin && rawOrigin !== 'TODOS') {
@@ -286,9 +296,9 @@ export class ReportController {
       const totals = {
         totalRegistros: allItems.length,
         volumeEntradas: allItems.filter((m) => m.tipo === 'ENTRADA').reduce((a, c) => a + Number(c.quantidade), 0),
-        volumeSaidas: allItems.filter((m) => m.tipo === 'SAIDA').reduce((a, c) => a + Number(c.quantidade), 0),
+        volumeSaidas: allItems.filter((m) => m.tipo === 'SAIDA' || m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0),
         totalRefugos: allItems.filter((m) => m.tipo === 'REFUGO').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalCasamentosPares: allItems.filter((m) => m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0),
+        totalCasamentosPares: Math.floor(allItems.filter((m) => m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0) / 2),
         totalTransferencias: allItems.filter((m) => m.tipo === 'TRANSFERENCIA').reduce((a, c) => a + Number(c.quantidade), 0),
       };
 

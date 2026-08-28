@@ -266,3 +266,10 @@ ORDER BY "formablePairs" DESC;
 
 🎉 **FASE 5 DO PROJETO TOTALMENTE CONCLUÍDA COM SUCESSO!**
 
+---
+
+## 🚀 7. Status dos Cartões Kanban do Sprint 6 (Refinamento & Consistência)
+
+- **Cartão 6.1:** ✅ Alinhamento e Consistência Numérica da Montagem (`paresCasados = totalRegistrosCasamento / 2` em `DashboardController.ts` e `ReportController.ts`, saldos ativos de pés com saldo > 0 `esqCount`/`dirCount`, consistência visual em `Dashboard.vue` e `Reports.vue`) - **Concluído**
+
+

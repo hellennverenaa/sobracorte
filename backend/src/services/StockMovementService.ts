@@ -307,8 +307,15 @@ export class StockMovementService {
       ...(sector ? { sector } : {}),
       ...(stockItemId ? { stockItemId } : {}),
       ...(operatorId ? { operatorId } : {}),
-      ...(type ? { type } : {}),
     };
+
+    if (type) {
+      if (type === 'SAIDA') {
+        where.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
+      } else {
+        where.type = type;
+      }
+    }
 
     const [total, movements] = await Promise.all([
       prisma.stockMovement.count({ where }),
