@@ -1,34 +1,76 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
-
 import { useApi } from "../composables/useApi"
 import {
-  TrendingUp, TrendingDown, Package, AlertOctagon,
-  PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
+  Activity, Clock, RefreshCw, Layers, Scissors, Box,
+  Footprints, Package, CheckCircle2, AlertTriangle,
+  PieChart, MapPin, Trophy, TrendingUp, HelpCircle,
+  ArrowUpRight, ArrowDownRight, Sparkles, AlertOctagon
 } from 'lucide-vue-next'
 
 const { fetchDashboardSummary } = useApi()
 
-// --- ESTADOS ---
-const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
-const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
+// --- ESTADO DO FILTRO RÁPIDO ---
+const selectedSector = ref('TODOS')
+const sectorFilterOptions = [
+  { id: 'TODOS',          label: 'Todos os Setores',        icon: Layers },
+  { id: 'CORTE',          label: 'Corte (Matéria-Prima)',   icon: Scissors },
+  { id: 'APOIO',          label: 'Apoio (Moldes/Peças)',    icon: Box },
+  { id: 'PRE_FABRICADO',  label: 'Pré-Fabricado (Solas)',   icon: Package },
+  { id: 'EXPEDICAO',      label: 'Expedição (Cabedais)',    icon: Layers },
+  { id: 'MONTAGEM',       label: 'Montagem (Pés Órfãos)',   icon: Footprints },
+]
 
-// Gráficos: alimentados em 1 única requisição consolidada (GET /dashboard/summary)
-const pieChartData    = ref([])
-const origemChartData = ref([])
-const topMaterials    = ref([])
+// --- ESTADOS DE DADOS (CARREGADOS EM 1 ÚNICA REQUISIÇÃO) ---
+const realStats = ref({
+  totalMaterials: 0,
+  totalMultiSetorItems: 0,
+  totalItems: 0,
+  lowStock: 0,
+  totalMovements: 0,
+  totalEntries: 0,
+  totalExits: 0,
+  taxaReaproveitamento: 0,
+  totalParadosSemGiro: 0
+})
 
-const isLoading       = ref(true)
-const hoveredCategory = ref(null)
-const hoveredOrigem   = ref(null)
-const isUpdating      = ref(false)
-const currentTime     = ref(new Date())
-let refreshInterval   = null
-let clockInterval     = null
+const displayStats = ref({
+  totalItems: 0,
+  lowStock: 0,
+  totalMovements: 0,
+  totalEntries: 0,
+  totalExits: 0,
+  taxaReaproveitamento: 0,
+  totalParadosSemGiro: 0
+})
 
-// --- ANIMAÇÃO DE NÚMEROS ---
-function animateValue(key, start, end, duration = 1000) {
+const setoresData = ref({
+  corte:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+  apoio:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+  preFabricado: { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+  expedicao:    { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+  montagem:     { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0 },
+})
+
+const volumePorSetor       = ref([])
+const pieChartData         = ref([])
+const origemChartData      = ref([])
+const origensPorSetorData  = ref({})
+const topSobrasEntrada     = ref([])
+
+const isLoading         = ref(true)
+const hoveredSector     = ref(null)
+const hoveredCategory   = ref(null)
+const hoveredOrigem     = ref(null)
+const isUpdating        = ref(false)
+const currentTime       = ref(new Date())
+let refreshInterval     = null
+let clockInterval       = null
+let isFetchingData      = false
+
+// --- ANIMAÇÃO SUAVE DE NÚMEROS ---
+function animateValue(key, start, end, duration = 600) {
   if (start === end) return
   let startTimestamp = null
   const step = (timestamp) => {
@@ -41,32 +83,33 @@ function animateValue(key, start, end, duration = 1000) {
   window.requestAnimationFrame(step)
 }
 
-watch(() => realStats.value.totalMaterials, (n, o) => animateValue('totalMaterials', o || 0, n))
-watch(() => realStats.value.lowStock,       (n, o) => animateValue('lowStock',       o || 0, n))
-watch(() => realStats.value.totalMovements, (n, o) => animateValue('totalMovements', o || 0, n))
-watch(() => realStats.value.totalEntries,   (n, o) => animateValue('totalEntries',   o || 0, n))
-
-// --- LÓGICA DE NEGÓCIO ---
+watch(() => realStats.value.totalItems,           (n, o) => animateValue('totalItems',           o || 0, n))
+watch(() => realStats.value.lowStock,             (n, o) => animateValue('lowStock',             o || 0, n))
+watch(() => realStats.value.totalMovements,       (n, o) => animateValue('totalMovements',       o || 0, n))
+watch(() => realStats.value.totalEntries,         (n, o) => animateValue('totalEntries',         o || 0, n))
+watch(() => realStats.value.totalExits,           (n, o) => animateValue('totalExits',           o || 0, n))
+watch(() => realStats.value.taxaReaproveitamento, (n, o) => animateValue('taxaReaproveitamento', o || 0, n))
+watch(() => realStats.value.totalParadosSemGiro,  (n, o) => animateValue('totalParadosSemGiro',  o || 0, n))
 
 function formatNumber(value) {
   if (!value && value !== 0) return '0'
-  return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
 }
 
-// Barra de Progresso e Giro (lê de displayStats — custo zero)
-const totalExitsDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0
-  const ent = Number(displayStats.value.totalEntries)   || 0
-  return Math.max(0, mov - ent)
-})
+function formatDate(dateStr) {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
-const efficiencyRateDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0
-  if (mov === 0) return 0
-  return Math.round((totalExitsDisplay.value / mov) * 100)
-})
-
-// --- PALETA DE CORES (idêntica à lógica original) ---
+// --- CORES PADRONIZADAS POR SETOR ---
+const sectorColors = {
+  CORTE:         '#047857',
+  APOIO:         '#0284c7',
+  PRE_FABRICADO: '#f59e0b',
+  EXPEDICAO:     '#8b5cf6',
+  MONTAGEM:      '#ec4899',
+}
 
 function getColorForCategory(cat) {
   const catLower = String(cat).toLowerCase().trim()
@@ -91,42 +134,168 @@ const origemColors = [
   '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'
 ]
 
-// maxMaterialValue — leitura barata; banco já devolve ordenado
-const maxMaterialValue = computed(() => {
-  if (topMaterials.value.length === 0) return 1
-  return Number(topMaterials.value[0].quantity) || 1
+// --- CÁLCULOS REATIVOS ADAPTÁVEIS AO FILTRO DE SETOR ---
+
+// 1. Volume Adaptável
+const currentFilteredVolume = computed(() => {
+  if (selectedSector.value === 'TODOS') {
+    return {
+      label: 'Volume Total em Estoque',
+      itemsCount: realStats.value.totalItems,
+      quantity: volumePorSetor.value.reduce((acc, v) => acc + (v.quantity || 0), 0),
+      unit: 'unidades / m²'
+    }
+  }
+  if (selectedSector.value === 'CORTE') {
+    return {
+      label: 'Estoque de Matéria-Prima (Corte)',
+      itemsCount: setoresData.value.corte.itemsCount,
+      quantity: setoresData.value.corte.totalQuantity,
+      unit: 'm² / m / un'
+    }
+  }
+  if (selectedSector.value === 'APOIO') {
+    return {
+      label: 'Estoque de Peças / Apoio',
+      itemsCount: setoresData.value.apoio.itemsCount,
+      quantity: setoresData.value.apoio.totalQuantity,
+      unit: 'peças'
+    }
+  }
+  if (selectedSector.value === 'PRE_FABRICADO') {
+    return {
+      label: 'Estoque de Solas (Pré-Fabricado)',
+      itemsCount: setoresData.value.preFabricado.itemsCount,
+      quantity: setoresData.value.preFabricado.totalQuantity,
+      unit: 'pares de solas'
+    }
+  }
+  if (selectedSector.value === 'EXPEDICAO') {
+    return {
+      label: 'Estoque de Cabedais (Expedição)',
+      itemsCount: setoresData.value.expedicao.itemsCount,
+      quantity: setoresData.value.expedicao.totalQuantity,
+      unit: 'cabedais'
+    }
+  }
+  if (selectedSector.value === 'MONTAGEM') {
+    return {
+      label: 'Estoque de Pés Órfãos (Montagem)',
+      itemsCount: setoresData.value.montagem.itemsCount,
+      quantity: setoresData.value.montagem.totalQuantity,
+      unit: 'pés avulsos'
+    }
+  }
+  return { label: 'Estoque', itemsCount: 0, quantity: 0, unit: 'un' }
 })
 
-// Estilos conic-gradient — apenas leituras de refs simples (custo zero)
-const pieChartStyle = computed(() => {
-  if (pieChartData.value.length === 0) return { background: '#e2e8f0' }
+// 2. Entradas & Taxa de Reaproveitamento Adaptáveis
+const currentFilteredEfficiency = computed(() => {
+  if (selectedSector.value === 'TODOS') {
+    return {
+      taxa: realStats.value.taxaReaproveitamento,
+      entries: realStats.value.totalEntries,
+      exits: realStats.value.totalExits,
+      label: 'Reaproveitamento Fabril'
+    }
+  }
+  const secMap = {
+    CORTE: setoresData.value.corte,
+    APOIO: setoresData.value.apoio,
+    PRE_FABRICADO: setoresData.value.preFabricado,
+    EXPEDICAO: setoresData.value.expedicao,
+    MONTAGEM: setoresData.value.montagem,
+  }
+  const s = secMap[selectedSector.value] || { totalEntries: 0, totalExits: 0 }
+  const taxa = s.totalEntries > 0 ? Math.round((s.totalExits / s.totalEntries) * 100) : 0
+  return {
+    taxa,
+    entries: s.totalEntries || 0,
+    exits: s.totalExits || 0,
+    label: `Giro no Setor ${selectedSector.value}`
+  }
+})
+
+// 3. Itens Parados sem Giro Adaptáveis
+const currentFilteredStagnant = computed(() => {
+  if (selectedSector.value === 'TODOS') {
+    return realStats.value.totalParadosSemGiro
+  }
+  const secMap = {
+    CORTE: setoresData.value.corte?.totalParadosSemGiro,
+    APOIO: setoresData.value.apoio?.totalParadosSemGiro,
+    PRE_FABRICADO: setoresData.value.preFabricado?.totalParadosSemGiro,
+    EXPEDICAO: setoresData.value.expedicao?.totalParadosSemGiro,
+    MONTAGEM: setoresData.value.montagem?.totalParadosSemGiro,
+  }
+  return secMap[selectedSector.value] || 0
+})
+
+// 4. Top 5 Entradas de Sobras Filtradas pelo Setor Selecionado
+const filteredTopSobras = computed(() => {
+  if (selectedSector.value === 'TODOS') {
+    return topSobrasEntrada.value.slice(0, 5)
+  }
+  const filtered = topSobrasEntrada.value.filter(item => item.sector === selectedSector.value)
+  return filtered.length > 0 ? filtered.slice(0, 5) : []
+})
+
+// 5. Origem das Entradas Reativa ao Setor Selecionado
+const filteredOrigemChartData = computed(() => {
+  let list = []
+  if (selectedSector.value === 'TODOS') {
+    list = origemChartData.value
+  } else {
+    list = origensPorSetorData.value[selectedSector.value] || []
+  }
+
+  const total = list.reduce((acc, item) => acc + (Number(item.value ?? item._sum?.quantity) || 0), 0)
+  return list.map((item, i) => {
+    const value = Number(item.value ?? item._sum?.quantity) || 0
+    return {
+      origem: item.origem || item.name || 'Outros',
+      label: item.origem || item.name || 'Outros',
+      name: item.origem || item.name || 'Outros',
+      value,
+      count: item.count || 1,
+      percent: total > 0 ? (value / total) * 100 : (item.percentage || 0),
+      percentage: total > 0 ? (value / total) * 100 : (item.percentage || 0),
+      color: origemColors[i % origemColors.length]
+    }
+  }).slice(0, 5)
+})
+
+// Gráfico de Volume por Setor
+const sectorChartStyle = computed(() => {
+  const total = volumePorSetor.value.reduce((acc, s) => acc + s.quantity, 0)
+  if (total === 0) return { background: '#e2e8f0' }
   let gradientStr = ''
-  let currentDeg  = 0
-  pieChartData.value.forEach((slice, index) => {
-    const degrees = (slice.percent / 100) * 360
-    gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + degrees}deg`
-    if (index < pieChartData.value.length - 1) gradientStr += ', '
-    currentDeg += degrees
+  let currentDeg = 0
+  volumePorSetor.value.forEach((sec, index) => {
+    const pct = (sec.quantity / total) * 100
+    const deg = (pct / 100) * 360
+    gradientStr += `${sec.color} ${currentDeg}deg ${currentDeg + deg}deg`
+    if (index < volumePorSetor.value.length - 1) gradientStr += ', '
+    currentDeg += deg
   })
   return { background: `conic-gradient(${gradientStr})` }
 })
 
+// Gráfico de Origem das Sobras Reativo ao Setor
 const origemChartStyle = computed(() => {
-  if (origemChartData.value.length === 0) return { background: '#e2e8f0' }
+  if (filteredOrigemChartData.value.length === 0) return { background: '#e2e8f0' }
   let gradientStr = ''
-  let currentDeg  = 0
-  origemChartData.value.forEach((slice, index) => {
-    const degrees = (slice.percent / 100) * 360
-    gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + degrees}deg`
-    if (index < origemChartData.value.length - 1) gradientStr += ', '
-    currentDeg += degrees
+  let currentDeg = 0
+  filteredOrigemChartData.value.forEach((slice, index) => {
+    const deg = (slice.percent / 100) * 360
+    gradientStr += `${slice.color} ${currentDeg}deg ${currentDeg + deg}deg`
+    if (index < filteredOrigemChartData.value.length - 1) gradientStr += ', '
+    currentDeg += deg
   })
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-let isFetchingData = false
-
-// --- CARREGAMENTO CONSOLIDADO SINGLE ROUND-TRIP (GET /dashboard/summary) ---
+// --- CARREGAMENTO ÚNICO CONSOLIDADO (SINGLE ROUND-TRIP) ---
 async function loadData() {
   if (isFetchingData) return
   isFetchingData = true
@@ -134,70 +303,88 @@ async function loadData() {
 
   try {
     const summary = await fetchDashboardSummary()
-    const statsData = summary?.stats || { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
-    const distribuicaoRaw = summary?.distribuicao || []
+    const statsData = summary?.stats || {}
+    const setoresRaw = summary?.setores || {}
+    const volRaw = summary?.volumePorSetor || []
+    const catDistRaw = summary?.distribuicao || []
     const origemRaw = summary?.origemSobras || []
-    const topRaw = summary?.topMateriais || []
+    const origensPorSetorRaw = summary?.origensPorSetor || {}
+    const topSobrasRaw = summary?.topSobrasEntrada || []
 
-    // 1. Cards de KPI
+    // 1. Estatísticas Globais
     realStats.value = {
-      totalMaterials: statsData.totalMaterials || 0,
-      lowStock:       statsData.lowStock       || 0,
-      totalMovements: statsData.totalMovements || 0,
-      totalEntries:   statsData.totalEntries   || 0
+      totalMaterials:       statsData.totalMaterials || 0,
+      totalMultiSetorItems: statsData.totalMultiSetorItems || 0,
+      totalItems:           statsData.totalItems || (statsData.totalMaterials || 0) + (statsData.totalMultiSetorItems || 0),
+      lowStock:             statsData.lowStock || 0,
+      totalMovements:       statsData.totalMovements || 0,
+      totalEntries:         statsData.totalEntries || 0,
+      totalExits:           statsData.totalExits || 0,
+      taxaReaproveitamento: statsData.taxaReaproveitamento || 0,
+      totalParadosSemGiro:  statsData.totalParadosSemGiro || 0
     }
 
-    // 2. Gráfico de Distribuição por Categoria
-    const totalDist = distribuicaoRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
-    pieChartData.value = distribuicaoRaw
-      .map(item => {
-        const label = String(item.type || 'outros')
-        const value = Number(item._sum?.quantity) || 0
-        return {
-          label:   label.charAt(0).toUpperCase() + label.slice(1),
-          value,
-          percent: totalDist > 0 ? (value / totalDist) * 100 : 0,
-          color:   getColorForCategory(label)
-        }
-      })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
+    // 2. Dados Setorizados
+    setoresData.value = {
+      corte:        setoresRaw.corte || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+      apoio:        setoresRaw.apoio || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+      preFabricado: setoresRaw.preFabricado || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+      expedicao:    setoresRaw.expedicao || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+      montagem:     setoresRaw.montagem || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0 },
+    }
 
-    // 3. Gráfico de Origem das Sobras
-    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
-    origemChartData.value = origemRaw
-      .map((item, i) => {
-        const value = Number(item._sum?.quantity) || 0
-        return {
-          label:   item.origem || 'Outros',
-          value,
-          percent: totalOrigem > 0 ? (value / totalOrigem) * 100 : 0,
-          color:   origemColors[i % origemColors.length]
-        }
-      })
-      .slice(0, 5)
-
-    // 4. Top 5 Materiais
-    topMaterials.value = topRaw.map(m => ({
-      ...m,
-      codigo:     m.code,
-      descricao:  m.name,
-      quantidade: m.quantity,
-      unidade:    m.unit
+    // 3. Volume por Setor
+    const totalVol = volRaw.reduce((acc, v) => acc + (Number(v.quantity) || 0), 0)
+    volumePorSetor.value = volRaw.map(v => ({
+      ...v,
+      percent: totalVol > 0 ? ((Number(v.quantity) || 0) / totalVol) * 100 : 0
     }))
 
+    // 4. Distribuição por Categoria
+    const totalDist = catDistRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    pieChartData.value = catDistRaw.map(item => {
+      const label = String(item.type || 'outros')
+      const value = Number(item._sum?.quantity) || 0
+      return {
+        label:   label.charAt(0).toUpperCase() + label.slice(1),
+        value,
+        percent: totalDist > 0 ? (value / totalDist) * 100 : 0,
+        color:   getColorForCategory(label)
+      }
+    }).sort((a, b) => b.value - a.value).slice(0, 5)
+
+    // 5. Origem das Sobras (Global e Setorizada)
+    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    origemChartData.value = origemRaw.map((item, i) => {
+      const value = Number(item._sum?.quantity) || 0
+      return {
+        origem:  item.origem || item.name || 'Outros',
+        label:   item.origem || item.name || 'Outros',
+        name:    item.origem || item.name || 'Outros',
+        value,
+        count:   item.count || 1,
+        percent: totalOrigem > 0 ? (value / totalOrigem) * 100 : 0,
+        color:   origemColors[i % origemColors.length]
+      }
+    }).slice(0, 5)
+
+    origensPorSetorData.value = origensPorSetorRaw
+
+    // 6. Top Sobras Entrada
+    topSobrasEntrada.value = topSobrasRaw
+
   } catch (error) {
-    console.error('Erro inesperado no dashboard:', error)
+    console.error('Erro ao carregar métricas analíticas do dashboard:', error)
   } finally {
     isLoading.value = false
     isFetchingData = false
-    setTimeout(() => isUpdating.value = false, 800)
+    setTimeout(() => { isUpdating.value = false }, 500)
   }
 }
 
 onMounted(() => {
   loadData()
-  clockInterval   = setInterval(() => { currentTime.value = new Date() }, 1000)
+  clockInterval = setInterval(() => { currentTime.value = new Date() }, 1000)
   refreshInterval = setInterval(loadData, 60000)
 })
 
@@ -209,363 +396,305 @@ onUnmounted(() => {
 
 <template>
   <Layout>
-    <div class="min-h-screen bg-slate-200 p-6 md:p-8 transition-colors duration-500">
-      <div class="max-w-7xl mx-auto">
+    <div class="min-h-screen bg-slate-100 p-4 md:p-6 transition-colors duration-500">
+      <div class="max-w-7xl mx-auto space-y-5">
 
-        <div
-          class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-lg border border-slate-300 animate-fade-in-down">
-          <div class="flex items-center gap-4 w-full md:w-auto">
-            <div class="bg-blue-100 p-3 rounded-xl text-blue-700">
-              <Activity class="w-8 h-8 animate-pulse" />
+        <!-- CABEÇALHO DO PAINEL ANALÍTICO -->
+        <div class="flex flex-col md:flex-row justify-between items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 gap-4">
+          <div class="flex items-center gap-3.5 w-full md:w-auto">
+            <div class="w-11 h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <Activity class="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h1 class="text-2xl font-black text-slate-800 tracking-tight uppercase">
-                Painel de Controle
-              </h1>
-              <div class="flex items-center gap-2 mt-1">
+              <div class="flex items-center gap-2">
+                <h1 class="text-xl font-black text-slate-800 tracking-tight uppercase">
+                  Painel de Controle Multi-Setor
+                </h1>
+                <span class="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-indigo-100 uppercase">
+                  5 Setores Fabris
+                </span>
+              </div>
+              <div class="flex items-center gap-2 mt-0.5">
                 <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Sistema Online</span>
-                <RefreshCw v-if="isUpdating" class="w-3 h-3 text-slate-400 animate-spin ml-2" />
+                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rastreabilidade em Tempo Real</span>
+                <RefreshCw v-if="isUpdating" class="w-3 h-3 text-indigo-600 animate-spin ml-1" />
               </div>
             </div>
           </div>
 
-          <div
-            class="mt-4 md:mt-0 bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 flex items-center gap-4 shadow-inner w-full md:w-auto justify-between md:justify-end">
+          <div class="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-3 shadow-inner w-full md:w-auto justify-between md:justify-end">
             <div class="text-right">
-              <div class="text-3xl font-black text-slate-700 leading-none tabular-nums">
+              <div class="text-xl font-black text-slate-700 leading-none tabular-nums">
                 {{ currentTime.toLocaleTimeString('pt-BR') }}
               </div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                {{ currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) }}
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                {{ currentTime.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) }}
               </div>
             </div>
-            <Clock class="w-8 h-8 text-slate-300" />
+            <Clock class="w-6 h-6 text-slate-300" />
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 stagger-animation">
+        <!-- SELETOR / FILTRO RÁPIDO POR SETOR -->
+        <div class="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-1.5 overflow-x-auto">
+          <button
+            v-for="sec in sectorFilterOptions"
+            :key="sec.id"
+            @click="selectedSector = sec.id"
+            class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0"
+            :class="selectedSector === sec.id
+              ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
+          >
+            <component :is="sec.icon" class="w-3.5 h-3.5" />
+            <span>{{ sec.label }}</span>
+          </button>
+        </div>
 
-          <div
-            class="card-hover bg-white rounded-2xl p-6 shadow-xl border-b-4 border-emerald-600 relative overflow-visible group">
+        <!-- CARDS PRINCIPAIS DE KPIS OPERACIONAIS (4 INDICADORES CENTRAIS) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-            <div
-              class="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl w-48 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Total de materiais reutilizados ou vendidos. Indica economia gerada.
-              <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
-            </div>
-
-            <div class="flex justify-between items-start z-10 relative">
+          <!-- 1. Volume de Sobras (Dinâmico conforme setor filtrado) -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-indigo-600 relative group overflow-hidden">
+            <div class="flex justify-between items-start">
               <div>
-                <div class="flex items-center gap-1">
-                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Saídas (Uso/Venda)</p>
-                  <HelpCircle class="w-3 h-3 text-slate-300 cursor-help" />
-                </div>
-                <h3 class="text-4xl font-black text-emerald-700 mt-2 tracking-tight">{{ formatNumber(totalExitsDisplay)
-                  }}</h3>
-                <p class="text-[10px] text-emerald-600 font-bold mt-1 bg-emerald-50 inline-block px-2 py-0.5 rounded">
-                  Meta: Aumentar 🚀</p>
-              </div>
-              <div class="bg-emerald-50 p-3 rounded-xl text-emerald-600 shadow-inner">
-                <Wallet class="w-7 h-7" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="card-hover bg-white rounded-2xl p-6 shadow-xl border-b-4 border-red-500 relative overflow-visible group">
-
-            <div
-              class="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl w-48 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Total de novas sobras geradas que entraram no estoque. Gera custo.
-              <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
-            </div>
-
-            <div class="flex justify-between items-start z-10 relative">
-              <div>
-                <div class="flex items-center gap-1">
-                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Entradas (Acúmulo)</p>
-                  <HelpCircle class="w-3 h-3 text-slate-300 cursor-help" />
-                </div>
-                <h3 class="text-4xl font-black text-red-700 mt-2 tracking-tight">{{
-                  formatNumber(displayStats.totalEntries) }}</h3>
-                <p class="text-[10px] text-red-600 font-bold mt-1 bg-red-50 inline-block px-2 py-0.5 rounded">Meta:
-                  Reduzir 📉</p>
-              </div>
-              <div class="bg-red-50 p-3 rounded-xl text-red-600 shadow-inner">
-                <Package class="w-7 h-7" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="card-hover bg-slate-800 rounded-2xl p-6 shadow-2xl text-white border border-slate-600 relative overflow-visible group">
-
-            <div
-              class="absolute -top-12 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-xs p-3 rounded-lg shadow-xl w-48 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Quantidade de códigos/tipos de materiais diferentes cadastrados.
-              <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
-            </div>
-
-            <div class="flex justify-between items-start z-10 relative">
-              <div>
-                <div class="flex items-center gap-1">
-                  <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Tipos em Estoque</p>
-                  <HelpCircle class="w-3 h-3 text-slate-600 cursor-help" />
-                </div>
-                <h3
-                  class="text-4xl font-black mt-2 tracking-tight group-hover:scale-110 transition-transform origin-left">
-                  {{ formatNumber(displayStats.totalMaterials) }}</h3>
-                <p class="text-[10px] text-slate-400 font-bold mt-1">Cadastros Ativos</p>
-              </div>
-              <div class="bg-slate-700 p-3 rounded-xl shadow-inner">
-                <Box class="w-7 h-7 text-white" />
-              </div>
-            </div>
-            <div class="w-full bg-slate-900 h-2 mt-4 rounded-full overflow-hidden border border-slate-600">
-              <div class="bg-blue-500 h-full transition-all duration-1000 ease-out"
-                :style="{ width: `${100 - efficiencyRateDisplay}%` }"></div>
-            </div>
-          </div>
-
-          <div
-            class="card-hover bg-white rounded-2xl p-6 shadow-xl border-b-4 border-blue-500 relative overflow-visible group">
-
-            <div
-              class="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs p-3 rounded-lg shadow-xl w-48 text-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-              Mede a eficiência: % do material que SAI em relação ao que ENTRA.
-              <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
-            </div>
-
-            <div>
-              <div class="flex items-center gap-1">
-                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Giro de Estoque</p>
-                <HelpCircle class="w-3 h-3 text-slate-300 cursor-help" />
-              </div>
-              <div class="flex items-center gap-2 mt-2">
-                <h3 class="text-5xl font-black tracking-tighter"
-                  :class="efficiencyRateDisplay > 50 ? 'text-blue-700' : 'text-orange-600'">{{ efficiencyRateDisplay }}%
+                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                  {{ currentFilteredVolume.label }}
+                </p>
+                <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+                  {{ formatNumber(currentFilteredVolume.quantity) }}
+                  <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.unit }}</span>
                 </h3>
+                <p class="text-[11px] text-indigo-600 font-bold mt-0.5">
+                  {{ formatNumber(currentFilteredVolume.itemsCount) }} cadastros ativos
+                </p>
               </div>
-              <p class="text-[10px] text-slate-400 font-bold mt-1">Ideal: Acima de 50%</p>
-            </div>
-            <div class="absolute -right-4 -bottom-4 opacity-10 rotate-12">
-              <Activity class="w-32 h-32 text-slate-800" />
+              <div class="bg-indigo-50 p-2.5 rounded-xl text-indigo-600 shadow-inner">
+                <Box class="w-5 h-5" />
+              </div>
             </div>
           </div>
+
+          <!-- 2. Taxa de Reaproveitamento Fabril (%) Adaptável -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-emerald-500 relative group overflow-hidden">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1">
+                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                    {{ currentFilteredEfficiency.label }}
+                  </p>
+                  <Sparkles class="w-3 h-3 text-emerald-500" />
+                </div>
+                <h3 class="text-2xl font-black text-emerald-600 mt-1 tracking-tight">
+                  {{ currentFilteredEfficiency.taxa }}%
+                </h3>
+                <div class="flex items-center gap-1 mt-0.5 text-[11px] font-bold text-emerald-700">
+                  <ArrowUpRight class="w-3.5 h-3.5" />
+                  <span>{{ formatNumber(currentFilteredEfficiency.exits) }} saídas realizadas</span>
+                </div>
+              </div>
+              <div class="bg-emerald-50 p-2.5 rounded-xl text-emerald-600 shadow-inner">
+                <CheckCircle2 class="w-5 h-5" />
+              </div>
+            </div>
+            <div class="w-full bg-slate-100 h-1.5 mt-2.5 rounded-full overflow-hidden">
+              <div class="bg-emerald-500 h-full transition-all duration-700" :style="{ width: `${Math.min(100, currentFilteredEfficiency.taxa)}%` }"></div>
+            </div>
+          </div>
+
+          <!-- 3. Itens Parados Sem Giro (>30 Dias) Adaptável -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-amber-500 relative group overflow-hidden">
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center gap-1">
+                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Parados Sem Giro (>30d)</p>
+                  <AlertTriangle class="w-3 h-3 text-amber-500" />
+                </div>
+                <h3 class="text-2xl font-black text-amber-600 mt-1 tracking-tight">
+                  {{ formatNumber(currentFilteredStagnant) }}
+                </h3>
+                <p class="text-[10px] text-amber-700 font-bold mt-0.5 bg-amber-50 inline-block px-1.5 py-0.5 rounded">
+                  Atenção Operacional ⚠️
+                </p>
+              </div>
+              <div class="bg-amber-50 p-2.5 rounded-xl text-amber-600 shadow-inner">
+                <Clock class="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Casamento de Pares & Montagem / Detalhes de Giro -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-fuchsia-500 relative group overflow-hidden">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Montagem & Pares Órfãos</p>
+                <div class="flex items-baseline gap-2 mt-1">
+                  <h3 class="text-2xl font-black text-fuchsia-700 tracking-tight">
+                    {{ formatNumber(setoresData.montagem.paresCasados) }}
+                  </h3>
+                  <span class="text-xs font-bold text-fuchsia-600">pares casados</span>
+                </div>
+                <div class="flex items-center gap-2 mt-0.5 text-[11px] font-bold text-slate-500">
+                  <span class="text-indigo-600">Esq: {{ formatNumber(setoresData.montagem.peEsq) }}</span>
+                  <span>·</span>
+                  <span class="text-purple-600">Dir: {{ formatNumber(setoresData.montagem.peDir) }}</span>
+                </div>
+              </div>
+              <div class="bg-fuchsia-50 p-2.5 rounded-xl text-fuchsia-600 shadow-inner">
+                <Footprints class="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
         </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up" style="animation-delay: 0.2s">
+        <!-- GRÁFICOS ANALÍTICOS & TOP SOBRAS (3 COLUNAS ENXUTAS) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col items-center relative overflow-hidden h-[450px]">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
-            <h3 class="font-bold text-slate-800 w-full text-left mb-6 flex items-center gap-2">
-              <PieChart class="w-5 h-5 text-slate-400" /> Distribuição
+          <!-- 1. Distribuição de Volume por Setor -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col items-center relative overflow-hidden">
+            <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
+              <PieChart class="w-4 h-4 text-indigo-500" /> Distribuição de Volume
             </h3>
-            
-            <div class="relative w-48 h-48 mx-auto rounded-full shadow-lg mb-6 border-4 border-slate-50 transition-transform duration-700 hover:scale-105"
-              :style="pieChartStyle">
-              <div class="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden transition-all duration-300">
-                <div v-if="hoveredCategory" class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
-                  <span class="text-2xl font-black leading-none" :style="{ color: hoveredCategory.color }">
-                    {{ hoveredCategory.percent.toFixed(1) }}%
+
+            <div class="relative w-32 h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105"
+              :style="sectorChartStyle">
+              <div class="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                <div v-if="hoveredSector" class="flex flex-col items-center justify-center w-full h-full text-center px-0.5">
+                  <span class="text-sm font-black leading-none" :style="{ color: hoveredSector.color }">
+                    {{ hoveredSector.percent.toFixed(0) }}%
                   </span>
-                  <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                    {{ hoveredCategory.label }}
+                  <span class="text-[7px] font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[50px]">
+                    {{ hoveredSector.sector }}
                   </span>
                 </div>
-                <div v-else class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
-                  <span class="text-3xl font-black text-slate-800">{{ pieChartData.length }}</span>
-                  <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Categorias</span>
+                <div v-else class="flex flex-col items-center justify-center w-full h-full text-center">
+                  <span class="text-base font-black text-slate-800">5</span>
+                  <span class="text-[7px] font-bold text-slate-400 uppercase">Setores</span>
                 </div>
               </div>
             </div>
 
-            <div class="w-full space-y-2 overflow-y-auto pr-1 max-h-[140px] mt-auto">
-              <div v-for="slice in pieChartData" :key="slice.label"
-                @mouseenter="hoveredCategory = slice" @mouseleave="hoveredCategory = null"
-                class="group flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 transition-all hover:bg-slate-100 hover:shadow-md cursor-pointer">
-                <div class="flex items-center gap-3">
-                  <span class="w-3 h-3 rounded-sm shadow-sm transition-transform group-hover:scale-125" :style="{ backgroundColor: slice.color }"></span>
-                  <span class="text-slate-700 font-bold uppercase group-hover:text-blue-600 transition-colors">{{ slice.label }}</span>
+            <div class="w-full space-y-1 mt-3 text-xs">
+              <div
+                v-for="sec in volumePorSetor"
+                :key="sec.sector"
+                @mouseenter="hoveredSector = sec"
+                @mouseleave="hoveredSector = null"
+                class="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-sm" :style="{ backgroundColor: sec.color }"></span>
+                  <span class="font-bold text-slate-700 uppercase text-[10px]">{{ sec.label }}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-slate-400 text-[10px] hidden group-hover:inline-block animate-fade-in bg-slate-200 px-1.5 py-0.5 rounded font-bold">{{ slice.percent.toFixed(1) }}%</span>
-                  <span class="font-bold text-slate-900">{{ formatNumber(slice.value) }}</span>
+                  <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ sec.percent.toFixed(1) }}%</span>
+                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(sec.quantity) }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col items-center relative overflow-hidden h-[450px]">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
-            <h3 class="font-bold text-slate-800 w-full text-left mb-6 flex items-center gap-2">
-              <MapPin class="w-5 h-5 text-slate-400" /> Origem das Entradas
+          <!-- 2. Origem das Entradas de Sobra Reativa ao Setor -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col items-center relative overflow-hidden">
+            <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
+              <MapPin class="w-4 h-4 text-violet-500" /> Origem das Entradas
             </h3>
-            
-            <div class="relative w-48 h-48 mx-auto rounded-full shadow-lg mb-6 border-4 border-slate-50 transition-transform duration-700 hover:scale-105"
+
+            <div class="relative w-32 h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105"
               :style="origemChartStyle">
-              <div class="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden transition-all duration-300">
-                <div v-if="hoveredOrigem" class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
-                  <span class="text-2xl font-black leading-none" :style="{ color: hoveredOrigem.color }">
-                    {{ hoveredOrigem.percent.toFixed(1) }}%
+              <div class="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                <div v-if="hoveredOrigem" class="flex flex-col items-center justify-center w-full h-full text-center px-0.5">
+                  <span class="text-sm font-black leading-none" :style="{ color: hoveredOrigem.color }">
+                    {{ hoveredOrigem.percent.toFixed(0) }}%
                   </span>
-                  <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 text-center leading-tight">
+                  <span class="text-[7px] font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[50px]">
                     {{ hoveredOrigem.label }}
                   </span>
                 </div>
-                <div v-else class="flex flex-col items-center justify-center w-full h-full animate-fade-in">
-                  <span class="text-3xl font-black text-slate-800">{{ origemChartData.length }}</span>
-                  <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fontes</span>
+                <div v-else class="flex flex-col items-center justify-center w-full h-full text-center">
+                  <span class="text-base font-black text-slate-800">{{ filteredOrigemChartData.length }}</span>
+                  <span class="text-[7px] font-bold text-slate-400 uppercase">Fontes</span>
                 </div>
               </div>
             </div>
 
-            <div class="w-full space-y-2 mt-auto">
-              <div v-if="origemChartData.length === 0" class="flex flex-col items-center justify-center py-8 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200 w-full h-[120px]">
-                <span class="text-xs font-bold">Nenhum dado registrado</span>
-                <span class="text-[10px] mt-1 text-center px-4">Cadastre registros de entrada com origem para popular este gráfico.</span>
+            <div class="w-full space-y-1 mt-3 text-xs">
+              <div v-if="filteredOrigemChartData.length === 0" class="p-3 text-center text-slate-400 text-xs italic">
+                Nenhuma entrada registrada neste setor.
               </div>
-              
-              <div v-else v-for="slice in origemChartData" :key="slice.label"
-                @mouseenter="hoveredOrigem = slice" @mouseleave="hoveredOrigem = null"
-                class="group flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200 transition-all hover:bg-slate-100 hover:shadow-md cursor-pointer">
-                <div class="flex items-center gap-3">
-                  <span class="w-3 h-3 rounded-sm shadow-sm transition-transform group-hover:scale-125" :style="{ backgroundColor: slice.color }"></span>
-                  <span class="text-slate-700 font-bold uppercase group-hover:text-blue-600 transition-colors">{{ slice.label }}</span>
+              <div
+                v-else
+                v-for="slice in filteredOrigemChartData"
+                :key="slice.label"
+                @mouseenter="hoveredOrigem = slice"
+                @mouseleave="hoveredOrigem = null"
+                class="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-sm" :style="{ backgroundColor: slice.color }"></span>
+                  <span class="font-bold text-slate-700 uppercase text-[10px] truncate max-w-[130px]">{{ slice.label }}</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="text-slate-400 text-[10px] hidden group-hover:inline-block animate-fade-in bg-slate-200 px-1.5 py-0.5 rounded font-bold">{{ slice.percent.toFixed(1) }}%</span>
-                  <span class="font-bold text-slate-900">{{ formatNumber(slice.value) }}</span>
+                  <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ slice.percent.toFixed(1) }}%</span>
+                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(slice.value) }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="bg-white rounded-2xl shadow-xl border border-slate-300 p-6 flex flex-col relative overflow-hidden h-[450px]">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
-            
-            <div class="w-full flex justify-between items-center mb-6">
-              <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                <Trophy class="w-5 h-5 text-yellow-500" /> Maiores Acúmulos
+          <!-- 3. TOP 5 MATERIAIS COM MAIS SOBRAS (CAUSA RAIZ / ACÚMULO) -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col relative overflow-hidden">
+            <div class="w-full flex justify-between items-center mb-3">
+              <h3 class="font-bold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
+                <AlertOctagon class="w-4 h-4 text-red-500" /> Top 5 com Mais Sobras
               </h3>
-              <div class="flex items-center gap-2">
-                <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                <span class="text-[10px] font-bold text-slate-400 uppercase">Top 5</span>
-              </div>
+              <span class="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 uppercase tracking-widest">
+                ACÚMULO
+              </span>
             </div>
 
             <div class="w-full flex-1 flex flex-col justify-between">
-              <table class="w-full text-left border-collapse">
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="(item, index) in topMaterials" :key="item.id"
-                    class="hover:bg-slate-50 transition-colors duration-200 group">
-                    <td class="py-3.5 pr-3 w-10">
-                      <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm"
-                        :class="index === 0 ? 'bg-yellow-100 text-yellow-700' : index === 1 ? 'bg-slate-200 text-slate-600' : index === 2 ? 'bg-amber-100/50 text-amber-700' : 'bg-slate-50 text-slate-400'">
-                        {{ index + 1 }}
-                      </div>
-                    </td>
-                    <td class="p-3">
-                      <div class="font-bold text-slate-800 text-sm truncate max-w-[150px] group-hover:text-blue-600 transition-colors"
-                        :title="item.descricao || item.name">{{ item.descricao || item.name }}</div>
-                      <div class="text-[10px] text-slate-400 font-mono mt-1">Cód: {{ item.codigo || item.code }}</div>
-                    </td>
-                    <td class="p-3 text-right">
-                      <div class="text-base font-black text-slate-800 tracking-tight">{{ formatNumber(item.quantidade || item.quantity) }}</div>
-                      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">{{ item.unidade || item.unit }}</div>
-                    </td>
-                  </tr>
-                  <tr v-if="topMaterials.length === 0">
-                    <td colspan="3" class="p-10 text-center text-slate-400 text-sm font-medium italic">Nenhum material no estoque.</td>
-                  </tr>
-                </tbody>
-              </table>
-              
-              <div class="w-full text-center border-t border-slate-100 pt-4 mt-auto">
-                <span class="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Sincronizado com o Banco de Dados</span>
+              <div class="space-y-1.5">
+                <div
+                  v-for="(item, index) in filteredTopSobras"
+                  :key="item.id"
+                  class="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors text-xs"
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      class="w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px] shrink-0"
+                      :class="index === 0 ? 'bg-red-100 text-red-700' : index === 1 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'"
+                    >
+                      {{ index + 1 }}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="font-bold text-slate-800 truncate text-[11px]">{{ item.name }}</p>
+                      <p class="text-[9px] text-slate-400 font-mono">Cód: {{ item.code }} · {{ item.sector }}</p>
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0 ml-2">
+                    <span class="font-black text-red-700 text-xs">{{ formatNumber(item.totalQuantity) }}</span>
+                    <span class="text-[9px] text-slate-400 ml-0.5 uppercase">{{ item.unit }}</span>
+                  </div>
+                </div>
+
+                <div v-if="filteredTopSobras.length === 0" class="p-6 text-center text-slate-400 text-xs italic">
+                  Nenhuma entrada de sobra registrada para este setor.
+                </div>
+              </div>
+
+              <div class="w-full text-center border-t border-slate-100 pt-2.5 mt-3">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  Entradas Acumuladas no Sistema
+                </span>
               </div>
             </div>
           </div>
 
         </div>
-
 
       </div>
     </div>
   </Layout>
 </template>
-
-<style scoped>
-@keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-.animate-fade-in-down {
-  animation: fadeInDown 0.8s ease-out forwards;
-}
-
-.animate-fade-in-up {
-  opacity: 0;
-  animation: fadeInUp 0.8s ease-out 0.3s forwards;
-}
-
-.card-hover {
-  transition: all 0.3s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.stagger-animation>div {
-  opacity: 0;
-  animation: fadeInUp 0.6s ease-out forwards;
-}
-
-.stagger-animation>div:nth-child(1) {
-  animation-delay: 0.1s;
-}
-
-.stagger-animation>div:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.stagger-animation>div:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.stagger-animation>div:nth-child(4) {
-  animation-delay: 0.4s;
-}
-</style>

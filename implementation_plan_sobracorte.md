@@ -244,8 +244,22 @@ ORDER BY "formablePairs" DESC;
   - `GET /inventory/movements/history`
 
 ### 🟧 Fase 4: Frontend Vue 3 (UX de Chão de Fábrica)
-- [ ] Atualizar Store Pinia `stockStore.ts` com suporte aos 5 setores e busca unificada.
-- [ ] Criar formulário dinâmico ultra-rápido (`SectorFormInput.vue`) com navegação por teclado ($\le 10$s).
-- [ ] Criar Tela Consolidada de Estoque por Abas (`InventoryHub.vue`).
-- [ ] Criar Tela de Casamento de Pares (`MountingMatchingPairs.vue`) com destaque das prateleiras.
-- [ ] Criar Painel de Histórico e Auditoria (`StockMovementHistory.vue`).
+- [x] Atualizar Store Pinia `stockStore.ts` com suporte aos 5 setores e busca unificada.
+- [x] Criar formulário dinâmico ultra-rápido (`SectorFormInput.vue`) com navegação por teclado ($\le 10$s).
+- [x] Criar Tela Consolidada de Estoque por Abas (`InventoryHub.vue`).
+- [x] Criar Tela de Casamento de Pares (`MountingMatchingPairs.vue`) com destaque das prateleiras.
+- [x] Criar Painel de Histórico e Auditoria (`StockMovementHistory.vue`).
+
+---
+
+## 🏁 6. Status dos Cartões Kanban do Sprint 5
+
+- **Cartão 5.1:** ✅ Modelagem e Migração Multi-Tenant do Banco de Dados (Prisma Schema, Enums, Índices Compostos e Particionamento Lógico) - **Concluído**
+- **Cartão 5.2:** ✅ Camada de Serviço e Validações Zod (StockItemService, MountingPairService, Transações Atômicas) - **Concluído**
+- **Cartão 5.3:** ✅ Casamento Inteligente de Pés Órfãos na Montagem (Query SQL nativa de alta performance e baixa atômica) - **Concluído**
+- **Cartão 5.4:** ✅ Unificação Robusta do Fluxo de Movimentações no Estoque Multi-Setor (`POST /inventory/movements`, Drawer de Movimentação) - **Concluído**
+- **Cartão 5.5:** ✅ Consolidação do Sidebar com Single Round-Trip e Paginação de Alta Escala (>3.000 itens) - **Concluído**
+- **Cartão 5.6:** ✅ Governança do Perfil Leitor & Setorização de Configurações (RBAC estrito, bloqueio de `/settings`, exportação protegida) - **Concluído**
+- **Cartão 5.7:** ✅ Governança, Travas de Integridade & Auditoria de Configurações (Restrições de exclusão e log no `StockMovement`) - **Concluído**
+- **Cartão 5.8:** ✅ Evolução do Dashboard Multi-Setor & KPIs Operacionais (Single Round-Trip `GET /dashboard/summary`, filtro rápido por setor reativo sem overhead, itens parados sem giro >30d, proporção ESQ/DIR e ranking de reaproveitamento) - **Concluído**
+
