@@ -6,10 +6,28 @@ function hasPrismaCode(error: unknown, code: string): boolean {
     && (error as { code?: unknown }).code === code;
 }
 
+function checkSettingsPermission(req: Request): { allowed: boolean; status?: number; error?: string } {
+  if (req.isGlobalAdmin || req.user?.role === 'admin') {
+    return { allowed: true };
+  }
+  if (req.user?.role === 'leitor') {
+    return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
+  }
+  if (req.user?.role === 'lider') {
+    return { allowed: true };
+  }
+  return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
+}
+
 export class SettingsController {
 
   async getCategories(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const categories = await prisma.categoryConfig.findMany({
         where: { factoryUnitId: req.tenant!.id },
         orderBy: { id: 'desc' },
@@ -24,6 +42,11 @@ export class SettingsController {
 
   async createCategory(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const { name, unitLock, defaultUnitId, unitLocked } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
@@ -56,6 +79,11 @@ export class SettingsController {
 
   async updateCategory(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const { name, unitLock, defaultUnitId, unitLocked } = req.body;
 
@@ -105,6 +133,11 @@ export class SettingsController {
 
   async deleteCategory(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!category) {
@@ -162,6 +195,11 @@ export class SettingsController {
 
   async getUnits(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       let units = await prisma.unitConfig.findMany({
         where: { factoryUnitId: req.tenant!.id, active: true },
         orderBy: { id: 'desc' }
@@ -199,6 +237,11 @@ export class SettingsController {
 
   async createUnit(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const { name, symbol } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da unidade é obrigatório.' });
@@ -244,6 +287,11 @@ export class SettingsController {
 
   async deleteUnit(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const unit = await prisma.unitConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!unit) {
@@ -294,6 +342,11 @@ export class SettingsController {
 
   async getLocations(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const locations = await prisma.location.findMany({
         where: { factoryUnitId: req.tenant!.id },
         orderBy: { id: 'desc' },
@@ -313,6 +366,11 @@ export class SettingsController {
 
   async createLocation(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const { name, categoryId, categoryIds } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
@@ -372,6 +430,11 @@ export class SettingsController {
 
   async updateLocation(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const { name, categoryIds } = req.body;
 
@@ -446,6 +509,11 @@ export class SettingsController {
 
   async deleteLocation(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const location = await prisma.location.findFirst({
         where: { id, factoryUnitId: req.tenant!.id }
@@ -504,6 +572,11 @@ export class SettingsController {
 
   async getOrigins(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const origins = await prisma.originConfig.findMany({
         where: { factoryUnitId: req.tenant!.id },
         orderBy: { id: 'desc' }
@@ -517,6 +590,11 @@ export class SettingsController {
 
   async createOrigin(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const { name } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
@@ -536,6 +614,11 @@ export class SettingsController {
 
   async deleteOrigin(req: Request, res: Response) {
     try {
+      const perm = checkSettingsPermission(req);
+      if (!perm.allowed) {
+        return res.status(perm.status || 403).json({ error: perm.error });
+      }
+
       const id = Number(req.params.id);
       const origin = await prisma.originConfig.findFirst({
         where: { id, factoryUnitId: req.tenant!.id }

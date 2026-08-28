@@ -41,7 +41,7 @@ const routes = [
     component: MountingMatchingPairs, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador'] 
+      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
     } 
   },
   { 
@@ -91,7 +91,7 @@ const routes = [
     component: Settings,
     meta: {
       requiresAuth: true,
-      roles: ['admin']
+      roles: ['admin', 'lider']
     }
   },
   {
@@ -113,11 +113,7 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } 
   else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    if (from.name !== 'Dashboard' && from.name !== 'Login') {
-      next('/')
-    } else {
-      next(false)
-    }
+    next('/inventory')
   }
   else {
     next()

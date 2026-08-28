@@ -21,6 +21,7 @@
 | **Unificação Material** | Integração Completa da Tabela Oficial `Material` (4.000+ Itens) no Estoque | ✅ Concluído | Leitura e gravação de CORTE apontando para `Material`, zero N+1 queries, filterOptions unificadas no search. |
 | **Dashboard Consolidado** | Single Round-Trip (`GET /dashboard/summary`) & Integração Total `StockMovement` | ✅ Concluído | Métricas analíticas unificadas de `StockMovement` + `Movement`, eliminação dos 4 requests separados no `Dashboard.vue`. |
 | **Cartão 5.7** | Governança, Travas de Integridade & Auditoria de Configurações | ✅ Concluído | Verificação de vínculos ativos antes de mutações, trava para papéis não-admin e log de auditoria estruturado. |
+| **Cartão 5.6** | Governança do Perfil Leitor & Setorização de Configurações | ✅ Concluído | Modo somente leitura para `leitor` no histórico/configurações, permissões granulares para `lider` e `admin`, e bloqueio 403 para mutações de leitor. |
 
 ---
 

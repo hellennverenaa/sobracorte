@@ -11,6 +11,9 @@
           <h1 class="text-2xl font-bold text-gray-900">Configurações</h1>
           <p class="text-sm text-gray-500">Gerencie os valores de domínio do sistema</p>
         </div>
+        <span v-if="authStore.user?.role === 'leitor'" class="ml-auto bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold border border-amber-200">
+          Modo Consulta (Somente Leitura)
+        </span>
       </div>
 
       <!-- Notificação Toast -->
@@ -49,8 +52,8 @@
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Material.type</span>
           </div>
           
-          <!-- Formulário de adição -->
-          <div class="px-6 py-4 border-b border-gray-100 bg-indigo-50/30">
+          <!-- Formulário de adição (Oculto para perfil leitor) -->
+          <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-indigo-50/30">
             <form @submit.prevent="addCategory" class="flex gap-4 items-end flex-wrap">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Categoria</label>
@@ -95,7 +98,7 @@
                 <th class="px-6 py-3">Nome</th>
                 <th class="px-6 py-3 text-center">Unidade Padrão</th>
                 <th class="px-6 py-3 text-center">Regra de Trava</th>
-                <th class="px-6 py-3 text-center">Ação</th>
+                <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -115,15 +118,15 @@
                     Livre
                   </span>
                 </td>
-                <td class="px-6 py-3 text-center">
+                <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <button @click="deleteCategory(cat)"
-                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50">
+                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Excluir Categoria">
                     <Trash2 class="w-4 h-4" />
                   </button>
                 </td>
               </tr>
               <tr v-if="categories.length === 0">
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
+                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -140,8 +143,8 @@
             <span class="text-xs text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full font-bold">100% Dinâmico via API</span>
           </div>
 
-          <!-- Formulário de adição de Unidade -->
-          <div class="px-6 py-4 border-b border-gray-100 bg-purple-50/30">
+          <!-- Formulário de adição de Unidade (Oculto para perfil leitor) -->
+          <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-purple-50/30">
             <form @submit.prevent="addUnit" class="flex gap-3 items-end flex-wrap">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Unidade</label>
@@ -168,7 +171,7 @@
                 <th class="px-6 py-3">Nome da Unidade</th>
                 <th class="px-6 py-3 text-center">Sigla / Símbolo</th>
                 <th class="px-6 py-3 text-center">Status</th>
-                <th class="px-6 py-3 text-center">Ação</th>
+                <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -184,7 +187,7 @@
                     Ativa
                   </span>
                 </td>
-                <td class="px-6 py-3 text-center">
+                <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <button @click="deleteUnit(unit)"
                     class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Desativar unidade">
                     <Trash2 class="w-4 h-4" />
@@ -192,7 +195,7 @@
                 </td>
               </tr>
               <tr v-if="units.length === 0">
-                <td colspan="4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma unidade de medida cadastrada.</td>
+                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma unidade de medida cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -208,7 +211,9 @@
             </h2>
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vínculo multi-categoria</span>
           </div>
-          <div class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
+          
+          <!-- Formulário de adição de Localização (Oculto para perfil leitor) -->
+          <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
             <form @submit.prevent="addLocation" class="space-y-3">
               <div class="flex gap-3 items-end flex-wrap">
                 <div class="flex-1 min-w-[200px]">
@@ -253,7 +258,7 @@
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
                 <th class="px-6 py-3 text-center">Categorias Permitidas</th>
-                <th class="px-6 py-3 text-center">Ações</th>
+                <th v-if="canManageSettings" class="px-6 py-3 text-center">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
@@ -279,7 +284,7 @@
                     <span v-else class="text-xs text-gray-400 italic">Não vinculada</span>
                   </div>
                 </td>
-                <td class="px-6 py-3 text-center">
+                <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <div class="flex items-center justify-center gap-2">
                     <button
                       @click="openEditLocationModal(loc)"
@@ -299,7 +304,7 @@
                 </td>
               </tr>
               <tr v-if="locations.length === 0">
-                <td colspan="3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
+                <td :colspan="canManageSettings ? 3 : 2" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -315,7 +320,9 @@
             </h2>
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Movement.origem</span>
           </div>
-          <div class="px-6 py-4 border-b border-gray-100 bg-amber-50/30">
+          
+          <!-- Formulário de adição de Origem (Oculto para perfil leitor) -->
+          <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-amber-50/30">
             <form @submit.prevent="addOrigin" class="flex gap-3 items-end">
               <div class="flex-1">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Origem</label>
@@ -333,13 +340,13 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Descrição da Origem</th>
-                <th class="px-6 py-3 text-center">Ação</th>
+                <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
               <tr v-for="orig in origins" :key="orig.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ orig.name }}</td>
-                <td class="px-6 py-3 text-center">
+                <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <button @click="deleteOrigin(orig)"
                     class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50">
                     <Trash2 class="w-4 h-4" />
@@ -347,7 +354,7 @@
                 </td>
               </tr>
               <tr v-if="origins.length === 0">
-                <td colspan="2" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma origem cadastrada.</td>
+                <td :colspan="canManageSettings ? 2 : 1" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma origem cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -590,7 +597,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
@@ -602,14 +609,23 @@ import {
 
 const authStore = useAuthStore()
 
-// --- TABS ---
-const tabs = [
-  { key: 'categories', label: 'Categorias',        icon: Tag },
-  { key: 'units',      label: 'Unidades de Medida', icon: Ruler },
-  { key: 'locations',  label: 'Localizações',      icon: MapPin },
-  { key: 'origins',    label: 'Origens',           icon: GitBranch },
-  { key: 'import',     label: 'Importar CSV',      icon: FileSpreadsheet },
-]
+// --- PERMISSÕES ---
+const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'lider')
+
+// --- TABS DINÂMICAS POR PERFIL ---
+const tabs = computed(() => {
+  const base = [
+    { key: 'categories', label: 'Categorias',        icon: Tag },
+    { key: 'units',      label: 'Unidades de Medida', icon: Ruler },
+    { key: 'locations',  label: 'Localizações',      icon: MapPin },
+    { key: 'origins',    label: 'Origens',           icon: GitBranch },
+  ]
+  // Importação em lote exclusiva para administradores/líderes
+  if (authStore.user?.role === 'admin' || authStore.user?.role === 'lider') {
+    base.push({ key: 'import', label: 'Importar CSV', icon: FileSpreadsheet })
+  }
+  return base
+})
 const activeTab = ref('categories')
 
 // --- NOTIFICAÇÕES ---

@@ -144,21 +144,21 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
   }
 });
 
-routes.get('/settings/categories',    requireAuth, settingsController.getCategories);
+routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'lider']), settingsController.getCategories);
 routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'lider']), settingsController.createCategory);
 routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.updateCategory);
 routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteCategory);
 
-routes.get('/settings/units', requireAuth, settingsController.getUnits);
+routes.get('/settings/units', requireAuth, requireRole(['admin', 'lider']), settingsController.getUnits);
 routes.post('/settings/units', requireAuth, requireRole(['admin', 'lider']), settingsController.createUnit);
 routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteUnit);
 
-routes.get('/settings/locations',    requireAuth, settingsController.getLocations);
+routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'lider']), settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'lider']), settingsController.createLocation);
 routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.updateLocation);
 routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteLocation);
 
-routes.get('/settings/origins',    requireAuth, settingsController.getOrigins);
+routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'lider']), settingsController.getOrigins);
 routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'lider']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteOrigin);
 

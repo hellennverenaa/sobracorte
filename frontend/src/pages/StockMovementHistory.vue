@@ -2,11 +2,13 @@
 import { ref, onMounted, reactive } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
+import { useAuthStore } from '@/stores/auth';
 import { 
-  History, RefreshCw, User
+  History, RefreshCw, User, Download
 } from 'lucide-vue-next';
 
 const stockStore = useStockStore();
+const authStore = useAuthStore();
 
 const filters = reactive({
   sector: '' as SectorType | '',
@@ -26,6 +28,34 @@ async function loadHistory() {
   if (filters.operatorId.trim()) queryParams.operatorId = filters.operatorId.trim();
 
   await stockStore.fetchHistory(queryParams);
+}
+
+function exportCSV() {
+  if (authStore.user?.role === 'leitor') return;
+  if (!stockStore.history.data || stockStore.history.data.length === 0) return;
+
+  const headers = ['ID', 'Data/Hora', 'Setor', 'Tipo', 'Detalhes', 'Quantidade', 'Operador', 'Matrícula', 'Motivo/Origem'];
+  const rows = stockStore.history.data.map(mov => [
+    mov.id,
+    formatDate(mov.createdAt),
+    mov.sector,
+    mov.type,
+    `"${formatItemDetails(mov.stockItem, mov).replace(/"/g, '""')}"`,
+    mov.quantity,
+    `"${(mov.operatorName || '').replace(/"/g, '""')}"`,
+    mov.operatorId || '',
+    `"${(mov.reason || mov.origem || '').replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `historico_movimentacoes_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function formatDate(dateStr: string) {
@@ -97,13 +127,26 @@ onMounted(() => {
           <p class="text-xs text-gray-500">Rastreabilidade completa de todas as entradas, saídas, transferências, casamentos de pares e configurações</p>
         </div>
 
-        <button
-          @click="loadHistory"
-          class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
-        >
-          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': stockStore.loading }" />
-          <span>Atualizar Histórico</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- Botão de Exportação Avançada (Oculto para perfil leitor) -->
+          <button
+            v-if="authStore.user?.role !== 'leitor'"
+            @click="exportCSV"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-bold transition-colors cursor-pointer"
+            title="Exportar dados filtrados para CSV"
+          >
+            <Download class="w-4 h-4" />
+            <span>Exportar CSV</span>
+          </button>
+
+          <button
+            @click="loadHistory"
+            class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': stockStore.loading }" />
+            <span>Atualizar Histórico</span>
+          </button>
+        </div>
       </div>
 
       <!-- Barra de Filtros Padrão Materials.vue -->

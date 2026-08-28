@@ -138,11 +138,13 @@ export const useAuthStore = defineStore('auth', {
 
       if (action === 'gerenciar_usuarios') return false;
 
-      if (action === 'baixar_relatorios') return role === 'lider';
+      if (action === 'baixar_relatorios' || action === 'exportar_dados') return role === 'lider';
 
       if (action === 'cadastrar_materiais') return role === 'lider';
 
       if (action === 'movimentar') return role === 'lider' || role === 'movimentador';
+
+      if (action === 'gerenciar_configuracoes' || action === 'editar_configuracoes') return role === 'lider';
 
       return false;
     }

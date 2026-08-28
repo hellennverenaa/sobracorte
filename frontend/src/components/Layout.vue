@@ -20,11 +20,11 @@ async function logout() {
 const menuItems = [
   { label: 'Dashboard',           path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Estoque Multi-Setor', path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Casamento de Pares',  path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador'] },
+  { label: 'Casamento de Pares',  path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Histórico & Auditoria', path: '/stock-history', icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Relatórios',          path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
   { label: 'Usuários',            path: '/users',           icon: Users,           roles: ['admin'] },
-  { label: 'Configurações',       path: '/settings',        icon: Settings,        roles: ['admin'] }
+  { label: 'Configurações',       path: '/settings',        icon: Settings,        roles: ['admin', 'lider'] }
 ]
 </script>
 
