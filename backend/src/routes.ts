@@ -71,8 +71,9 @@ routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMa
 routes.get('/movements', requireAuth, movementController.index);
 routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), movementController.create);
 
-routes.get('/reports/inventory', requireAuth, requireRole(['lider']), reportController.inventory);
-routes.get('/reports/movements', requireAuth, requireRole(['lider']), reportController.movements);
+routes.get('/reports/inventory', requireAuth, reportController.inventory);
+routes.get('/reports/movements', requireAuth, reportController.movements);
+routes.get('/reports/data', requireAuth, reportController.movements);
 
 routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
