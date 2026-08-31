@@ -70,4 +70,25 @@ export class StockItemController {
       return res.status(500).json({ error: 'Erro interno ao buscar dados de estoque.' });
     }
   }
+
+  /**
+   * GET /inventory/search-suggestions - Autocomplete inteligente por setor
+   */
+  async suggestions(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const { sector, q } = req.query;
+      const targetSector = (sector ? String(sector).toUpperCase() : 'MONTAGEM') as SectorType;
+      const query = q ? String(q) : '';
+
+      const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id);
+      return res.json(result);
+    } catch (error) {
+      console.error('Erro ao buscar sugestões de estoque:', error);
+      return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
+    }
+  }
 }

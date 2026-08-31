@@ -92,4 +92,50 @@ export class RequisitionController {
       return res.status(400).json({ error: error.message || 'Erro ao cancelar requisição.' });
     }
   }
+
+  /**
+   * POST /requisitions/:id/fulfill - Atendimento e baixa de requisição (1 clique)
+   */
+  async fulfill(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
+      const parsed = req.body;
+
+      const operatorContext = {
+        factoryUnitId: req.tenant.id,
+        operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+        operatorName: req.user?.nome || req.user?.usuario || null,
+      };
+
+      const result = await requisitionService.fulfillRequisition(id, parsed, operatorContext);
+      return res.json({ success: true, requisition: result });
+    } catch (error: any) {
+      console.error('Erro ao atender requisição:', error);
+      return res.status(400).json({ error: error.message || 'Erro ao processar baixa da requisição.' });
+    }
+  }
+
+  /**
+   * GET /requisitions/pending-count - Contagem de pendências para o sininho
+   */
+  async pendingCount(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const { sector } = req.query;
+      const targetSector = sector ? (String(sector).toUpperCase() as any) : undefined;
+
+      const result = await requisitionService.getPendingCount(req.tenant.id, targetSector);
+      return res.json(result);
+    } catch (error) {
+      console.error('Erro ao buscar contagem de pendências:', error);
+      return res.status(500).json({ error: 'Erro interno ao consultar pendências.' });
+    }
+  }
 }

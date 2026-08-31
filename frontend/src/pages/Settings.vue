@@ -502,8 +502,8 @@
                     {{ importResult.error }}
                   </p>
                   
-                  <p v-else class="text-xs text-emerald-700 leading-relaxed opacity-90">
-                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
+                  <p v-else class="text-xs text-emerald-800">
+                    <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
                   </p>
                 </div>
               </div>

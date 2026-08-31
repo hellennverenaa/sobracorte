@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
-  Eye, FileText
+  Eye, FileText, CheckCheck, PackageCheck, UserCheck, Filter
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 
 interface RequisitionItem {
   id: string;
@@ -19,7 +22,7 @@ interface RequisitionItem {
   modelName: string;
   description: string;
   sizeGrade?: string;
-  footSide?: 'E' | 'D' | null;
+  footSide?: 'E' | 'D' | 'PAR' | null;
   quantityRequested: number;
   quantityFulfilled: number;
   reason: string;
@@ -30,16 +33,27 @@ interface RequisitionItem {
   locations: string[];
 }
 
+interface SkuSuggestion {
+  sku: string;
+  modelName: string;
+  description: string;
+  sizeGrades: string[];
+  color: string;
+  footSides: string[];
+  availableQuantity: number;
+}
+
 const requisitions = ref<RequisitionItem[]>([]);
 const totalCount = ref(0);
 const currentPage = ref(1);
 const totalPages = ref(1);
 const loading = ref(false);
 
-const filterStatus = ref('');
+const filterStatus = ref(route.query.status ? String(route.query.status) : '');
 const filterSector = ref('');
 const search = ref('');
 const appliedSearch = ref('');
+const onlyPendingWithStock = ref(false);
 
 // Modal de Nova Requisição
 const showCreateModal = ref(false);
@@ -50,10 +64,23 @@ const form = ref({
   modelName: '',
   description: '',
   sizeGrade: '',
-  footSide: null as 'E' | 'D' | null,
+  footSide: null as 'E' | 'D' | 'PAR' | null,
   quantityRequested: 1,
   reason: '',
 });
+
+// Autocomplete
+const suggestions = ref<SkuSuggestion[]>([]);
+const showSuggestions = ref(false);
+const availableGrades = ref<string[]>([]);
+let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Modal de Atendimento (Fulfill)
+const showFulfillModal = ref(false);
+const fulfillingItem = ref<RequisitionItem | null>(null);
+const fulfillQuantity = ref(1);
+const fulfillObservation = ref('');
+const isFulfilling = ref(false);
 
 // Modal de Visualização de Detalhes
 const viewingItem = ref<RequisitionItem | null>(null);
@@ -115,6 +142,44 @@ function clearSearch() {
   loadRequisitions(1);
 }
 
+// Autocomplete ao digitar SKU
+function onSkuInput() {
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  const q = form.value.sku.trim();
+  if (q.length < 2) {
+    suggestions.value = [];
+    showSuggestions.value = false;
+    return;
+  }
+
+  autocompleteTimer = setTimeout(async () => {
+    try {
+      const res = await api.get('/inventory/search-suggestions', {
+        params: {
+          sector: form.value.requestSector,
+          q,
+        },
+      });
+      suggestions.value = res.data || [];
+      showSuggestions.value = suggestions.value.length > 0;
+    } catch {
+      suggestions.value = [];
+      showSuggestions.value = false;
+    }
+  }, 250);
+}
+
+function selectSuggestion(sug: SkuSuggestion) {
+  form.value.sku = sug.sku;
+  form.value.modelName = sug.modelName;
+  form.value.description = sug.description;
+  availableGrades.value = sug.sizeGrades || [];
+  if (availableGrades.value.length === 1) {
+    form.value.sizeGrade = availableGrades.value[0];
+  }
+  showSuggestions.value = false;
+}
+
 function openCreate() {
   form.value = {
     requestSector: 'MONTAGEM',
@@ -126,6 +191,9 @@ function openCreate() {
     quantityRequested: 1,
     reason: '',
   };
+  availableGrades.value = [];
+  suggestions.value = [];
+  showSuggestions.value = false;
   showCreateModal.value = true;
 }
 
@@ -174,6 +242,42 @@ async function submitRequisition() {
   }
 }
 
+// Atendimento Rápido em 1 Clique
+function openFulfill(item: RequisitionItem) {
+  fulfillingItem.value = item;
+  const pending = item.quantityRequested - item.quantityFulfilled;
+  fulfillQuantity.value = Math.min(pending, item.stockAvailable || pending);
+  fulfillObservation.value = '';
+  showFulfillModal.value = true;
+}
+
+async function executeFulfill() {
+  if (!fulfillingItem.value) return;
+  if (fulfillQuantity.value <= 0) {
+    showToast('A quantidade a atender deve ser maior que zero.', 'error');
+    return;
+  }
+
+  isFulfilling.value = true;
+  try {
+    await api.post(`/requisitions/${fulfillingItem.value.id}/fulfill`, {
+      quantity: fulfillQuantity.value,
+      observation: fulfillObservation.value.trim(),
+    });
+
+    showToast(`Requisição ${fulfillingItem.value.code} atendida com sucesso! Estoque debitado.`, 'success');
+    showFulfillModal.value = false;
+    fulfillingItem.value = null;
+    await loadRequisitions();
+  } catch (error: any) {
+    console.error('Erro ao atender requisição:', error);
+    const msg = error.response?.data?.error || 'Erro ao processar atendimento.';
+    showToast(msg, 'error');
+  } finally {
+    isFulfilling.value = false;
+  }
+}
+
 async function cancelItem(item: RequisitionItem) {
   if (!confirm(`Deseja realmente cancelar a requisição ${item.code}?`)) return;
 
@@ -187,17 +291,25 @@ async function cancelItem(item: RequisitionItem) {
   }
 }
 
+// Filtro computado da tabela (suporte a toggle rápido de saldo)
+const displayedRequisitions = computed(() => {
+  if (!onlyPendingWithStock.value) return requisitions.value;
+  return requisitions.value.filter(
+    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable > 0
+  );
+});
+
 // Métricas dos Cards do Topo
 const stats = computed(() => {
   const total = totalCount.value;
   const pendingWithStock = requisitions.value.filter(
-    (r) => r.status === 'PENDENTE' && r.stockAvailable >= r.quantityRequested
+    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable >= (r.quantityRequested - r.quantityFulfilled)
   ).length;
   const pendingNoStock = requisitions.value.filter(
-    (r) => r.status === 'PENDENTE' && r.stockAvailable === 0
+    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable === 0
   ).length;
   const fulfilled = requisitions.value.filter(
-    (r) => r.status === 'ATENDIDA_TOTAL' || r.status === 'ATENDIDA_PARCIAL'
+    (r) => r.status === 'ATENDIDA_TOTAL'
   ).length;
 
   return { total, pendingWithStock, pendingNoStock, fulfilled };
@@ -225,6 +337,13 @@ function formatDate(iso: string) {
     minute: '2-digit',
   });
 }
+
+watch(() => route.query.status, (newStatus) => {
+  if (newStatus) {
+    filterStatus.value = String(newStatus);
+    loadRequisitions(1);
+  }
+});
 
 onMounted(() => {
   loadRequisitions(1);
@@ -259,7 +378,18 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex items-center gap-2.5 w-full md:w-auto justify-end">
+        <div class="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+          <button
+            @click="onlyPendingWithStock = !onlyPendingWithStock"
+            class="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border"
+            :class="onlyPendingWithStock
+              ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
+          >
+            <PackageCheck class="w-4 h-4" />
+            <span>Prontos p/ Atendimento</span>
+          </button>
+
           <button
             @click="loadRequisitions(currentPage)"
             :disabled="loading"
@@ -297,7 +427,7 @@ onMounted(() => {
           </div>
           <div>
             <p class="text-[11px] font-bold text-emerald-600 uppercase">Com Saldo em Sobras</p>
-            <p class="text-lg font-black text-emerald-800">{{ stats.pendingWithStock }} <span class="text-xs font-medium text-emerald-600">(Página Atual)</span></p>
+            <p class="text-lg font-black text-emerald-800">{{ stats.pendingWithStock }} <span class="text-xs font-medium text-emerald-600">(Pronto p/ Baixa)</span></p>
           </div>
         </div>
 
@@ -307,7 +437,7 @@ onMounted(() => {
           </div>
           <div>
             <p class="text-[11px] font-bold text-rose-600 uppercase">Sem Saldo (Acionar Corte)</p>
-            <p class="text-lg font-black text-rose-800">{{ stats.pendingNoStock }} <span class="text-xs font-medium text-rose-600">(Página Atual)</span></p>
+            <p class="text-lg font-black text-rose-800">{{ stats.pendingNoStock }}</p>
           </div>
         </div>
 
@@ -399,21 +529,21 @@ onMounted(() => {
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">SETOR & SOLICITANTE</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">ITEM / SKU & MODELO</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">GRADE / LADO</th>
-                <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-right">QTD.</th>
+                <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-right">QTD. SOLIC.</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">DISPONIBILIDADE EM SOBRAS</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">STATUS</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">AÇÕES</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="loading && requisitions.length === 0">
+              <tr v-if="loading && displayedRequisitions.length === 0">
                 <td colspan="8" class="text-center py-8 text-slate-400 font-medium">Carregando solicitações de reposição...</td>
               </tr>
-              <tr v-else-if="requisitions.length === 0">
+              <tr v-else-if="displayedRequisitions.length === 0">
                 <td colspan="8" class="text-center py-8 text-slate-400 font-medium">Nenhuma requisição de reposição encontrada.</td>
               </tr>
               <tr
-                v-for="item in requisitions"
+                v-for="item in displayedRequisitions"
                 :key="item.id"
                 class="hover:bg-slate-50/70 transition-colors"
               >
@@ -450,42 +580,51 @@ onMounted(() => {
                   <span
                     v-if="item.footSide"
                     class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
-                    :class="item.footSide === 'E' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
+                    :class="item.footSide === 'E'
+                      ? 'bg-amber-100 text-amber-800'
+                      : item.footSide === 'D'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-indigo-100 text-indigo-800'"
                   >
-                    Pé {{ item.footSide === 'E' ? 'Esq.' : 'Dir.' }}
+                    {{ item.footSide === 'E' ? 'Pé Esq.' : item.footSide === 'D' ? 'Pé Dir.' : 'Par Completo' }}
                   </span>
                 </td>
 
                 <!-- Quantidade -->
                 <td class="px-4 py-3 text-right font-black text-slate-800 text-[12px]">
-                  {{ item.quantityRequested }}
+                  <span>{{ item.quantityRequested }}</span>
+                  <span v-if="item.quantityFulfilled > 0" class="block text-[10px] text-slate-400 font-normal">
+                    (Atendido: {{ item.quantityFulfilled }})
+                  </span>
                 </td>
 
                 <!-- Disponibilidade em Tempo Real -->
                 <td class="px-4 py-3 text-center">
-                  <div v-if="item.stockAvailable >= item.quantityRequested" class="inline-flex flex-col items-center">
+                  <div v-if="item.stockAvailable >= (item.quantityRequested - item.quantityFulfilled)" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10.5px]">
-                      <CheckCircle2 class="w-3.5 h-3.5" />
+                      <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600" />
                       {{ item.stockAvailable }} un. em estoque
                     </span>
-                    <span v-if="item.locations.length > 0" class="text-[10px] text-emerald-600 mt-0.5 truncate max-w-[180px]">
-                      📍 {{ item.locations.join(', ') }}
+                    <span v-if="item.locations.length > 0" class="text-[10px] text-emerald-600 mt-0.5 truncate max-w-[180px] flex items-center gap-0.5">
+                      <MapPin class="w-3 h-3 shrink-0" />
+                      {{ item.locations.join(', ') }}
                     </span>
                   </div>
 
                   <div v-else-if="item.stockAvailable > 0" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-bold text-[10.5px]">
-                      <Clock class="w-3.5 h-3.5" />
+                      <Clock class="w-3.5 h-3.5 text-amber-600" />
                       Parcial: {{ item.stockAvailable }} un.
                     </span>
-                    <span v-if="item.locations.length > 0" class="text-[10px] text-amber-600 mt-0.5 truncate max-w-[180px]">
-                      📍 {{ item.locations.join(', ') }}
+                    <span v-if="item.locations.length > 0" class="text-[10px] text-amber-600 mt-0.5 truncate max-w-[180px] flex items-center gap-0.5">
+                      <MapPin class="w-3 h-3 shrink-0" />
+                      {{ item.locations.join(', ') }}
                     </span>
                   </div>
 
                   <div v-else>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full font-bold text-[10.5px]">
-                      <AlertCircle class="w-3.5 h-3.5" />
+                      <AlertCircle class="w-3.5 h-3.5 text-rose-600" />
                       0 disponível (Acionar Corte)
                     </span>
                   </div>
@@ -522,6 +661,17 @@ onMounted(() => {
                 <!-- Ações -->
                 <td class="px-4 py-3 text-center">
                   <div class="flex items-center justify-center gap-1.5">
+                    <!-- Botão Atender Requisição (1 Clique) -->
+                    <button
+                      v-if="(item.status === 'PENDENTE' || item.status === 'ATENDIDA_PARCIAL') && item.stockAvailable > 0 && authStore.can('cadastrar_materiais')"
+                      @click="openFulfill(item)"
+                      class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10.5px] flex items-center gap-1 shadow-xs transition-colors"
+                      title="Atender Requisição"
+                    >
+                      <CheckCheck class="w-3.5 h-3.5" />
+                      <span>Atender</span>
+                    </button>
+
                     <button
                       @click="viewingItem = item"
                       class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
@@ -531,7 +681,7 @@ onMounted(() => {
                     </button>
 
                     <button
-                      v-if="item.status === 'PENDENTE'"
+                      v-if="item.status === 'PENDENTE' && authStore.can('cadastrar_materiais')"
                       @click="cancelItem(item)"
                       class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                       title="Cancelar Solicitação"
@@ -568,7 +718,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal Nova Solicitação -->
+    <!-- Modal Nova Solicitação com Autocomplete Inteligente -->
     <div
       v-if="showCreateModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -588,6 +738,7 @@ onMounted(() => {
             <label class="block font-bold text-slate-600 uppercase mb-1">Setor Solicitante *</label>
             <select
               v-model="form.requestSector"
+              @change="onSkuInput"
               class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
             >
               <option v-for="sec in sectorOptions" :key="sec.id" :value="sec.id">
@@ -597,15 +748,41 @@ onMounted(() => {
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <!-- COD. PRODUTO / SKU -->
-            <div>
+            <!-- COD. PRODUTO / SKU com Autocomplete -->
+            <div class="relative">
               <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
               <input
                 v-model="form.sku"
+                @input="onSkuInput"
                 type="text"
-                placeholder="Ex: NKE-PEG-38"
+                placeholder="Digite para buscar itens existentes..."
                 class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
               />
+
+              <!-- Dropdown de Sugestões -->
+              <div
+                v-if="showSuggestions && suggestions.length > 0"
+                class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100"
+              >
+                <button
+                  v-for="sug in suggestions"
+                  :key="sug.sku"
+                  type="button"
+                  @click="selectSuggestion(sug)"
+                  class="w-full p-2.5 text-left hover:bg-indigo-50 transition-colors flex justify-between items-center gap-2"
+                >
+                  <div>
+                    <div class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</div>
+                    <div class="text-[11px] text-slate-700 font-medium">{{ sug.modelName }} - {{ sug.description }}</div>
+                    <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">
+                      Grades: {{ sug.sizeGrades.join(', ') }}
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    {{ sug.availableQuantity }} un.
+                  </span>
+                </button>
+              </div>
             </div>
 
             <!-- NOME DO MODELO / LINHA -->
@@ -643,29 +820,39 @@ onMounted(() => {
               />
             </div>
 
-            <!-- Lado do Pé -->
+            <!-- Lado do Pé / Par -->
             <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Lado</label>
-              <div class="flex gap-2">
+              <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+              <div class="flex gap-1">
                 <button
                   type="button"
                   @click="form.footSide = form.footSide === 'E' ? null : 'E'"
-                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center"
+                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
                   :class="form.footSide === 'E'
                     ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
                 >
-                  Pé Esq. (E)
+                  Pé Esq.
                 </button>
                 <button
                   type="button"
                   @click="form.footSide = form.footSide === 'D' ? null : 'D'"
-                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center"
+                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
                   :class="form.footSide === 'D'
                     ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
                 >
-                  Pé Dir. (D)
+                  Pé Dir.
+                </button>
+                <button
+                  type="button"
+                  @click="form.footSide = form.footSide === 'PAR' ? null : 'PAR'"
+                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
+                  :class="form.footSide === 'PAR'
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
+                >
+                  Par
                 </button>
               </div>
             </div>
@@ -709,6 +896,77 @@ onMounted(() => {
             >
               <span v-if="isSubmitting">Processando...</span>
               <span v-else>Enviar Solicitação</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal Atendimento de Requisição (Baixa 1 Clique) -->
+    <div
+      v-if="showFulfillModal && fulfillingItem"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+    >
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
+        <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center text-white">
+          <div class="flex items-center gap-2">
+            <CheckCheck class="w-5 h-5" />
+            <h3 class="font-bold text-sm">Atender Requisição {{ fulfillingItem.code }}</h3>
+          </div>
+          <button @click="showFulfillModal = false" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
+        </div>
+
+        <form @submit.prevent="executeFulfill" class="p-6 space-y-4 text-xs">
+          <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-1">
+            <div class="font-bold text-emerald-900 text-sm font-mono">{{ fulfillingItem.sku }} — {{ fulfillingItem.modelName }}</div>
+            <div class="text-emerald-800 font-medium">{{ fulfillingItem.description }}</div>
+            <div class="text-[11px] text-emerald-700">
+              Solicitado: <strong>{{ fulfillingItem.quantityRequested }}</strong> | 
+              Disponível em Sobras: <strong>{{ fulfillingItem.stockAvailable }} un.</strong>
+            </div>
+            <div v-if="fulfillingItem.locations.length > 0" class="text-[10.5px] text-emerald-600 pt-1 flex items-center gap-1">
+              <MapPin class="w-3.5 h-3.5 shrink-0" />
+              <span>Prateleiras: {{ fulfillingItem.locations.join(', ') }}</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade a Atender / Baixar *</label>
+            <input
+              v-model.number="fulfillQuantity"
+              type="number"
+              min="1"
+              :max="fulfillingItem.stockAvailable"
+              class="w-full border border-slate-200 p-2.5 rounded-xl font-black text-sm outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-600 uppercase mb-1">Observação do Atendimento</label>
+            <input
+              v-model="fulfillObservation"
+              type="text"
+              placeholder="Ex: Entregue em mãos para o setor de Montagem..."
+              class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+            <button
+              type="button"
+              @click="showFulfillModal = false"
+              class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition-all"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="submit"
+              :disabled="isFulfilling"
+              class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+            >
+              <span v-if="isFulfilling">Processando...</span>
+              <span v-else>Confirmar Baixa em Estoque</span>
             </button>
           </div>
         </form>
@@ -763,12 +1021,14 @@ onMounted(() => {
                 <span class="text-slate-400 font-bold uppercase block text-[10px]">Grade / Lado</span>
                 <p class="font-bold text-slate-800">
                   {{ viewingItem.sizeGrade || 'N/A' }}
-                  <span v-if="viewingItem.footSide">({{ viewingItem.footSide === 'E' ? 'Pé Esquerdo' : 'Pé Direito' }})</span>
+                  <span v-if="viewingItem.footSide">
+                    ({{ viewingItem.footSide === 'E' ? 'Pé Esquerdo' : viewingItem.footSide === 'D' ? 'Pé Direito' : 'Par Completo' }})
+                  </span>
                 </p>
               </div>
               <div>
-                <span class="text-slate-400 font-bold uppercase block text-[10px]">Qtd. Solicitada</span>
-                <p class="font-black text-slate-900 text-sm">{{ viewingItem.quantityRequested }}</p>
+                <span class="text-slate-400 font-bold uppercase block text-[10px]">Qtd. Solicitada / Atendida</span>
+                <p class="font-black text-slate-900 text-sm">{{ viewingItem.quantityRequested }} <span class="text-xs font-normal text-slate-500">(Atendido: {{ viewingItem.quantityFulfilled }})</span></p>
               </div>
             </div>
             <div>
@@ -793,9 +1053,10 @@ onMounted(() => {
                 <span
                   v-for="loc in viewingItem.locations"
                   :key="loc"
-                  class="px-2 py-0.5 bg-white border border-slate-200 rounded font-mono font-bold text-slate-700 text-[10.5px]"
+                  class="px-2 py-0.5 bg-white border border-slate-200 rounded font-mono font-bold text-slate-700 text-[10.5px] flex items-center gap-1"
                 >
-                  📍 {{ loc }}
+                  <MapPin class="w-3 h-3 text-slate-500" />
+                  {{ loc }}
                 </span>
               </div>
             </div>

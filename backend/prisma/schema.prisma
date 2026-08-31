@@ -33,6 +33,7 @@ enum ComponentType {
 enum FootSide {
   E // Pé Esquerdo
   D // Pé Direito
+  PAR // Par Completo
 
   @@schema("sobra_corte")
 }
@@ -43,6 +44,7 @@ enum MovementType {
   TRANSFERENCIA
   REFUGO
   CASAMENTO_PAR
+  SAIDA_REQUISICAO
   EXCLUSAO_CONFIGURACAO
   EDICAO_CONFIGURACAO
 

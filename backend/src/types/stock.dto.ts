@@ -17,7 +17,7 @@ export const ComponentTypeEnum = z.enum([
   'PE_PRONTO',
 ]);
 
-export const FootSideEnum = z.enum(['E', 'D']);
+export const FootSideEnum = z.enum(['E', 'D', 'PAR']);
 
 export const MovementTypeEnum = z.enum([
   'ENTRADA',
@@ -25,6 +25,7 @@ export const MovementTypeEnum = z.enum([
   'TRANSFERENCIA',
   'REFUGO',
   'CASAMENTO_PAR',
+  'SAIDA_REQUISICAO',
   'EXCLUSAO_CONFIGURACAO',
   'EDICAO_CONFIGURACAO',
 ]);
@@ -164,6 +165,12 @@ export const RequisitionFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
+export const FulfillRequisitionSchema = z.object({
+  quantity: z.coerce.number().positive('Quantidade atendida deve ser maior que zero'),
+  locationId: z.number().int().positive().optional(),
+  observation: z.string().trim().optional().default(''),
+});
+
 // Tipos Inferidos
 export type CorteItemDTO = z.infer<typeof CorteItemSchema>;
 export type ApoioItemDTO = z.infer<typeof ApoioItemSchema>;
@@ -177,6 +184,7 @@ export type CreateStockMovementDTO = z.infer<typeof CreateStockMovementSchema>;
 export type MovementHistoryFilterDTO = z.infer<typeof MovementHistoryFilterSchema>;
 export type CreateRequisitionDTO = z.infer<typeof CreateRequisitionSchema>;
 export type RequisitionFilterDTO = z.infer<typeof RequisitionFilterSchema>;
+export type FulfillRequisitionDTO = z.infer<typeof FulfillRequisitionSchema>;
 
 export interface OperatorContext {
   factoryUnitId: number;

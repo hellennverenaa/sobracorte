@@ -4,25 +4,47 @@ import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
-  ClipboardList
+  ClipboardList, Bell
 } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
+const pendingCount = ref(0)
+let notificationInterval = null
 
 async function logout() {
   await authStore.logout()
   router.push('/login')
 }
 
+async function fetchPendingCount() {
+  try {
+    if (!authStore.isAuthenticated) return
+    const res = await api.get('/requisitions/pending-count')
+    pendingCount.value = res.data?.pendingCount || 0
+  } catch (error) {
+    // Silencioso para não poluir console
+  }
+}
+
+onMounted(() => {
+  fetchPendingCount()
+  notificationInterval = setInterval(fetchPendingCount, 25000)
+})
+
+onUnmounted(() => {
+  if (notificationInterval) clearInterval(notificationInterval)
+})
+
 const menuItems = [
   { label: 'Dashboard',             path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Estoque Multi-Setor',   path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Casamento de Pares',    path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'lider', 'movimentador', 'leitor'], badgeKey: 'requisitions' },
   { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
   { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
   { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
@@ -53,12 +75,21 @@ const menuItems = [
           :key="item.path" 
           :to="item.path"
           v-show="!item.roles || item.roles.includes(authStore.user?.role)"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm"
+          class="flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium text-sm"
           :class="route.path === item.path ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
           @click="isSidebarOpen = false"
         >
-          <component :is="item.icon" class="w-5 h-5" />
-          {{ item.label }}
+          <div class="flex items-center gap-3">
+            <component :is="item.icon" class="w-5 h-5" />
+            <span>{{ item.label }}</span>
+          </div>
+
+          <span
+            v-if="item.badgeKey === 'requisitions' && pendingCount > 0"
+            class="px-2 py-0.5 text-[11px] font-black rounded-full bg-amber-500 text-white shadow-sm"
+          >
+            {{ pendingCount }}
+          </span>
         </router-link>
       </nav>
 
@@ -83,9 +114,27 @@ const menuItems = [
     </aside>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
-      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 md:hidden print:hidden">
-        <div class="font-black text-slate-900">Sobras DASS</div>
-        <button @click="isSidebarOpen = true" class="text-gray-600"><Menu /></button>
+      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 print:hidden">
+        <div class="flex items-center gap-4">
+          <button @click="isSidebarOpen = true" class="text-gray-600 md:hidden"><Menu /></button>
+          <span class="font-black text-slate-900 hidden sm:inline">Sobras DASS</span>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <router-link
+            to="/requisitions?status=PENDENTE"
+            class="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"
+            title="Requisições Pendentes"
+          >
+            <Bell class="w-5 h-5" />
+            <span
+              v-if="pendingCount > 0"
+              class="absolute top-1 right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[10px] font-black flex items-center justify-center animate-pulse"
+            >
+              {{ pendingCount }}
+            </span>
+          </router-link>
+        </div>
       </header>
       <div class="flex-1 overflow-auto bg-slate-50 relative print:bg-white print:overflow-visible print:p-0">
         <slot />

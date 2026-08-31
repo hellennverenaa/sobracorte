@@ -486,4 +486,105 @@ export class StockItemService {
       },
     };
   }
+
+  /**
+   * Sugestões de autocomplete inteligente por setor
+   */
+  async getSearchSuggestions(sector: SectorType, query: string, factoryUnitId: number) {
+    const rawQ = query ? query.trim() : '';
+
+    if (sector === 'CORTE') {
+      const materials = await prisma.material.findMany({
+        where: {
+          factoryUnitId,
+          ...(rawQ
+            ? {
+                OR: [
+                  { code: { contains: rawQ, mode: 'insensitive' } },
+                  { name: { contains: rawQ, mode: 'insensitive' } },
+                  { type: { contains: rawQ, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        },
+        take: 20,
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      return materials.map((m) => ({
+        sku: m.code,
+        modelName: m.type || 'CORTE',
+        description: m.name,
+        sizeGrades: [] as string[],
+        color: '',
+        footSide: null,
+        availableQuantity: m.quantity,
+      }));
+    }
+
+    const items = await prisma.stockItem.findMany({
+      where: {
+        factoryUnitId,
+        sector,
+        quantity: { gt: 0 },
+        ...(rawQ
+          ? {
+              OR: [
+                { sku: { contains: rawQ, mode: 'insensitive' } },
+                { pieceCode: { contains: rawQ, mode: 'insensitive' } },
+                { productName: { contains: rawQ, mode: 'insensitive' } },
+                { description: { contains: rawQ, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      take: 50,
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Agrupar por SKU / pieceCode para retornar modelos e grades disponíveis
+    const groupMap = new Map<string, {
+      sku: string;
+      modelName: string;
+      description: string;
+      sizeGrades: Set<string>;
+      color: string;
+      footSides: Set<string>;
+      availableQuantity: number;
+    }>();
+
+    for (const item of items) {
+      const codeKey = (item.sku || item.pieceCode || item.productName || 'SEM_CODIGO').toUpperCase();
+      const existing = groupMap.get(codeKey);
+
+      const mName = item.productName || (item.sector === 'APOIO' ? 'MOLDE / PEÇA' : codeKey);
+      const desc = item.description || item.name || item.materialColor || 'COMPONENTE';
+
+      if (!existing) {
+        groupMap.set(codeKey, {
+          sku: codeKey,
+          modelName: mName,
+          description: desc,
+          sizeGrades: new Set(item.sizeGrade ? [item.sizeGrade] : []),
+          color: item.color || item.materialColor || '',
+          footSides: new Set(item.footSide ? [item.footSide] : []),
+          availableQuantity: item.quantity,
+        });
+      } else {
+        if (item.sizeGrade) existing.sizeGrades.add(item.sizeGrade);
+        if (item.footSide) existing.footSides.add(item.footSide);
+        existing.availableQuantity += item.quantity;
+      }
+    }
+
+    return Array.from(groupMap.values()).slice(0, 20).map((g) => ({
+      sku: g.sku,
+      modelName: g.modelName,
+      description: g.description,
+      sizeGrades: Array.from(g.sizeGrades),
+      color: g.color,
+      footSides: Array.from(g.footSides),
+      availableQuantity: g.availableQuantity,
+    }));
+  }
 }

@@ -1,8 +1,22 @@
 import { prisma } from '../prisma';
-import { CreateRequisitionDTO, RequisitionFilterDTO, OperatorContext } from '../types/stock.dto';
+import { CreateRequisitionDTO, RequisitionFilterDTO, FulfillRequisitionDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 
 export class RequisitionService {
+  /**
+   * Contagem de requisições pendentes para notificações e sininho
+   */
+  async getPendingCount(factoryUnitId: number, sector?: SectorType) {
+    const where: Prisma.MaterialRequisitionWhereInput = {
+      factoryUnitId,
+      status: 'PENDENTE',
+      ...(sector ? { requestSector: sector } : {}),
+    };
+
+    const count = await prisma.materialRequisition.count({ where });
+    return { pendingCount: count };
+  }
+
   /**
    * Gera o próximo código sequencial de requisição para a unidade fabril (ex: REQ-2026-0001)
    */
@@ -195,6 +209,164 @@ export class RequisitionService {
       totalPages: Math.ceil(total / limit) || 1,
       data: enriched,
     };
+  }
+
+  /**
+   * Atendimento e baixa atômica de requisição (1 clique)
+   */
+  async fulfillRequisition(id: string, dto: FulfillRequisitionDTO, context: OperatorContext) {
+    const { factoryUnitId, operatorId, operatorName } = context;
+
+    return await prisma.$transaction(async (tx) => {
+      const req = await tx.materialRequisition.findFirst({
+        where: { id, factoryUnitId },
+      });
+
+      if (!req) {
+        throw new Error('Requisição não encontrada.');
+      }
+
+      if (req.status !== 'PENDENTE' && req.status !== 'ATENDIDA_PARCIAL') {
+        throw new Error('Apenas requisições pendentes ou atendidas parcialmente podem receber baixa.');
+      }
+
+      const pendingQty = req.quantityRequested - req.quantityFulfilled;
+      if (dto.quantity > pendingQty) {
+        throw new Error(`A quantidade informada (${dto.quantity}) excede a pendência da requisição (${pendingQty}).`);
+      }
+
+      let sourceLocationId = dto.locationId || null;
+
+      if (req.requestSector === 'CORTE') {
+        const material = await tx.material.findFirst({
+          where: {
+            factoryUnitId,
+            OR: [
+              ...(req.sku ? [{ code: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } }] : []),
+              { name: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
+            ],
+            quantity: { gte: dto.quantity },
+          },
+          include: { locations: true },
+        });
+
+        if (!material) {
+          throw new Error('Saldo insuficiente na matéria-prima do Corte para atender esta requisição.');
+        }
+
+        await tx.material.update({
+          where: { id: material.id },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+
+        const targetLocId = sourceLocationId || material.locations[0]?.locationId;
+        if (targetLocId) {
+          const locLink = material.locations.find((l) => l.locationId === targetLocId);
+          if (locLink) {
+            await tx.materialLocation.update({
+              where: {
+                materialId_locationId: {
+                  materialId: material.id,
+                  locationId: targetLocId,
+                },
+              },
+              data: {
+                quantity: Math.max(0, (locLink.quantity || 0) - dto.quantity),
+              },
+            });
+          }
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId,
+            sector: 'CORTE',
+            type: 'SAIDA_REQUISICAO',
+            quantity: dto.quantity,
+            sourceLocationId: targetLocId || null,
+            origem: 'Atendimento de Requisição',
+            reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
+            operatorId: operatorId || null,
+            operatorName: operatorName || 'Operador',
+          },
+        });
+      } else {
+        // Multi-Setor (APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM)
+        const stockItem = await tx.stockItem.findFirst({
+          where: {
+            factoryUnitId,
+            sector: req.requestSector,
+            quantity: { gte: dto.quantity },
+            OR: [
+              ...(req.sku ? [
+                { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+                { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+              ] : []),
+              ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
+              { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
+            ],
+            ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+            ...(req.footSide ? { footSide: req.footSide as any } : {}),
+          },
+          include: { locations: true },
+        });
+
+        if (!stockItem) {
+          throw new Error(`Saldo insuficiente no setor ${req.requestSector} para atender esta requisição.`);
+        }
+
+        await tx.stockItem.update({
+          where: { id: stockItem.id },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+
+        const targetLocId = sourceLocationId || stockItem.locations[0]?.locationId;
+        if (targetLocId) {
+          const locLink = stockItem.locations.find((l) => l.locationId === targetLocId);
+          if (locLink) {
+            await tx.stockItemLocation.update({
+              where: {
+                stockItemId_locationId: {
+                  stockItemId: stockItem.id,
+                  locationId: targetLocId,
+                },
+              },
+              data: {
+                quantity: Math.max(0, (locLink.quantity || 0) - dto.quantity),
+              },
+            });
+          }
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId,
+            stockItemId: stockItem.id,
+            sector: req.requestSector,
+            type: 'SAIDA_REQUISICAO',
+            quantity: dto.quantity,
+            sourceLocationId: targetLocId || null,
+            origem: 'Atendimento de Requisição',
+            reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
+            operatorId: operatorId || null,
+            operatorName: operatorName || 'Operador',
+          },
+        });
+      }
+
+      const newFulfilled = req.quantityFulfilled + dto.quantity;
+      const newStatus = newFulfilled >= req.quantityRequested ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL';
+
+      const updatedRequisition = await tx.materialRequisition.update({
+        where: { id: req.id },
+        data: {
+          quantityFulfilled: newFulfilled,
+          status: newStatus,
+        },
+      });
+
+      return updatedRequisition;
+    });
   }
 
   /**

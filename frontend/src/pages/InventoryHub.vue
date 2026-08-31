@@ -682,7 +682,7 @@ onMounted(() => {
             </tbody>
           </table>
 
-          <!-- 📄 BARRA DE PAGINAÇÃO DE ALTA ESCALA (>3.000 ITENS) -->
+          <!-- BARRA DE PAGINAÇÃO DE ALTA ESCALA (>3.000 ITENS) -->
           <div
             v-if="stockStore.pagination.total > 0"
             class="px-4 py-3 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 rounded-b"
@@ -807,7 +807,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 🌟 MODAL UNIFICADO ROBUSTO DE MOVIMENTAÇÃO DE ESTOQUE MULTI-SETOR -->
+      <!-- MODAL UNIFICADO ROBUSTO DE MOVIMENTAÇÃO DE ESTOQUE MULTI-SETOR -->
       <div v-if="showMovementModal && selectedItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
           <!-- Cabeçalho do Modal -->

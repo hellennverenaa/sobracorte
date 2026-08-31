@@ -54,6 +54,7 @@ routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialCont
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
 routes.post('/inventory/batch', requireAuth, requireRole(['lider']), stockItemController.createBatch);
 routes.get('/inventory/search', requireAuth, stockItemController.search);
+routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
 routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);
@@ -66,6 +67,8 @@ routes.get('/inventory/movements/history', requireAuth, stockMovementController.
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
 routes.post('/requisitions', requireAuth, requisitionController.create);
 routes.get('/requisitions', requireAuth, requisitionController.index);
+routes.get('/requisitions/pending-count', requireAuth, requisitionController.pendingCount);
+routes.post('/requisitions/:id/fulfill', requireAuth, requireRole(['lider', 'movimentador']), requisitionController.fulfill);
 routes.patch('/requisitions/:id/cancel', requireAuth, requisitionController.cancel);
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
