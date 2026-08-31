@@ -58,7 +58,7 @@ export const ApoioItemSchema = z.object({
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
   productName: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
-  color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
+  color: z.string().trim().min(1, 'COMBINAÇÃO é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
@@ -70,7 +70,7 @@ export const PreFabricadoItemSchema = z.object({
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
-  color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
+  color: z.string().trim().min(1, 'Combinação do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),

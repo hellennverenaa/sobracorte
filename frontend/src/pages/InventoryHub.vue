@@ -349,7 +349,7 @@ onUnmounted(() => {
 
         <div class="flex items-center gap-3">
           <button
-            @click="loadData"
+            @click="() => loadData()"
             class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
             title="Atualizar estoque"
           >
@@ -447,7 +447,7 @@ onUnmounted(() => {
               <!-- Headers PRÉ-FABRICADO -->
               <tr v-if="activeTab === 'PRE_FABRICADO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Cor do Solado</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COMBINAÇÃO</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
