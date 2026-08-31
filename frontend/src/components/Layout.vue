@@ -140,15 +140,6 @@ const menuItems = [
         </div>
 
         <div class="flex items-center gap-4">
-          <!-- Badge Informativo Fixo da Unidade Conectada -->
-          <div 
-            v-if="authStore.user?.unit?.code" 
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 shadow-xs"
-          >
-            <Factory class="w-4 h-4 text-indigo-600 shrink-0" />
-            <span>{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</span>
-          </div>
-
           <!-- Central de Notificações / Requisições -->
           <router-link
             to="/requisitions?status=PENDENTE"

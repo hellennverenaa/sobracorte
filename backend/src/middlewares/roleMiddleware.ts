@@ -3,7 +3,7 @@ import { prisma } from '../prisma';
 import jwt from 'jsonwebtoken';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
-import { requireActiveTenant, resolveTenantRequest, TenantAuthorizationError } from '../auth/tenant';
+import { requireActiveTenant, resolveTenantRequestWithAdminCheck, TenantAuthorizationError } from '../auth/tenant';
 import { tenantStorage } from '../context/tenantContext';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
@@ -27,10 +27,22 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   try {
     const decodedComplete = jwt.decode(token, { complete: true });
     const user = verifyAccessToken(token, vars.PRIVATE_KEY);
-    const { requestedUnit, isGlobalAdmin } = resolveTenantRequest(
+    const { requestedUnit, isGlobalAdmin } = await resolveTenantRequestWithAdminCheck(
       user,
       req.get('X-Dass-Unit'),
       vars.GLOBAL_ADMIN_REGISTRATIONS,
+      async (matricula, usuario) => {
+        const adminUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { matriculaDass: BigInt(matricula) },
+              { usuario: usuario }
+            ],
+            role: 'admin'
+          }
+        });
+        return Boolean(adminUser);
+      }
     );
 
     // `prisma.factoryUnit` é um modelo GLOBAL — o interceptor de tenant é

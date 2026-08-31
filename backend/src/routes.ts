@@ -88,6 +88,7 @@ routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), r
 routes.get('/reports/inventory', requireAuth, reportController.inventory);
 routes.get('/reports/movements', requireAuth, reportController.movements);
 routes.get('/reports/data', requireAuth, reportController.movements);
+routes.get('/reports/requisitions', requireAuth, reportController.requisitions);
 
 routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   try {

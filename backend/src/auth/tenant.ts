@@ -23,6 +23,32 @@ export function resolveTenantRequest(
   return { requestedUnit, isGlobalAdmin, registration };
 }
 
+export async function resolveTenantRequestWithAdminCheck(
+  claims: { unidade?: unknown; matricula?: unknown; usuario?: unknown },
+  header: string | undefined,
+  globalAdminRegistrations: ReadonlySet<number>,
+  isDbAdminCheck?: (matricula: number, usuario: string) => Promise<boolean>,
+) {
+  const jwtUnit = typeof claims.unidade === 'string' ? claims.unidade.trim().toUpperCase() : '';
+  const registration = Number(claims.matricula);
+  const usuario = typeof claims.usuario === 'string' ? claims.usuario.trim().toUpperCase() : '';
+  if (!jwtUnit || !Number.isSafeInteger(registration) || registration <= 0) {
+    throw new TenantAuthorizationError('Token sem unidade ou matrícula válida.', 401);
+  }
+
+  const requestedUnit = header?.trim().toUpperCase() || jwtUnit;
+  let isGlobalAdmin = globalAdminRegistrations.has(registration);
+
+  if (!isGlobalAdmin && isDbAdminCheck && requestedUnit !== jwtUnit) {
+    isGlobalAdmin = await isDbAdminCheck(registration, usuario);
+  }
+
+  if (requestedUnit !== jwtUnit && !isGlobalAdmin) {
+    throw new TenantAuthorizationError('Acesso negado para a unidade selecionada.', 403);
+  }
+  return { requestedUnit, isGlobalAdmin, registration };
+}
+
 type ActiveTenant = { id: number; code: string; name: string };
 
 export async function requireActiveTenant(

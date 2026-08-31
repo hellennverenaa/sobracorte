@@ -19,12 +19,18 @@ import {
   ArrowUpRight,
   MapPin,
   UserCheck,
-  RotateCcw
+  RotateCcw,
+  ClipboardList,
+  Clock,
+  Ban
 } from 'lucide-vue-next'
 import { exportToCSV } from '@/utils/export'
 import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
+
+// --- TIPO DE RELATÓRIO ATIVO ---
+const reportType = ref('movements') // 'movements' | 'requisitions'
 
 // --- ESTADOS REATIVOS ---
 const loading = ref(false)
@@ -35,14 +41,18 @@ const reportTotals = ref({
   volumeSaidas: 0,
   totalRefugos: 0,
   totalCasamentosPares: 0,
-  totalTransferencias: 0
+  totalTransferencias: 0,
+  totalAtendidas: 0,
+  totalPendentes: 0,
+  totalCanceladas: 0,
+  taxaAtendimento: 0,
 })
 const hasSearched = ref(false)
 
 // --- PERMISSÕES RBAC ---
 const canExport = computed(() => {
   const role = authStore.user?.role
-  return role === 'admin' || role === 'lider'
+  return role === 'admin' || role === 'admin_setor' || role === 'lider'
 })
 
 // --- NOTIFICAÇÕES TOAST ---
@@ -56,6 +66,7 @@ function showNotification(type, message) {
 const filters = ref({
   sector: 'TODOS',
   tipoMovimento: 'TODOS',
+  status: 'TODOS',
   periodo: 'mes_atual', // hoje, semana, mes_atual, ano_atual, custom
   dataInicio: '',
   dataFim: '',
@@ -71,6 +82,7 @@ const sectors = [
   { value: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)' },
   { value: 'EXPEDICAO', label: 'Cabedais' },
   { value: 'MONTAGEM', label: 'Montagem (Pés Órfãos)' },
+  { value: 'CONSUMO', label: 'Consumo (Insumos)' },
 ]
 
 const operationTypes = [
@@ -80,6 +92,14 @@ const operationTypes = [
   { value: 'TRANSFERENCIA', label: 'Transferências entre Prateleiras' },
   { value: 'CASAMENTO_PAR', label: 'Casamento de Pares (Multi-Setor)' },
   { value: 'REFUGO', label: 'Refugos / Descartes' },
+]
+
+const requisitionStatuses = [
+  { value: 'TODOS', label: 'Todos os Status' },
+  { value: 'PENDENTE', label: 'Pendente' },
+  { value: 'ATENDIDA_TOTAL', label: 'Atendida Total' },
+  { value: 'ATENDIDA_PARCIAL', label: 'Atendida Parcial' },
+  { value: 'CANCELADA', label: 'Cancelada' },
 ]
 
 const periods = [
@@ -113,7 +133,6 @@ async function fetchOrigins() {
 
 onMounted(() => {
   fetchOrigins()
-  // Carregar relatório inicial do mês
   generateReport()
 })
 
@@ -160,6 +179,7 @@ async function generateReport() {
   loading.value = true
   hasSearched.value = true
   reportData.value = []
+  currentPage.value = 1
 
   try {
     const dates = getDatesFromPeriod(filters.value.periodo)
@@ -169,56 +189,71 @@ async function generateReport() {
       return
     }
 
-    const params = new URLSearchParams({
-      dataInicio: dates.start,
-      dataFim: dates.end,
-      sector: filters.value.sector,
-      tipoMovimento: filters.value.tipoMovimento,
-    })
+    if (reportType.value === 'requisitions') {
+      const params = new URLSearchParams({
+        dataInicio: dates.start,
+        dataFim: dates.end,
+        sector: filters.value.sector,
+        status: filters.value.status,
+      })
+      if (filters.value.search) params.append('search', filters.value.search)
 
-    if (filters.value.origin && filters.value.origin !== 'TODOS') {
-      params.append('origin', filters.value.origin)
-    }
-    if (filters.value.search && filters.value.search.trim()) {
-      params.append('search', filters.value.search.trim())
-    }
-
-    const res = await api.get(`/reports/movements?${params.toString()}`)
-    const payload = res.data
-
-    if (payload && Array.isArray(payload.items)) {
-      reportData.value = payload.items
-      reportTotals.value = payload.totals || {
-        totalRegistros: payload.items.length,
-        volumeEntradas: payload.volumeEntradas || 0,
-        volumeSaidas: payload.volumeSaidas || 0,
-        totalRefugos: payload.totalRefugos || 0,
-        totalCasamentosPares: payload.totalCasamentosPares || 0,
-        totalTransferencias: 0
-      }
-    } else if (Array.isArray(payload)) {
-      reportData.value = payload
+      const res = await api.get(`/reports/requisitions?${params.toString()}`)
+      reportData.value = res.data.items || []
       reportTotals.value = {
-        totalRegistros: payload.length,
-        volumeEntradas: payload.filter(m => m.tipo === 'ENTRADA').reduce((a, c) => a + Number(c.quantidade), 0),
-        volumeSaidas: payload.filter(m => m.tipo === 'SAIDA').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalRefugos: payload.filter(m => m.tipo === 'REFUGO').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalCasamentosPares: payload.filter(m => m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalTransferencias: payload.filter(m => m.tipo === 'TRANSFERENCIA').reduce((a, c) => a + Number(c.quantidade), 0)
+        ...reportTotals.value,
+        totalRegistros: res.data.totals?.totalRegistros || 0,
+        totalAtendidas: res.data.totals?.totalAtendidas || 0,
+        totalPendentes: res.data.totals?.totalPendentes || 0,
+        totalCanceladas: res.data.totals?.totalCanceladas || 0,
+        taxaAtendimento: res.data.totals?.taxaAtendimento || 0,
+      }
+    } else {
+      const params = new URLSearchParams({
+        dataInicio: dates.start,
+        dataFim: dates.end,
+        sector: filters.value.sector,
+        tipoMovimento: filters.value.tipoMovimento,
+      })
+      if (filters.value.origin && filters.value.origin !== 'TODOS') {
+        params.append('origin', filters.value.origin)
+      }
+      if (filters.value.search) {
+        params.append('search', filters.value.search)
+      }
+
+      const res = await api.get(`/reports/movements?${params.toString()}`)
+      reportData.value = res.data.items || []
+      reportTotals.value = {
+        ...reportTotals.value,
+        totalRegistros: res.data.totalRegistros || 0,
+        volumeEntradas: res.data.volumeEntradas || 0,
+        volumeSaidas: res.data.volumeSaidas || 0,
+        totalRefugos: res.data.totalRefugos || 0,
+        totalCasamentosPares: res.data.totalCasamentosPares || 0,
+        totalTransferencias: res.data.totals?.totalTransferencias || 0,
       }
     }
-  } catch (err) {
-    console.error("Erro ao gerar relatório analítico:", err)
-    showNotification('error', "Erro ao gerar relatório. Verifique os filtros ou a conexão com o servidor.")
+
+  } catch (error) {
+    console.error("Erro ao gerar relatório:", error)
+    showNotification('error', "Erro ao conectar com a base de dados de relatórios.")
   } finally {
     loading.value = false
   }
+}
+
+function switchReportType(type) {
+  reportType.value = type
+  reportData.value = []
+  generateReport()
 }
 
 function resetFilters() {
   filters.value = {
     sector: 'TODOS',
     tipoMovimento: 'TODOS',
+    status: 'TODOS',
     periodo: 'mes_atual',
     dataInicio: '',
     dataFim: '',
@@ -228,25 +263,52 @@ function resetFilters() {
   generateReport()
 }
 
-// --- EXPORTAÇÃO CSV / EXCEL FORMATADO ---
+// --- EXPORTAÇÃO CSV ---
 function downloadExcel() {
-  if (reportData.value.length === 0 || !canExport.value) return
+  if (reportData.value.length === 0) {
+    showNotification('error', "Não existem dados para exportar.")
+    return
+  }
+
+  if (reportType.value === 'requisitions') {
+    const rows = reportData.value.map(req => ({
+      CODIGO: req.code,
+      DATA: new Date(req.data).toLocaleDateString('pt-BR'),
+      HORA: new Date(req.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      SETOR_SOLICITANTE: req.setorSolicitante,
+      SKU_MATERIAL: req.sku || '-',
+      MODELO: req.nomeModelo || '-',
+      DESCRICAO: req.descricao,
+      GRADE: req.gradeTamanho || '-',
+      LADO: req.ladoPe || '-',
+      QTD_SOLICITADA: Number(req.quantidadeSolicitada || 0),
+      QTD_ATENDIDA: Number(req.quantidadeAtendida || 0),
+      MOTIVO: req.motivo || '-',
+      STATUS: req.status,
+      SOLICITANTE: req.solicitante || '-',
+      MATRICULA: req.matriculaSolicitante || '-'
+    }))
+    const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
+    exportToCSV(`SobrasDASS_Requisicoes${secName}_${filters.value.periodo}`, rows)
+    return
+  }
 
   const rows = reportData.value.map(mov => ({
-    DATA: new Date(mov.data_hora).toLocaleDateString('pt-BR'),
-    HORA: new Date(mov.data_hora).toLocaleTimeString('pt-BR'),
-    SETOR: mov.setor || mov.sector || 'CORTE',
+    DATA: new Date(mov.data).toLocaleDateString('pt-BR'),
+    HORA: new Date(mov.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    SETOR: mov.sector || mov.setor,
     TIPO_OPERACAO: mov.tipo,
-    CODIGO: mov.codigo || '-',
-    MODELO: mov.nomeModelo || '-',
-    DESCRICAO: mov.descricao || mov.material?.descricao || '-',
-    GRADE_TAMANHO: mov.gradeTamanho || '-',
-    LADO_PE: mov.ladoPe || '-',
-    QUANTIDADE: Number(mov.quantidade).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }),
-    UNIDADE: mov.unidade || mov.material?.unidade || 'un',
-    PRATELEIRA: mov.prateleira || '-',
-    ORIGEM_MOTIVO: mov.origem || mov.motivo || '-',
-    OPERADOR: mov.operador || mov.responsavel || '-',
+    CODIGO_ITEM: mov.codigo || '-',
+    DESCRICAO_ITEM: mov.descricao || mov.material?.descricao || '-',
+    TIPO_MATERIAL: mov.tipoMaterial || mov.material?.tipo || '-',
+    GRADE: mov.gradeTamanho || '-',
+    LADO: mov.ladoPe || '-',
+    QUANTIDADE: Number(mov.quantidade || 0),
+    UNIDADE: mov.unidade || mov.material?.unidade || 'UN',
+    LOCALIZACAO: mov.prateleira || '-',
+    ORIGEM_SOBRA: mov.origem || '-',
+    MOTIVO_OPERACAO: mov.motivo || '-',
+    RESPONSAVEL: mov.responsavel || mov.operador || 'Operador DASS',
     MATRICULA: mov.matricula || '-'
   }))
 
@@ -273,7 +335,7 @@ function isRowVisible(index) {
   return index >= start && index < end
 }
 
-// --- FORMATADORES DE RÓTULOS (USO EM TELA E IMPRESSÃO) ---
+// --- FORMATADORES DE RÓTULOS ---
 function getSectorLabel(val) {
   const found = sectors.find(s => s.value === val)
   return found ? found.label : val
@@ -285,7 +347,8 @@ function getSectorShort(sec) {
     APOIO: 'APOIO',
     PRE_FABRICADO: 'PRÉ-FAB.',
     EXPEDICAO: 'EXPED.',
-    MONTAGEM: 'MONTAGEM'
+    MONTAGEM: 'MONTAGEM',
+    CONSUMO: 'CONSUMO'
   }
   return map[sec] || sec || 'CORTE'
 }
@@ -319,7 +382,7 @@ function getPeriodLabel() {
   return found ? found.label : filters.value.periodo
 }
 
-// --- CORES DE SETOR & OPERAÇÃO ---
+// --- CORES DE BADGES ---
 function getSectorBadge(sector) {
   const map = {
     CORTE: 'bg-emerald-100 text-emerald-800 border-emerald-300',
@@ -327,6 +390,7 @@ function getSectorBadge(sector) {
     PRE_FABRICADO: 'bg-amber-100 text-amber-800 border-amber-300',
     EXPEDICAO: 'bg-purple-100 text-purple-800 border-purple-300',
     MONTAGEM: 'bg-pink-100 text-pink-800 border-pink-300',
+    CONSUMO: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   }
   return map[sector] || 'bg-slate-100 text-slate-800 border-slate-300'
 }
@@ -340,6 +404,16 @@ function getTypeBadge(type) {
     REFUGO: 'bg-red-50 text-red-700 border-red-200',
   }
   return map[type] || 'bg-slate-50 text-slate-700 border-slate-200'
+}
+
+function getStatusBadge(status) {
+  const map = {
+    PENDENTE: 'bg-amber-50 text-amber-700 border-amber-300',
+    ATENDIDA_TOTAL: 'bg-emerald-50 text-emerald-700 border-emerald-300',
+    ATENDIDA_PARCIAL: 'bg-blue-50 text-blue-700 border-blue-300',
+    CANCELADA: 'bg-gray-100 text-gray-600 border-gray-300',
+  }
+  return map[status] || 'bg-slate-100 text-slate-700 border-slate-300'
 }
 </script>
 
@@ -358,15 +432,15 @@ function getTypeBadge(type) {
 
     <div id="printable-report" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0 report-container">
 
-      <!-- CABEÇALHO CORPORATIVO FORMAL DASS (EXCLUSIVO PARA IMPRESSÃO / PDF) -->
+      <!-- CABEÇALHO CORPORATIVO FORMAL DASS (IMPRESSÃO / PDF) -->
       <div class="hidden print:block mb-2 pb-1.5 border-b-2 border-slate-900">
         <div class="flex justify-between items-start">
           <div>
             <div class="text-[10px] font-black tracking-widest text-slate-800 uppercase">
-              GRUPO DASS — UNIDADE SEST (SANTO ESTÊVÃO/BA)
+              GRUPO DASS — UNIDADE {{ authStore.user?.unit?.code || 'SEST' }} ({{ authStore.user?.unit?.name || 'SANTO ESTÊVÃO/BA' }})
             </div>
             <h1 class="text-sm font-black text-slate-900 uppercase tracking-tight mt-0.5">
-              Relatório Gerencial de Gestão de Sobras e Movimentações
+              {{ reportType === 'requisitions' ? 'Relatório Gerencial de Requisições de Reposição Fabril' : 'Relatório Gerencial de Gestão de Sobras e Movimentações' }}
             </h1>
           </div>
           <div class="text-right text-[9px] text-slate-700 font-semibold leading-tight">
@@ -377,23 +451,10 @@ function getTypeBadge(type) {
 
         <div class="grid grid-cols-4 gap-2 mt-1.5 pt-1.5 border-t border-slate-300 text-[9px] text-slate-800">
           <div><span class="font-bold text-slate-900">Setor:</span> {{ getSectorLabel(filters.sector) }}</div>
-          <div><span class="font-bold text-slate-900">Operação:</span> {{ getOperationLabel(filters.tipoMovimento) }}</div>
+          <div><span class="font-bold text-slate-900">{{ reportType === 'requisitions' ? 'Status:' : 'Operação:' }}</span> {{ reportType === 'requisitions' ? filters.status : getOperationLabel(filters.tipoMovimento) }}</div>
           <div><span class="font-bold text-slate-900">Período:</span> {{ getPeriodLabel() }}</div>
-          <div><span class="font-bold text-slate-900">Origem:</span> {{ filters.origin === 'TODOS' ? 'Todas as Origens' : filters.origin }}</div>
+          <div><span class="font-bold text-slate-900">Filtro:</span> {{ filters.search || 'Geral' }}</div>
         </div>
-      </div>
-
-      <!-- SUMÁRIO EXECUTIVO CONDENSADO EM LINHA ÚNICA (EXCLUSIVO PARA IMPRESSÃO) -->
-      <div class="hidden print:flex justify-between items-center bg-slate-100 border border-slate-300 p-2 mb-2 text-[9px] font-bold text-slate-900">
-        <div><strong>Movimentações:</strong> {{ reportTotals.totalRegistros.toLocaleString('pt-BR') }} registros</div>
-        <div class="text-slate-300">|</div>
-        <div><strong>Entradas:</strong> {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</div>
-        <div class="text-slate-300">|</div>
-        <div><strong>Saídas:</strong> {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</div>
-        <div class="text-slate-300">|</div>
-        <div><strong>Pares Casados:</strong> {{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</div>
-        <div class="text-slate-300">|</div>
-        <div><strong>Refugos / Perdas:</strong> {{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}</div>
       </div>
 
       <!-- CABEÇALHO PRINCIPAL EM TELA -->
@@ -403,7 +464,7 @@ function getTypeBadge(type) {
             <FileBarChart class="w-7 h-7 text-indigo-600" /> Central de Relatórios Analíticos
           </h1>
           <p class="text-slate-500 text-xs mt-0.5">
-            Consulte, audite e exporte movimentações multi-setor com fechamento operacional.
+            Consulte, audite e exporte métricas de estoque, movimentações e requisições fabris.
           </p>
         </div>
 
@@ -419,16 +480,27 @@ function getTypeBadge(type) {
             @click="downloadExcel"
             class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow hover:bg-emerald-700 transition-all flex items-center gap-1.5"
           >
-            <FileSpreadsheet class="w-4 h-4" /> Exportar Excel (.csv)
+            <FileSpreadsheet class="w-4 h-4" /> Exportar CSV
           </button>
-          <div
-            v-else
-            class="px-3 py-1.5 bg-slate-100 text-slate-400 text-[11px] font-bold rounded-xl border border-slate-200 flex items-center gap-1 cursor-not-allowed"
-            title="Exportação restrita a administradores e líderes."
-          >
-            <FileSpreadsheet class="w-3.5 h-3.5" /> Exportação Restrita
-          </div>
         </div>
+      </div>
+
+      <!-- SELETOR DE TIPO DE RELATÓRIO (TABS) -->
+      <div class="flex gap-2 bg-slate-200/70 p-1.5 rounded-2xl w-fit print:hidden">
+        <button
+          @click="switchReportType('movements')"
+          class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2"
+          :class="reportType === 'movements' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+        >
+          <FileBarChart class="w-4 h-4" /> Movimentações & Estoque
+        </button>
+        <button
+          @click="switchReportType('requisitions')"
+          class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2"
+          :class="reportType === 'requisitions' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+        >
+          <ClipboardList class="w-4 h-4" /> Requisições de Reposição Fabril
+        </button>
       </div>
 
       <!-- PAINEL DE FILTROS AVANÇADOS -->
@@ -451,26 +523,40 @@ function getTypeBadge(type) {
             </div>
           </div>
 
-          <!-- 2. Tipo de Movimentação -->
-          <div>
+          <!-- 2. Filtro de Operação / Status -->
+          <div v-if="reportType === 'movements'">
             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
               Tipo de Operação
             </label>
             <div class="relative">
-              <Filter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Repeat class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <select
                 v-model="filters.tipoMovimento"
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
-                <option v-for="t in operationTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+                <option v-for="op in operationTypes" :key="op.value" :value="op.value">{{ op.label }}</option>
+              </select>
+            </div>
+          </div>
+          <div v-else>
+            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+              Status da Requisição
+            </label>
+            <div class="relative">
+              <CheckCircle class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <select
+                v-model="filters.status"
+                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              >
+                <option v-for="st in requisitionStatuses" :key="st.value" :value="st.value">{{ st.label }}</option>
               </select>
             </div>
           </div>
 
-          <!-- 3. Período -->
+          <!-- 3. Filtro de Período -->
           <div>
             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-              Período de Análise
+              Período de Tempo
             </label>
             <div class="relative">
               <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -483,282 +569,246 @@ function getTypeBadge(type) {
             </div>
           </div>
 
-          <!-- 4. Origem / Motivo da Sobra -->
+          <!-- 4. Busca por Texto Livre -->
           <div>
             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-              Origem da Sobra
+              Buscar Código / SKU / Material
             </label>
             <div class="relative">
-              <MapPin class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <select
-                v-model="filters.origin"
-                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              >
-                <option v-for="o in originsList" :key="o.value" :value="o.value">{{ o.label }}</option>
-              </select>
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                v-model="filters.search"
+                type="text"
+                placeholder="Ex: SKU, Código, Modelo..."
+                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                @keyup.enter="generateReport"
+              />
             </div>
           </div>
-
         </div>
 
-        <!-- LINHA 2: Busca Textual e Ações -->
-        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 border-t border-slate-100 items-center">
-          <div class="sm:col-span-8 relative">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <!-- Campos de Data Customizada -->
+        <div v-if="filters.periodo === 'custom'" class="pt-3 border-t border-slate-100 flex flex-wrap gap-4 items-center">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-500">De:</span>
             <input
-              v-model="filters.search"
-              @keyup.enter="generateReport"
-              type="text"
-              placeholder="Buscar por código, descrição, SKU, prateleira ou operador..."
-              class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              type="date"
+              v-model="filters.dataInicio"
+              class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-
-          <div class="sm:col-span-4 flex items-center gap-2">
-            <button
-              @click="generateReport"
-              :disabled="loading"
-              class="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-xl font-black text-xs shadow hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
-            >
-              <Search v-if="!loading" class="w-3.5 h-3.5" />
-              {{ loading ? 'Consultando...' : 'Filtrar Dados' }}
-            </button>
-
-            <button
-              @click="resetFilters"
-              class="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors"
-              title="Limpar Filtros"
-            >
-              <RotateCcw class="w-4 h-4" />
-            </button>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-500">Até:</span>
+            <input
+              type="date"
+              v-model="filters.dataFim"
+              class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
         </div>
 
-        <!-- Intervalo Personalizado (Aparece somente em 'custom') -->
-        <div v-if="filters.periodo === 'custom'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-          <div>
-            <label class="block text-[10px] font-black text-indigo-900 uppercase mb-1">Data Inicial (De):</label>
-            <input v-model="filters.dataInicio" type="date" class="w-full p-2 bg-white rounded-lg border border-indigo-200 text-xs font-bold" />
-          </div>
-          <div>
-            <label class="block text-[10px] font-black text-indigo-900 uppercase mb-1">Data Final (Até):</label>
-            <input v-model="filters.dataFim" type="date" class="w-full p-2 bg-white rounded-lg border border-indigo-200 text-xs font-bold" />
-          </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            @click="resetFilters"
+            class="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+          >
+            <RotateCcw class="w-3.5 h-3.5" /> Limpar Filtros
+          </button>
+          <button
+            @click="generateReport"
+            :disabled="loading"
+            class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Search class="w-3.5 h-3.5" /> {{ loading ? 'Consultando...' : 'Aplicar Filtros' }}
+          </button>
         </div>
       </div>
 
-      <!-- CARDS DE FECHAMENTO E TOTAIS DO PERÍODO (OCULTOS NA IMPRESSÃO) -->
-      <div v-if="hasSearched" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:hidden">
-        <!-- 1. Total de Registros -->
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-indigo-600">
-          <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Movimentações</p>
-          <div class="text-xl font-black text-slate-800 mt-0.5">{{ reportTotals.totalRegistros.toLocaleString('pt-BR') }}</div>
-          <span class="text-[10px] text-indigo-600 font-bold">registros auditados</span>
+      <!-- KPI METRIC CARDS (RELATÓRIO DE MOVIMENTAÇÕES) -->
+      <div v-if="reportType === 'movements' && reportData.length > 0" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:hidden">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+          <p class="text-[11px] font-bold text-slate-500 uppercase">Total Registros</p>
+          <p class="text-2xl font-black text-slate-900 mt-1">{{ reportTotals.totalRegistros.toLocaleString('pt-BR') }}</p>
         </div>
-
-        <!-- 2. Volume de Entradas -->
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
-          <div class="flex items-center gap-1">
-            <ArrowDownRight class="w-3 h-3 text-emerald-600" />
-            <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Entradas</p>
-          </div>
-          <div class="text-xl font-black text-emerald-600 mt-0.5">{{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</div>
-          <span class="text-[10px] text-emerald-700 font-bold">sobras recebidas</span>
+        <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs">
+          <p class="text-[11px] font-bold text-emerald-600 uppercase">Volume Entradas</p>
+          <p class="text-2xl font-black text-emerald-700 mt-1">{{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</p>
         </div>
-
-        <!-- 3. Volume de Saídas -->
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
-          <div class="flex items-center gap-1">
-            <ArrowUpRight class="w-3 h-3 text-blue-600" />
-            <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Saídas</p>
-          </div>
-          <div class="text-xl font-black text-blue-600 mt-0.5">{{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</div>
-          <span class="text-[10px] text-blue-700 font-bold">reaproveitadas</span>
+        <div class="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs">
+          <p class="text-[11px] font-bold text-blue-600 uppercase">Volume Saídas</p>
+          <p class="text-2xl font-black text-blue-700 mt-1">{{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</p>
         </div>
-
-        <!-- 4. Casamento de Pares -->
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-fuchsia-500">
-          <div class="flex items-center gap-1">
-            <Footprints class="w-3 h-3 text-fuchsia-600" />
-            <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Casamentos</p>
-          </div>
-          <div class="text-xl font-black text-fuchsia-600 mt-0.5">{{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</div>
-          <span class="text-[10px] text-fuchsia-700 font-bold">pares formados</span>
+        <div class="bg-white p-4 rounded-2xl border border-fuchsia-200 shadow-xs">
+          <p class="text-[11px] font-bold text-fuchsia-600 uppercase">Pares Casados</p>
+          <p class="text-2xl font-black text-fuchsia-700 mt-1">{{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</p>
         </div>
-
-        <!-- 5. Total de Refugos -->
-        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-red-500 col-span-2 sm:col-span-1">
-          <div class="flex items-center gap-1">
-            <Trash2 class="w-3 h-3 text-red-600" />
-            <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Refugos</p>
-          </div>
-          <div class="text-xl font-black text-red-600 mt-0.5">{{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}</div>
-          <span class="text-[10px] text-red-700 font-bold">descartes / perdas</span>
+        <div class="bg-white p-4 rounded-2xl border border-red-200 shadow-xs">
+          <p class="text-[11px] font-bold text-red-600 uppercase">Refugos / Perdas</p>
+          <p class="text-2xl font-black text-red-700 mt-1">{{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}</p>
         </div>
       </div>
 
-      <!-- TABELA DE DADOS ANALÍTICOS -->
-      <div v-if="hasSearched" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border print:border-slate-300 print:rounded-none">
+      <!-- KPI METRIC CARDS (RELATÓRIO DE REQUISIÇÕES) -->
+      <div v-if="reportType === 'requisitions' && reportData.length > 0" class="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+          <p class="text-[11px] font-bold text-slate-500 uppercase">Total Requisições</p>
+          <p class="text-2xl font-black text-slate-900 mt-1">{{ reportTotals.totalRegistros.toLocaleString('pt-BR') }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs">
+          <p class="text-[11px] font-bold text-emerald-600 uppercase">Atendidas</p>
+          <div class="flex items-baseline gap-2 mt-1">
+            <span class="text-2xl font-black text-emerald-700">{{ reportTotals.totalAtendidas.toLocaleString('pt-BR') }}</span>
+            <span class="text-xs font-bold text-emerald-600">({{ reportTotals.taxaAtendimento }}%)</span>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs">
+          <p class="text-[11px] font-bold text-amber-600 uppercase">Pendentes</p>
+          <p class="text-2xl font-black text-amber-700 mt-1">{{ reportTotals.totalPendentes.toLocaleString('pt-BR') }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">
+          <p class="text-[11px] font-bold text-gray-500 uppercase">Canceladas</p>
+          <p class="text-2xl font-black text-gray-700 mt-1">{{ reportTotals.totalCanceladas.toLocaleString('pt-BR') }}</p>
+        </div>
+      </div>
 
-        <div class="overflow-x-auto print:overflow-visible">
-          <table class="w-full text-left border-collapse text-xs print:text-[8px] print:table-auto">
-            <thead class="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-wider border-b border-slate-200 print:bg-slate-200 print:text-slate-900 print:border-b-2 print:border-slate-400 print:text-[8.5px]">
+      <!-- TABELA DE RESULTADOS (MOVIMENTAÇÕES) -->
+      <div v-if="reportType === 'movements'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
               <tr>
-                <th class="py-3 px-3 print:py-1 print:px-1.5 whitespace-nowrap text-left">Data / Hora</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Setor</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Operação</th>
-                <th class="py-3 px-3 print:py-1 print:px-1.5 text-left">Código / Descrição</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Grade / Pé</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-right whitespace-nowrap">Qtd / Un</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-left">Prateleira</th>
-                <th class="py-3 px-2 print:py-1 print:px-1 text-left">Origem / Motivo</th>
-                <th class="py-3 px-3 print:py-1 print:px-1 text-left">Operador</th>
+                <th class="py-3 px-3">Data / Hora</th>
+                <th class="py-3 px-2 text-center">Setor</th>
+                <th class="py-3 px-2 text-center">Operação</th>
+                <th class="py-3 px-3">Código / SKU</th>
+                <th class="py-3 px-3">Descrição do Material</th>
+                <th class="py-3 px-2 text-right">Qtd</th>
+                <th class="py-3 px-2 text-center">Localização</th>
+                <th class="py-3 px-3">Motivo / Origem</th>
+                <th class="py-3 px-3">Responsável</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 print:divide-slate-200">
+            <tbody class="divide-y divide-slate-100">
               <tr
-                v-for="(row, idx) in reportData"
-                :key="row.id"
-                class="hover:bg-slate-50/80 transition-colors print:even:bg-slate-50/80"
-                :class="isRowVisible(idx) ? 'table-row' : 'hidden print:table-row'"
+                v-for="(item, idx) in reportData"
+                :key="item.id"
+                v-show="isRowVisible(idx)"
+                class="hover:bg-slate-50/80 transition-colors"
               >
-                <!-- 1. Data e Hora -->
-                <td class="py-2.5 px-3 text-slate-600 whitespace-nowrap print:py-1 print:px-1.5">
-                  <div class="font-bold text-slate-800 print:text-black">{{ new Date(row.data).toLocaleDateString('pt-BR') }}</div>
-                  <div class="text-[10px] text-slate-400 print:text-[7.5px] print:text-slate-600">{{ new Date(row.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}</div>
+                <td class="py-2.5 px-3 whitespace-nowrap text-slate-600 font-mono">
+                  {{ new Date(item.data).toLocaleDateString('pt-BR') }} {{ new Date(item.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}
                 </td>
-
-                <!-- 2. Setor -->
-                <td class="py-2.5 px-2 text-center whitespace-nowrap print:py-1 print:px-1">
-                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase print:border-0 print:bg-transparent print:p-0 print:text-slate-900 print:text-[8px] print:whitespace-nowrap" :class="getSectorBadge(row.setor || row.sector)">
-                    {{ getSectorShort(row.setor || row.sector) }}
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(item.sector || item.setor)">
+                    {{ getSectorShort(item.sector || item.setor) }}
                   </span>
                 </td>
-
-                <!-- 3. Operação -->
-                <td class="py-2.5 px-2 text-center whitespace-nowrap print:py-1 print:px-1">
-                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase print:border-0 print:bg-transparent print:p-0 print:text-slate-900 print:text-[8px] print:whitespace-nowrap" :class="getTypeBadge(row.tipo)">
-                    {{ getTypeShort(row.tipo) }}
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getTypeBadge(item.tipo)">
+                    {{ getTypeShort(item.tipo) }}
                   </span>
                 </td>
-
-                <!-- 4. Código e Descrição -->
-                <td class="py-2.5 px-3 print:py-1 print:px-1.5">
-                  <div class="font-bold text-slate-900 break-words print:text-[8px] leading-tight">{{ row.descricao || row.nomeMaterial }}</div>
-                  <div class="flex items-center gap-1.5 text-[10px] print:text-[7.5px] mt-0.5">
-                    <span class="font-mono text-slate-500 font-bold">{{ row.codigo }}</span>
-                    <span v-if="row.nomeModelo && row.nomeModelo !== row.codigo && row.nomeModelo !== row.descricao" class="text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 px-1 rounded text-[9px] print:bg-transparent print:border-0 print:p-0 print:text-black">
-                      {{ row.nomeModelo }}
-                    </span>
-                  </div>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-800">{{ item.codigo || '-' }}</td>
+                <td class="py-2.5 px-3 text-slate-700 font-medium max-w-xs truncate">{{ item.descricao || '-' }}</td>
+                <td class="py-2.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">
+                  {{ Number(item.quantidade).toLocaleString('pt-BR') }} <span class="text-[10px] font-normal text-slate-500">{{ item.unidade }}</span>
                 </td>
-
-                <!-- 5. Grade / Pé -->
-                <td class="py-2.5 px-2 text-center whitespace-nowrap text-slate-600 print:py-1 print:px-1">
-                  <span v-if="row.gradeTamanho && row.gradeTamanho !== '-'" class="font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px] print:bg-transparent print:p-0 print:text-black print:text-[8px]">
-                    Tam {{ row.gradeTamanho }}
-                  </span>
-                  <span v-if="row.ladoPe && row.ladoPe !== '-'" class="ml-0.5 text-[10px] font-black print:text-black print:text-[8px]" :class="row.ladoPe === 'E' ? 'text-indigo-600' : 'text-purple-600'">
-                    ({{ row.ladoPe }})
-                  </span>
-                  <span v-if="(!row.gradeTamanho || row.gradeTamanho === '-') && (!row.ladoPe || row.ladoPe === '-')" class="text-slate-300 print:text-slate-400">-</span>
-                </td>
-
-                <!-- 6. Quantidade -->
-                <td class="py-2.5 px-2 text-right whitespace-nowrap print:py-1 print:px-1">
-                  <span class="font-black text-slate-900 text-xs print:text-[8.5px]">{{ Number(row.quantidade).toLocaleString('pt-BR') }}</span>
-                  <span class="text-[10px] font-bold text-slate-400 print:text-slate-600 ml-1 print:text-[7.5px]">{{ row.unidade }}</span>
-                </td>
-
-                <!-- 7. Prateleira -->
-                <td class="py-2.5 px-2 text-slate-600 font-medium text-[11px] print:py-1 print:px-1 print:text-[8px] print:text-slate-800 break-words">
-                  {{ row.prateleira || '-' }}
-                </td>
-
-                <!-- 8. Origem / Motivo -->
-                <td class="py-2.5 px-2 text-slate-600 text-[11px] print:py-1 print:px-1 print:text-[8px] leading-tight break-words">
-                  <div class="font-semibold text-slate-800 print:text-black">{{ row.origem || '-' }}</div>
-                  <div v-if="row.motivo && row.motivo !== '-' && row.motivo !== row.origem" class="text-[10px] print:text-[7.5px] text-slate-400 print:text-slate-500 italic">
-                    {{ row.motivo }}
-                  </div>
-                </td>
-
-                <!-- 9. Operador DASS -->
-                <td class="py-2.5 px-3 text-slate-600 text-[11px] print:py-1 print:px-1 print:text-[8px] leading-tight break-words">
-                  <div class="font-bold text-slate-700 print:text-black">{{ row.operador || row.responsavel }}</div>
-                  <div v-if="row.matricula" class="text-[9px] text-slate-400 print:text-slate-600 font-mono print:text-[7.5px]">Mat: {{ row.matricula }}</div>
-                </td>
+                <td class="py-2.5 px-2 text-center text-slate-600 font-mono text-[11px]">{{ item.prateleira || '-' }}</td>
+                <td class="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ item.motivo || item.origem || '-' }}</td>
+                <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap">{{ item.responsavel || item.operador }}</td>
               </tr>
-
-              <!-- Estado Vazio -->
               <tr v-if="reportData.length === 0">
-                <td colspan="9" class="py-12 text-center text-slate-400 italic">
-                  <FileBarChart class="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                  Nenhum dado encontrado para os filtros selecionados.
+                <td colspan="9" class="py-12 text-center text-slate-400 font-medium">
+                  {{ loading ? 'Carregando dados...' : 'Nenhum registro encontrado para os filtros selecionados.' }}
                 </td>
               </tr>
             </tbody>
-
-            <!-- TFOOT CONSOLIDADO (RODAPÉ FORMAL DA TABELA) -->
-            <tfoot v-if="reportData.length > 0" class="bg-slate-100 border-t-2 border-slate-400 font-bold text-slate-900 text-xs print:text-[8.5px] print:bg-slate-200">
-              <tr class="break-inside-avoid print:break-inside-avoid">
-                <td colspan="5" class="py-2.5 px-3 print:py-1 print:px-1.5 uppercase tracking-wide">
-                  TOTAIS CONSOLIDADOS ({{ reportData.length }} registros)
-                </td>
-                <td class="py-2.5 px-2 text-right print:py-1 print:px-1 whitespace-nowrap font-black">
-                  {{ Number(reportData.reduce((acc, curr) => acc + Number(curr.quantidade || 0), 0)).toLocaleString('pt-BR') }}
-                </td>
-                <td colspan="3" class="py-2.5 px-3 print:py-1 print:px-1.5 text-slate-600 print:text-slate-800 text-[11px] print:text-[7.5px]">
-                  Entradas: {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }} | Saídas: {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }} | Casamentos: {{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }} | Refugos: {{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </div>
 
-        <!-- Rodapé Visual na Tela com Paginação -->
-        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-600 gap-3 print:hidden">
-          <div class="flex items-center gap-4">
-            <div>
-              Total de <strong>{{ reportData.length }}</strong> registros no período filtrado.
-            </div>
-            <div class="flex items-center gap-2 font-bold text-xs">
-              <span class="text-emerald-700">Entradas: {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</span>
-              <span>·</span>
-              <span class="text-blue-700">Saídas: {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</span>
-            </div>
-          </div>
-
-          <!-- Controles de Paginação em Tela (Ocultos na Impressão) -->
-          <div v-if="totalPages > 1" class="flex items-center gap-2 print:hidden">
-            <button
-              @click="currentPage--"
-              :disabled="currentPage === 1"
-              class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-xs hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-              title="Página Anterior"
-            >
-              &lt;
-            </button>
-            <span class="text-xs font-bold text-slate-700 px-1">
-              {{ currentPage }} de {{ totalPages }}
-            </span>
-            <button
-              @click="currentPage++"
-              :disabled="currentPage === totalPages"
-              class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-xs hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-              title="Próxima Página"
-            >
-              &gt;
-            </button>
+        <!-- Paginação -->
+        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
+          <span>Total: <strong>{{ reportData.length }}</strong> registros</span>
+          <div v-if="totalPages > 1" class="flex items-center gap-2">
+            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
+            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
           </div>
         </div>
-
       </div>
 
-      <!-- RODAPÉ CORPORATIVO DASS (EXCLUSIVO PARA IMPRESSÃO) -->
-      <div class="hidden print:flex justify-between items-center mt-2 pt-1.5 border-t border-slate-300 text-[8px] text-slate-600">
-        <div>Grupo DASS — Sistema SobraCorte (Módulo de Controle e Gestão Operacional de Sobras)</div>
-        <div>Documento para uso interno e operacional | Página gerada eletronicamente</div>
+      <!-- TABELA DE RESULTADOS (REQUISIÇÕES FABRIS) -->
+      <div v-else class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-3">Código</th>
+                <th class="py-3 px-3">Data / Hora</th>
+                <th class="py-3 px-2 text-center">Setor</th>
+                <th class="py-3 px-3">SKU / Modelo</th>
+                <th class="py-3 px-3">Material / Peça</th>
+                <th class="py-3 px-2 text-center">Grade / Lado</th>
+                <th class="py-3 px-2 text-right">Qtd Solicitada</th>
+                <th class="py-3 px-2 text-right">Qtd Atendida</th>
+                <th class="py-3 px-2 text-center">Status</th>
+                <th class="py-3 px-3">Solicitante</th>
+                <th class="py-3 px-3">Motivo</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr
+                v-for="(req, idx) in reportData"
+                :key="req.id"
+                v-show="isRowVisible(idx)"
+                class="hover:bg-slate-50/80 transition-colors"
+              >
+                <td class="py-2.5 px-3 font-mono font-black text-indigo-700">{{ req.code }}</td>
+                <td class="py-2.5 px-3 whitespace-nowrap text-slate-600 font-mono">
+                  {{ new Date(req.data).toLocaleDateString('pt-BR') }} {{ new Date(req.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(req.setorSolicitante)">
+                    {{ getSectorShort(req.setorSolicitante) }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-3 font-mono font-bold text-slate-800">{{ req.sku }}</td>
+                <td class="py-2.5 px-3 text-slate-700 font-medium max-w-xs truncate">{{ req.descricao }}</td>
+                <td class="py-2.5 px-2 text-center text-slate-700 font-mono">
+                  {{ req.gradeTamanho }} <span v-if="req.ladoPe && req.ladoPe !== '-'">({{ req.ladoPe }})</span>
+                </td>
+                <td class="py-2.5 px-2 text-right font-black text-slate-900">
+                  {{ Number(req.quantidadeSolicitada).toLocaleString('pt-BR') }}
+                </td>
+                <td class="py-2.5 px-2 text-right font-black" :class="req.quantidadeAtendida > 0 ? 'text-emerald-700' : 'text-slate-400'">
+                  {{ Number(req.quantidadeAtendida).toLocaleString('pt-BR') }}
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getStatusBadge(req.status)">
+                    {{ req.status?.replace('_', ' ') }}
+                  </span>
+                </td>
+                <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap">{{ req.solicitante }}</td>
+                <td class="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ req.motivo }}</td>
+              </tr>
+              <tr v-if="reportData.length === 0">
+                <td colspan="11" class="py-12 text-center text-slate-400 font-medium">
+                  {{ loading ? 'Carregando requisições...' : 'Nenhuma requisição encontrada para os filtros selecionados.' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginação -->
+        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
+          <span>Total: <strong>{{ reportData.length }}</strong> requisições</span>
+          <div v-if="totalPages > 1" class="flex items-center gap-2">
+            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
+            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -806,10 +856,6 @@ function getTypeBadge(type) {
     display: flex !important;
   }
 
-  .print\:table-row {
-    display: table-row !important;
-  }
-
   * {
     overflow: visible !important;
     box-shadow: none !important;
@@ -819,12 +865,10 @@ function getTypeBadge(type) {
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    page-break-after: auto !important;
-    break-after: auto !important;
   }
 
   thead {
-    display: table-header-group !important; /* Repete o cabeçalho no topo de cada folha naturalmente */
+    display: table-header-group !important;
   }
 
   tfoot {
@@ -834,8 +878,6 @@ function getTypeBadge(type) {
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    page-break-after: auto !important;
-    break-after: auto !important;
   }
 }
 </style>

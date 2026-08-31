@@ -318,4 +318,109 @@ export class ReportController {
       return res.status(500).json({ error: 'Erro ao gerar relatório de movimentações.' });
     }
   }
+
+  async requisitions(req: Request, res: Response) {
+    try {
+      const factoryUnitId = req.tenant!.id;
+      const {
+        dataInicio,
+        dataFim,
+        startDate,
+        endDate,
+        sector,
+        status,
+        search,
+      } = req.query;
+
+      const rawStart = dataInicio || startDate;
+      const rawEnd = dataFim || endDate;
+      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
+      const rawSearch = search ? String(search).trim() : null;
+
+      let start: Date | null = null;
+      let end: Date | null = null;
+
+      if (rawStart && rawEnd) {
+        start = new Date(String(rawStart));
+        start.setHours(0, 0, 0, 0);
+        end = new Date(String(rawEnd));
+        end.setHours(23, 59, 59, 999);
+      }
+
+      const whereClause: any = { factoryUnitId };
+
+      if (start && end) {
+        whereClause.createdAt = {
+          gte: start,
+          lte: end,
+        };
+      }
+
+      if (rawSector !== 'TODOS') {
+        const sec = rawSector === 'CABEDAIS' ? 'EXPEDICAO' : rawSector;
+        whereClause.requestSector = sec;
+      }
+
+      if (rawStatus !== 'TODOS') {
+        whereClause.status = rawStatus;
+      }
+
+      if (rawSearch) {
+        whereClause.OR = [
+          { code: { contains: rawSearch, mode: 'insensitive' } },
+          { sku: { contains: rawSearch, mode: 'insensitive' } },
+          { modelName: { contains: rawSearch, mode: 'insensitive' } },
+          { description: { contains: rawSearch, mode: 'insensitive' } },
+          { requesterName: { contains: rawSearch, mode: 'insensitive' } },
+          { reason: { contains: rawSearch, mode: 'insensitive' } },
+        ];
+      }
+
+      const requisitions = await prisma.materialRequisition.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const formatted = requisitions.map(r => ({
+        id: r.id,
+        code: r.code,
+        data: r.createdAt,
+        data_hora: r.createdAt,
+        setorSolicitante: r.requestSector,
+        sku: r.sku || '-',
+        nomeModelo: r.modelName || '-',
+        descricao: r.description,
+        gradeTamanho: r.sizeGrade || '-',
+        ladoPe: r.footSide || '-',
+        quantidadeSolicitada: r.quantityRequested,
+        quantidadeAtendida: r.quantityFulfilled,
+        motivo: r.reason,
+        status: r.status,
+        solicitante: r.requesterName || r.requesterId || 'Operador DASS',
+        matriculaSolicitante: r.requesterId || '-',
+        updatedAt: r.updatedAt,
+      }));
+
+      const totalRegistros = formatted.length;
+      const totalAtendidas = formatted.filter(r => r.status === 'ATENDIDA_TOTAL' || r.status === 'ATENDIDA_PARCIAL').length;
+      const totalPendentes = formatted.filter(r => r.status === 'PENDENTE').length;
+      const totalCanceladas = formatted.filter(r => r.status === 'CANCELADA').length;
+      const taxaAtendimento = totalRegistros > 0 ? Number(((totalAtendidas / totalRegistros) * 100).toFixed(1)) : 0;
+
+      return res.json({
+        totals: {
+          totalRegistros,
+          totalAtendidas,
+          totalPendentes,
+          totalCanceladas,
+          taxaAtendimento,
+        },
+        items: formatted,
+      });
+    } catch (error) {
+      console.error('Erro no relatório de requisições:', error);
+      return res.status(500).json({ error: 'Erro ao gerar relatório de requisições.' });
+    }
+  }
 }

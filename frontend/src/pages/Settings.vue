@@ -417,18 +417,31 @@
           <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 class="font-bold text-gray-800 flex items-center gap-2 text-lg">
-                <FileSpreadsheet class="w-5 h-5 text-blue-600" /> Importação de Materiais em Lote (CSV)
+                <FileSpreadsheet class="w-5 h-5 text-blue-600" /> Importação Multi-Setor em Lote (CSV)
               </h2>
               <p class="text-sm text-gray-500 mt-0.5">
-                Cadastre novos materiais em lote na base de dados do SobraCorte através de planilhas formatadas.
+                Cadastre materiais e componentes fabris em lote para todos os setores industriais.
               </p>
             </div>
             
-            <!-- Botão de Download do Modelo de Exemplo -->
-            <button @click="downloadCSVTemplate"
-              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition flex items-center gap-2 shrink-0 self-start md:self-auto cursor-pointer">
-              <Download class="w-4 h-4" /> Baixar Modelo de Exemplo (.csv)
-            </button>
+            <!-- Botão de Download de Modelos por Setor -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <select
+                v-model="templateSector"
+                class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                <option value="CORTE">Modelo: Corte (Matéria-Prima)</option>
+                <option value="APOIO">Modelo: Apoio (Moldes/Peças)</option>
+                <option value="PRE_FABRICADO">Modelo: Pré-Fabricado (Solas)</option>
+                <option value="EXPEDICAO">Modelo: Cabedais (Expedição)</option>
+                <option value="MONTAGEM">Modelo: Montagem (Pés Órfãos)</option>
+                <option value="CONSUMO">Modelo: Consumo (Insumos)</option>
+              </select>
+              <button @click="downloadCSVTemplate(templateSector)"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition flex items-center gap-2 shrink-0 cursor-pointer">
+                <Download class="w-4 h-4" /> Baixar Modelo (.csv)
+              </button>
+            </div>
           </div>
 
           <div class="p-6 space-y-6">
@@ -511,25 +524,45 @@
             </div>
 
             <!-- Preview do Arquivo Selecionado -->
-            <div v-if="selectedFile" class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <FileSpreadsheet class="w-8 h-8 text-blue-600" />
-                <div>
-                  <p class="font-bold text-blue-900 text-sm">{{ selectedFile.name }}</p>
-                  <p class="text-xs text-blue-500">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+            <div v-if="selectedFile" class="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <FileSpreadsheet class="w-8 h-8 text-blue-600" />
+                  <div>
+                    <p class="font-bold text-blue-900 text-sm">{{ selectedFile.name }}</p>
+                    <p class="text-xs text-blue-500">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+                  </div>
                 </div>
+                <button @click="selectedFile = null; importResult = null" class="text-blue-400 hover:text-red-500 transition">
+                  <XCircle class="w-5 h-5" />
+                </button>
               </div>
-              <button @click="selectedFile = null; importResult = null" class="text-blue-400 hover:text-red-500 transition">
-                <XCircle class="w-5 h-5" />
-              </button>
+
+              <!-- Setor de Destino Padrão -->
+              <div class="flex items-center gap-2 pt-2 border-t border-blue-100 text-xs">
+                <span class="font-bold text-blue-900">Setor de Destino Padrão:</span>
+                <select
+                  v-model="importSector"
+                  class="px-2.5 py-1 bg-white border border-blue-200 rounded-lg font-bold text-blue-900 outline-none"
+                  :disabled="authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS'"
+                >
+                  <option value="CORTE">Corte (Matéria-Prima)</option>
+                  <option value="APOIO">Apoio (Moldes/Peças)</option>
+                  <option value="PRE_FABRICADO">Pré-Fabricado (Solas)</option>
+                  <option value="EXPEDICAO">Cabedais (Expedição)</option>
+                  <option value="MONTAGEM">Montagem (Pés Órfãos)</option>
+                  <option value="CONSUMO">Consumo (Insumos)</option>
+                </select>
+                <span class="text-slate-500 text-[11px]">(Utilizado caso a planilha não contenha a coluna 'setor')</span>
+              </div>
             </div>
 
             <!-- Botão de Confirmação -->
             <button v-if="selectedFile" @click="importCSV" :disabled="importing"
               class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-200 cursor-pointer">
-              <span v-if="importing" class="animate-spin">⏳</span>
+              <Loader2 v-if="importing" class="w-4 h-4 animate-spin text-white" />
               <Upload v-else class="w-4 h-4" />
-              {{ importing ? 'Processando e Validando Planilha...' : 'Confirmar Importação de Materiais' }}
+              {{ importing ? 'Processando e Validando Planilha Multi-Setor...' : 'Confirmar Importação de Materiais' }}
             </button>
 
             <!-- Feedback Amigável de Erro ou Sucesso -->
@@ -669,7 +702,7 @@ import { api } from '@/services/httpClient'
 import { useAuthStore } from '@/stores/auth'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
-  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil
+  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2
 } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
@@ -691,32 +724,26 @@ function formatSectorName(sec) {
 
 // --- TABS DINÂMICAS POR PERFIL ---
 const tabs = computed(() => {
-  const userRole = authStore.user?.role
   const assignedSec = authStore.user?.assignedSector
 
-  if (userRole === 'admin_setor') {
-    const sectorTabs = [
-      { key: 'locations', label: 'Localizações / Prateleiras', icon: MapPin },
-      { key: 'origins',   label: 'Origens / Motivos',           icon: GitBranch },
+  // 1. Perfil Consumo: apenas Origens e Importar CSV
+  if (assignedSec === 'CONSUMO') {
+    return [
+      { key: 'origins', label: 'Origens / Motivos', icon: GitBranch },
+      { key: 'import',  label: 'Importar CSV',      icon: FileSpreadsheet },
     ]
-    if (assignedSec === 'CONSUMO') {
-      sectorTabs.push({ key: 'import', label: 'Importar CSV', icon: FileSpreadsheet })
-    }
-    return sectorTabs
   }
 
-  const base = [
-    { key: 'categories', label: 'Categorias',        icon: Tag },
-    { key: 'units',      label: 'Unidades de Medida', icon: Ruler },
-    { key: 'locations',  label: 'Localizações',      icon: MapPin },
-    { key: 'origins',    label: 'Origens',           icon: GitBranch },
+  // 2. Admin Master e Admin de Setor / Líder dos demais setores: todas as abas
+  return [
+    { key: 'categories', label: 'Categorias',             icon: Tag },
+    { key: 'units',      label: 'Unidades de Medida',     icon: Ruler },
+    { key: 'locations',  label: 'Localizações / Prateleiras', icon: MapPin },
+    { key: 'origins',    label: 'Origens / Motivos',      icon: GitBranch },
+    { key: 'import',     label: 'Importar CSV',           icon: FileSpreadsheet },
   ]
-  if (userRole === 'admin' || userRole === 'lider' || assignedSec === 'CONSUMO') {
-    base.push({ key: 'import', label: 'Importar CSV', icon: FileSpreadsheet })
-  }
-  return base
 })
-const activeTab = ref(authStore.user?.role === 'admin_setor' ? 'locations' : 'categories')
+const activeTab = ref(authStore.user?.assignedSector === 'CONSUMO' ? 'origins' : 'categories')
 
 // --- NOTIFICAÇÕES ---
 const notification = ref({ show: false, type: 'success', message: '' })
@@ -1073,25 +1100,57 @@ async function deleteOrigin(orig) {
 const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
+const templateSector = ref(authStore.user?.assignedSector || 'CORTE')
+const importSector = ref(authStore.user?.assignedSector || 'CORTE')
 
-function downloadCSVTemplate() {
-  const content = "codigo;descricao;categoria;unidade;quantidade\n" +
-                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
-                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
-                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n" +
-                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0\n";
-  
+function downloadCSVTemplate(targetSector = 'CORTE') {
+  let content = ""
+  let fileName = "modelo_importacao_geral.csv"
+
+  if (targetSector === 'CORTE') {
+    fileName = "modelo_importacao_corte.csv"
+    content = "setor;codigo;descricao;categoria;unidade;quantidade\n" +
+              "CORTE;1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
+              "CORTE;1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
+              "CORTE;1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n"
+  } else if (targetSector === 'APOIO') {
+    fileName = "modelo_importacao_apoio.csv"
+    content = "setor;codigo;descricao;cor;quantidade;unidade\n" +
+              "APOIO;MOL-001;GASPEA LATERAL;PRETO;50;UN\n" +
+              "APOIO;MOL-002;TALONEIRA TRASEIRA;BRANCO;30;UN\n"
+  } else if (targetSector === 'PRE_FABRICADO') {
+    fileName = "modelo_importacao_pre_fabricado.csv"
+    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
+              "PRE_FABRICADO;SOL-PEG40;SOLA PEGASUS 40;PRETO/BRANCO;41;PAR;20;PAR\n" +
+              "PRE_FABRICADO;SOL-VOMERO;SOLA VOMERO 17;AZUL;39;E;15;UN\n"
+  } else if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') {
+    fileName = "modelo_importacao_cabedais.csv"
+    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
+              "EXPEDICAO;SKU-PEG40-BLK;CABEDAL PEGASUS 40;PRETO;40;PAR;25;PAR\n" +
+              "EXPEDICAO;SKU-AIRMAX-WHT;CABEDAL AIR MAX SC;BRANCO;38;D;10;UN\n"
+  } else if (targetSector === 'MONTAGEM') {
+    fileName = "modelo_importacao_montagem.csv"
+    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
+              "MONTAGEM;SKU-CORTEZ-WHT;PE MONTADO CORTEZ;BRANCO/VERMELHO;41;E;8;UN\n" +
+              "MONTAGEM;SKU-CORTEZ-WHT;PE MONTADO CORTEZ;BRANCO/VERMELHO;41;D;8;UN\n"
+  } else {
+    fileName = "modelo_importacao_consumo.csv"
+    content = "setor;codigo;descricao;categoria;unidade;quantidade\n" +
+              "CONSUMO;INS-001;ADESIVO SOLVENTE PVC;QUIMICOS;L;50.0\n" +
+              "CONSUMO;INS-002;FITA ADESIVA DUPLA FACE;FITAS;RL;100.0\n"
+  }
+
   // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.setAttribute('href', url)
-  link.setAttribute('download', 'modelo_importacao_sobracorte.csv')
+  link.setAttribute('download', fileName)
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
-  showNotification('success', 'Modelo de exemplo baixado com sucesso!')
+  showNotification('success', `Modelo ${fileName} baixado com sucesso!`)
 }
 
 function handleFileSelect(event) {
@@ -1121,12 +1180,13 @@ async function importCSV() {
   try {
     const formData = new FormData()
     formData.append('arquivo', selectedFile.value)
+    formData.append('sector', importSector.value)
 
     const res = await api.post('/import/csv', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     importResult.value = res.data
-    showNotification('success', `${res.data.inseridos} materiais importados com sucesso!`)
+    showNotification('success', `${res.data.inseridos} itens importados com sucesso!`)
     selectedFile.value = null
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
