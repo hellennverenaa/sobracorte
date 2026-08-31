@@ -292,6 +292,7 @@ ORDER BY "formablePairs" DESC;
 ### 📋 Status dos Cartões Kanban do Sprint 7:
 - **Cartão 7.1:** ✅ Abertura Digital de Requisição e Verificação de Saldo em Tempo Real (`MaterialRequisition` no Prisma, `RequisitionService.ts`, `RequisitionController.ts`, rotas `POST /requisitions`, `GET /requisitions`, `PATCH /requisitions/:id/cancel`, tela `Requisitions.vue` e integração no menu lateral com `ClipboardList`) - **Concluído**
 - **Cartão 7.2:** ✅ Atendimento de Requisições, Autocomplete Inteligente e Central de Notificações (`GET /inventory/search-suggestions`, `POST /requisitions/:id/fulfill`, `GET /requisitions/pending-count`, sininho `<Bell />` e badge em `Layout.vue`, baixa atômica via `$transaction`, suporte a `PAR` no lado do calçado e padrão industrial com ZERO emojis) - **Concluído**
+- **Cartão 7.3:** ✅ Formulário Adaptativo por Setor, Suporte Multi-Itens, Trava de Saldo Zero e Cálculo de Par Completo (`POST /requisitions/check-availability`, suporte a `items: [...]` consolidando no mesmo código `REQ-AAAA-XXXX`, `min(Saldo(E), Saldo(D))` para pares completos, bloqueio de requisição sem saldo físico com aviso industrial e formulário dinâmico por setor em `Requisitions.vue`) - **Concluído**
 
 
 

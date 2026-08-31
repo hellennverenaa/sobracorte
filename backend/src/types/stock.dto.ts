@@ -146,15 +146,31 @@ export const RequisitionStatusEnum = z.enum([
   'CANCELADA',
 ]);
 
-export const CreateRequisitionSchema = z.object({
+export const RequisitionItemInputSchema = z.object({
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']),
-  sku: z.string().trim().min(1, 'COD. PRODUTO / SKU é obrigatório').transform((val) => val.toUpperCase()),
-  modelName: z.string().trim().min(1, 'NOME DO MODELO / LINHA é obrigatório').transform((val) => val.toUpperCase()),
-  description: z.string().trim().min(1, 'Peça / Material solicitado é obrigatório').transform((val) => val.toUpperCase()),
+  sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
   quantityRequested: z.coerce.number().positive('Quantidade solicitada deve ser maior que zero'),
   reason: z.string().trim().min(1, 'Motivo do defeito/avaria é obrigatório').transform((val) => val.toUpperCase()),
+});
+
+export const CreateRequisitionPayloadSchema = z.union([
+  RequisitionItemInputSchema,
+  z.object({
+    items: z.array(RequisitionItemInputSchema).min(1, 'A requisição deve conter pelo menos 1 item'),
+  }),
+]);
+
+export const CheckStockAvailabilitySchema = z.object({
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']),
+  sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
+  sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  footSide: FootSideEnum.optional().nullable(),
 });
 
 export const RequisitionFilterSchema = z.object({
@@ -182,7 +198,9 @@ export type BatchCreateStockItemDTO = z.infer<typeof BatchCreateStockItemSchema>
 export type ExecuteMatchDTO = z.infer<typeof ExecuteMatchSchema>;
 export type CreateStockMovementDTO = z.infer<typeof CreateStockMovementSchema>;
 export type MovementHistoryFilterDTO = z.infer<typeof MovementHistoryFilterSchema>;
-export type CreateRequisitionDTO = z.infer<typeof CreateRequisitionSchema>;
+export type RequisitionItemInputDTO = z.infer<typeof RequisitionItemInputSchema>;
+export type CreateRequisitionPayloadDTO = z.infer<typeof CreateRequisitionPayloadSchema>;
+export type CheckStockAvailabilityDTO = z.infer<typeof CheckStockAvailabilitySchema>;
 export type RequisitionFilterDTO = z.infer<typeof RequisitionFilterSchema>;
 export type FulfillRequisitionDTO = z.infer<typeof FulfillRequisitionSchema>;
 

@@ -7,7 +7,7 @@ import { api } from '@/services/httpClient';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
-  Eye, FileText, CheckCheck, PackageCheck, UserCheck, Filter
+  Eye, FileText, CheckCheck, PackageCheck, Trash2, ShieldAlert, AlertTriangle
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -18,8 +18,8 @@ interface RequisitionItem {
   id: string;
   code: string;
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
-  sku: string;
-  modelName: string;
+  sku?: string;
+  modelName?: string;
   description: string;
   sizeGrade?: string;
   footSide?: 'E' | 'D' | 'PAR' | null;
@@ -31,6 +31,7 @@ interface RequisitionItem {
   createdAt: string;
   stockAvailable: number;
   locations: string[];
+  pairsDetail?: { esq: number; dir: number };
 }
 
 interface SkuSuggestion {
@@ -41,6 +42,20 @@ interface SkuSuggestion {
   color: string;
   footSides: string[];
   availableQuantity: number;
+}
+
+interface StagedRequisitionItem {
+  requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
+  sku?: string;
+  modelName?: string;
+  description: string;
+  sizeGrade?: string;
+  footSide?: 'E' | 'D' | 'PAR' | null;
+  quantityRequested: number;
+  reason: string;
+  stockAvailable: number;
+  locations: string[];
+  pairsDetail?: { esq: number; dir: number };
 }
 
 const requisitions = ref<RequisitionItem[]>([]);
@@ -55,18 +70,35 @@ const search = ref('');
 const appliedSearch = ref('');
 const onlyPendingWithStock = ref(false);
 
-// Modal de Nova Requisição
+// Modal de Nova Requisição Multi-Itens
 const showCreateModal = ref(false);
 const isSubmitting = ref(false);
-const form = ref({
-  requestSector: 'MONTAGEM' as 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM',
+const stagedItems = ref<StagedRequisitionItem[]>([]);
+
+// Formulário do item corrente
+const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
+const formItem = ref({
   sku: '',
   modelName: '',
   description: '',
+  unit: 'UN',
   sizeGrade: '',
   footSide: null as 'E' | 'D' | 'PAR' | null,
   quantityRequested: 1,
   reason: '',
+});
+
+// Verificação de Saldo em Tempo Real (Trava Saldo Zero)
+const checkingAvailability = ref(false);
+const availabilityResult = ref<{
+  checked: boolean;
+  quantity: number;
+  locations: string[];
+  pairsDetail?: { esq: number; dir: number };
+}>({
+  checked: false,
+  quantity: 0,
+  locations: [],
 });
 
 // Autocomplete
@@ -74,6 +106,7 @@ const suggestions = ref<SkuSuggestion[]>([]);
 const showSuggestions = ref(false);
 const availableGrades = ref<string[]>([]);
 let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
+let availabilityDebounce: ReturnType<typeof setTimeout> | null = null;
 
 // Modal de Atendimento (Fulfill)
 const showFulfillModal = ref(false);
@@ -82,7 +115,7 @@ const fulfillQuantity = ref(1);
 const fulfillObservation = ref('');
 const isFulfilling = ref(false);
 
-// Modal de Visualização de Detalhes
+// Modal de Detalhes
 const viewingItem = ref<RequisitionItem | null>(null);
 
 // Notificações Toast
@@ -96,7 +129,7 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
   notification.value = { show: true, message, type };
   setTimeout(() => {
     notification.value.show = false;
-  }, 4000);
+  }, 4500);
 }
 
 const sectorOptions = [
@@ -142,13 +175,53 @@ function clearSearch() {
   loadRequisitions(1);
 }
 
-// Autocomplete ao digitar SKU
+// Consulta de Disponibilidade em Tempo Real com Trava de Saldo Zero
+async function checkCurrentItemAvailability() {
+  const desc = formItem.value.description.trim();
+  const sku = formItem.value.sku.trim();
+
+  if (!desc && !sku) {
+    availabilityResult.value = { checked: false, quantity: 0, locations: [] };
+    return;
+  }
+
+  checkingAvailability.value = true;
+  try {
+    const res = await api.post('/requisitions/check-availability', {
+      requestSector: currentSector.value,
+      sku: sku.toUpperCase() || undefined,
+      modelName: formItem.value.modelName.trim().toUpperCase() || undefined,
+      description: (desc || sku).toUpperCase(),
+      sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
+      footSide: formItem.value.footSide || undefined,
+    });
+
+    availabilityResult.value = {
+      checked: true,
+      quantity: res.data?.quantity || 0,
+      locations: res.data?.locations || [],
+      pairsDetail: res.data?.pairsDetail,
+    };
+  } catch (err) {
+    availabilityResult.value = { checked: true, quantity: 0, locations: [] };
+  } finally {
+    checkingAvailability.value = false;
+  }
+}
+
+function triggerAvailabilityCheck() {
+  if (availabilityDebounce) clearTimeout(availabilityDebounce);
+  availabilityDebounce = setTimeout(checkCurrentItemAvailability, 300);
+}
+
+// Autocomplete ao digitar SKU / Código
 function onSkuInput() {
   if (autocompleteTimer) clearTimeout(autocompleteTimer);
-  const q = form.value.sku.trim();
+  const q = formItem.value.sku.trim();
   if (q.length < 2) {
     suggestions.value = [];
     showSuggestions.value = false;
+    triggerAvailabilityCheck();
     return;
   }
 
@@ -156,7 +229,7 @@ function onSkuInput() {
     try {
       const res = await api.get('/inventory/search-suggestions', {
         params: {
-          sector: form.value.requestSector,
+          sector: currentSector.value,
           q,
         },
       });
@@ -165,73 +238,154 @@ function onSkuInput() {
     } catch {
       suggestions.value = [];
       showSuggestions.value = false;
+    } finally {
+      triggerAvailabilityCheck();
     }
   }, 250);
 }
 
 function selectSuggestion(sug: SkuSuggestion) {
-  form.value.sku = sug.sku;
-  form.value.modelName = sug.modelName;
-  form.value.description = sug.description;
+  formItem.value.sku = sug.sku;
+  formItem.value.modelName = sug.modelName;
+  formItem.value.description = sug.description;
   availableGrades.value = sug.sizeGrades || [];
   if (availableGrades.value.length === 1) {
-    form.value.sizeGrade = availableGrades.value[0];
+    formItem.value.sizeGrade = availableGrades.value[0];
   }
   showSuggestions.value = false;
+  checkCurrentItemAvailability();
 }
 
-function openCreate() {
-  form.value = {
-    requestSector: 'MONTAGEM',
+function onSectorChange() {
+  formItem.value = {
     sku: '',
     modelName: '',
     description: '',
+    unit: 'UN',
     sizeGrade: '',
     footSide: null,
     quantityRequested: 1,
-    reason: '',
+    reason: formItem.value.reason, // preserva o motivo comum se digitado
   };
   availableGrades.value = [];
   suggestions.value = [];
   showSuggestions.value = false;
+  availabilityResult.value = { checked: false, quantity: 0, locations: [] };
+}
+
+function openCreate() {
+  stagedItems.value = [];
+  currentSector.value = 'MONTAGEM';
+  onSectorChange();
   showCreateModal.value = true;
 }
 
-async function submitRequisition() {
-  if (!form.value.sku.trim()) {
+// Adicionar item à lista da requisição
+function addCurrentItem() {
+  const desc = formItem.value.description.trim() || formItem.value.sku.trim();
+  if (!desc) {
+    showToast('A identificação do item/material é obrigatória.', 'error');
+    return;
+  }
+
+  if (currentSector.value !== 'CORTE' && !formItem.value.sku.trim()) {
     showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
     return;
   }
-  if (!form.value.modelName.trim()) {
-    showToast('O Nome do Modelo / Linha é obrigatório.', 'error');
+
+  if (formItem.value.quantityRequested <= 0) {
+    showToast('A quantidade solicitada deve ser maior que zero.', 'error');
     return;
   }
-  if (!form.value.description.trim()) {
-    showToast('A Descrição da Peça / Material é obrigatória.', 'error');
+
+  if (!formItem.value.reason.trim()) {
+    showToast('O motivo da avaria/defeito é obrigatório.', 'error');
     return;
   }
-  if (!form.value.quantityRequested || form.value.quantityRequested <= 0) {
-    showToast('A Quantidade solicitada deve ser maior que zero.', 'error');
+
+  // TRAVA DE SALDO ZERO
+  if (availabilityResult.value.checked && availabilityResult.value.quantity <= 0) {
+    showToast('MATERIAL INDISPONÍVEL EM SOBRAS DASS. Favor acionar a programação regular de corte/compra.', 'error');
     return;
   }
-  if (!form.value.reason.trim()) {
-    showToast('O Motivo da avaria/defeito é obrigatório.', 'error');
+
+  if (formItem.value.quantityRequested > availabilityResult.value.quantity) {
+    showToast(`Quantidade solicitada (${formItem.value.quantityRequested}) excede o saldo físico disponível (${availabilityResult.value.quantity}).`, 'error');
     return;
   }
+
+  stagedItems.value.push({
+    requestSector: currentSector.value,
+    sku: formItem.value.sku.trim().toUpperCase() || undefined,
+    modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : 'GERAL'),
+    description: formItem.value.description.trim().toUpperCase() || formItem.value.sku.trim().toUpperCase(),
+    sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
+    footSide: formItem.value.footSide || null,
+    quantityRequested: formItem.value.quantityRequested,
+    reason: formItem.value.reason.trim().toUpperCase(),
+    stockAvailable: availabilityResult.value.quantity,
+    locations: [...availabilityResult.value.locations],
+    pairsDetail: availabilityResult.value.pairsDetail,
+  });
+
+  // Limpar formulário mantendo o setor
+  const lastReason = formItem.value.reason;
+  formItem.value = {
+    sku: '',
+    modelName: '',
+    description: '',
+    unit: 'UN',
+    sizeGrade: '',
+    footSide: null,
+    quantityRequested: 1,
+    reason: lastReason,
+  };
+  availableGrades.value = [];
+  suggestions.value = [];
+  showSuggestions.value = false;
+  availabilityResult.value = { checked: false, quantity: 0, locations: [] };
+  showToast('Item adicionado à lista da requisição.', 'success');
+}
+
+function removeStagedItem(index: number) {
+  stagedItems.value.splice(index, 1);
+}
+
+// Submeter a requisição completa
+async function submitRequisition() {
+  if (stagedItems.value.length === 0) {
+    // Se o operador não clicou em "Adicionar", tenta adicionar o item atual se válido
+    if (availabilityResult.value.checked && availabilityResult.value.quantity > 0) {
+      addCurrentItem();
+    } else {
+      showToast('Adicione pelo menos 1 item com saldo disponível à requisição.', 'error');
+      return;
+    }
+  }
+
+  if (stagedItems.value.length === 0) return;
 
   isSubmitting.value = true;
   try {
-    await api.post('/requisitions', {
-      ...form.value,
-      sku: form.value.sku.toUpperCase().trim(),
-      modelName: form.value.modelName.toUpperCase().trim(),
-      description: form.value.description.toUpperCase().trim(),
-      sizeGrade: form.value.sizeGrade ? form.value.sizeGrade.toUpperCase().trim() : undefined,
-      reason: form.value.reason.toUpperCase().trim(),
-    });
+    const payload = {
+      items: stagedItems.value.map((item) => ({
+        requestSector: item.requestSector,
+        sku: item.sku,
+        modelName: item.modelName,
+        description: item.description,
+        sizeGrade: item.sizeGrade,
+        footSide: item.footSide,
+        quantityRequested: item.quantityRequested,
+        reason: item.reason,
+      })),
+    };
 
-    showToast('Requisição de reposição aberta com sucesso!', 'success');
+    const res = await api.post('/requisitions', payload);
+    const code = res.data?.code || 'REQ';
+
+    showToast(`Requisição ${code} aberta com sucesso contendo ${stagedItems.value.length} item(ns)!`, 'success');
     showCreateModal.value = false;
+    stagedItems.value = [];
     await loadRequisitions(1);
   } catch (error: any) {
     console.error('Erro ao abrir requisição:', error);
@@ -291,7 +445,6 @@ async function cancelItem(item: RequisitionItem) {
   }
 }
 
-// Filtro computado da tabela (suporte a toggle rápido de saldo)
 const displayedRequisitions = computed(() => {
   if (!onlyPendingWithStock.value) return requisitions.value;
   return requisitions.value.filter(
@@ -299,7 +452,6 @@ const displayedRequisitions = computed(() => {
   );
 });
 
-// Métricas dos Cards do Topo
 const stats = computed(() => {
   const total = totalCount.value;
   const pendingWithStock = requisitions.value.filter(
@@ -358,9 +510,9 @@ onMounted(() => {
       :class="notification.type === 'success'
         ? 'bg-green-100 border-green-400 text-green-700'
         : 'bg-red-100 border-red-400 text-red-700'"
-      class="fixed top-4 right-4 px-4 py-3 rounded border shadow-lg z-50 flex items-center transition-all duration-300"
+      class="fixed top-4 right-4 px-4 py-3 rounded-xl border shadow-lg z-50 flex items-center transition-all duration-300 max-w-md"
     >
-      <span class="font-medium">{{ notification.message }}</span>
+      <span class="font-medium text-xs">{{ notification.message }}</span>
     </div>
 
     <div class="p-6 space-y-6 max-w-7xl mx-auto">
@@ -373,7 +525,7 @@ onMounted(() => {
             </div>
             <div>
               <h1 class="text-xl font-black text-slate-900 tracking-tight">Central de Requisições de Reposição</h1>
-              <p class="text-xs text-slate-500 font-medium">Digitalização e rastreabilidade de reposição de peças danificadas na fábrica</p>
+              <p class="text-xs text-slate-500 font-medium">Digitalização, multi-itens e verificação inteligente de sobras na fábrica</p>
             </div>
           </div>
         </div>
@@ -416,7 +568,7 @@ onMounted(() => {
             <ClipboardList class="w-5 h-5" />
           </div>
           <div>
-            <p class="text-[11px] font-bold text-slate-400 uppercase">Total de Requisições</p>
+            <p class="text-[11px] font-bold text-slate-400 uppercase">Total de Itens Solicitados</p>
             <p class="text-lg font-black text-slate-900">{{ stats.total }}</p>
           </div>
         </div>
@@ -565,9 +717,9 @@ onMounted(() => {
 
                 <!-- Item / SKU & Modelo -->
                 <td class="px-4 py-3">
-                  <div class="font-bold text-slate-900 font-mono text-[11.5px]">{{ item.sku }}</div>
-                  <div class="text-[11px] text-slate-700 font-medium">{{ item.modelName }}</div>
-                  <div class="text-[10px] text-slate-400 italic truncate max-w-[180px]">{{ item.description }}</div>
+                  <div v-if="item.sku" class="font-bold text-slate-900 font-mono text-[11.5px]">{{ item.sku }}</div>
+                  <div v-if="item.modelName" class="text-[11px] text-slate-700 font-medium">{{ item.modelName }}</div>
+                  <div class="text-[10.5px] text-slate-500 italic truncate max-w-[180px]">{{ item.description }}</div>
                 </td>
 
                 <!-- Grade / Lado -->
@@ -603,9 +755,9 @@ onMounted(() => {
                   <div v-if="item.stockAvailable >= (item.quantityRequested - item.quantityFulfilled)" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10.5px]">
                       <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600" />
-                      {{ item.stockAvailable }} un. em estoque
+                      {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : 'un.' }} em estoque
                     </span>
-                    <span v-if="item.locations.length > 0" class="text-[10px] text-emerald-600 mt-0.5 truncate max-w-[180px] flex items-center gap-0.5">
+                    <span v-if="item.locations.length > 0" class="text-[10px] text-emerald-600 mt-0.5 truncate max-w-[200px] flex items-center gap-0.5">
                       <MapPin class="w-3 h-3 shrink-0" />
                       {{ item.locations.join(', ') }}
                     </span>
@@ -614,9 +766,9 @@ onMounted(() => {
                   <div v-else-if="item.stockAvailable > 0" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-bold text-[10.5px]">
                       <Clock class="w-3.5 h-3.5 text-amber-600" />
-                      Parcial: {{ item.stockAvailable }} un.
+                      Parcial: {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : 'un.' }}
                     </span>
-                    <span v-if="item.locations.length > 0" class="text-[10px] text-amber-600 mt-0.5 truncate max-w-[180px] flex items-center gap-0.5">
+                    <span v-if="item.locations.length > 0" class="text-[10px] text-amber-600 mt-0.5 truncate max-w-[200px] flex items-center gap-0.5">
                       <MapPin class="w-3 h-3 shrink-0" />
                       {{ item.locations.join(', ') }}
                     </span>
@@ -661,7 +813,6 @@ onMounted(() => {
                 <!-- Ações -->
                 <td class="px-4 py-3 text-center">
                   <div class="flex items-center justify-center gap-1.5">
-                    <!-- Botão Atender Requisição (1 Clique) -->
                     <button
                       v-if="(item.status === 'PENDENTE' || item.status === 'ATENDIDA_PARCIAL') && item.stockAvailable > 0 && authStore.can('cadastrar_materiais')"
                       @click="openFulfill(item)"
@@ -718,187 +869,454 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal Nova Solicitação com Autocomplete Inteligente -->
+    <!-- Modal Nova Solicitação Multi-Itens Adaptativo com Trava Saldo Zero -->
     <div
       v-if="showCreateModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
     >
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200">
-        <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 max-h-[92vh] flex flex-col">
+        <!-- Topo do Modal -->
+        <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center text-white shrink-0">
           <div class="flex items-center gap-2">
             <ClipboardList class="w-5 h-5" />
-            <h3 class="font-bold text-sm">Nova Solicitação de Reposição</h3>
+            <div>
+              <h3 class="font-bold text-sm">Abertura Digital de Requisição de Reposição</h3>
+              <p class="text-[11px] text-indigo-200">Adicione um ou mais itens com saldo disponível</p>
+            </div>
           </div>
           <button @click="showCreateModal = false" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
         </div>
 
-        <form @submit.prevent="submitRequisition" class="p-6 space-y-4 text-xs">
-          <!-- Setor Solicitante -->
+        <div class="p-6 overflow-y-auto space-y-5 text-xs flex-1">
+          <!-- 1. Seleção de Setor Adaptativo -->
           <div>
-            <label class="block font-bold text-slate-600 uppercase mb-1">Setor Solicitante *</label>
-            <select
-              v-model="form.requestSector"
-              @change="onSkuInput"
-              class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-            >
-              <option v-for="sec in sectorOptions" :key="sec.id" :value="sec.id">
-                {{ sec.label }}
-              </option>
-            </select>
+            <label class="block font-bold text-slate-700 uppercase mb-1.5">1. Selecione o Setor Solicitante *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <button
+                v-for="sec in sectorOptions"
+                :key="sec.id"
+                type="button"
+                @click="currentSector = sec.id as any; onSectorChange()"
+                class="p-2.5 rounded-xl border font-bold flex flex-col items-center gap-1.5 transition-all text-[11px]"
+                :class="currentSector === sec.id
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm ring-1 ring-indigo-600'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+              >
+                <component :is="sec.icon" class="w-4 h-4" />
+                <span class="truncate">{{ formatSectorName(sec.id) }}</span>
+              </button>
+            </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <!-- COD. PRODUTO / SKU com Autocomplete -->
-            <div class="relative">
-              <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
-              <input
-                v-model="form.sku"
-                @input="onSkuInput"
-                type="text"
-                placeholder="Digite para buscar itens existentes..."
-                class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
-              />
+          <!-- 2. Formulário Adaptativo por Setor -->
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+            <h4 class="font-bold text-slate-800 uppercase text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-2">
+              <Plus class="w-3.5 h-3.5 text-indigo-600" />
+              <span>Adicionar Item do Setor: {{ formatSectorName(currentSector) }}</span>
+            </h4>
 
-              <!-- Dropdown de Sugestões -->
+            <!-- CAMPOS PARA CORTE -->
+            <div v-if="currentSector === 'CORTE'" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Código / Material *</label>
+                  <input
+                    v-model="formItem.sku"
+                    @input="onSkuInput"
+                    type="text"
+                    placeholder="Ex: COU-BOV-01, SINT-PTO..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+
+                  <!-- Dropdown Sugestões Corte -->
+                  <div
+                    v-if="showSuggestions && suggestions.length > 0"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.sku"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.description }}</span>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {{ sug.availableQuantity }} UN/M²
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Descrição / Tipo *</label>
+                  <input
+                    v-model="formItem.description"
+                    @input="triggerAvailabilityCheck"
+                    type="text"
+                    placeholder="Ex: Couro Bovino Preto Premium..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Unidade</label>
+                  <input
+                    v-model="formItem.unit"
+                    type="text"
+                    placeholder="M², Metros, Folhas..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <input
+                    v-model.number="formItem.quantityRequested"
+                    type="number"
+                    min="1"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CAMPOS PARA APOIO -->
+            <div v-else-if="currentSector === 'APOIO'" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+                  <input
+                    v-model="formItem.sku"
+                    @input="onSkuInput"
+                    type="text"
+                    placeholder="Ex: MOLDE-PEGASUS..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+
+                  <div
+                    v-if="showSuggestions && suggestions.length > 0"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.sku"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.description }}</span>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {{ sug.availableQuantity }} PÇS
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
+                  <input
+                    v-model="formItem.modelName"
+                    type="text"
+                    placeholder="Ex: PEGASUS 40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Molde Solicitado *</label>
+                  <input
+                    v-model="formItem.description"
+                    @input="triggerAvailabilityCheck"
+                    type="text"
+                    placeholder="Ex: Reforço Traseiro, Gáspea Cortada..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <input
+                    v-model.number="formItem.quantityRequested"
+                    type="number"
+                    min="1"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CAMPOS PARA PRÉ-FABRICADO / CABEDAIS / MONTAGEM -->
+            <div v-else class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+                  <input
+                    v-model="formItem.sku"
+                    @input="onSkuInput"
+                    type="text"
+                    placeholder="Digite para buscar..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+
+                  <div
+                    v-if="showSuggestions && suggestions.length > 0"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.sku"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.modelName }} - {{ sug.description }}</span>
+                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {{ sug.availableQuantity }} un.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
+                  <input
+                    v-model="formItem.modelName"
+                    type="text"
+                    placeholder="Ex: PEGASUS 40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Componente Solicitado *</label>
+                <input
+                  v-model="formItem.description"
+                  @input="triggerAvailabilityCheck"
+                  type="text"
+                  placeholder="Ex: Sola Borracha, Cabedal Completo, Pé Montado..."
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
+                  <input
+                    v-model="formItem.sizeGrade"
+                    @input="triggerAvailabilityCheck"
+                    type="text"
+                    placeholder="Ex: 39/40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <div class="flex gap-1">
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'E'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Esq.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'D'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Dir.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'PAR'
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Par
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <input
+                    v-model.number="formItem.quantityRequested"
+                    type="number"
+                    min="1"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Motivo do Defeito -->
+            <div>
+              <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
+              <input
+                v-model="formItem.reason"
+                type="text"
+                placeholder="Ex: Quebra de agulha na costura, rasgo no corte, mancha de cola..."
+                class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+              />
+            </div>
+
+            <!-- INDICADOR DE SALDO EM TEMPO REAL E AVISO INDUSTRIAL -->
+            <div class="pt-2">
+              <!-- Sem Saldo / Trava Saldo Zero -->
               <div
-                v-if="showSuggestions && suggestions.length > 0"
-                class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100"
+                v-if="availabilityResult.checked && availabilityResult.quantity === 0"
+                class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800"
               >
-                <button
-                  v-for="sug in suggestions"
-                  :key="sug.sku"
-                  type="button"
-                  @click="selectSuggestion(sug)"
-                  class="w-full p-2.5 text-left hover:bg-indigo-50 transition-colors flex justify-between items-center gap-2"
-                >
+                <ShieldAlert class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p class="font-black tracking-tight text-xs uppercase">MATERIAL INDISPONÍVEL EM SOBRAS DASS</p>
+                  <p class="text-[11px] text-rose-700 mt-0.5">Favor acionar a programação regular de corte/compra. Requisições sem saldo físico em sobras não podem ser geradas.</p>
+                </div>
+              </div>
+
+              <!-- Com Saldo -->
+              <div
+                v-else-if="availabilityResult.checked && availabilityResult.quantity > 0"
+                class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-800"
+              >
+                <CheckCircle2 class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div class="flex-1">
+                  <div class="flex justify-between items-center">
+                    <p class="font-black text-xs uppercase">
+                      DISPONÍVEL EM SOBRAS: {{ availabilityResult.quantity }} {{ formItem.footSide === 'PAR' ? 'PARES COMPLETOS' : 'UNIDADES' }}
+                    </p>
+                    <span v-if="availabilityResult.pairsDetail" class="text-[10.5px] font-bold text-emerald-700">
+                      (E: {{ availabilityResult.pairsDetail.esq }} | D: {{ availabilityResult.pairsDetail.dir }})
+                    </span>
+                  </div>
+                  <p v-if="availabilityResult.locations.length > 0" class="text-[11px] text-emerald-700 mt-0.5 flex items-center gap-1">
+                    <MapPin class="w-3.5 h-3.5 shrink-0" />
+                    <span>Prateleiras: {{ availabilityResult.locations.join(', ') }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botão Adicionar Item -->
+            <div class="flex justify-end pt-1">
+              <button
+                type="button"
+                @click="addCurrentItem"
+                :disabled="availabilityResult.checked && availabilityResult.quantity === 0"
+                class="px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all text-xs"
+                :class="availabilityResult.checked && availabilityResult.quantity === 0
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  : 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm'"
+              >
+                <Plus class="w-4 h-4" />
+                <span>Adicionar Item à Requisição</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Lista de Itens Adicionados (Multi-Itens) -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h4 class="font-bold text-slate-800 uppercase text-xs">
+                Itens na Requisição ({{ stagedItems.length }})
+              </h4>
+              <span v-if="stagedItems.length > 0" class="text-[11px] font-bold text-indigo-600">
+                Total de peças: {{ stagedItems.reduce((acc, i) => acc + i.quantityRequested, 0) }}
+              </span>
+            </div>
+
+            <div v-if="stagedItems.length === 0" class="p-4 border-2 border-dashed border-slate-200 rounded-2xl text-center text-slate-400">
+              Nenhum item adicionado ainda. Preencha o formulário acima e clique em "Adicionar Item".
+            </div>
+
+            <div v-else class="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100 bg-white">
+              <div
+                v-for="(staged, idx) in stagedItems"
+                :key="idx"
+                class="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+              >
+                <div class="flex items-center gap-3">
+                  <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[11px]">
+                    {{ idx + 1 }}
+                  </span>
                   <div>
-                    <div class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</div>
-                    <div class="text-[11px] text-slate-700 font-medium">{{ sug.modelName }} - {{ sug.description }}</div>
-                    <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">
-                      Grades: {{ sug.sizeGrades.join(', ') }}
+                    <div class="font-bold text-slate-900 font-mono text-[11.5px]">
+                      {{ staged.sku || staged.description }}
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-sans bg-slate-100 text-slate-700">
+                        {{ formatSectorName(staged.requestSector) }}
+                      </span>
+                    </div>
+                    <div class="text-[11px] text-slate-600">
+                      {{ staged.description }}
+                      <span v-if="staged.sizeGrade" class="font-bold"> | Grade {{ staged.sizeGrade }}</span>
+                      <span v-if="staged.footSide" class="font-bold"> ({{ staged.footSide === 'E' ? 'Pé Esq.' : staged.footSide === 'D' ? 'Pé Dir.' : 'Par' }})</span>
                     </div>
                   </div>
-                  <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
-                    {{ sug.availableQuantity }} un.
-                  </span>
-                </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <div class="text-right">
+                    <span class="font-black text-slate-900 text-xs block">Qtd: {{ staged.quantityRequested }}</span>
+                    <span class="text-[10px] font-bold text-emerald-600">Disp: {{ staged.stockAvailable }} un.</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    @click="removeStagedItem(idx)"
+                    class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    title="Remover item"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-
-            <!-- NOME DO MODELO / LINHA -->
-            <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">NOME DO MODELO / LINHA *</label>
-              <input
-                v-model="form.modelName"
-                type="text"
-                placeholder="Ex: PEGASUS 40"
-                class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
-              />
-            </div>
           </div>
+        </div>
 
-          <!-- Peça / Material -->
-          <div>
-            <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Material Solicitado *</label>
-            <input
-              v-model="form.description"
-              type="text"
-              placeholder="Ex: Gáspea Externa, Sola de Borracha, Couro Bovino Preto..."
-              class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
-            />
-          </div>
+        <!-- Rodapé do Modal -->
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
+          <button
+            type="button"
+            @click="showCreateModal = false"
+            class="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all text-xs"
+          >
+            Cancelar
+          </button>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <!-- Grade / Numeração -->
-            <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
-              <input
-                v-model="form.sizeGrade"
-                type="text"
-                placeholder="Ex: 39/40"
-                class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <!-- Lado do Pé / Par -->
-            <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
-              <div class="flex gap-1">
-                <button
-                  type="button"
-                  @click="form.footSide = form.footSide === 'E' ? null : 'E'"
-                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
-                  :class="form.footSide === 'E'
-                    ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
-                >
-                  Pé Esq.
-                </button>
-                <button
-                  type="button"
-                  @click="form.footSide = form.footSide === 'D' ? null : 'D'"
-                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
-                  :class="form.footSide === 'D'
-                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
-                >
-                  Pé Dir.
-                </button>
-                <button
-                  type="button"
-                  @click="form.footSide = form.footSide === 'PAR' ? null : 'PAR'"
-                  class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[11px]"
-                  :class="form.footSide === 'PAR'
-                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'"
-                >
-                  Par
-                </button>
-              </div>
-            </div>
-
-            <!-- Quantidade -->
-            <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
-              <input
-                v-model.number="form.quantityRequested"
-                type="number"
-                min="1"
-                class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          <!-- Motivo do Defeito / Avaria -->
-          <div>
-            <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
-            <textarea
-              v-model="form.reason"
-              rows="2"
-              placeholder="Ex: Quebra de agulha na costura, rasgo no corte, mancha de cola na montagem..."
-              class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500"
-            ></textarea>
-          </div>
-
-          <div class="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
-            <button
-              type="button"
-              @click="showCreateModal = false"
-              class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition-all"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              :disabled="isSubmitting"
-              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5"
-            >
-              <span v-if="isSubmitting">Processando...</span>
-              <span v-else>Enviar Solicitação</span>
-            </button>
-          </div>
-        </form>
+          <button
+            type="button"
+            @click="submitRequisition"
+            :disabled="isSubmitting || (stagedItems.length === 0 && (!availabilityResult.checked || availabilityResult.quantity === 0))"
+            class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 text-xs"
+          >
+            <span v-if="isSubmitting">Emitindo Requisição...</span>
+            <span v-else>Confirmar e Enviar Requisição ({{ stagedItems.length }} itens)</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -918,11 +1336,13 @@ onMounted(() => {
 
         <form @submit.prevent="executeFulfill" class="p-6 space-y-4 text-xs">
           <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-1">
-            <div class="font-bold text-emerald-900 text-sm font-mono">{{ fulfillingItem.sku }} — {{ fulfillingItem.modelName }}</div>
+            <div class="font-bold text-emerald-900 text-sm font-mono">
+              {{ fulfillingItem.sku || fulfillingItem.description }} — {{ fulfillingItem.modelName || 'GERAL' }}
+            </div>
             <div class="text-emerald-800 font-medium">{{ fulfillingItem.description }}</div>
             <div class="text-[11px] text-emerald-700">
               Solicitado: <strong>{{ fulfillingItem.quantityRequested }}</strong> | 
-              Disponível em Sobras: <strong>{{ fulfillingItem.stockAvailable }} un.</strong>
+              Disponível em Sobras: <strong>{{ fulfillingItem.stockAvailable }} {{ fulfillingItem.footSide === 'PAR' ? 'pares' : 'un.' }}</strong>
             </div>
             <div v-if="fulfillingItem.locations.length > 0" class="text-[10.5px] text-emerald-600 pt-1 flex items-center gap-1">
               <MapPin class="w-3.5 h-3.5 shrink-0" />
@@ -931,7 +1351,9 @@ onMounted(() => {
           </div>
 
           <div>
-            <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade a Atender / Baixar *</label>
+            <label class="block font-bold text-slate-600 uppercase mb-1">
+              Quantidade a Atender / Baixar ({{ fulfillingItem.footSide === 'PAR' ? 'Pares Completos' : 'Unidades' }}) *
+            </label>
             <input
               v-model.number="fulfillQuantity"
               type="number"
@@ -946,7 +1368,7 @@ onMounted(() => {
             <input
               v-model="fulfillObservation"
               type="text"
-              placeholder="Ex: Entregue em mãos para o setor de Montagem..."
+              placeholder="Ex: Entregue em mãos para o setor solicitante..."
               class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-emerald-500"
             />
           </div>
@@ -1010,7 +1432,9 @@ onMounted(() => {
           <div class="space-y-2">
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">COD. PRODUTO / SKU & Modelo</span>
-              <p class="font-mono font-bold text-slate-900 text-sm">{{ viewingItem.sku }} — {{ viewingItem.modelName }}</p>
+              <p class="font-mono font-bold text-slate-900 text-sm">
+                {{ viewingItem.sku || '-' }} — {{ viewingItem.modelName || 'GERAL' }}
+              </p>
             </div>
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">Peça / Material</span>
@@ -1044,7 +1468,7 @@ onMounted(() => {
                 Disponibilidade no Sobras DASS:
               </span>
               <span class="font-black text-sm" :class="viewingItem.stockAvailable > 0 ? 'text-emerald-700' : 'text-rose-700'">
-                {{ viewingItem.stockAvailable }} un.
+                {{ viewingItem.stockAvailable }} {{ viewingItem.footSide === 'PAR' ? 'pares' : 'un.' }}
               </span>
             </div>
             <div v-if="viewingItem.locations.length > 0" class="mt-2 text-[11px] text-slate-600">

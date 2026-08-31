@@ -1,5 +1,12 @@
 import { prisma } from '../prisma';
-import { CreateRequisitionDTO, RequisitionFilterDTO, FulfillRequisitionDTO, OperatorContext } from '../types/stock.dto';
+import { 
+  CreateRequisitionPayloadDTO, 
+  RequisitionItemInputDTO,
+  RequisitionFilterDTO, 
+  FulfillRequisitionDTO, 
+  CheckStockAvailabilityDTO,
+  OperatorContext 
+} from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 
 export class RequisitionService {
@@ -38,43 +45,10 @@ export class RequisitionService {
   }
 
   /**
-   * Cria uma nova requisição digital de reposição
-   */
-  async createRequisition(dto: CreateRequisitionDTO, context: OperatorContext) {
-    const { factoryUnitId, operatorId, operatorName } = context;
-
-    const code = await this.generateNextCode(factoryUnitId);
-
-    const requisition = await prisma.materialRequisition.create({
-      data: {
-        code,
-        requestSector: dto.requestSector as SectorType,
-        sku: dto.sku,
-        modelName: dto.modelName,
-        description: dto.description,
-        sizeGrade: dto.sizeGrade || null,
-        footSide: dto.footSide || null,
-        quantityRequested: dto.quantityRequested,
-        reason: dto.reason,
-        requesterId: operatorId || null,
-        requesterName: operatorName || 'Solicitante',
-        factoryUnitId,
-      },
-    });
-
-    const stockInfo = await this.checkStockAvailability(requisition, factoryUnitId);
-
-    return {
-      ...requisition,
-      stockAvailable: stockInfo.quantity,
-      locations: stockInfo.locations,
-    };
-  }
-
-  /**
    * Consulta a disponibilidade física de sobras no estoque em tempo real
+   * com cálculo inteligente de pares completos para calçados (E + D)
    */
-  private async checkStockAvailability(
+  async checkStockAvailability(
     req: {
       requestSector: SectorType;
       sku?: string | null;
@@ -84,7 +58,8 @@ export class RequisitionService {
       footSide?: string | null;
     },
     factoryUnitId: number
-  ): Promise<{ quantity: number; locations: string[] }> {
+  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number } }> {
+    // 1. CORTE: Matéria-Prima
     if (req.requestSector === 'CORTE') {
       const materials = await prisma.material.findMany({
         where: {
@@ -117,7 +92,102 @@ export class RequisitionService {
       };
     }
 
-    // Setores Multi-Setor (APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM)
+    // 2. APOIO: Peças Cortadas / Moldes (sem pé)
+    if (req.requestSector === 'APOIO') {
+      const stockItems = await prisma.stockItem.findMany({
+        where: {
+          factoryUnitId,
+          sector: 'APOIO',
+          quantity: { gt: 0 },
+          OR: [
+            ...(req.sku ? [
+              { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+              { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+            ] : []),
+            ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
+            { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
+          ],
+        },
+        include: {
+          locations: {
+            include: { location: true },
+          },
+        },
+      });
+
+      const totalQty = stockItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
+      const locSet = new Set<string>();
+      for (const item of stockItems) {
+        for (const locLink of item.locations) {
+          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (${locLink.quantity})`);
+          }
+        }
+      }
+
+      return {
+        quantity: totalQty,
+        locations: Array.from(locSet),
+      };
+    }
+
+    // 3. SETORES DE CALÇADOS (PRE_FABRICADO, EXPEDICAO, MONTAGEM)
+    // Se o operador solicitou PAR COMPLETO ('PAR'), calcular min(Saldo E, Saldo D)
+    if (req.footSide === 'PAR') {
+      const baseFilter = {
+        factoryUnitId,
+        sector: req.requestSector,
+        quantity: { gt: 0 },
+        OR: [
+          ...(req.sku ? [
+            { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+            { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+          ] : []),
+          ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
+          { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
+        ],
+        ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+      };
+
+      const [leftItems, rightItems] = await Promise.all([
+        prisma.stockItem.findMany({
+          where: { ...baseFilter, footSide: 'E' },
+          include: { locations: { include: { location: true } } },
+        }),
+        prisma.stockItem.findMany({
+          where: { ...baseFilter, footSide: 'D' },
+          include: { locations: { include: { location: true } } },
+        }),
+      ]);
+
+      const totalE = leftItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+      const totalD = rightItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+      const fullPairs = Math.min(totalE, totalD);
+
+      const locSet = new Set<string>();
+      for (const item of leftItems) {
+        for (const locLink of item.locations) {
+          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (E: ${locLink.quantity})`);
+          }
+        }
+      }
+      for (const item of rightItems) {
+        for (const locLink of item.locations) {
+          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (D: ${locLink.quantity})`);
+          }
+        }
+      }
+
+      return {
+        quantity: fullPairs,
+        locations: Array.from(locSet),
+        pairsDetail: { esq: totalE, dir: totalD },
+      };
+    }
+
+    // Requisição de Pé Individual ('E' ou 'D') ou sem especificação
     const stockItems = await prisma.stockItem.findMany({
       where: {
         factoryUnitId,
@@ -154,6 +224,91 @@ export class RequisitionService {
     return {
       quantity: totalQty,
       locations: Array.from(locSet),
+    };
+  }
+
+  /**
+   * Cria requisição digital de reposição com suporte a Multi-Itens e Trava de Saldo Zero
+   */
+  async createRequisition(payload: CreateRequisitionPayloadDTO, context: OperatorContext) {
+    const { factoryUnitId, operatorId, operatorName } = context;
+
+    const rawItems: RequisitionItemInputDTO[] = 
+      'items' in payload && Array.isArray((payload as any).items) 
+        ? (payload as any).items 
+        : [payload as RequisitionItemInputDTO];
+
+    if (rawItems.length === 0) {
+      throw new Error('A requisição deve conter pelo menos 1 item.');
+    }
+
+    // 1. TRAVA DE SALDO ZERO: Validar disponibilidade de todos os itens antes de abrir
+    for (const item of rawItems) {
+      const stockInfo = await this.checkStockAvailability(
+        {
+          requestSector: item.requestSector as SectorType,
+          sku: item.sku || null,
+          modelName: item.modelName || null,
+          description: item.description,
+          sizeGrade: item.sizeGrade || null,
+          footSide: item.footSide || null,
+        },
+        factoryUnitId
+      );
+
+      if (stockInfo.quantity <= 0) {
+        const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
+        throw new Error(
+          `MATERIAL INDISPONÍVEL EM SOBRAS DASS (${itemLabel}). Favor acionar a programação regular de corte/compra.`
+        );
+      }
+    }
+
+    // 2. Gerar código único compartilhado para a requisição
+    const code = await this.generateNextCode(factoryUnitId);
+
+    // 3. Persistir todos os itens dentro de uma transação
+    const createdItems = await prisma.$transaction(async (tx) => {
+      const results = [];
+      for (const item of rawItems) {
+        const created = await tx.materialRequisition.create({
+          data: {
+            code,
+            requestSector: item.requestSector as SectorType,
+            sku: item.sku || null,
+            modelName: item.modelName || null,
+            description: item.description,
+            sizeGrade: item.sizeGrade || null,
+            footSide: item.footSide || null,
+            quantityRequested: item.quantityRequested,
+            reason: item.reason,
+            requesterId: operatorId || null,
+            requesterName: operatorName || 'Solicitante',
+            factoryUnitId,
+          },
+        });
+        results.push(created);
+      }
+      return results;
+    });
+
+    // 4. Retornar itens enriquecidos com saldo
+    const enriched = await Promise.all(
+      createdItems.map(async (req) => {
+        const stockInfo = await this.checkStockAvailability(req, factoryUnitId);
+        return {
+          ...req,
+          stockAvailable: stockInfo.quantity,
+          locations: stockInfo.locations,
+          pairsDetail: stockInfo.pairsDetail,
+        };
+      })
+    );
+
+    return {
+      code,
+      totalItems: enriched.length,
+      items: enriched,
     };
   }
 
@@ -198,6 +353,7 @@ export class RequisitionService {
           ...req,
           stockAvailable: stockInfo.quantity,
           locations: stockInfo.locations,
+          pairsDetail: stockInfo.pairsDetail,
         };
       })
     );
@@ -213,6 +369,7 @@ export class RequisitionService {
 
   /**
    * Atendimento e baixa atômica de requisição (1 clique)
+   * com suporte a baixa coordenada de PAR COMPLETO (E + D)
    */
   async fulfillRequisition(id: string, dto: FulfillRequisitionDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
@@ -237,6 +394,7 @@ export class RequisitionService {
 
       let sourceLocationId = dto.locationId || null;
 
+      // 1. CORTE: Matéria-Prima
       if (req.requestSector === 'CORTE') {
         const material = await tx.material.findFirst({
           where: {
@@ -290,8 +448,104 @@ export class RequisitionService {
             operatorName: operatorName || 'Operador',
           },
         });
+      } else if (req.footSide === 'PAR') {
+        // 2. PAR COMPLETO: Debitar coordenadamente Pé Esquerdo ('E') E Pé Direito ('D')
+        const baseFilter = {
+          factoryUnitId,
+          sector: req.requestSector,
+          quantity: { gte: dto.quantity },
+          OR: [
+            ...(req.sku ? [
+              { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+              { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
+            ] : []),
+            ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
+            { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
+          ],
+          ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+        };
+
+        const leftItem = await tx.stockItem.findFirst({
+          where: { ...baseFilter, footSide: 'E' },
+          include: { locations: true },
+        });
+
+        const rightItem = await tx.stockItem.findFirst({
+          where: { ...baseFilter, footSide: 'D' },
+          include: { locations: true },
+        });
+
+        if (!leftItem || !rightItem) {
+          throw new Error('Saldo insuficiente de pares completos (E ou D ausente) para atender a requisição.');
+        }
+
+        // Debitar Pé Esquerdo
+        await tx.stockItem.update({
+          where: { id: leftItem.id },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+        if (leftItem.locations[0]?.locationId) {
+          await tx.stockItemLocation.update({
+            where: {
+              stockItemId_locationId: {
+                stockItemId: leftItem.id,
+                locationId: leftItem.locations[0].locationId,
+              },
+            },
+            data: {
+              quantity: Math.max(0, (leftItem.locations[0].quantity || 0) - dto.quantity),
+            },
+          });
+        }
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId,
+            stockItemId: leftItem.id,
+            sector: req.requestSector,
+            type: 'SAIDA_REQUISICAO',
+            quantity: dto.quantity,
+            sourceLocationId: leftItem.locations[0]?.locationId || null,
+            origem: 'Atendimento de Requisição (Pé Esquerdo)',
+            reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
+            operatorId: operatorId || null,
+            operatorName: operatorName || 'Operador',
+          },
+        });
+
+        // Debitar Pé Direito
+        await tx.stockItem.update({
+          where: { id: rightItem.id },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+        if (rightItem.locations[0]?.locationId) {
+          await tx.stockItemLocation.update({
+            where: {
+              stockItemId_locationId: {
+                stockItemId: rightItem.id,
+                locationId: rightItem.locations[0].locationId,
+              },
+            },
+            data: {
+              quantity: Math.max(0, (rightItem.locations[0].quantity || 0) - dto.quantity),
+            },
+          });
+        }
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId,
+            stockItemId: rightItem.id,
+            sector: req.requestSector,
+            type: 'SAIDA_REQUISICAO',
+            quantity: dto.quantity,
+            sourceLocationId: rightItem.locations[0]?.locationId || null,
+            origem: 'Atendimento de Requisição (Pé Direito)',
+            reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
+            operatorId: operatorId || null,
+            operatorName: operatorName || 'Operador',
+          },
+        });
       } else {
-        // Multi-Setor (APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM)
+        // 3. Multi-Setor Padrão (APOIO ou Pé Individual)
         const stockItem = await tx.stockItem.findFirst({
           where: {
             factoryUnitId,

@@ -412,7 +412,7 @@ model MaterialRequisition {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  @@unique([factoryUnitId, code])
+  @@index([factoryUnitId, code])
   @@index([factoryUnitId, status, createdAt(sort: Desc)])
   @@index([factoryUnitId, requestSector, status])
   @@index([factoryUnitId, sku])

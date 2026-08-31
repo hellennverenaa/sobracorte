@@ -1,13 +1,41 @@
 import { Request, Response } from 'express';
 import { RequisitionService } from '../services/RequisitionService';
-import { CreateRequisitionSchema, RequisitionFilterSchema } from '../types/stock.dto';
+import { 
+  CreateRequisitionPayloadSchema, 
+  CheckStockAvailabilitySchema,
+  RequisitionFilterSchema 
+} from '../types/stock.dto';
 import { ZodError } from 'zod';
 
 const requisitionService = new RequisitionService();
 
 export class RequisitionController {
   /**
-   * POST /requisitions - Criar solicitação digital de reposição
+   * POST /requisitions/check-availability - Verificar disponibilidade e saldo em tempo real
+   */
+  async checkAvailability(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const parsed = CheckStockAvailabilitySchema.parse(req.body);
+      const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id);
+      return res.json(result);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          error: 'Dados de verificação inválidos.',
+          details: error.flatten().fieldErrors,
+        });
+      }
+      console.error('Erro ao verificar disponibilidade de saldo:', error);
+      return res.status(500).json({ error: 'Erro ao verificar disponibilidade de estoque.' });
+    }
+  }
+
+  /**
+   * POST /requisitions - Criar solicitação digital de reposição (único ou multi-itens)
    */
   async create(req: Request, res: Response) {
     try {
@@ -15,7 +43,7 @@ export class RequisitionController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const parsed = CreateRequisitionSchema.parse(req.body);
+      const parsed = CreateRequisitionPayloadSchema.parse(req.body);
 
       const operatorContext = {
         factoryUnitId: req.tenant.id,
@@ -25,7 +53,7 @@ export class RequisitionController {
 
       const result = await requisitionService.createRequisition(parsed, operatorContext);
       return res.status(201).json(result);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos dados.',
@@ -33,7 +61,7 @@ export class RequisitionController {
         });
       }
       console.error('Erro ao criar requisição:', error);
-      return res.status(500).json({ error: 'Erro interno ao processar a requisição de reposição.' });
+      return res.status(400).json({ error: error.message || 'Erro interno ao processar a requisição de reposição.' });
     }
   }
 

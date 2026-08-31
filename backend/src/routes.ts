@@ -66,6 +66,7 @@ routes.get('/inventory/movements/history', requireAuth, stockMovementController.
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
 routes.post('/requisitions', requireAuth, requisitionController.create);
+routes.post('/requisitions/check-availability', requireAuth, requisitionController.checkAvailability);
 routes.get('/requisitions', requireAuth, requisitionController.index);
 routes.get('/requisitions/pending-count', requireAuth, requisitionController.pendingCount);
 routes.post('/requisitions/:id/fulfill', requireAuth, requireRole(['lider', 'movimentador']), requisitionController.fulfill);
