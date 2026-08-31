@@ -171,13 +171,15 @@ export const useStockStore = defineStore('stock', {
     },
 
     /**
-     * Busca de pares prontos para casar na Montagem (GET /inventory/mounting/matching-pairs)
+     * Busca de pares prontos para casar multi-setor (GET /inventory/mounting/matching-pairs)
      */
-    async fetchMatchingPairs() {
+    async fetchMatchingPairs(sector: SectorType = 'MONTAGEM') {
       this.loading = true;
       this.error = null;
       try {
-        const response = await api.get('/inventory/mounting/matching-pairs');
+        const response = await api.get('/inventory/mounting/matching-pairs', {
+          params: { sector },
+        });
         this.matchingPairs = response.data.pairs || [];
         this.matchingPairsCount = response.data.totalMatchingPairsCount || 0;
       } catch (err: any) {
@@ -195,13 +197,15 @@ export const useStockStore = defineStore('stock', {
       leftStockItemId: number;
       rightStockItemId: number;
       quantity: number;
+      sector?: SectorType;
       reason?: string;
     }) {
       this.loading = true;
       this.error = null;
       try {
         const response = await api.post('/inventory/mounting/execute-match', payload);
-        await Promise.all([this.fetchMatchingPairs(), this.fetchInventory()]);
+        const sec = payload.sector || 'MONTAGEM';
+        await Promise.all([this.fetchMatchingPairs(sec), this.fetchInventory({ sector: sec })]);
         return response.data;
       } catch (err: any) {
         console.error('Erro ao executar casamento:', err);

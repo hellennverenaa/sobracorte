@@ -270,6 +270,7 @@ ORDER BY "formablePairs" DESC;
 
 - **Cartão 6.1:** ✅ Alinhamento e Consistência Numérica da Montagem (`paresCasados = totalRegistrosCasamento / 2` em `DashboardController.ts` e `ReportController.ts`, saldos ativos de pés com saldo > 0 `esqCount`/`dirCount`, consistência visual em `Dashboard.vue` e `Reports.vue`) - **Concluído**
 - **Cartão 6.2:** ✅ Redesign Corporativo e Layout Formal de Impressão (`Reports.vue` com cabeçalho institucional DASS, sumário condensado monocromático em linha única, tabela A4 otimizada, tfoot consolidado, rodapé de auditoria e `@media print` sem quebra de margens) - **Concluído**
+- **Cartão 6.3:** ✅ Padronização de COD. PRODUTO / SKU, Gestão de Lado (ESQ/DIR) e Casamento Multi-Setor (`SectorFormInput.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `MountingPairService.ts` e `stock.dto.ts` com suporte unificado para Solas, Cabedais e Montagem) - **Concluído**
 
 
 

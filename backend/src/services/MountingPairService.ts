@@ -1,9 +1,12 @@
 import { prisma } from '../prisma';
 import { ExecuteMatchDTO, OperatorContext } from '../types/stock.dto';
+import { SectorType } from '../generated/prisma';
 
 export interface MatchingPairRawResult {
   sku: string;
   sizeGrade: string;
+  color?: string | null;
+  sector?: SectorType;
   leftFootStockItemId: number;
   leftQuantity: number;
   leftLocations: string | null;
@@ -15,13 +18,18 @@ export interface MatchingPairRawResult {
 
 export class MountingPairService {
   /**
-   * Localiza instantaneamente os pares casáveis de pés órfãos na Montagem
+   * Localiza instantaneamente os pares casáveis nos setores: MONTAGEM, PRE_FABRICADO (Solas) e EXPEDICAO (Cabedais)
    */
-  async findMatchingPairs(factoryUnitId: number): Promise<MatchingPairRawResult[]> {
+  async findMatchingPairs(
+    factoryUnitId: number,
+    sector: SectorType = 'MONTAGEM'
+  ): Promise<MatchingPairRawResult[]> {
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 
-        e."sku",
+        COALESCE(e."sku", e."productName", '-') AS "sku",
         e."sizeGrade",
+        e."color",
+        e.sector,
         e.id AS "leftFootStockItemId",
         e.quantity AS "leftQuantity",
         (
@@ -42,16 +50,18 @@ export class MountingPairService {
       FROM sobra_corte."StockItem" e
       INNER JOIN sobra_corte."StockItem" d
         ON e."factoryUnitId" = d."factoryUnitId"
-        AND e."sku" = d."sku"
+        AND e.sector = d.sector
+        AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
         AND e."sizeGrade" = d."sizeGrade"
+        AND COALESCE(e."color", '') = COALESCE(d."color", '')
       WHERE e."factoryUnitId" = ${factoryUnitId}
-        AND e.sector = 'MONTAGEM'
-        AND d.sector = 'MONTAGEM'
+        AND e.sector = ${sector}::sobra_corte."SectorType"
+        AND d.sector = ${sector}::sobra_corte."SectorType"
         AND e."footSide" = 'E'
         AND d."footSide" = 'D'
         AND e.quantity > 0
         AND d.quantity > 0
-      ORDER BY "formablePairs" DESC, e."sku" ASC;
+      ORDER BY "formablePairs" DESC, "sku" ASC;
     `;
 
     return rawPairs.map((p) => ({
@@ -65,7 +75,7 @@ export class MountingPairService {
   }
 
   /**
-   * Executa a baixa atômica de casamento de par validado pelo operador
+   * Executa a baixa atômica de casamento de par validado pelo operador em qualquer setor suportado
    */
   async executeMatch(dto: ExecuteMatchDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
@@ -75,11 +85,11 @@ export class MountingPairService {
       // 1. Buscar os dois itens com validação de tenant
       const [leftItem, rightItem] = await Promise.all([
         tx.stockItem.findFirst({
-          where: { id: leftStockItemId, factoryUnitId, sector: 'MONTAGEM' },
+          where: { id: leftStockItemId, factoryUnitId },
           include: { locations: true },
         }),
         tx.stockItem.findFirst({
-          where: { id: rightStockItemId, factoryUnitId, sector: 'MONTAGEM' },
+          where: { id: rightStockItemId, factoryUnitId },
           include: { locations: true },
         }),
       ]);
@@ -88,12 +98,19 @@ export class MountingPairService {
         throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
       }
 
+      if (leftItem.sector !== rightItem.sector) {
+        throw new Error('Os itens selecionados devem pertencer ao mesmo setor fabril.');
+      }
+
       if (leftItem.footSide !== 'E' || rightItem.footSide !== 'D') {
         throw new Error('Os itens selecionados devem ser compostos por 1 Pé Esquerdo (E) e 1 Pé Direito (D).');
       }
 
-      if (leftItem.sku !== rightItem.sku || leftItem.sizeGrade !== rightItem.sizeGrade) {
-        throw new Error('Os pés devem possuir o mesmo SKU e mesma Grade de numeração.');
+      const leftSku = leftItem.sku || leftItem.productName || '';
+      const rightSku = rightItem.sku || rightItem.productName || '';
+
+      if (leftSku !== rightSku || leftItem.sizeGrade !== rightItem.sizeGrade) {
+        throw new Error('Os itens devem possuir o mesmo COD. PRODUTO / SKU e mesma Grade de numeração.');
       }
 
       if (leftItem.quantity < quantity || rightItem.quantity < quantity) {
@@ -144,19 +161,26 @@ export class MountingPairService {
         });
       }
 
+      const sectorLabel =
+        leftItem.sector === 'PRE_FABRICADO'
+          ? 'Pré-Fabricado (Solas)'
+          : leftItem.sector === 'EXPEDICAO'
+          ? 'Cabedais'
+          : 'Montagem';
+
       // 4. Auditoria atômica: Registrar saída do Pé Esquerdo
       await tx.stockMovement.create({
         data: {
           factoryUnitId,
           stockItemId: leftItem.id,
-          sector: 'MONTAGEM',
+          sector: leftItem.sector,
           type: 'CASAMENTO_PAR',
           quantity,
           sourceLocationId: leftItem.locations[0]?.locationId || null,
-          origem: 'Casamento de Pares na Montagem',
+          origem: `Casamento de Pares no setor ${sectorLabel}`,
           reason: `Casamento de Par - Pé E casado com Pé D (ID ${rightItem.id}). Obs: ${reason}`,
           operatorId: operatorId || null,
-          operatorName: operatorName || 'Operador Montagem',
+          operatorName: operatorName || `Operador ${sectorLabel}`,
         },
       });
 
@@ -165,21 +189,22 @@ export class MountingPairService {
         data: {
           factoryUnitId,
           stockItemId: rightItem.id,
-          sector: 'MONTAGEM',
+          sector: rightItem.sector,
           type: 'CASAMENTO_PAR',
           quantity,
           sourceLocationId: rightItem.locations[0]?.locationId || null,
-          origem: 'Casamento de Pares na Montagem',
+          origem: `Casamento de Pares no setor ${sectorLabel}`,
           reason: `Casamento de Par - Pé D casado com Pé E (ID ${leftItem.id}). Obs: ${reason}`,
           operatorId: operatorId || null,
-          operatorName: operatorName || 'Operador Montagem',
+          operatorName: operatorName || `Operador ${sectorLabel}`,
         },
       });
 
       return {
         success: true,
         matchedPairs: quantity,
-        sku: leftItem.sku,
+        sector: leftItem.sector,
+        sku: leftSku,
         sizeGrade: leftItem.sizeGrade,
         remainingLeftQuantity: newLeftQty,
         remainingRightQuantity: newRightQty,

@@ -162,7 +162,7 @@ onMounted(() => {
             <option value="CORTE">CORTE</option>
             <option value="APOIO">APOIO</option>
             <option value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
-            <option value="EXPEDICAO">EXPEDIÇÃO (CABEDAIS)</option>
+            <option value="EXPEDICAO">CABEDAIS</option>
             <option value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
             <option value="CONFIGURACOES">CONFIGURAÇÕES (DOMÍNIO)</option>
           </select>

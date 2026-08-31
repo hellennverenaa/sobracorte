@@ -69,7 +69,7 @@ const sectors = [
   { value: 'CORTE', label: 'Corte (Matéria-Prima)' },
   { value: 'APOIO', label: 'Apoio (Moldes/Peças)' },
   { value: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)' },
-  { value: 'EXPEDICAO', label: 'Expedição (Cabedais)' },
+  { value: 'EXPEDICAO', label: 'Cabedais' },
   { value: 'MONTAGEM', label: 'Montagem (Pés Órfãos)' },
 ]
 
@@ -78,7 +78,7 @@ const operationTypes = [
   { value: 'ENTRADA', label: 'Entradas de Sobras' },
   { value: 'SAIDA', label: 'Saídas / Reaproveitamento (Inclui Casamentos)' },
   { value: 'TRANSFERENCIA', label: 'Transferências entre Prateleiras' },
-  { value: 'CASAMENTO_PAR', label: 'Casamento de Pares (Exclusivo Montagem)' },
+  { value: 'CASAMENTO_PAR', label: 'Casamento de Pares (Multi-Setor)' },
   { value: 'REFUGO', label: 'Refugos / Descartes' },
 ]
 

@@ -51,7 +51,7 @@ const sectors = [
   { id: 'CORTE' as SectorType, label: 'Corte (Matéria-Prima)', icon: Scissors },
   { id: 'APOIO' as SectorType, label: 'Apoio (Peças / Moldes)', icon: Wrench },
   { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', icon: Layers },
-  { id: 'EXPEDICAO' as SectorType, label: 'Expedição (Cabedais)', icon: Box },
+  { id: 'EXPEDICAO' as SectorType, label: 'Cabedais', icon: Box },
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', icon: Footprints },
 ];
 
@@ -219,7 +219,7 @@ async function handleSubmit() {
 
     case 'PRE_FABRICADO':
       if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'Produto, Grade e Cor são obrigatórios.';
+        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Cor são obrigatórios.';
         return;
       }
       payloadItem = {
@@ -227,12 +227,13 @@ async function handleSubmit() {
         productName: formData.productName.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+        footSide: formData.footSide,
       };
       break;
 
     case 'EXPEDICAO':
       if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'SKU, Grade e Cor são obrigatórios.';
+        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Cor são obrigatórios.';
         return;
       }
       payloadItem = {
@@ -240,12 +241,13 @@ async function handleSubmit() {
         sku: formData.sku.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+        footSide: formData.footSide,
       };
       break;
 
     case 'MONTAGEM':
       if (!formData.sku.trim() || !formData.sizeGrade.trim()) {
-        errorMessage.value = 'SKU e Grade são obrigatórios.';
+        errorMessage.value = 'COD. PRODUTO / SKU e Grade são obrigatórios.';
         return;
       }
       payloadItem = {
@@ -326,34 +328,34 @@ onMounted(async () => {
       <!-- 1. CORTE -->
       <div v-if="activeSector === 'CORTE'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código Matéria-Prima *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Material *</label>
           <input
             ref="firstInputRef"
             v-model="formData.code"
             type="text"
-            placeholder="Ex: MP-COU-001"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
+            placeholder="Ex: MAT-COU-01"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
             required
           />
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição / Nome *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome / Descrição *</label>
           <input
             v-model="formData.name"
             type="text"
-            placeholder="Ex: Couro Bovino Preto 1.2mm"
+            placeholder="Ex: Couro Nobuck Preto"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
             required
           />
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria (Dinâmica) *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo / Categoria *</label>
           <select
             v-model="formData.type"
             @change="onCategoryChange"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm"
             required
           >
             <option v-for="cat in dbCategories" :key="cat.id" :value="cat.name">
@@ -366,14 +368,14 @@ onMounted(async () => {
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
             <span>Unidade de Medida *</span>
-            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 font-bold flex items-center gap-0.5">
-              <Lock class="w-3 h-3" /> Travada
+            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 flex items-center gap-0.5" title="Unidade fixada pela categoria">
+              <Lock class="w-3 h-3" /> Fixa
             </span>
           </label>
           <select
             v-model="formData.unit"
             :disabled="isUnitLocked"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
             required
           >
             <option v-for="unit in dbUnits" :key="unit.id" :value="unit.symbol">
@@ -387,7 +389,7 @@ onMounted(async () => {
       <!-- 2. APOIO -->
       <div v-if="activeSector === 'APOIO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código Peça / Molde *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
             v-model="formData.pieceCode"
@@ -433,10 +435,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 3. PRÉ-FABRICADO -->
-      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- 3. PRÉ-FABRICADO (Solas) -->
+      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome / Linha do Produto *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
             v-model="formData.productName"
@@ -469,12 +471,38 @@ onMounted(async () => {
             required
           />
         </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              @click="formData.footSide = 'E'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'E' 
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              PÉ ESQUERDO (E)
+            </button>
+            <button
+              type="button"
+              @click="formData.footSide = 'D'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'D' 
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              PÉ DIREITO (D)
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- 4. EXPEDIÇÃO -->
-      <div v-if="activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- 4. EXPEDIÇÃO (Cabedais) -->
+      <div v-if="activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">SKU do Cabedal *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
             v-model="formData.sku"
@@ -507,12 +535,38 @@ onMounted(async () => {
             required
           />
         </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              @click="formData.footSide = 'E'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'E' 
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              PÉ ESQUERDO (E)
+            </button>
+            <button
+              type="button"
+              @click="formData.footSide = 'D'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'D' 
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              PÉ DIREITO (D)
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- 5. MONTAGEM -->
-      <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">SKU / Modelo do Calçado *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
             v-model="formData.sku"

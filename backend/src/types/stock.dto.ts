@@ -57,9 +57,10 @@ export const ApoioItemSchema = z.object({
 // 🔹 3. PRÉ-FABRICADO: Solas por Produto
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
-  productName: z.string().trim().min(1, 'Nome/Linha do Produto é obrigatório'),
+  productName: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
+  footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
@@ -68,9 +69,10 @@ export const PreFabricadoItemSchema = z.object({
 // 🔹 4. EXPEDIÇÃO: Cabedais por SKU
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
-  sku: z.string().trim().min(1, 'SKU do Cabedal é obrigatório'),
+  sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
+  footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
@@ -79,7 +81,7 @@ export const ExpedicaoItemSchema = z.object({
 // 🔹 5. MONTAGEM: Pés Prontos / Órfãos
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
-  sku: z.string().trim().min(1, 'SKU do Calçado é obrigatório'),
+  sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
@@ -101,11 +103,12 @@ export const BatchCreateStockItemSchema = z.object({
   items: z.array(StockItemUnionSchema).min(1, 'Ao menos um item deve ser informado no lote'),
 });
 
-// 👞 Casamento de Pares na Montagem
+// 👞 Casamento de Pares Multi-Setor (Montagem, Solas, Cabedais)
 export const ExecuteMatchSchema = z.object({
   leftStockItemId: z.number().int().positive('ID do Pé Esquerdo é inválido'),
   rightStockItemId: z.number().int().positive('ID do Pé Direito é inválido'),
   quantity: z.coerce.number().positive('Quantidade a casar deve ser maior que zero'),
+  sector: SectorEnum.optional().default('MONTAGEM'),
   reason: z.string().trim().optional().default('Casamento de par confirmado pelo operador'),
 });
 

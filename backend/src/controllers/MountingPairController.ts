@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import { MountingPairService } from '../services/MountingPairService';
 import { ExecuteMatchSchema } from '../types/stock.dto';
+import { SectorType } from '../generated/prisma';
 import { ZodError } from 'zod';
 
 const mountingPairService = new MountingPairService();
 
 export class MountingPairController {
   /**
-   * GET /inventory/mounting/matching-pairs - Listagem de pares casáveis na Montagem
+   * GET /inventory/mounting/matching-pairs - Listagem de pares casáveis multi-setor
    */
   async getMatchingPairs(req: Request, res: Response) {
     try {
@@ -15,14 +16,21 @@ export class MountingPairController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const pairs = await mountingPairService.findMatchingPairs(req.tenant.id);
+      const sectorParam = (req.query.sector as string)?.toUpperCase();
+      const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'EXPEDICAO'];
+      const sector: SectorType = validSectors.includes(sectorParam as SectorType)
+        ? (sectorParam as SectorType)
+        : 'MONTAGEM';
+
+      const pairs = await mountingPairService.findMatchingPairs(req.tenant.id, sector);
       return res.json({
+        sector,
         totalMatchingPairsCount: pairs.length,
         pairs,
       });
     } catch (error) {
-      console.error('Erro ao buscar pares casáveis na montagem:', error);
-      return res.status(500).json({ error: 'Erro interno ao consultar pares órfãos casáveis.' });
+      console.error('Erro ao buscar pares casáveis:', error);
+      return res.status(500).json({ error: 'Erro interno ao consultar pares casáveis.' });
     }
   }
 
@@ -55,7 +63,7 @@ export class MountingPairController {
       if (error instanceof Error) {
         return res.status(400).json({ error: error.message });
       }
-      console.error('Erro ao executar casamento de par na montagem:', error);
+      console.error('Erro ao executar casamento de par:', error);
       return res.status(500).json({ error: 'Erro interno ao processar o casamento de par.' });
     }
   }

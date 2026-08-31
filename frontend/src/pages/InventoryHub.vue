@@ -70,7 +70,7 @@ const tabs = [
   { id: 'CORTE' as SectorType, label: 'Corte', countKey: 'totalCorte', icon: Scissors },
   { id: 'APOIO' as SectorType, label: 'Apoio', countKey: 'totalApoio', icon: Wrench },
   { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', countKey: 'totalPreFabricado', icon: Layers },
-  { id: 'EXPEDICAO' as SectorType, label: 'Expedição (Cabedais)', countKey: 'totalExpedicao', icon: Box },
+  { id: 'EXPEDICAO' as SectorType, label: 'Cabedais', countKey: 'totalExpedicao', icon: Box },
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', countKey: 'totalMontagem', icon: Footprints },
 ];
 
@@ -435,7 +435,7 @@ onUnmounted(() => {
 
               <!-- Headers APOIO -->
               <tr v-if="activeTab === 'APOIO'">
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Cód. Peça</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição da Peça</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Material / Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
@@ -446,19 +446,21 @@ onUnmounted(() => {
 
               <!-- Headers PRÉ-FABRICADO -->
               <tr v-if="activeTab === 'PRE_FABRICADO'">
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Produto / Linha</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Cor do Solado</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo (Pares)</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo (Pares/Pés)</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
               <!-- Headers EXPEDIÇÃO -->
               <tr v-if="activeTab === 'EXPEDICAO'">
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">SKU Cabedal</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Quantidade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
@@ -466,7 +468,7 @@ onUnmounted(() => {
 
               <!-- Headers MONTAGEM -->
               <tr v-if="activeTab === 'MONTAGEM'">
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">SKU Calçado</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
@@ -528,6 +530,20 @@ onUnmounted(() => {
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
+                    <span
+                      v-if="item.footSide"
+                      class="px-2 py-0.5 text-xs rounded-full font-bold border"
+                      :class="item.footSide === 'E'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-orange-50 text-orange-700 border-orange-200'"
+                    >
+                      {{ item.footSide === 'E' ? 'PÉ ESQUERDO (E)' : 'PÉ DIREITO (D)' }}
+                    </span>
+                    <span v-else class="text-xs text-gray-400 font-medium">
+                      PAR COMPLETO
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
                     <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
@@ -535,7 +551,7 @@ onUnmounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      PARES
+                      {{ item.footSide ? 'PÉS' : 'PARES' }}
                     </span>
                   </td>
                 </template>
@@ -546,6 +562,20 @@ onUnmounted(() => {
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
+                    <span
+                      v-if="item.footSide"
+                      class="px-2 py-0.5 text-xs rounded-full font-bold border"
+                      :class="item.footSide === 'E'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : 'bg-orange-50 text-orange-700 border-orange-200'"
+                    >
+                      {{ item.footSide === 'E' ? 'PÉ ESQUERDO (E)' : 'PÉ DIREITO (D)' }}
+                    </span>
+                    <span v-else class="text-xs text-gray-400 font-medium">
+                      PAR / GERAL
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
                     <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
@@ -553,7 +583,7 @@ onUnmounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      UN
+                      {{ item.footSide ? 'PÉS' : 'UN' }}
                     </span>
                   </td>
                 </template>
@@ -611,7 +641,7 @@ onUnmounted(() => {
               </tr>
 
               <tr v-if="stockStore.currentSectorData.data.length === 0">
-                <td colspan="7" class="p-8 text-center text-gray-400 font-medium text-sm">
+                <td colspan="8" class="p-8 text-center text-gray-400 font-medium text-sm">
                   Nenhum item encontrado para este setor.
                 </td>
               </tr>

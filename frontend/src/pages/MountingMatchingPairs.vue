@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import Layout from '@/components/Layout.vue';
-import { useStockStore, MatchingPair } from '@/stores/stockStore';
+import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { 
-  Footprints, RefreshCw, CheckCircle2, AlertCircle, 
+  Footprints, Layers, Box, RefreshCw, CheckCircle2, AlertCircle, 
   MapPin, Check, ArrowRight
 } from 'lucide-vue-next';
 
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
+const pairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
+  { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Pés Órfãos', icon: Footprints },
+  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Solas', icon: Layers },
+  { id: 'EXPEDICAO', label: 'Cabedais', sublabel: 'Cabedais Avulsos', icon: Box },
+];
+
+const activeSector = ref<SectorType>('MONTAGEM');
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);
 const matchReason = ref('');
@@ -31,13 +38,19 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 }
 
 async function loadPairs() {
-  await stockStore.fetchMatchingPairs();
+  await stockStore.fetchMatchingPairs(activeSector.value);
+}
+
+function selectSectorTab(sector: SectorType) {
+  activeSector.value = sector;
+  loadPairs();
 }
 
 function openConfirmModal(pair: MatchingPair) {
   selectedPair.value = pair;
   matchQuantity.value = Math.min(1, pair.formablePairs);
-  matchReason.value = 'Pares retirados fisicamente das prateleiras e encaminhados para embalagem';
+  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : activeSector.value === 'EXPEDICAO' ? 'Cabedais' : 'Montagem';
+  matchReason.value = `Pares de ${sectorLabel} retirados fisicamente das prateleiras e encaminhados para a produção`;
   showConfirmModal.value = true;
 }
 
@@ -55,9 +68,10 @@ async function handleExecuteMatch() {
       leftStockItemId: selectedPair.value.leftFootStockItemId,
       rightStockItemId: selectedPair.value.rightFootStockItemId,
       quantity: Number(matchQuantity.value),
+      sector: activeSector.value,
       reason: matchReason.value,
     });
-    showToast(`${matchQuantity.value} par(es) casado(s) e baixado(s) com sucesso!`);
+    showToast(`${matchQuantity.value} par(es) casado(s) e baixado(s) com sucesso no setor ${activeSector.value}!`);
     showConfirmModal.value = false;
     selectedPair.value = null;
   } catch (err: any) {
@@ -89,16 +103,36 @@ onMounted(() => {
       <!-- Top Bar -->
       <div class="flex flex-col sm:flex-row gap-3 items-center justify-between mx-4 my-4">
         <div>
-          <h1 class="text-xl font-bold text-gray-800">Casamento de Pares Órfãos (Montagem)</h1>
-          <p class="text-xs text-gray-500">Localização física inteligente de pés avulsos para recuperação de calçados completos</p>
+          <h1 class="text-xl font-bold text-gray-800">Casamento de Pares Multi-Setor</h1>
+          <p class="text-xs text-gray-500">Localização física inteligente de lados esquerdo e direito (Solas, Cabedais e Montagem)</p>
         </div>
 
+        <div class="flex items-center gap-3">
+          <button
+            @click="loadPairs"
+            class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': stockStore.loading }" />
+            <span>Atualizar Pares</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Seletor de Setores (Tabs Industriais) -->
+      <div class="mx-4 mb-4 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
         <button
-          @click="loadPairs"
-          class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
+          v-for="sec in pairSectors"
+          :key="sec.id"
+          @click="selectSectorTab(sec.id)"
+          type="button"
+          class="flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-all border"
+          :class="activeSector === sec.id
+            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900'"
         >
-          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': stockStore.loading }" />
-          <span>Atualizar Pares</span>
+          <component :is="sec.icon" class="w-4 h-4" />
+          <span>{{ sec.label }}</span>
+          <span class="text-[10px] font-normal opacity-80">({{ sec.sublabel }})</span>
         </button>
       </div>
 
@@ -107,14 +141,14 @@ onMounted(() => {
         <div class="space-y-1">
           <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded font-bold border border-blue-200">
-              OPORTUNIDADE DE RECUPERAÇÃO
+              OPORTUNIDADE DE RECUPERAÇÃO — {{ activeSector }}
             </span>
             <span class="text-sm font-bold text-gray-800">
               {{ stockStore.matchingPairsCount }} combinações prontas para casar
             </span>
           </div>
           <p class="text-xs text-gray-500">
-            Localize os pés nas prateleiras indicadas, retire fisicamente e confirme para liberar o par completo para embalagem.
+            Localize os itens nas prateleiras indicadas, retire fisicamente e confirme para liberar o par completo.
           </p>
         </div>
 
@@ -131,14 +165,17 @@ onMounted(() => {
         <div v-if="stockStore.matchingPairs.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
             v-for="pair in stockStore.matchingPairs"
-            :key="pair.sku + pair.sizeGrade"
+            :key="pair.sku + pair.sizeGrade + (pair.color || '')"
             class="bg-white rounded shadow-sm border border-gray-200 p-4 space-y-3 hover:border-blue-300 transition-colors"
           >
             <!-- Topo do Card -->
             <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
               <div>
-                <span class="text-[11px] font-bold text-gray-400 uppercase">SKU / Modelo</span>
+                <span class="text-[11px] font-bold text-gray-400 uppercase">COD. PRODUTO / SKU</span>
                 <h3 class="font-mono text-base font-bold text-blue-600">{{ pair.sku }}</h3>
+                <span v-if="pair.color" class="text-xs text-gray-500 font-medium block">
+                  Cor: {{ pair.color }}
+                </span>
               </div>
               <div class="text-right">
                 <span class="text-[11px] font-bold text-gray-400 uppercase">Grade</span>
@@ -208,10 +245,10 @@ onMounted(() => {
           v-else-if="!stockStore.loading"
           class="bg-white rounded shadow-sm border border-gray-200 p-12 text-center space-y-2"
         >
-          <Footprints class="w-10 h-10 text-gray-300 mx-auto" />
-          <h3 class="text-sm font-bold text-gray-700">Nenhum par órfão casável no momento</h3>
+          <component :is="activeSector === 'PRE_FABRICADO' ? Layers : activeSector === 'EXPEDICAO' ? Box : Footprints" class="w-10 h-10 text-gray-300 mx-auto" />
+          <h3 class="text-sm font-bold text-gray-700">Nenhum par casável no momento para o setor {{ activeSector }}</h3>
           <p class="text-xs text-gray-500 max-w-md mx-auto">
-            Assim que novos pés esquerdos e direitos de mesmo SKU e numeração derem entrada no setor de Montagem, eles aparecerão aqui para casamento.
+            Assim que itens de lados esquerdo e direito correspondentes (mesmo COD. PRODUTO / SKU e numeração) derem entrada no setor selecionado, eles aparecerão aqui para casamento.
           </p>
         </div>
       </div>
@@ -220,7 +257,7 @@ onMounted(() => {
       <div v-if="showConfirmModal && selectedPair" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
           <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h3 class="font-bold text-gray-800">Confirmar Casamento de Par</h3>
+            <h3 class="font-bold text-gray-800">Confirmar Casamento de Par ({{ activeSector }})</h3>
             <button @click="showConfirmModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
               &times;
             </button>
@@ -229,8 +266,12 @@ onMounted(() => {
           <div class="p-6 space-y-4 text-xs">
             <div class="bg-gray-50 border border-gray-200 p-3 rounded space-y-2">
               <div class="flex justify-between font-bold">
-                <span class="text-gray-500 uppercase">Modelo:</span>
+                <span class="text-gray-500 uppercase">COD. PRODUTO / SKU:</span>
                 <span class="text-blue-600 font-mono">{{ selectedPair.sku }}</span>
+              </div>
+              <div v-if="selectedPair.color" class="flex justify-between font-bold">
+                <span class="text-gray-500 uppercase">Cor:</span>
+                <span class="text-gray-800">{{ selectedPair.color }}</span>
               </div>
               <div class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">Grade:</span>

@@ -144,6 +144,7 @@ export class StockItemService {
                 productName: item.productName.trim().toUpperCase(),
                 color: item.color.trim().toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
+                footSide: item.footSide || null,
               };
               break;
 
@@ -153,6 +154,7 @@ export class StockItemService {
                 sku: item.sku.trim().toUpperCase(),
                 color: item.color.trim().toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
+                footSide: item.footSide || null,
               };
               break;
 

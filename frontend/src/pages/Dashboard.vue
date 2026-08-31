@@ -18,7 +18,7 @@ const sectorFilterOptions = [
   { id: 'CORTE',          label: 'Corte (Matéria-Prima)',   icon: Scissors },
   { id: 'APOIO',          label: 'Apoio (Moldes/Peças)',    icon: Box },
   { id: 'PRE_FABRICADO',  label: 'Pré-Fabricado (Solas)',   icon: Package },
-  { id: 'EXPEDICAO',      label: 'Expedição (Cabedais)',    icon: Layers },
+  { id: 'EXPEDICAO',      label: 'Cabedais',                icon: Layers },
   { id: 'MONTAGEM',       label: 'Montagem (Pés Órfãos)',   icon: Footprints },
 ]
 
