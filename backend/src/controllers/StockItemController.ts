@@ -47,7 +47,8 @@ export class StockItemController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const { q, sector, page, limit } = req.query;
+      const { q, search, sector, page, limit } = req.query;
+      const searchQuery = q || search;
 
       const operatorContext = {
         factoryUnitId: req.tenant.id,
@@ -56,7 +57,7 @@ export class StockItemController {
       };
 
       const params = {
-        q: q ? String(q) : undefined,
+        q: searchQuery ? String(searchQuery) : undefined,
         sector: sector ? (String(sector).toUpperCase() as SectorType) : undefined,
         page: page ? Number(page) : 1,
         limit: limit ? Number(limit) : 50,

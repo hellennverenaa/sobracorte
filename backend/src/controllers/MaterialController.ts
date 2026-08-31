@@ -15,14 +15,21 @@ export class MaterialController {
     try {
       const { q, _page, _limit } = req.query;
       // `factoryUnitId` é injetado automaticamente pelo Prisma $extends (tenantContext).
-      // Não é necessário incluí-lo manualmente aqui.
+      const rawSearch = q ? String(q).trim() : '';
+      const searchTerms = rawSearch
+        ? rawSearch.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean)
+        : [];
+
       const whereClause: Prisma.MaterialWhereInput = {
-        ...(q ? {
-          OR: [
-            { name: { contains: String(q), mode: 'insensitive' } },
-            { code: { contains: String(q), mode: 'insensitive' } }
-          ]
-        } : {}),
+        ...(searchTerms.length > 0
+          ? {
+              OR: searchTerms.flatMap((term) => [
+                { name: { contains: term, mode: 'insensitive' as Prisma.QueryMode } },
+                { code: { contains: term, mode: 'insensitive' as Prisma.QueryMode } },
+                { type: { contains: term, mode: 'insensitive' as Prisma.QueryMode } },
+              ]),
+            }
+          : {}),
       };
 
       const totalItems = await prisma.material.count({ where: whereClause });

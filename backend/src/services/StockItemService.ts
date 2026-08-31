@@ -233,65 +233,68 @@ export class StockItemService {
     const { q, sector, page = 1, limit = 50 } = params;
     const skip = (page - 1) * limit;
 
-    const searchTerm = q ? q.trim() : '';
+    const rawSearch = q ? q.trim() : '';
+    const searchTerms = rawSearch
+      ? rawSearch.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean)
+      : [];
 
     const buildMaterialWhere = () => {
       const base: any = { factoryUnitId };
-      if (!searchTerm) return base;
+      if (searchTerms.length === 0) return base;
       return {
         ...base,
-        OR: [
-          { code: { contains: searchTerm, mode: 'insensitive' } },
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          { type: { contains: searchTerm, mode: 'insensitive' } },
-        ],
+        OR: searchTerms.flatMap((term) => [
+          { code: { contains: term, mode: 'insensitive' } },
+          { name: { contains: term, mode: 'insensitive' } },
+          { type: { contains: term, mode: 'insensitive' } },
+        ]),
       };
     };
 
     const buildSectorWhere = (sec: SectorType) => {
       const base: any = { factoryUnitId, sector: sec };
-      if (!searchTerm) return base;
+      if (searchTerms.length === 0) return base;
 
       switch (sec) {
         case 'APOIO':
           return {
             ...base,
-            OR: [
-              { pieceCode: { contains: searchTerm, mode: 'insensitive' } },
-              { productName: { contains: searchTerm, mode: 'insensitive' } },
-              { description: { contains: searchTerm, mode: 'insensitive' } },
-              { materialColor: { contains: searchTerm, mode: 'insensitive' } },
-              { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
-            ],
+            OR: searchTerms.flatMap((term) => [
+              { pieceCode: { contains: term, mode: 'insensitive' } },
+              { productName: { contains: term, mode: 'insensitive' } },
+              { description: { contains: term, mode: 'insensitive' } },
+              { materialColor: { contains: term, mode: 'insensitive' } },
+              { sizeGrade: { contains: term, mode: 'insensitive' } },
+            ]),
           };
         case 'PRE_FABRICADO':
           return {
             ...base,
-            OR: [
-              { sku: { contains: searchTerm, mode: 'insensitive' } },
-              { productName: { contains: searchTerm, mode: 'insensitive' } },
-              { color: { contains: searchTerm, mode: 'insensitive' } },
-              { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
-            ],
+            OR: searchTerms.flatMap((term) => [
+              { sku: { contains: term, mode: 'insensitive' } },
+              { productName: { contains: term, mode: 'insensitive' } },
+              { color: { contains: term, mode: 'insensitive' } },
+              { sizeGrade: { contains: term, mode: 'insensitive' } },
+            ]),
           };
         case 'EXPEDICAO':
           return {
             ...base,
-            OR: [
-              { sku: { contains: searchTerm, mode: 'insensitive' } },
-              { productName: { contains: searchTerm, mode: 'insensitive' } },
-              { color: { contains: searchTerm, mode: 'insensitive' } },
-              { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
-            ],
+            OR: searchTerms.flatMap((term) => [
+              { sku: { contains: term, mode: 'insensitive' } },
+              { productName: { contains: term, mode: 'insensitive' } },
+              { color: { contains: term, mode: 'insensitive' } },
+              { sizeGrade: { contains: term, mode: 'insensitive' } },
+            ]),
           };
         case 'MONTAGEM':
           return {
             ...base,
-            OR: [
-              { sku: { contains: searchTerm, mode: 'insensitive' } },
-              { productName: { contains: searchTerm, mode: 'insensitive' } },
-              { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
-            ],
+            OR: searchTerms.flatMap((term) => [
+              { sku: { contains: term, mode: 'insensitive' } },
+              { productName: { contains: term, mode: 'insensitive' } },
+              { sizeGrade: { contains: term, mode: 'insensitive' } },
+            ]),
           };
         default:
           return base;

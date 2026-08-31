@@ -10,7 +10,7 @@ import {
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
   ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -111,42 +111,36 @@ async function loadData(page: number = currentPage.value) {
   });
 }
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-function handleSearch() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
-
+function handleExplicitSearch() {
+  currentPage.value = 1;
   const query = search.value.trim();
-
-  // Se o usuário limpou o campo, executa a busca imediatamente sem aguardar o debounce
-  if (!query) {
-    currentPage.value = 1;
-    router.replace({
-      query: {
-        ...route.query,
-        q: undefined,
-        page: 1,
-      },
-    });
-    loadData(1);
-    return;
-  }
-
-  // Debounce de 350ms para aguardar o término da digitação
-  debounceTimer = setTimeout(() => {
-    currentPage.value = 1;
-    router.replace({
-      query: {
-        ...route.query,
-        q: query,
-        page: 1,
-      },
-    });
-    loadData(1);
-  }, 350);
+  router.replace({
+    query: {
+      ...route.query,
+      q: query || undefined,
+      page: 1,
+    },
+  });
+  loadData(1);
 }
+
+function clearSearch() {
+  search.value = '';
+  currentPage.value = 1;
+  router.replace({
+    query: {
+      ...route.query,
+      q: undefined,
+      page: 1,
+    },
+  });
+  loadData(1);
+}
+
+const searchTermsCount = computed(() => {
+  if (!search.value) return 0;
+  return search.value.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean).length;
+});
 
 // Opções de prateleiras onde o item selecionado possui vínculo
 const itemAllocatedLocations = computed(() => {
@@ -373,12 +367,13 @@ onUnmounted(() => {
         <SectorFormInput @saved="() => { showToast('Entrada realizada com sucesso!'); loadData(); }" @cancel="showEntryForm = false" />
       </div>
 
-      <!-- Barra de Filtros Padrão Materials.vue -->
-      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex flex-col md:flex-row gap-4">
+      <!-- Barra de Filtros e Busca Multi-Itens Sob Demanda -->
+      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex flex-col md:flex-row gap-4 items-end">
         <div class="w-full md:w-1/4">
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor Ativo</label>
           <select
             v-model="activeTab"
+            @change="selectTab(activeTab)"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
           >
             <option v-for="t in tabs" :key="t.id" :value="t.id">
@@ -388,14 +383,47 @@ onUnmounted(() => {
         </div>
 
         <div class="w-full md:w-3/4">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar</label>
-          <input
-            v-model="search"
-            @input="handleSearch"
-            type="text"
-            placeholder="Pesquise por código, nome, SKU, grade ou modelo..."
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 text-sm"
-          />
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-gray-500 uppercase">
+              Busca Multi-Itens (Cole SKUs / Códigos)
+            </label>
+            <span
+              v-if="searchTermsCount > 1"
+              class="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200"
+            >
+              {{ searchTermsCount }} códigos filtrados
+            </span>
+          </div>
+
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input
+                v-model="search"
+                @keyup.enter="handleExplicitSearch"
+                type="text"
+                placeholder="Cole múltiplos SKUs separados por vírgula, espaço ou quebra de linha..."
+                class="w-full border border-gray-200 py-2 pl-3 pr-8 rounded outline-none focus:border-blue-500 text-sm uppercase bg-white"
+              />
+              <button
+                v-if="search"
+                type="button"
+                @click="clearSearch"
+                class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                title="Limpar Filtro"
+              >
+                <X class="w-4 h-4" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              @click="handleExplicitSearch"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
+            >
+              <Search class="w-4 h-4" />
+              <span>Buscar Itens</span>
+            </button>
+          </div>
         </div>
       </div>
 

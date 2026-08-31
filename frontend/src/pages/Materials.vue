@@ -17,18 +17,55 @@
         </button>
       </div>
 
-      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex gap-4">
-        <div class="w-1/3">
+      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex flex-col md:flex-row gap-4 items-end">
+        <div class="w-full md:w-1/3">
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria</label>
           <select v-model="selectedCategory"
-            class="w-full border p-2 rounded outline-none focus:border-blue-500 bg-white">
+            class="w-full border p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
             <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
           </select>
         </div>
-        <div class="w-2/3">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar</label>
-          <input v-model="search" type="text" placeholder="Pesquise por código ou nome..."
-            class="w-full border p-2 rounded outline-none focus:border-blue-500" />
+        <div class="w-full md:w-2/3">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-bold text-gray-500 uppercase">
+              Buscar Multi-Itens (Cole códigos / nomes)
+            </label>
+            <span
+              v-if="searchTermsCount > 1"
+              class="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200"
+            >
+              {{ searchTermsCount }} termos filtrados
+            </span>
+          </div>
+
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input
+                v-model="search"
+                @keyup.enter="handleExplicitSearch"
+                type="text"
+                placeholder="Cole múltiplos códigos separados por vírgula, espaço ou linha..."
+                class="w-full border border-gray-200 py-2 pl-3 pr-8 rounded outline-none focus:border-blue-500 text-sm uppercase bg-white"
+              />
+              <button
+                v-if="search"
+                type="button"
+                @click="clearSearch"
+                class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                title="Limpar Filtro"
+              >
+                &times;
+              </button>
+            </div>
+
+            <button
+              type="button"
+              @click="handleExplicitSearch"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
+            >
+              <span>Buscar Itens</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -436,14 +473,36 @@ async function fetchMaterials(config = {}) {
   }
 }
 
+const appliedSearch = ref("");
+
+function handleExplicitSearch() {
+  appliedSearch.value = search.value.trim();
+}
+
+function clearSearch() {
+  search.value = "";
+  appliedSearch.value = "";
+}
+
+const searchTermsCount = computed(() => {
+  if (!search.value) return 0;
+  return search.value.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean).length;
+});
+
 const paginatedMaterials = computed(() => {
+  const terms = appliedSearch.value
+    ? appliedSearch.value.toLowerCase().split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean)
+    : [];
+
   return materials.value
     .filter((m) => {
-      const term = search.value.toLowerCase();
-      return (
-        (selectedCategory.value === "Todos" || m.type === selectedCategory.value) &&
-        (m.name.toLowerCase().includes(term) || String(m.code).toLowerCase().includes(term))
-      );
+      const matchCategory = selectedCategory.value === "Todos" || m.type === selectedCategory.value;
+      if (!matchCategory) return false;
+      if (terms.length === 0) return true;
+      const mName = String(m.name || "").toLowerCase();
+      const mCode = String(m.code || "").toLowerCase();
+      const mType = String(m.type || "").toLowerCase();
+      return terms.some((t) => mName.includes(t) || mCode.includes(t) || mType.includes(t));
     })
     .sort((a, b) => b.id - a.id)
     .slice(0, 50);

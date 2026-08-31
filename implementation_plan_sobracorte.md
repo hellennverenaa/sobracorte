@@ -272,6 +272,7 @@ ORDER BY "formablePairs" DESC;
 - **Cartão 6.2:** ✅ Redesign Corporativo e Layout Formal de Impressão (`Reports.vue` com cabeçalho institucional DASS, sumário condensado monocromático em linha única, tabela A4 otimizada, tfoot consolidado, rodapé de auditoria e `@media print` sem quebra de margens) - **Concluído**
 - **Cartão 6.3:** ✅ Padronização de COD. PRODUTO / SKU, Gestão de Lado (ESQ/DIR) e Casamento Multi-Setor (`SectorFormInput.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `MountingPairService.ts` e `stock.dto.ts` com suporte unificado para Solas, Cabedais e Montagem) - **Concluído**
 - **Cartão 6.4:** ✅ Correção de Lados em Pré-Fabricado, Uppercase Global, Nome do Modelo e Busca no Casamento (`SectorFormInput.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `StockMovementHistory.vue`, `Reports.vue`, `ReportController.ts`, `SettingsController.ts`, `MountingPairService.ts`, `StockItemService.ts`, `globals.css` e `stock.dto.ts`) - **Concluído**
+- **Cartão 6.5:** ✅ Busca Multi-Itens em Lote com Disparo por Botão no Estoque (`InventoryHub.vue`, `Materials.vue`, `StockItemService.ts`, `StockItemController.ts` e `MaterialController.ts` com suporte a múltiplos SKUs/códigos colados, botão "Buscar Itens", reset em 1 clique e badge de termos filtrados) - **Concluído**
 
 
 
