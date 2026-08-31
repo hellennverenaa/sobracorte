@@ -3,8 +3,6 @@ import { useAuthStore } from '@/stores/auth'
 
 import Login from '@/pages/Login.vue'
 import Dashboard from '@/pages/Dashboard.vue'
-import Materials from '@/pages/Materials.vue'
-import Movement from '@/pages/Movement.vue'
 import InventoryHub from '@/pages/InventoryHub.vue'
 import MountingMatchingPairs from '@/pages/MountingMatchingPairs.vue'
 import StockMovementHistory from '@/pages/StockMovementHistory.vue'
@@ -32,7 +30,7 @@ const routes = [
     component: InventoryHub, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] 
     } 
   },
   { 
@@ -42,7 +40,7 @@ const routes = [
     component: MountingMatchingPairs, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] 
     } 
   },
   { 
@@ -51,7 +49,7 @@ const routes = [
     component: Requisitions, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] 
     } 
   },
   { 
@@ -60,7 +58,7 @@ const routes = [
     component: StockMovementHistory, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] 
     } 
   },
   { 
@@ -92,21 +90,21 @@ const routes = [
     component: Reports, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider'] 
+      roles: ['admin', 'admin_setor', 'lider'] 
     } 
   },
-  {
+  { 
     path: '/settings',
     name: 'Settings',
-    component: Settings,
-    meta: {
+    component: Settings, 
+    meta: { 
       requiresAuth: true,
-      roles: ['admin', 'lider']
-    }
+      roles: ['admin', 'admin_setor', 'lider'] 
+    } 
   },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/inventory'
+  { 
+    path: '/:pathMatch(.*)*', 
+    redirect: '/inventory' 
   }
 ]
 
@@ -120,14 +118,30 @@ router.beforeEach((to, from, next) => {
   const userRole = authStore.user?.role
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
-  } 
-  else if (to.meta.roles && !to.meta.roles.includes(userRole)) {
-    next('/inventory')
+    if (to.path !== '/login') {
+      return next('/login')
+    }
+    return next()
   }
-  else {
-    next()
+
+  if (to.path === '/login' && authStore.isAuthenticated) {
+    return next('/')
   }
+
+  if (to.meta.roles) {
+    const isAllowed = authStore.user?.isGlobalAdmin ||
+      userRole === 'admin' ||
+      to.meta.roles.includes(userRole)
+
+    if (!isAllowed) {
+      if (to.path !== '/inventory') {
+        return next('/inventory')
+      }
+      return next('/')
+    }
+  }
+
+  next()
 })
 
 export default router

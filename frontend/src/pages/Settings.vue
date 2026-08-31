@@ -209,7 +209,7 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <MapPin class="w-4 h-4 text-emerald-500" /> Localizações de Armazenamento
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vínculo multi-categoria</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vínculo multi-categoria & setor</span>
           </div>
           
           <!-- Formulário de adição de Localização (Oculto para perfil leitor) -->
@@ -219,8 +219,26 @@
                 <div class="flex-1 min-w-[200px]">
                   <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
                   <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
-                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white uppercase" />
                 </div>
+
+                <div class="w-48 min-w-[160px]">
+                  <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
+                  <select
+                    v-model="newLocation.sector"
+                    :disabled="authStore.user?.role === 'admin_setor'"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
+                  >
+                    <option value="">Geral / Livre</option>
+                    <option value="CORTE">Corte</option>
+                    <option value="APOIO">Apoio</option>
+                    <option value="PRE_FABRICADO">Pré-Fabricado</option>
+                    <option value="EXPEDICAO">Cabedais</option>
+                    <option value="MONTAGEM">Montagem</option>
+                    <option value="CONSUMO">Consumo</option>
+                  </select>
+                </div>
+
                 <button type="submit" :disabled="loadingLocation || newLocation.categoryIds.length === 0"
                   class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50 h-10">
                   <Plus class="w-4 h-4" /> Adicionar Localização
@@ -257,6 +275,7 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
+                <th class="px-6 py-3 text-center">Setor</th>
                 <th class="px-6 py-3 text-center">Categorias Permitidas</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ações</th>
               </tr>
@@ -264,6 +283,11 @@
             <tbody class="divide-y divide-gray-50">
               <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                    {{ formatSectorName(loc.sector) }}
+                  </span>
+                </td>
                 <td class="px-6 py-3 text-center">
                   <div class="flex flex-wrap items-center justify-center gap-1.5">
                     <template v-if="loc.categoryLinks && loc.categoryLinks.length > 0">
@@ -289,7 +313,7 @@
                     <button
                       @click="openEditLocationModal(loc)"
                       class="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50"
-                      title="Editar Categorias"
+                      title="Editar Categorias & Setor"
                     >
                       <Pencil class="w-4 h-4" />
                     </button>
@@ -304,7 +328,7 @@
                 </td>
               </tr>
               <tr v-if="locations.length === 0">
-                <td :colspan="canManageSettings ? 3 : 2" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
+                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma localização cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -323,14 +347,32 @@
           
           <!-- Formulário de adição de Origem (Oculto para perfil leitor) -->
           <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-amber-50/30">
-            <form @submit.prevent="addOrigin" class="flex gap-3 items-end">
-              <div class="flex-1">
+            <form @submit.prevent="addOrigin" class="flex gap-3 items-end flex-wrap">
+              <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Origem</label>
                 <input v-model="newOrigin" required placeholder="Ex: Devolução de Produção"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400 bg-white uppercase" />
               </div>
+
+              <div class="w-48 min-w-[160px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
+                <select
+                  v-model="newOriginSector"
+                  :disabled="authStore.user?.role === 'admin_setor'"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400 bg-white font-medium uppercase"
+                >
+                  <option value="">Geral / Livre</option>
+                  <option value="CORTE">Corte</option>
+                  <option value="APOIO">Apoio</option>
+                  <option value="PRE_FABRICADO">Pré-Fabricado</option>
+                  <option value="EXPEDICAO">Cabedais</option>
+                  <option value="MONTAGEM">Montagem</option>
+                  <option value="CONSUMO">Consumo</option>
+                </select>
+              </div>
+
               <button type="submit" :disabled="loadingOrigin"
-                class="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition flex items-center gap-2 disabled:opacity-50">
+                class="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition flex items-center gap-2 disabled:opacity-50 h-10">
                 <Plus class="w-4 h-4" /> Adicionar
               </button>
             </form>
@@ -340,21 +382,27 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Descrição da Origem</th>
+                <th class="px-6 py-3 text-center">Setor</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
               <tr v-for="orig in origins" :key="orig.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ orig.name }}</td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                    {{ formatSectorName(orig.sector) }}
+                  </span>
+                </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <button @click="deleteOrigin(orig)"
-                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50">
+                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Excluir">
                     <Trash2 class="w-4 h-4" />
                   </button>
                 </td>
               </tr>
               <tr v-if="origins.length === 0">
-                <td :colspan="canManageSettings ? 2 : 1" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma origem cadastrada.</td>
+                <td :colspan="canManageSettings ? 3 : 2" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma origem cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -535,8 +583,25 @@
               v-model="editingLocation.name"
               type="text"
               required
-              class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium"
+              class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
             />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-500 uppercase mb-1">Setor</label>
+            <select
+              v-model="editingLocation.sector"
+              :disabled="authStore.user?.role === 'admin_setor'"
+              class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
+            >
+              <option value="">Geral / Livre</option>
+              <option value="CORTE">Corte</option>
+              <option value="APOIO">Apoio</option>
+              <option value="PRE_FABRICADO">Pré-Fabricado</option>
+              <option value="EXPEDICAO">Cabedais</option>
+              <option value="MONTAGEM">Montagem</option>
+              <option value="CONSUMO">Consumo</option>
+            </select>
           </div>
 
           <div>
@@ -610,23 +675,48 @@ import {
 const authStore = useAuthStore()
 
 // --- PERMISSÕES ---
-const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'lider')
+const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor' || authStore.user?.role === 'lider')
+
+function formatSectorName(sec) {
+  const map = {
+    CORTE: 'Corte',
+    APOIO: 'Apoio',
+    PRE_FABRICADO: 'Pré-Fabricado',
+    EXPEDICAO: 'Cabedais',
+    MONTAGEM: 'Montagem',
+    CONSUMO: 'Consumo',
+  }
+  return sec ? (map[sec] || sec) : 'Geral / Livre'
+}
 
 // --- TABS DINÂMICAS POR PERFIL ---
 const tabs = computed(() => {
+  const userRole = authStore.user?.role
+  const assignedSec = authStore.user?.assignedSector
+
+  if (userRole === 'admin_setor') {
+    const sectorTabs = [
+      { key: 'locations', label: 'Localizações / Prateleiras', icon: MapPin },
+      { key: 'origins',   label: 'Origens / Motivos',           icon: GitBranch },
+    ]
+    if (assignedSec === 'CONSUMO') {
+      sectorTabs.push({ key: 'import', label: 'Importar CSV', icon: FileSpreadsheet })
+    }
+    return sectorTabs
+  }
+
   const base = [
     { key: 'categories', label: 'Categorias',        icon: Tag },
     { key: 'units',      label: 'Unidades de Medida', icon: Ruler },
     { key: 'locations',  label: 'Localizações',      icon: MapPin },
     { key: 'origins',    label: 'Origens',           icon: GitBranch },
   ]
-  // Importação em lote exclusiva para administradores/líderes
-  if (authStore.user?.role === 'admin' || authStore.user?.role === 'lider') {
+  if (userRole === 'admin' || userRole === 'lider' || assignedSec === 'CONSUMO') {
     base.push({ key: 'import', label: 'Importar CSV', icon: FileSpreadsheet })
   }
   return base
 })
-const activeTab = ref('categories')
+const activeTab = ref(authStore.user?.role === 'admin_setor' ? 'locations' : 'categories')
 
 // --- NOTIFICAÇÕES ---
 const notification = ref({ show: false, type: 'success', message: '' })
@@ -792,9 +882,18 @@ async function deleteUnit(unit) {
 // LOCALIZAÇÕES
 const locations = ref([])
 const loadingLocation = ref(false)
-const newLocation = ref({ name: '', categoryIds: [] })
+const newLocation = ref({
+  name: '',
+  sector: authStore.user?.assignedSector || '',
+  categoryIds: []
+})
 const showEditLocationModal = ref(false)
-const editingLocation = ref({ id: 0, name: '', categoryIds: [] })
+const editingLocation = ref({
+  id: 0,
+  name: '',
+  sector: '',
+  categoryIds: []
+})
 
 function toggleCategorySelection(catId) {
   const idx = newLocation.value.categoryIds.indexOf(catId)
@@ -821,6 +920,7 @@ function openEditLocationModal(loc) {
   editingLocation.value = {
     id: loc.id,
     name: loc.name,
+    sector: loc.sector || '',
     categoryIds: [...catIds]
   }
   showEditLocationModal.value = true
@@ -834,6 +934,7 @@ async function saveEditLocation() {
   try {
     await api.put(`/settings/locations/${editingLocation.value.id}`, {
       name: editingLocation.value.name.trim(),
+      sector: editingLocation.value.sector || null,
       categoryIds: editingLocation.value.categoryIds
     })
     showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
@@ -865,10 +966,15 @@ async function addLocation() {
   try {
     const res = await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
+      sector: newLocation.value.sector || null,
       categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
-    newLocation.value = { name: '', categoryIds: [] }
+    newLocation.value = {
+      name: '',
+      sector: authStore.user?.assignedSector || '',
+      categoryIds: []
+    }
     if (res.data) locations.value.unshift(res.data)
     await fetchLocations()
   } catch (e) {
@@ -906,6 +1012,7 @@ async function deleteLocation(loc) {
 const origins = ref([])
 const loadingOrigin = ref(false)
 const newOrigin = ref('')
+const newOriginSector = ref(authStore.user?.assignedSector || '')
 
 async function fetchOrigins() {
   loadingOrigin.value = true
@@ -922,9 +1029,13 @@ async function fetchOrigins() {
 async function addOrigin() {
   if (!newOrigin.value.trim()) return
   try {
-    const res = await api.post('/settings/origins', { name: newOrigin.value.trim() })
+    const res = await api.post('/settings/origins', {
+      name: newOrigin.value.trim(),
+      sector: newOriginSector.value || null
+    })
     showNotification('success', `Origem "${newOrigin.value}" criada!`)
     newOrigin.value = ''
+    newOriginSector.value = authStore.user?.assignedSector || ''
     if (res.data) origins.value.unshift(res.data)
     await fetchOrigins()
   } catch (e) {

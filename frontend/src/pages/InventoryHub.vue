@@ -189,8 +189,19 @@ const isFormInvalid = computed(() => {
   return false;
 });
 
+const canOperateCurrentSector = computed(() => {
+  if (!authStore.user) return false;
+  if (authStore.user.role === 'admin') return true;
+  if (authStore.user.role === 'leitor') return false;
+  if (!authStore.user.assignedSector) return true;
+  return authStore.user.assignedSector.toUpperCase().trim() === activeTab.value.toUpperCase().trim();
+});
+
 function openMovementModal(item: any) {
-  selectedItem.value = item;
+  selectedItem.value = {
+    ...item,
+    sector: activeTab.value,
+  };
   movementQuantity.value = null;
   movementType.value = 'SAIDA';
   movementReason.value = stockStore.filterOrigins.length > 0 ? stockStore.filterOrigins[0].name : 'Consumo de Produção';
@@ -242,6 +253,7 @@ async function handleConfirmMovement() {
   try {
     await stockStore.createMovement({
       stockItemId: selectedItem.value.id,
+      sector: selectedItem.value.sector || activeTab.value,
       type: movementType.value,
       quantity: qty,
       locationId: selectedLocationId.value ? Number(selectedLocationId.value) : undefined,
@@ -346,7 +358,7 @@ onMounted(() => {
           </button>
 
           <button
-            v-if="authStore.can('cadastrar_materiais')"
+            v-if="authStore.can('cadastrar_materiais') && canOperateCurrentSector"
             @click="showEntryForm = !showEntryForm"
             class="bg-blue-600 hover:bg-blue-800 text-white px-5 py-2 rounded flex items-center gap-2 shadow-sm transition-colors text-xs font-medium"
           >
@@ -662,7 +674,7 @@ onMounted(() => {
                     </button>
 
                     <button
-                      v-if="authStore.can('movimentar')"
+                      v-if="authStore.can('movimentar') && canOperateCurrentSector"
                       @click="openMovementModal(item)"
                       class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors"
                       title="Registrar Movimentação de Estoque"

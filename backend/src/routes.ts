@@ -12,7 +12,7 @@ import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
 import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
-import { requireRole, requireAuth } from './middlewares/roleMiddleware';
+import { requireRole, requireAuth, requireSectorMatch } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
 
 const routes = Router();
@@ -30,6 +30,9 @@ const stockItemController = new StockItemController();
 const mountingPairController = new MountingPairController();
 const stockMovementController = new StockMovementController();
 const requisitionController = new RequisitionController();
+
+routes.get('/health', (_req, res) => res.json({ status: 'ok' }));
+routes.get('/auth/health', (_req, res) => res.json({ status: 'ok' }));
 routes.get('/factory-units', async (_req, res) => {
   try {
     const units = await prisma.factoryUnit.findMany({
@@ -46,22 +49,22 @@ routes.get('/factory-units', async (_req, res) => {
 routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
 routes.get('/materials', requireAuth, materialController.index);
-routes.post('/materials', requireAuth, requireRole(['lider']), materialController.create);
-routes.put('/materials/:id', requireAuth, requireRole(['lider']), materialController.update);
-routes.delete('/materials/:id', requireAuth, requireRole(['lider']), materialController.delete);
+routes.post('/materials', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
+routes.put('/materials/:id', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
+routes.delete('/materials/:id', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.delete);
 routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
 
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
-routes.post('/inventory/batch', requireAuth, requireRole(['lider']), stockItemController.createBatch);
+routes.post('/inventory/batch', requireAuth, requireRole(['lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
 routes.get('/inventory/search', requireAuth, stockItemController.search);
 routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
 routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);
-routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['lider', 'movimentador']), mountingPairController.executeMatch);
+routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector || 'MONTAGEM'), mountingPairController.executeMatch);
 
 // 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
-routes.post('/inventory/movements', requireAuth, requireRole(['lider', 'movimentador']), stockMovementController.create);
+routes.post('/inventory/movements', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
 routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
@@ -80,7 +83,7 @@ routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistri
 routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMateriais);
 
 routes.get('/movements', requireAuth, movementController.index);
-routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), movementController.create);
+routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
 
 routes.get('/reports/inventory', requireAuth, reportController.inventory);
 routes.get('/reports/movements', requireAuth, reportController.movements);
@@ -95,7 +98,8 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
 
     const safeUsers = users.map(user => ({
       ...user,
-      matriculaDass: user.matriculaDass ? Number(user.matriculaDass) : null
+      matriculaDass: user.matriculaDass ? Number(user.matriculaDass) : null,
+      assignedSector: user.assignedSector || null,
     }));
 
     res.json(safeUsers);
@@ -108,25 +112,34 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
 routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { role } = req.body;
+    const { role, assignedSector } = req.body;
 
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ error: 'Usuário inválido' });
     }
-    if (!isUserRole(role)) {
+    if (role && !isUserRole(role)) {
       return res.status(400).json({ error: 'Nível de acesso inválido' });
+    }
+
+    const updateData: any = {};
+    if (role) updateData.role = role;
+    if (assignedSector !== undefined) {
+      let sec = assignedSector ? String(assignedSector).toUpperCase().trim() : null;
+      if (sec === 'CABEDAIS') sec = 'EXPEDICAO';
+      updateData.assignedSector = sec as any;
     }
 
     const result = await prisma.user.updateMany({
       where: { id, factoryUnitId: req.tenant!.id },
-      data: { role }
+      data: updateData
     });
     if (result.count === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
     const updatedUser = await prisma.user.findFirstOrThrow({ where: { id, factoryUnitId: req.tenant!.id } });
 
     const safeUser = {
       ...updatedUser,
-      matriculaDass: updatedUser.matriculaDass ? Number(updatedUser.matriculaDass) : null
+      matriculaDass: updatedUser.matriculaDass ? Number(updatedUser.matriculaDass) : null,
+      assignedSector: updatedUser.assignedSector || null,
     };
 
     res.json(safeUser);
@@ -156,23 +169,23 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
   }
 });
 
-routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'lider']), settingsController.getCategories);
-routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'lider']), settingsController.createCategory);
-routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.updateCategory);
-routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteCategory);
+routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getCategories);
+routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createCategory);
+routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.updateCategory);
+routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteCategory);
 
-routes.get('/settings/units', requireAuth, requireRole(['admin', 'lider']), settingsController.getUnits);
-routes.post('/settings/units', requireAuth, requireRole(['admin', 'lider']), settingsController.createUnit);
-routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteUnit);
+routes.get('/settings/units', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getUnits);
+routes.post('/settings/units', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createUnit);
+routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteUnit);
 
-routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'lider']), settingsController.getLocations);
-routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'lider']), settingsController.createLocation);
-routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.updateLocation);
-routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteLocation);
+routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getLocations);
+routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createLocation);
+routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.updateLocation);
+routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteLocation);
 
-routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'lider']), settingsController.getOrigins);
-routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'lider']), settingsController.createOrigin);
-routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'lider']), settingsController.deleteOrigin);
+routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getOrigins);
+routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createOrigin);
+routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteOrigin);
 
 routes.post('/import/csv', requireAuth, requireRole(['admin']), upload.single('arquivo'), importController.importCSV);
 

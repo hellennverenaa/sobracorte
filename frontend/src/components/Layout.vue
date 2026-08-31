@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
-  ClipboardList, Bell
+  ClipboardList, Bell, Building2, Factory
 } from 'lucide-vue-next'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
@@ -14,6 +14,7 @@ const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
 const pendingCount = ref(0)
+const isSwitchingUnit = ref(false)
 let notificationInterval = null
 
 async function logout() {
@@ -31,8 +32,26 @@ async function fetchPendingCount() {
   }
 }
 
+async function handleUnitChange(event) {
+  const newUnitCode = event.target.value
+  if (!newUnitCode || newUnitCode === authStore.user?.unit?.code) return
+  isSwitchingUnit.value = true
+  try {
+    await authStore.switchUnit(newUnitCode)
+    // Recarregar a rota atual para atualizar todas as stores reativamente
+    window.location.reload()
+  } catch (error) {
+    console.error('Erro ao alternar unidade fabril:', error)
+  } finally {
+    isSwitchingUnit.value = false
+  }
+}
+
 onMounted(() => {
   fetchPendingCount()
+  if (authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin) {
+    authStore.fetchAvailableUnits()
+  }
   notificationInterval = setInterval(fetchPendingCount, 25000)
 })
 
@@ -41,14 +60,14 @@ onUnmounted(() => {
 })
 
 const menuItems = [
-  { label: 'Dashboard',             path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Estoque Multi-Setor',   path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Casamento de Pares',    path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'lider', 'movimentador', 'leitor'], badgeKey: 'requisitions' },
-  { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
+  { label: 'Dashboard',             path: '/',                icon: LayoutDashboard, roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Estoque Multi-Setor',   path: '/inventory',       icon: Layers,          roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Casamento de Pares',    path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'], badgeKey: 'requisitions' },
+  { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'admin_setor', 'lider'] },
   { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
-  { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'lider'] }
+  { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'admin_setor', 'lider'] }
 ]
 </script>
 
@@ -100,7 +119,7 @@ const menuItems = [
           </div>
           <div class="overflow-hidden">
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
-            <p class="text-xs text-slate-500 truncate capitalize">{{ authStore.user?.role }}</p>
+            <p class="text-xs text-slate-500 truncate capitalize">{{ authStore.user?.role?.replace('_', ' ') }}</p>
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>
@@ -120,7 +139,17 @@ const menuItems = [
           <span class="font-black text-slate-900 hidden sm:inline">Sobras DASS</span>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-4">
+          <!-- Badge Informativo Fixo da Unidade Conectada -->
+          <div 
+            v-if="authStore.user?.unit?.code" 
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 shadow-xs"
+          >
+            <Factory class="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</span>
+          </div>
+
+          <!-- Central de Notificações / Requisições -->
           <router-link
             to="/requisitions?status=PENDENTE"
             class="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"

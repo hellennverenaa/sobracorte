@@ -38,6 +38,14 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
   }, 4000);
 }
 
+const canOperateMatchingSector = computed(() => {
+  if (!authStore.user) return false;
+  if (authStore.user.role === 'admin') return true;
+  if (authStore.user.role === 'leitor') return false;
+  if (!authStore.user.assignedSector) return true;
+  return authStore.user.assignedSector.toUpperCase().trim() === activeSector.value.toUpperCase().trim();
+});
+
 async function loadPairs() {
   await stockStore.fetchMatchingPairs(activeSector.value, searchQuery.value);
 }
@@ -267,7 +275,7 @@ onMounted(() => {
               </div>
 
               <button
-                v-if="authStore.can('movimentar')"
+                v-if="authStore.can('movimentar') && canOperateMatchingSector"
                 @click="openConfirmModal(pair)"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-1.5 rounded flex items-center gap-1.5 text-xs shadow-sm transition-colors"
               >

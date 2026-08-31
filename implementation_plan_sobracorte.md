@@ -294,5 +294,14 @@ ORDER BY "formablePairs" DESC;
 - **Cartão 7.2:** ✅ Atendimento de Requisições, Autocomplete Inteligente e Central de Notificações (`GET /inventory/search-suggestions`, `POST /requisitions/:id/fulfill`, `GET /requisitions/pending-count`, sininho `<Bell />` e badge em `Layout.vue`, baixa atômica via `$transaction`, suporte a `PAR` no lado do calçado e padrão industrial com ZERO emojis) - **Concluído**
 - **Cartão 7.3:** ✅ Formulário Adaptativo por Setor, Suporte Multi-Itens, Trava de Saldo Zero e Cálculo de Par Completo (`POST /requisitions/check-availability`, suporte a `items: [...]` consolidando no mesmo código `REQ-AAAA-XXXX`, `min(Saldo(E), Saldo(D))` para pares completos, bloqueio de requisição sem saldo físico com aviso industrial e formulário dinâmico por setor em `Requisitions.vue`) - **Concluído**
 
+---
+
+## 🛡️ 9. Status dos Cartões Kanban do Sprint 8 (Segurança, RBAC Setorial & Governança)
+
+- **Cartão 8.1:** ✅ Correção do Modal de Movimentação Multi-Setor e RBAC Setorial (`assignedSector` na tabela `User`, tratamento de nulos em `GET /users` e `PUT /users/:id`, middleware `requireSectorMatch` para travar escritas indevidas em setores não atribuídos, correção de isolamento entre `Material` e `StockItem` em `StockMovementService.ts`, suporte a `sector` no `CreateStockMovementSchema`, coluna e seletor de setor vinculado na tela `Users.vue` e ocultação contextual de botões de escrita em `InventoryHub.vue` e `MountingMatchingPairs.vue`) - **Concluído**
+- **Cartão 8.2:** ✅ Multi-Unidade (Admin Master), Setor de Consumo e Perfil Admin de Setor (`CONSUMO` adicionado ao `SectorType` no Prisma e `stock.dto.ts`, role `admin_setor` nos `USER_ROLES`, travas setoriais em `SettingsController.ts` restringindo encarregados ao `assignedSector`, seletor multi-unidade elegante com `Building2` em `Layout.vue` exclusivo para `ADMIN_MASTER`, tabs contextuais em `Settings.vue` e suporte completo em `Users.vue` e `auth.js`) - **Concluído**
+- **Hotfix Arquitetural:** ✅ Unidade na Tela de Login, Coluna de Setor em Configurações e Correção do Router Guard (Seleção de unidade restrita à tela de login com badge informativo fixo `<Factory />` no topo de `Layout.vue`, campos `sector SectorType?` em `Location` e `OriginConfig` no `schema.prisma` com persistência e filtros setoriais em `SettingsController.ts` e `Settings.vue`, e correção do loop infinito no `beforeEach` de `router/index.js` adicionando `admin_setor` e prevenindo redirecionamentos recursivos) - **Concluído**
+
+
 
 

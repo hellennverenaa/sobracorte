@@ -15,6 +15,7 @@ enum SectorType {
   PRE_FABRICADO
   EXPEDICAO
   MONTAGEM
+  CONSUMO
   CONFIGURACOES
 
   @@schema("sobra_corte")
@@ -104,6 +105,7 @@ model Material {
 model Location {
   id            Int             @id @default(autoincrement())
   name          String
+  sector        SectorType?     // Setor ao qual a localização/prateleira pertence
   categoryId    Int?
   factoryUnitId Int
   factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])
@@ -116,6 +118,7 @@ model Location {
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
   @@index([factoryUnitId, categoryId])
+  @@index([factoryUnitId, sector])
   @@schema("sobra_corte")
 }
 
@@ -181,13 +184,14 @@ model Movement {
 
 // TABELA DE USUÁRIOS (Persistência para Níveis de Acesso)
 model User {
-  id      Int     @id @default(autoincrement())
-  usuario String
-  nome    String
-  email   String
-  setor   String?
-  funcao  String? // Cargo que vem do RH
-  role    String  @default("leitor") // Nível de acesso manual do nosso sistema
+  id             Int         @id @default(autoincrement())
+  usuario        String
+  nome           String
+  email          String
+  setor          String?
+  assignedSector SectorType? // Setor vinculado para controle RBAC setorial (CORTE, APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM)
+  funcao         String?     // Cargo que vem do RH
+  role           String      @default("leitor") // Nível de acesso manual do nosso sistema
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -275,10 +279,12 @@ model CategoryConfig {
 model OriginConfig {
   id            Int         @id @default(autoincrement())
   name          String
+  sector        SectorType? // Setor vinculado à origem/motivo (CORTE, APOIO, etc.)
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
   @@unique([factoryUnitId, name])
+  @@index([factoryUnitId, sector])
   @@schema("sobra_corte")
 }
 

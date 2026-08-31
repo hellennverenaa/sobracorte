@@ -8,16 +8,20 @@ export class StockMovementService {
    */
   async createMovement(dto: CreateStockMovementDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
-    const { stockItemId, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
+    const { stockItemId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Verificar se o item pertence à tabela Material (Corte)
-      const material = await tx.material.findFirst({
-        where: { id: stockItemId, factoryUnitId },
-        include: { locations: true },
-      });
+      // 1. Se o setor for explicitamente CORTE, buscar na tabela Material
+      if (sector === 'CORTE') {
+        const material = await tx.material.findFirst({
+          where: { id: stockItemId, factoryUnitId },
+          include: { locations: true },
+        });
 
-      if (material) {
+        if (!material) {
+          throw new Error('Matéria-prima do Corte não encontrada.');
+        }
+
         if ((type === 'SAIDA' || type === 'REFUGO') && material.quantity < quantity) {
           throw new Error(`Saldo insuficiente. Saldo disponível: ${material.quantity}`);
         }

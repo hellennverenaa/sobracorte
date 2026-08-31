@@ -225,6 +225,7 @@ export const useStockStore = defineStore('stock', {
      */
     async createMovement(payload: {
       stockItemId: number;
+      sector?: SectorType;
       type: 'ENTRADA' | 'SAIDA' | 'REFUGO' | 'TRANSFERENCIA';
       quantity: number;
       locationId?: number;

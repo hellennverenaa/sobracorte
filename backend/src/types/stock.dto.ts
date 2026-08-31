@@ -6,6 +6,7 @@ export const SectorEnum = z.enum([
   'PRE_FABRICADO',
   'EXPEDICAO',
   'MONTAGEM',
+  'CONSUMO',
   'CONFIGURACOES',
 ]);
 
@@ -94,13 +95,26 @@ export const MontagemItemSchema = z.object({
   observation: z.string().trim().optional().default(''),
 });
 
-// 🌟 Discriminated Union dos 5 Setores
+// 🔹 6. CONSUMO: Materiais de Consumo / Insumos
+export const ConsumoItemSchema = z.object({
+  sector: z.literal('CONSUMO'),
+  code: z.string().trim().optional().default(''),
+  sku: z.string().trim().optional().default(''),
+  productName: z.string().trim().min(1, 'Descrição do material de consumo é obrigatória'),
+  unit: z.string().trim().default('UN'),
+  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  observation: z.string().trim().optional().default(''),
+});
+
+// 🌟 Discriminated Union dos Setores
 export const StockItemUnionSchema = z.discriminatedUnion('sector', [
   CorteItemSchema,
   ApoioItemSchema,
   PreFabricadoItemSchema,
   ExpedicaoItemSchema,
   MontagemItemSchema,
+  ConsumoItemSchema,
 ]);
 
 // 📦 Cadastro em Lote
@@ -120,6 +134,7 @@ export const ExecuteMatchSchema = z.object({
 // 🔄 Movimentações de Entrada / Saída / Refugo / Transferência
 export const CreateStockMovementSchema = z.object({
   stockItemId: z.number().int().positive('ID do item de estoque é obrigatório'),
+  sector: SectorEnum.optional(),
   type: z.enum(['ENTRADA', 'SAIDA', 'REFUGO', 'TRANSFERENCIA']),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
   locationId: z.number().int().positive().optional(),

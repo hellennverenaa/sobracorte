@@ -28,8 +28,9 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
     usuario: apiUser.usuario,
     email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
     setor: apiUser.setor || 'NÃO DEFINIDO',
+    assignedSector: syncedUser?.assignedSector || null,
     funcao: apiUser.funcao || 'NÃO DEFINIDO',
-    role: syncedUser.role,
+    role: syncedUser?.role || 'leitor',
     token,
     unit,
     isGlobalAdmin,
@@ -39,15 +40,54 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
 export const useAuthStore = defineStore('auth', {
   state: () => {
     const user = loadStoredUser()
-    return { user, isAuthenticated: Boolean(user) }
+    return {
+      user,
+      isAuthenticated: Boolean(user),
+      availableUnits: [],
+    }
   },
 
   actions: {
     clearSession() {
       this.user = null
       this.isAuthenticated = false
+      this.availableUnits = []
       localStorage.removeItem('user')
       sessionStorage.removeItem('expirationTime')
+    },
+
+    async fetchAvailableUnits() {
+      try {
+        const response = await api.get('/factory-units');
+        this.availableUnits = response.data?.data || response.data || [];
+        return this.availableUnits;
+      } catch (error) {
+        console.error('Erro ao buscar unidades fabris:', error);
+        return [];
+      }
+    },
+
+    async switchUnit(unitCode) {
+      if (!this.user?.isGlobalAdmin && this.user?.role !== 'admin') return false;
+      try {
+        const token = this.user.token;
+        const targetCode = typeof unitCode === 'object' ? unitCode.code : unitCode;
+        const checkResponse = await api.post('/auth/check-user', null, {
+          headers: { Authorization: `Bearer ${token}`, 'X-Dass-Unit': targetCode }
+        });
+        const finalUser = buildSessionUser(
+          token,
+          checkResponse.data.user,
+          checkResponse.data.unit,
+          checkResponse.data.isGlobalAdmin,
+        );
+        this.user = finalUser;
+        localStorage.setItem('user', JSON.stringify(finalUser));
+        return true;
+      } catch (err) {
+        console.error('Erro ao alternar unidade fabril:', err);
+        throw err;
+      }
     },
 
     async restoreSession() {
@@ -66,6 +106,9 @@ export const useAuthStore = defineStore('auth', {
         this.user = buildSessionUser(token, synced.data.user, synced.data.unit, synced.data.isGlobalAdmin)
         this.isAuthenticated = true
         localStorage.setItem('user', JSON.stringify(this.user))
+        if (this.user.role === 'admin' || this.user.isGlobalAdmin) {
+          this.fetchAvailableUnits();
+        }
         return true
       } catch {
         this.clearSession()
@@ -97,6 +140,9 @@ export const useAuthStore = defineStore('auth', {
         this.user = finalUser
         this.isAuthenticated = true
         localStorage.setItem("user", JSON.stringify(finalUser))
+        if (this.user.role === 'admin' || this.user.isGlobalAdmin) {
+          this.fetchAvailableUnits();
+        }
 
         return true
 
@@ -134,17 +180,25 @@ export const useAuthStore = defineStore('auth', {
     can(action) {
       const role = this.user?.role;
 
-      if (role === 'admin') return true;
+      if (role === 'admin' || this.user?.isGlobalAdmin) return true;
 
       if (action === 'gerenciar_usuarios') return false;
 
-      if (action === 'baixar_relatorios' || action === 'exportar_dados') return role === 'lider';
+      if (action === 'baixar_relatorios' || action === 'exportar_dados') {
+        return role === 'lider' || role === 'admin_setor';
+      }
 
-      if (action === 'cadastrar_materiais') return role === 'lider';
+      if (action === 'cadastrar_materiais') {
+        return role === 'lider' || role === 'admin_setor';
+      }
 
-      if (action === 'movimentar') return role === 'lider' || role === 'movimentador';
+      if (action === 'movimentar') {
+        return role === 'lider' || role === 'movimentador' || role === 'admin_setor';
+      }
 
-      if (action === 'gerenciar_configuracoes' || action === 'editar_configuracoes') return role === 'lider';
+      if (action === 'gerenciar_configuracoes' || action === 'editar_configuracoes') {
+        return role === 'lider' || role === 'admin_setor';
+      }
 
       return false;
     }

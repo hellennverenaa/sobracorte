@@ -85,7 +85,7 @@ export const requireRole = (allowedRoles: string[]) => {
       const userRole = user?.role;
 
       if (userRole === 'admin') {
-        req.user = { ...apiUser, role: userRole };
+        req.user = { ...apiUser, role: userRole, assignedSector: user?.assignedSector || null };
         return next();
       }
 
@@ -93,12 +93,38 @@ export const requireRole = (allowedRoles: string[]) => {
         return res.status(403).json({ error: 'Acesso negado: Seu nível não permite esta ação.' });
       }
 
-      req.user = { ...apiUser, role: user.role };
+      req.user = { ...apiUser, role: user.role, assignedSector: user?.assignedSector || null };
       next();
 
     } catch (error) {
       console.error("Erro no roleMiddleware:", error);
       return res.status(500).json({ error: 'Erro interno ao validar permissões' });
     }
+  };
+};
+
+/**
+ * Middleware para validar se o usuário tem permissão para operar no setor específico (RBAC Setorial)
+ */
+export const requireSectorMatch = (getSector: (req: Request) => string | undefined) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.user?.role === 'admin' || req.isGlobalAdmin) {
+      return next();
+    }
+
+    const targetSector = getSector(req);
+    const userAssignedSector = req.user?.assignedSector;
+
+    if (userAssignedSector && targetSector) {
+      const normalizedTarget = targetSector.toUpperCase().trim();
+      const normalizedUser = userAssignedSector.toUpperCase().trim();
+      if (normalizedTarget !== normalizedUser) {
+        return res.status(403).json({
+          error: `Acesso negado: Seu perfil tem permissão de operação apenas no setor ${userAssignedSector}.`,
+        });
+      }
+    }
+
+    next();
   };
 };

@@ -57,9 +57,12 @@ test('requireActiveTenant rejeita unidade inexistente ou inativa', async () => {
   );
 });
 
-test('isUserRole aceita apenas os quatro papéis públicos', () => {
+test('isUserRole aceita apenas os papéis públicos válidos', () => {
   assert.equal(isUserRole('admin'), true);
+  assert.equal(isUserRole('admin_setor'), true);
   assert.equal(isUserRole('lider'), true);
+  assert.equal(isUserRole('movimentador'), true);
+  assert.equal(isUserRole('leitor'), true);
   assert.equal(isUserRole('root'), false);
   assert.equal(isUserRole(null), false);
 });

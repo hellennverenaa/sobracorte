@@ -6,14 +6,25 @@ function hasPrismaCode(error: unknown, code: string): boolean {
     && (error as { code?: unknown }).code === code;
 }
 
-function checkSettingsPermission(req: Request): { allowed: boolean; status?: number; error?: string } {
+function checkSettingsPermission(req: Request, targetSector?: string): { allowed: boolean; status?: number; error?: string } {
   if (req.isGlobalAdmin || req.user?.role === 'admin') {
     return { allowed: true };
   }
   if (req.user?.role === 'leitor') {
     return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
   }
-  if (req.user?.role === 'lider') {
+  if (req.user?.role === 'admin_setor' || req.user?.role === 'lider') {
+    if (targetSector && req.user.assignedSector) {
+      const userSec = req.user.assignedSector.toUpperCase().trim();
+      const tgtSec = targetSector.toUpperCase().trim();
+      if (userSec !== tgtSec) {
+        return {
+          allowed: false,
+          status: 403,
+          error: `Acesso negado: Seu perfil está restrito ao gerenciamento do setor ${req.user.assignedSector}.`,
+        };
+      }
+    }
     return { allowed: true };
   }
   return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
@@ -347,8 +358,25 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
+      const sectorFilter = req.query.sector as string | undefined;
+      let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
+      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+
+      const whereClause: any = { factoryUnitId: req.tenant!.id };
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        whereClause.OR = [
+          { sector: req.user.assignedSector as any },
+          { sector: null }
+        ];
+      } else if (targetSector) {
+        whereClause.OR = [
+          { sector: targetSector as any },
+          { sector: null }
+        ];
+      }
+
       const locations = await prisma.location.findMany({
-        where: { factoryUnitId: req.tenant!.id },
+        where: whereClause,
         orderBy: { id: 'desc' },
         include: {
           category: true,
@@ -371,9 +399,15 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
-      const { name, categoryId, categoryIds } = req.body;
+      const { name, categoryId, categoryIds, sector } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
+      }
+
+      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
+      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
       }
 
       // Suporta array de IDs ou único ID
@@ -403,6 +437,7 @@ export class SettingsController {
       const location = await prisma.location.create({
         data: {
           name: String(name).trim().toUpperCase(),
+          sector: targetSector as any,
           categoryId: primaryCategoryId,
           factoryUnitId: req.tenant!.id,
           categoryLinks: {
@@ -436,13 +471,19 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const { name, categoryIds } = req.body;
+      const { name, categoryIds, sector } = req.body;
 
       const existing = await prisma.location.findFirst({
         where: { id, factoryUnitId: req.tenant!.id }
       });
       if (!existing) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
+      }
+
+      let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
+      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
       }
 
       let finalCategoryIds: number[] | undefined;
@@ -474,6 +515,7 @@ export class SettingsController {
           where: { id },
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
+            sector: targetSector as any,
             categoryId: finalCategoryIds && finalCategoryIds.length > 0 ? finalCategoryIds[0] : undefined
           },
           include: {
@@ -535,7 +577,7 @@ export class SettingsController {
 
       if (totalActive > 0 && !isAdmin) {
         return res.status(400).json({
-          error: `Não é possível excluir: existem ${totalActive} material(is) ou saldo(s) ativo(s) vinculado(s) a esta localização.`
+          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) com saldo nesta localização.`
         });
       }
 
@@ -577,8 +619,25 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
+      const sectorFilter = req.query.sector as string | undefined;
+      let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
+      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+
+      const whereClause: any = { factoryUnitId: req.tenant!.id };
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        whereClause.OR = [
+          { sector: req.user.assignedSector as any },
+          { sector: null }
+        ];
+      } else if (targetSector) {
+        whereClause.OR = [
+          { sector: targetSector as any },
+          { sector: null }
+        ];
+      }
+
       const origins = await prisma.originConfig.findMany({
-        where: { factoryUnitId: req.tenant!.id },
+        where: whereClause,
         orderBy: { id: 'desc' }
       });
       res.json(origins);
@@ -595,12 +654,23 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
-      const { name } = req.body;
+      const { name, sector } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
       }
+
+      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
+      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
+      }
+
       const origin = await prisma.originConfig.create({
-        data: { name: String(name).trim().toUpperCase(), factoryUnitId: req.tenant!.id }
+        data: {
+          name: String(name).trim().toUpperCase(),
+          sector: targetSector as any,
+          factoryUnitId: req.tenant!.id
+        }
       });
       res.status(201).json(origin);
     } catch (error: unknown) {

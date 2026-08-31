@@ -469,7 +469,7 @@ onMounted(async () => {
           <input
             v-model="formData.productName"
             type="text"
-            placeholder="Ex: PEGASUS 40"
+            placeholder="Ex: RACER CARBON 3"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
