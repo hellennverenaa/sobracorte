@@ -238,6 +238,7 @@ function downloadExcel() {
     SETOR: mov.setor || mov.sector || 'CORTE',
     TIPO_OPERACAO: mov.tipo,
     CODIGO: mov.codigo || '-',
+    MODELO: mov.nomeModelo || '-',
     DESCRICAO: mov.descricao || mov.material?.descricao || '-',
     GRADE_TAMANHO: mov.gradeTamanho || '-',
     LADO_PE: mov.ladoPe || '-',
@@ -644,7 +645,12 @@ function getTypeBadge(type) {
                 <!-- 4. Código e Descrição -->
                 <td class="py-2.5 px-3 print:py-1 print:px-1.5">
                   <div class="font-bold text-slate-900 break-words print:text-[8px] leading-tight">{{ row.descricao || row.nomeMaterial }}</div>
-                  <div class="text-[10px] font-mono text-slate-400 print:text-[7.5px] print:text-slate-600">{{ row.codigo }}</div>
+                  <div class="flex items-center gap-1.5 text-[10px] print:text-[7.5px] mt-0.5">
+                    <span class="font-mono text-slate-500 font-bold">{{ row.codigo }}</span>
+                    <span v-if="row.nomeModelo && row.nomeModelo !== row.codigo && row.nomeModelo !== row.descricao" class="text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 px-1 rounded text-[9px] print:bg-transparent print:border-0 print:p-0 print:text-black">
+                      {{ row.nomeModelo }}
+                    </span>
+                  </div>
                 </td>
 
                 <!-- 5. Grade / Pé -->

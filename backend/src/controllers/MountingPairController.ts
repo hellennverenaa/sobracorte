@@ -22,7 +22,8 @@ export class MountingPairController {
         ? (sectorParam as SectorType)
         : 'MONTAGEM';
 
-      const pairs = await mountingPairService.findMatchingPairs(req.tenant.id, sector);
+      const searchParam = (req.query.q as string) || (req.query.search as string) || '';
+      const pairs = await mountingPairService.findMatchingPairs(req.tenant.id, sector, searchParam);
       return res.json({
         sector,
         totalMatchingPairsCount: pairs.length,

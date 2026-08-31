@@ -4,6 +4,7 @@ import { SectorType } from '../generated/prisma';
 
 export interface MatchingPairRawResult {
   sku: string;
+  productName?: string | null;
   sizeGrade: string;
   color?: string | null;
   sector?: SectorType;
@@ -22,11 +23,13 @@ export class MountingPairService {
    */
   async findMatchingPairs(
     factoryUnitId: number,
-    sector: SectorType = 'MONTAGEM'
+    sector: SectorType = 'MONTAGEM',
+    searchQuery: string = ''
   ): Promise<MatchingPairRawResult[]> {
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 
-        COALESCE(e."sku", e."productName", '-') AS "sku",
+        COALESCE(e."sku", e."pieceCode", e."productName", '-') AS "sku",
+        COALESCE(e."productName", e."description", '-') AS "productName",
         e."sizeGrade",
         e."color",
         e.sector,
@@ -64,14 +67,27 @@ export class MountingPairService {
       ORDER BY "formablePairs" DESC, "sku" ASC;
     `;
 
-    return rawPairs.map((p) => ({
+    const mapped = rawPairs.map((p) => ({
       ...p,
       leftQuantity: Number(p.leftQuantity),
       rightQuantity: Number(p.rightQuantity),
       formablePairs: Number(p.formablePairs),
       leftLocations: p.leftLocations || 'Não definido',
       rightLocations: p.rightLocations || 'Não definido',
+      productName: p.productName || p.sku,
     }));
+
+    if (!searchQuery || !searchQuery.trim()) {
+      return mapped;
+    }
+
+    const term = searchQuery.trim().toUpperCase();
+    return mapped.filter((p) =>
+      p.sku.toUpperCase().includes(term) ||
+      (p.productName && p.productName.toUpperCase().includes(term)) ||
+      p.sizeGrade.toUpperCase().includes(term) ||
+      (p.color && p.color.toUpperCase().includes(term))
+    );
   }
 
   /**

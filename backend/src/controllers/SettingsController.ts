@@ -250,8 +250,8 @@ export class SettingsController {
         return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
       }
 
-      const cleanSymbol = String(symbol).trim();
-      const cleanName = String(name).trim();
+      const cleanSymbol = String(symbol).trim().toUpperCase();
+      const cleanName = String(name).trim().toUpperCase();
 
       const existing = await prisma.unitConfig.findUnique({
         where: { factoryUnitId_symbol: { factoryUnitId: req.tenant!.id, symbol: cleanSymbol } },
@@ -402,7 +402,7 @@ export class SettingsController {
 
       const location = await prisma.location.create({
         data: {
-          name: String(name).trim(),
+          name: String(name).trim().toUpperCase(),
           categoryId: primaryCategoryId,
           factoryUnitId: req.tenant!.id,
           categoryLinks: {
@@ -473,7 +473,7 @@ export class SettingsController {
         const loc = await tx.location.update({
           where: { id },
           data: {
-            name: name ? String(name).trim() : undefined,
+            name: name ? String(name).trim().toUpperCase() : undefined,
             categoryId: finalCategoryIds && finalCategoryIds.length > 0 ? finalCategoryIds[0] : undefined
           },
           include: {
@@ -600,7 +600,7 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
       }
       const origin = await prisma.originConfig.create({
-        data: { name: String(name).trim(), factoryUnitId: req.tenant!.id }
+        data: { name: String(name).trim().toUpperCase(), factoryUnitId: req.tenant!.id }
       });
       res.status(201).json(origin);
     } catch (error: unknown) {

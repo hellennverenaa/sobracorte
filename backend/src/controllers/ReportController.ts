@@ -220,8 +220,9 @@ export class ReportController {
 
       const formattedStock = stockMovements.map((m) => {
         const item = m.stockItem;
-        const code = item?.code || item?.pieceCode || item?.sku || item?.productName || '-';
-        const desc = item?.description || item?.name || item?.productName || item?.sku || 'Componente Multi-Setor';
+        const code = item?.sku || item?.pieceCode || item?.code || item?.productName || '-';
+        const modelName = item?.productName || '';
+        const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || 'Componente Multi-Setor';
 
         const srcLoc = m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null;
         const dstLoc = m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null;
@@ -235,6 +236,7 @@ export class ReportController {
           setor: m.sector,
           tipo: m.type,
           codigo: code,
+          nomeModelo: modelName,
           descricao: desc,
           tipoMaterial: item?.type || item?.sector || m.sector,
           gradeTamanho: item?.sizeGrade || '-',

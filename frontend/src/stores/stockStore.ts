@@ -5,7 +5,10 @@ export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MO
 
 export interface MatchingPair {
   sku: string;
+  productName?: string;
   sizeGrade: string;
+  color?: string;
+  sector?: SectorType;
   leftFootStockItemId: number;
   leftQuantity: number;
   leftLocations: string;
@@ -173,12 +176,12 @@ export const useStockStore = defineStore('stock', {
     /**
      * Busca de pares prontos para casar multi-setor (GET /inventory/mounting/matching-pairs)
      */
-    async fetchMatchingPairs(sector: SectorType = 'MONTAGEM') {
+    async fetchMatchingPairs(sector: SectorType = 'MONTAGEM', search: string = '') {
       this.loading = true;
       this.error = null;
       try {
         const response = await api.get('/inventory/mounting/matching-pairs', {
-          params: { sector },
+          params: { sector, q: search },
         });
         this.matchingPairs = response.data.pairs || [];
         this.matchingPairsCount = response.data.totalMatchingPairsCount || 0;

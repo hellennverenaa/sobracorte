@@ -5,7 +5,7 @@ import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { 
   Footprints, Layers, Box, RefreshCw, CheckCircle2, AlertCircle, 
-  MapPin, Check, ArrowRight
+  MapPin, Check, ArrowRight, Search, X
 } from 'lucide-vue-next';
 
 const stockStore = useStockStore();
@@ -18,6 +18,7 @@ const pairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon
 ];
 
 const activeSector = ref<SectorType>('MONTAGEM');
+const searchQuery = ref('');
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);
 const matchReason = ref('');
@@ -38,7 +39,16 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 }
 
 async function loadPairs() {
-  await stockStore.fetchMatchingPairs(activeSector.value);
+  await stockStore.fetchMatchingPairs(activeSector.value, searchQuery.value);
+}
+
+function handleSearch() {
+  loadPairs();
+}
+
+function clearSearch() {
+  searchQuery.value = '';
+  loadPairs();
 }
 
 function selectSectorTab(sector: SectorType) {
@@ -101,19 +111,45 @@ onMounted(() => {
 
     <div class="flex flex-col h-full">
       <!-- Top Bar -->
-      <div class="flex flex-col sm:flex-row gap-3 items-center justify-between mx-4 my-4">
+      <div class="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between mx-4 my-4">
         <div>
           <h1 class="text-xl font-bold text-gray-800">Casamento de Pares Multi-Setor</h1>
           <p class="text-xs text-gray-500">Localização física inteligente de lados esquerdo e direito (Solas, Cabedais e Montagem)</p>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <!-- Campo de Busca Rápida -->
+          <div class="relative flex-1 sm:w-72">
+            <Search class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <input
+              v-model="searchQuery"
+              @keyup.enter="handleSearch"
+              type="text"
+              placeholder="Buscar por SKU, Modelo ou Grade..."
+              class="w-full pl-9 pr-8 py-2 text-xs border border-gray-200 rounded focus:border-blue-500 outline-none uppercase bg-white"
+            />
+            <button
+              v-if="searchQuery"
+              @click="clearSearch"
+              class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+            >
+              <X class="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            @click="handleSearch"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded text-xs font-semibold shadow-sm transition-colors"
+          >
+            Buscar
+          </button>
+
           <button
             @click="loadPairs"
             class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-medium transition-colors"
           >
             <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': stockStore.loading }" />
-            <span>Atualizar Pares</span>
+            <span>Atualizar</span>
           </button>
         </div>
       </div>
@@ -173,6 +209,9 @@ onMounted(() => {
               <div>
                 <span class="text-[11px] font-bold text-gray-400 uppercase">COD. PRODUTO / SKU</span>
                 <h3 class="font-mono text-base font-bold text-blue-600">{{ pair.sku }}</h3>
+                <span v-if="pair.productName && pair.productName !== pair.sku" class="text-xs font-bold text-gray-800 block">
+                  {{ pair.productName }}
+                </span>
                 <span v-if="pair.color" class="text-xs text-gray-500 font-medium block">
                   Cor: {{ pair.color }}
                 </span>
@@ -268,6 +307,10 @@ onMounted(() => {
               <div class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">COD. PRODUTO / SKU:</span>
                 <span class="text-blue-600 font-mono">{{ selectedPair.sku }}</span>
+              </div>
+              <div v-if="selectedPair.productName && selectedPair.productName !== selectedPair.sku" class="flex justify-between font-bold">
+                <span class="text-gray-500 uppercase">Modelo / Linha:</span>
+                <span class="text-gray-800 font-semibold">{{ selectedPair.productName }}</span>
               </div>
               <div v-if="selectedPair.color" class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">Cor:</span>

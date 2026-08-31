@@ -46,6 +46,7 @@ export const CorteItemSchema = z.object({
 export const ApoioItemSchema = z.object({
   sector: z.literal('APOIO'),
   pieceCode: z.string().trim().min(1, 'Código do Molde/Peça é obrigatório'),
+  productName: z.string().trim().optional().default(''),
   description: z.string().trim().min(1, 'Descrição da peça é obrigatória'),
   materialColor: z.string().trim().min(1, 'Material e Cor são obrigatórios'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
@@ -57,8 +58,9 @@ export const ApoioItemSchema = z.object({
 // 🔹 3. PRÉ-FABRICADO: Solas por Produto
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
-  productName: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
-  color: z.string().trim().min(1, 'COMBINAÇÃO é obrigatória'),
+  sku: z.string().trim().optional().default(''),
+  productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
+  color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
@@ -70,7 +72,8 @@ export const PreFabricadoItemSchema = z.object({
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
-  color: z.string().trim().min(1, 'Combinação do cabedal é obrigatória'),
+  productName: z.string().trim().optional().default(''),
+  color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
@@ -82,6 +85,7 @@ export const ExpedicaoItemSchema = z.object({
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
+  productName: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),

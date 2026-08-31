@@ -205,12 +205,13 @@ async function handleSubmit() {
 
     case 'APOIO':
       if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim()) {
-        errorMessage.value = 'Código da Peça, Descrição e Grade são obrigatórios.';
+        errorMessage.value = 'COD. PRODUTO / SKU, Descrição da Peça e Grade são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
         pieceCode: formData.pieceCode.trim().toUpperCase(),
+        productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         description: formData.description.trim().toUpperCase(),
         materialColor: (formData.materialColor || 'PADRAO').trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
@@ -219,29 +220,31 @@ async function handleSubmit() {
 
     case 'PRE_FABRICADO':
       if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Cor são obrigatórios.';
+        errorMessage.value = 'Nome do Modelo, Grade e Combinação da Sola são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
+        sku: (formData.sku || formData.productName).trim().toUpperCase(),
         productName: formData.productName.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide,
+        footSide: formData.footSide || 'E',
       };
       break;
 
     case 'EXPEDICAO':
       if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Cor são obrigatórios.';
+        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Combinação do Cabedal são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
         sku: formData.sku.trim().toUpperCase(),
+        productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide,
+        footSide: formData.footSide || 'E',
       };
       break;
 
@@ -253,8 +256,9 @@ async function handleSubmit() {
       payloadItem = {
         ...payloadItem,
         sku: formData.sku.trim().toUpperCase(),
+        productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide,
+        footSide: formData.footSide || 'E',
       };
       break;
   }
@@ -387,7 +391,7 @@ onMounted(async () => {
       </div>
 
       <!-- 2. APOIO -->
-      <div v-if="activeSector === 'APOIO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-if="activeSector === 'APOIO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -396,6 +400,17 @@ onMounted(async () => {
             type="text"
             placeholder="Ex: MOL-GAS-01"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+          <input
+            v-model="formData.productName"
+            type="text"
+            placeholder="Ex: PEGASUS 40"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
         </div>
@@ -436,14 +451,25 @@ onMounted(async () => {
       </div>
 
       <!-- 3. PRÉ-FABRICADO (Solas) -->
-      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
+            v-model="formData.sku"
+            type="text"
+            placeholder="Ex: SOL-PEG40-01"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+          <input
             v-model="formData.productName"
             type="text"
-            placeholder="Ex: PEGASUS 40 ou OLY-CORSA"
+            placeholder="Ex: PEGASUS 40"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
@@ -483,7 +509,7 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ ESQUERDO (E)
+              E
             </button>
             <button
               type="button"
@@ -493,14 +519,14 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ DIREITO (D)
+              D
             </button>
           </div>
         </div>
       </div>
 
       <!-- 4. EXPEDIÇÃO (Cabedais) -->
-      <div v-if="activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-if="activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -509,6 +535,17 @@ onMounted(async () => {
             type="text"
             placeholder="Ex: NKE-PEG-CAB-01"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+          <input
+            v-model="formData.productName"
+            type="text"
+            placeholder="Ex: PEGASUS 40"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
         </div>
@@ -547,7 +584,7 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ ESQUERDO (E)
+              E
             </button>
             <button
               type="button"
@@ -557,7 +594,7 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ DIREITO (D)
+              D
             </button>
           </div>
         </div>
@@ -573,6 +610,17 @@ onMounted(async () => {
             type="text"
             placeholder="Ex: NKE-PEG40-BLK"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+          <input
+            v-model="formData.productName"
+            type="text"
+            placeholder="Ex: PEGASUS 40"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
         </div>
@@ -600,7 +648,7 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ ESQUERDO (E)
+              E
             </button>
             <button
               type="button"
@@ -610,7 +658,7 @@ onMounted(async () => {
                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
-              PÉ DIREITO (D)
+              D
             </button>
           </div>
         </div>

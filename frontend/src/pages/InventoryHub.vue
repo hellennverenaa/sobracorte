@@ -507,7 +507,10 @@ onUnmounted(() => {
 
                 <!-- Colunas APOIO -->
                 <template v-if="activeTab === 'APOIO'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.pieceCode }}</td>
+                  <td class="px-4 py-3">
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.pieceCode }}</span>
+                    <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.description }}</td>
                   <td class="px-4 py-3 text-sm text-gray-600">{{ item.materialColor }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
@@ -526,7 +529,10 @@ onUnmounted(() => {
 
                 <!-- Colunas PRÉ-FABRICADO -->
                 <template v-if="activeTab === 'PRE_FABRICADO'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.productName }}</td>
+                  <td class="px-4 py-3">
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku || item.productName }}</span>
+                    <span v-if="item.productName && item.productName !== item.sku" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
@@ -558,7 +564,10 @@ onUnmounted(() => {
 
                 <!-- Colunas EXPEDIÇÃO -->
                 <template v-if="activeTab === 'EXPEDICAO'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.sku }}</td>
+                  <td class="px-4 py-3">
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku }}</span>
+                    <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
@@ -590,7 +599,10 @@ onUnmounted(() => {
 
                 <!-- Colunas MONTAGEM -->
                 <template v-if="activeTab === 'MONTAGEM'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.sku }}</td>
+                  <td class="px-4 py-3">
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku }}</span>
+                    <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
                     <span

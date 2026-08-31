@@ -132,6 +132,7 @@ export class StockItemService {
               sectorSpecificData = {
                 componentType: 'PECA_CORTADA' as ComponentType,
                 pieceCode: item.pieceCode.trim().toUpperCase(),
+                productName: item.productName ? item.productName.trim().toUpperCase() : null,
                 description: item.description.trim().toUpperCase(),
                 materialColor: item.materialColor.trim().toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
@@ -141,6 +142,7 @@ export class StockItemService {
             case 'PRE_FABRICADO':
               sectorSpecificData = {
                 componentType: 'SOLADO' as ComponentType,
+                sku: (item.sku || item.productName).trim().toUpperCase(),
                 productName: item.productName.trim().toUpperCase(),
                 color: item.color.trim().toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
@@ -152,6 +154,7 @@ export class StockItemService {
               sectorSpecificData = {
                 componentType: 'CABEDAL' as ComponentType,
                 sku: item.sku.trim().toUpperCase(),
+                productName: item.productName ? item.productName.trim().toUpperCase() : null,
                 color: item.color.trim().toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide || null,
@@ -162,6 +165,7 @@ export class StockItemService {
               sectorSpecificData = {
                 componentType: 'PE_PRONTO' as ComponentType,
                 sku: item.sku.trim().toUpperCase(),
+                productName: item.productName ? item.productName.trim().toUpperCase() : null,
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide,
               };
@@ -254,6 +258,7 @@ export class StockItemService {
             ...base,
             OR: [
               { pieceCode: { contains: searchTerm, mode: 'insensitive' } },
+              { productName: { contains: searchTerm, mode: 'insensitive' } },
               { description: { contains: searchTerm, mode: 'insensitive' } },
               { materialColor: { contains: searchTerm, mode: 'insensitive' } },
               { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
@@ -263,6 +268,7 @@ export class StockItemService {
           return {
             ...base,
             OR: [
+              { sku: { contains: searchTerm, mode: 'insensitive' } },
               { productName: { contains: searchTerm, mode: 'insensitive' } },
               { color: { contains: searchTerm, mode: 'insensitive' } },
               { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
@@ -273,6 +279,7 @@ export class StockItemService {
             ...base,
             OR: [
               { sku: { contains: searchTerm, mode: 'insensitive' } },
+              { productName: { contains: searchTerm, mode: 'insensitive' } },
               { color: { contains: searchTerm, mode: 'insensitive' } },
               { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
             ],
@@ -282,6 +289,7 @@ export class StockItemService {
             ...base,
             OR: [
               { sku: { contains: searchTerm, mode: 'insensitive' } },
+              { productName: { contains: searchTerm, mode: 'insensitive' } },
               { sizeGrade: { contains: searchTerm, mode: 'insensitive' } },
             ],
           };

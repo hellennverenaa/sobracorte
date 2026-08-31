@@ -100,13 +100,13 @@ function formatItemDetails(item: any, mov?: any) {
     case 'CORTE':
       return `${item.code || ''} - ${item.name || ''}`;
     case 'APOIO':
-      return `${item.pieceCode || ''} (${item.description || ''}) - Gr. ${item.sizeGrade || ''}`;
+      return `${item.pieceCode || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.description || ''}) - Gr. ${item.sizeGrade || ''}`;
     case 'PRE_FABRICADO':
-      return `${item.productName || ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}`;
+      return `${item.sku || item.productName || ''}${item.productName && item.productName !== item.sku ? ' [' + item.productName + ']' : ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
     case 'EXPEDICAO':
-      return `${item.sku || ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}`;
+      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
     case 'MONTAGEM':
-      return `${item.sku || ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
+      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
     default:
       return item.id ? `Item #${item.id}` : '-';
   }
