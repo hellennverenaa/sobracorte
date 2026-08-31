@@ -264,12 +264,12 @@ ORDER BY "formablePairs" DESC;
 - **Cartão 5.8:** ✅ Evolução do Dashboard Multi-Setor & KPIs Operacionais (Single Round-Trip `GET /dashboard/summary`, filtro rápido por setor reativo sem overhead, itens parados sem giro >30d, proporção ESQ/DIR e ranking de reaproveitamento) - **Concluído**
 - **Cartão 5.9:** ✅ Adaptação e Modernização da Central de Relatórios (`Reports.vue` multi-setor, `GET /reports/movements`, fechamento de período com métricas de entradas/saídas/refugos/casamentos, exportação CSV/Excel e bloqueio RBAC para leitor) - **Concluído**
 
-🎉 **FASE 5 DO PROJETO TOTALMENTE CONCLUÍDA COM SUCESSO!**
-
 ---
 
 ## 🚀 7. Status dos Cartões Kanban do Sprint 6 (Refinamento & Consistência)
 
 - **Cartão 6.1:** ✅ Alinhamento e Consistência Numérica da Montagem (`paresCasados = totalRegistrosCasamento / 2` em `DashboardController.ts` e `ReportController.ts`, saldos ativos de pés com saldo > 0 `esqCount`/`dirCount`, consistência visual em `Dashboard.vue` e `Reports.vue`) - **Concluído**
+- **Cartão 6.2:** ✅ Redesign Corporativo e Layout Formal de Impressão (`Reports.vue` com cabeçalho institucional DASS, sumário condensado monocromático em linha única, tabela A4 otimizada, tfoot consolidado, rodapé de auditoria e `@media print` sem quebra de margens) - **Concluído**
+
 
 

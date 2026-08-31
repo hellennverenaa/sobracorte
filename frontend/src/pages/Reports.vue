@@ -257,6 +257,67 @@ function printPDF() {
   window.print()
 }
 
+// --- PAGINAÇÃO EM TELA ---
+const currentPage = ref(1)
+const pageSize = ref(25)
+
+const totalPages = computed(() => {
+  if (reportData.value.length === 0) return 1
+  return Math.ceil(reportData.value.length / pageSize.value)
+})
+
+function isRowVisible(index) {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return index >= start && index < end
+}
+
+// --- FORMATADORES DE RÓTULOS (USO EM TELA E IMPRESSÃO) ---
+function getSectorLabel(val) {
+  const found = sectors.find(s => s.value === val)
+  return found ? found.label : val
+}
+
+function getSectorShort(sec) {
+  const map = {
+    CORTE: 'CORTE',
+    APOIO: 'APOIO',
+    PRE_FABRICADO: 'PRÉ-FAB.',
+    EXPEDICAO: 'EXPED.',
+    MONTAGEM: 'MONTAGEM'
+  }
+  return map[sec] || sec || 'CORTE'
+}
+
+function getOperationLabel(val) {
+  const found = operationTypes.find(o => o.value === val)
+  return found ? found.label : val
+}
+
+function getTypeShort(tipo) {
+  const map = {
+    ENTRADA: 'ENTRADA',
+    SAIDA: 'SAÍDA',
+    TRANSFERENCIA: 'TRANSF.',
+    CASAMENTO_PAR: 'CASAM. PAR',
+    REFUGO: 'REFUGO'
+  }
+  return map[tipo] || tipo
+}
+
+function getPeriodLabel() {
+  if (filters.value.periodo === 'custom') {
+    if (filters.value.dataInicio && filters.value.dataFim) {
+      const d1 = new Date(filters.value.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')
+      const d2 = new Date(filters.value.dataFim + 'T23:59:59').toLocaleDateString('pt-BR')
+      return `${d1} a ${d2}`
+    }
+    return 'Período Personalizado'
+  }
+  const found = periods.find(p => p.value === filters.value.periodo)
+  return found ? found.label : filters.value.periodo
+}
+
 // --- CORES DE SETOR & OPERAÇÃO ---
 function getSectorBadge(sector) {
   const map = {
@@ -286,7 +347,7 @@ function getTypeBadge(type) {
     <!-- Toast Notification -->
     <transition name="fade-down">
       <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
+        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all print:hidden"
         :class="notification.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'">
         <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
         <XCircle v-else class="w-4 h-4" />
@@ -294,9 +355,47 @@ function getTypeBadge(type) {
       </div>
     </transition>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <div id="printable-report" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0 report-container">
 
-      <!-- CABEÇALHO PRINCIPAL -->
+      <!-- CABEÇALHO CORPORATIVO FORMAL DASS (EXCLUSIVO PARA IMPRESSÃO / PDF) -->
+      <div class="hidden print:block mb-2 pb-1.5 border-b-2 border-slate-900">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="text-[10px] font-black tracking-widest text-slate-800 uppercase">
+              GRUPO DASS — UNIDADE SEST (SANTO ESTÊVÃO/BA)
+            </div>
+            <h1 class="text-sm font-black text-slate-900 uppercase tracking-tight mt-0.5">
+              Relatório Gerencial de Gestão de Sobras e Movimentações
+            </h1>
+          </div>
+          <div class="text-right text-[9px] text-slate-700 font-semibold leading-tight">
+            <div><strong>Emissão:</strong> {{ new Date().toLocaleDateString('pt-BR') }} às {{ new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}</div>
+            <div><strong>Emissor:</strong> {{ authStore.user?.nome }} <span v-if="authStore.user?.matriculaDass || authStore.user?.usuario">(Mat: {{ authStore.user?.matriculaDass || authStore.user?.usuario }})</span></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 mt-1.5 pt-1.5 border-t border-slate-300 text-[9px] text-slate-800">
+          <div><span class="font-bold text-slate-900">Setor:</span> {{ getSectorLabel(filters.sector) }}</div>
+          <div><span class="font-bold text-slate-900">Operação:</span> {{ getOperationLabel(filters.tipoMovimento) }}</div>
+          <div><span class="font-bold text-slate-900">Período:</span> {{ getPeriodLabel() }}</div>
+          <div><span class="font-bold text-slate-900">Origem:</span> {{ filters.origin === 'TODOS' ? 'Todas as Origens' : filters.origin }}</div>
+        </div>
+      </div>
+
+      <!-- SUMÁRIO EXECUTIVO CONDENSADO EM LINHA ÚNICA (EXCLUSIVO PARA IMPRESSÃO) -->
+      <div class="hidden print:flex justify-between items-center bg-slate-100 border border-slate-300 p-2 mb-2 text-[9px] font-bold text-slate-900">
+        <div><strong>Movimentações:</strong> {{ reportTotals.totalRegistros.toLocaleString('pt-BR') }} registros</div>
+        <div class="text-slate-300">|</div>
+        <div><strong>Entradas:</strong> {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</div>
+        <div class="text-slate-300">|</div>
+        <div><strong>Saídas:</strong> {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</div>
+        <div class="text-slate-300">|</div>
+        <div><strong>Pares Casados:</strong> {{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</div>
+        <div class="text-slate-300">|</div>
+        <div><strong>Refugos / Perdas:</strong> {{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}</div>
+      </div>
+
+      <!-- CABEÇALHO PRINCIPAL EM TELA -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
           <h1 class="text-2xl font-black text-slate-800 flex items-center gap-2 tracking-tight">
@@ -447,8 +546,8 @@ function getTypeBadge(type) {
         </div>
       </div>
 
-      <!-- CARDS DE FECHAMENTO E TOTAIS DO PERÍODO -->
-      <div v-if="hasSearched" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <!-- CARDS DE FECHAMENTO E TOTAIS DO PERÍODO (OCULTOS NA IMPRESSÃO) -->
+      <div v-if="hasSearched" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:hidden">
         <!-- 1. Total de Registros -->
         <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-indigo-600">
           <p class="text-[9px] font-black uppercase text-slate-400 tracking-wider">Movimentações</p>
@@ -498,97 +597,90 @@ function getTypeBadge(type) {
       </div>
 
       <!-- TABELA DE DADOS ANALÍTICOS -->
-      <div v-if="hasSearched" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border-0">
+      <div v-if="hasSearched" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border print:border-slate-300 print:rounded-none">
 
-        <!-- Cabeçalho Impressão (Visível apenas ao imprimir) -->
-        <div class="hidden print:block p-6 text-center border-b border-slate-200">
-          <h1 class="text-2xl font-black text-slate-900">Grupo DASS — Relatório de Gestão de Sobras</h1>
-          <p class="text-xs text-slate-500 mt-1">
-            Fábrica: {{ authStore.user?.unit?.name || 'Unidade DASS' }} | Gerado por: {{ authStore.user?.nome }} em {{ new Date().toLocaleString('pt-BR') }}
-          </p>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-xs">
-            <thead class="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-wider border-b border-slate-200 print:bg-slate-100">
+        <div class="overflow-x-auto print:overflow-visible">
+          <table class="w-full text-left border-collapse text-xs print:text-[8px] print:table-auto">
+            <thead class="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-wider border-b border-slate-200 print:bg-slate-200 print:text-slate-900 print:border-b-2 print:border-slate-400 print:text-[8.5px]">
               <tr>
-                <th class="py-3 px-4">Data / Hora</th>
-                <th class="py-3 px-3 text-center">Setor</th>
-                <th class="py-3 px-3 text-center">Operação</th>
-                <th class="py-3 px-4">Código / Descrição</th>
-                <th class="py-3 px-2 text-center">Grade / Pé</th>
-                <th class="py-3 px-3 text-right">Qtd / Un</th>
-                <th class="py-3 px-3">Prateleira</th>
-                <th class="py-3 px-3">Origem / Motivo</th>
-                <th class="py-3 px-4">Operador</th>
+                <th class="py-3 px-3 print:py-1 print:px-1.5 whitespace-nowrap text-left">Data / Hora</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Setor</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Operação</th>
+                <th class="py-3 px-3 print:py-1 print:px-1.5 text-left">Código / Descrição</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-center whitespace-nowrap">Grade / Pé</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-right whitespace-nowrap">Qtd / Un</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-left">Prateleira</th>
+                <th class="py-3 px-2 print:py-1 print:px-1 text-left">Origem / Motivo</th>
+                <th class="py-3 px-3 print:py-1 print:px-1 text-left">Operador</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-slate-100 print:divide-slate-200">
               <tr
-                v-for="row in reportData"
+                v-for="(row, idx) in reportData"
                 :key="row.id"
-                class="hover:bg-slate-50/80 transition-colors"
+                class="hover:bg-slate-50/80 transition-colors print:even:bg-slate-50/80"
+                :class="isRowVisible(idx) ? 'table-row' : 'hidden print:table-row'"
               >
                 <!-- 1. Data e Hora -->
-                <td class="py-2.5 px-4 text-slate-600 whitespace-nowrap">
-                  <div class="font-bold text-slate-800">{{ new Date(row.data).toLocaleDateString('pt-BR') }}</div>
-                  <div class="text-[10px] text-slate-400">{{ new Date(row.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}</div>
+                <td class="py-2.5 px-3 text-slate-600 whitespace-nowrap print:py-1 print:px-1.5">
+                  <div class="font-bold text-slate-800 print:text-black">{{ new Date(row.data).toLocaleDateString('pt-BR') }}</div>
+                  <div class="text-[10px] text-slate-400 print:text-[7.5px] print:text-slate-600">{{ new Date(row.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}</div>
                 </td>
 
                 <!-- 2. Setor -->
-                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                  <span class="text-[9px] font-black px-2 py-0.5 rounded-md border uppercase" :class="getSectorBadge(row.setor || row.sector)">
-                    {{ row.setor || row.sector || 'CORTE' }}
+                <td class="py-2.5 px-2 text-center whitespace-nowrap print:py-1 print:px-1">
+                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase print:border-0 print:bg-transparent print:p-0 print:text-slate-900 print:text-[8px] print:whitespace-nowrap" :class="getSectorBadge(row.setor || row.sector)">
+                    {{ getSectorShort(row.setor || row.sector) }}
                   </span>
                 </td>
 
                 <!-- 3. Operação -->
-                <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                  <span class="text-[9px] font-black px-2 py-0.5 rounded-md border uppercase" :class="getTypeBadge(row.tipo)">
-                    {{ row.tipo }}
+                <td class="py-2.5 px-2 text-center whitespace-nowrap print:py-1 print:px-1">
+                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase print:border-0 print:bg-transparent print:p-0 print:text-slate-900 print:text-[8px] print:whitespace-nowrap" :class="getTypeBadge(row.tipo)">
+                    {{ getTypeShort(row.tipo) }}
                   </span>
                 </td>
 
                 <!-- 4. Código e Descrição -->
-                <td class="py-2.5 px-4">
-                  <div class="font-bold text-slate-900">{{ row.descricao || row.nomeMaterial }}</div>
-                  <div class="text-[10px] font-mono text-slate-400">{{ row.codigo }}</div>
+                <td class="py-2.5 px-3 print:py-1 print:px-1.5">
+                  <div class="font-bold text-slate-900 break-words print:text-[8px] leading-tight">{{ row.descricao || row.nomeMaterial }}</div>
+                  <div class="text-[10px] font-mono text-slate-400 print:text-[7.5px] print:text-slate-600">{{ row.codigo }}</div>
                 </td>
 
                 <!-- 5. Grade / Pé -->
-                <td class="py-2.5 px-2 text-center whitespace-nowrap text-slate-600">
-                  <span v-if="row.gradeTamanho && row.gradeTamanho !== '-'" class="font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                <td class="py-2.5 px-2 text-center whitespace-nowrap text-slate-600 print:py-1 print:px-1">
+                  <span v-if="row.gradeTamanho && row.gradeTamanho !== '-'" class="font-bold bg-slate-100 px-1.5 py-0.5 rounded text-[10px] print:bg-transparent print:p-0 print:text-black print:text-[8px]">
                     Tam {{ row.gradeTamanho }}
                   </span>
-                  <span v-if="row.ladoPe && row.ladoPe !== '-'" class="ml-1 text-[10px] font-black" :class="row.ladoPe === 'E' ? 'text-indigo-600' : 'text-purple-600'">
+                  <span v-if="row.ladoPe && row.ladoPe !== '-'" class="ml-0.5 text-[10px] font-black print:text-black print:text-[8px]" :class="row.ladoPe === 'E' ? 'text-indigo-600' : 'text-purple-600'">
                     ({{ row.ladoPe }})
                   </span>
-                  <span v-if="(!row.gradeTamanho || row.gradeTamanho === '-') && (!row.ladoPe || row.ladoPe === '-')" class="text-slate-300">-</span>
+                  <span v-if="(!row.gradeTamanho || row.gradeTamanho === '-') && (!row.ladoPe || row.ladoPe === '-')" class="text-slate-300 print:text-slate-400">-</span>
                 </td>
 
                 <!-- 6. Quantidade -->
-                <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                  <span class="font-black text-slate-900 text-sm">{{ Number(row.quantidade).toLocaleString('pt-BR') }}</span>
-                  <span class="text-[10px] font-bold text-slate-400 ml-1">{{ row.unidade }}</span>
+                <td class="py-2.5 px-2 text-right whitespace-nowrap print:py-1 print:px-1">
+                  <span class="font-black text-slate-900 text-xs print:text-[8.5px]">{{ Number(row.quantidade).toLocaleString('pt-BR') }}</span>
+                  <span class="text-[10px] font-bold text-slate-400 print:text-slate-600 ml-1 print:text-[7.5px]">{{ row.unidade }}</span>
                 </td>
 
                 <!-- 7. Prateleira -->
-                <td class="py-2.5 px-3 text-slate-600 whitespace-nowrap font-medium text-[11px]">
+                <td class="py-2.5 px-2 text-slate-600 font-medium text-[11px] print:py-1 print:px-1 print:text-[8px] print:text-slate-800 break-words">
                   {{ row.prateleira || '-' }}
                 </td>
 
                 <!-- 8. Origem / Motivo -->
-                <td class="py-2.5 px-3 text-slate-600 text-[11px]">
-                  <div class="font-semibold text-slate-800">{{ row.origem || '-' }}</div>
-                  <div v-if="row.motivo && row.motivo !== '-' && row.motivo !== row.origem" class="text-[10px] text-slate-400 italic">
+                <td class="py-2.5 px-2 text-slate-600 text-[11px] print:py-1 print:px-1 print:text-[8px] leading-tight break-words">
+                  <div class="font-semibold text-slate-800 print:text-black">{{ row.origem || '-' }}</div>
+                  <div v-if="row.motivo && row.motivo !== '-' && row.motivo !== row.origem" class="text-[10px] print:text-[7.5px] text-slate-400 print:text-slate-500 italic">
                     {{ row.motivo }}
                   </div>
                 </td>
 
                 <!-- 9. Operador DASS -->
-                <td class="py-2.5 px-4 text-slate-600 whitespace-nowrap text-[11px]">
-                  <div class="font-bold text-slate-700">{{ row.operador || row.responsavel }}</div>
-                  <div v-if="row.matricula" class="text-[9px] text-slate-400 font-mono">Mat: {{ row.matricula }}</div>
+                <td class="py-2.5 px-3 text-slate-600 text-[11px] print:py-1 print:px-1 print:text-[8px] leading-tight break-words">
+                  <div class="font-bold text-slate-700 print:text-black">{{ row.operador || row.responsavel }}</div>
+                  <div v-if="row.matricula" class="text-[9px] text-slate-400 print:text-slate-600 font-mono print:text-[7.5px]">Mat: {{ row.matricula }}</div>
                 </td>
               </tr>
 
@@ -600,21 +692,67 @@ function getTypeBadge(type) {
                 </td>
               </tr>
             </tbody>
+
+            <!-- TFOOT CONSOLIDADO (RODAPÉ FORMAL DA TABELA) -->
+            <tfoot v-if="reportData.length > 0" class="bg-slate-100 border-t-2 border-slate-400 font-bold text-slate-900 text-xs print:text-[8.5px] print:bg-slate-200">
+              <tr class="break-inside-avoid print:break-inside-avoid">
+                <td colspan="5" class="py-2.5 px-3 print:py-1 print:px-1.5 uppercase tracking-wide">
+                  TOTAIS CONSOLIDADOS ({{ reportData.length }} registros)
+                </td>
+                <td class="py-2.5 px-2 text-right print:py-1 print:px-1 whitespace-nowrap font-black">
+                  {{ Number(reportData.reduce((acc, curr) => acc + Number(curr.quantidade || 0), 0)).toLocaleString('pt-BR') }}
+                </td>
+                <td colspan="3" class="py-2.5 px-3 print:py-1 print:px-1.5 text-slate-600 print:text-slate-800 text-[11px] print:text-[7.5px]">
+                  Entradas: {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }} | Saídas: {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }} | Casamentos: {{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }} | Refugos: {{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
 
-        <!-- Rodapé com Fechamento Total -->
-        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-600 gap-2 print:bg-slate-100">
-          <div>
-            Total de <strong>{{ reportData.length }}</strong> registros no período filtrado.
+        <!-- Rodapé Visual na Tela com Paginação -->
+        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-600 gap-3 print:hidden">
+          <div class="flex items-center gap-4">
+            <div>
+              Total de <strong>{{ reportData.length }}</strong> registros no período filtrado.
+            </div>
+            <div class="flex items-center gap-2 font-bold text-xs">
+              <span class="text-emerald-700">Entradas: {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</span>
+              <span>·</span>
+              <span class="text-blue-700">Saídas: {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</span>
+            </div>
           </div>
-          <div class="flex items-center gap-4 font-bold">
-            <span class="text-emerald-700">Entradas: {{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</span>
-            <span>·</span>
-            <span class="text-blue-700">Saídas: {{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</span>
+
+          <!-- Controles de Paginação em Tela (Ocultos na Impressão) -->
+          <div v-if="totalPages > 1" class="flex items-center gap-2 print:hidden">
+            <button
+              @click="currentPage--"
+              :disabled="currentPage === 1"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-xs hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+              title="Página Anterior"
+            >
+              &lt;
+            </button>
+            <span class="text-xs font-bold text-slate-700 px-1">
+              {{ currentPage }} de {{ totalPages }}
+            </span>
+            <button
+              @click="currentPage++"
+              :disabled="currentPage === totalPages"
+              class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold text-xs hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+              title="Próxima Página"
+            >
+              &gt;
+            </button>
           </div>
         </div>
 
+      </div>
+
+      <!-- RODAPÉ CORPORATIVO DASS (EXCLUSIVO PARA IMPRESSÃO) -->
+      <div class="hidden print:flex justify-between items-center mt-2 pt-1.5 border-t border-slate-300 text-[8px] text-slate-600">
+        <div>Grupo DASS — Sistema SobraCorte (Módulo de Controle e Gestão Operacional de Sobras)</div>
+        <div>Documento para uso interno e operacional | Página gerada eletronicamente</div>
       </div>
 
     </div>
@@ -623,32 +761,75 @@ function getTypeBadge(type) {
 
 <style>
 @page {
+  size: A4 portrait;
   margin: 0.8cm;
 }
 
 @media print {
-  body { background: white !important; }
-  aside, header, footer, nav { display: none !important; }
-  .print\:hidden { display: none !important; }
-  .print\:block { display: block !important; }
+  html, body, #app, .app-container, main, #printable-report, .report-container, .flex, .flex-1 {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  aside, header, footer, nav {
+    display: none !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:flex {
+    display: flex !important;
+  }
+
+  .print\:table-row {
+    display: table-row !important;
+  }
 
   * {
     overflow: visible !important;
-    height: auto !important;
-    max-height: none !important;
-    min-height: auto !important;
+    box-shadow: none !important;
+    float: none !important;
   }
 
-  #app, main {
-    margin: 0 !important;
-    padding: 0 !important;
+  table {
     width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
-  table { width: 100% !important; }
+  thead {
+    display: table-header-group !important; /* Repete o cabeçalho no topo de cada folha naturalmente */
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 }
 </style>

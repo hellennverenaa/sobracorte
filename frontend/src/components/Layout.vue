@@ -34,7 +34,7 @@ const menuItems = [
     <div v-if="isSidebarOpen" @click="isSidebarOpen = false" class="fixed inset-0 bg-black/50 z-20 md:hidden"></div>
 
     <aside 
-      class="fixed md:static inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 md:translate-x-0 flex flex-col shadow-2xl"
+      class="fixed md:static inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 md:translate-x-0 flex flex-col shadow-2xl print:hidden"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="p-6 flex items-center justify-between border-b border-slate-800">
@@ -80,12 +80,12 @@ const menuItems = [
       </div>
     </aside>
 
-    <main class="flex-1 flex flex-col h-screen overflow-hidden">
-      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 md:hidden">
+    <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 md:hidden print:hidden">
         <div class="font-black text-slate-900">Sobras DASS</div>
         <button @click="isSidebarOpen = true" class="text-gray-600"><Menu /></button>
       </header>
-      <div class="flex-1 overflow-auto bg-slate-50 relative">
+      <div class="flex-1 overflow-auto bg-slate-50 relative print:bg-white print:overflow-visible print:p-0">
         <slot />
       </div>
     </main>
