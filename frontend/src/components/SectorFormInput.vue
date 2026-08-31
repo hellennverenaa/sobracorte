@@ -450,7 +450,7 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COMBINAÇÃO *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COMBINAÇÃO da sola *</label>
           <input
             v-model="formData.color"
             type="text"
@@ -514,7 +514,7 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Cor do Cabedal *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação do Cabedal *</label>
           <input
             v-model="formData.color"
             type="text"
