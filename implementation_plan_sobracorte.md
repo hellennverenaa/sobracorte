@@ -289,5 +289,8 @@ ORDER BY "formablePairs" DESC;
 4. **Interface Intuitiva com Carrinho/Lista de Pedidos:**
    - Visualização clara dos itens solicitados, prateleiras sugeridas para separação rápida e comprovante digital/impressão de romaneio de entrega.
 
+### 📋 Status dos Cartões Kanban do Sprint 7:
+- **Cartão 7.1:** ✅ Abertura Digital de Requisição e Verificação de Saldo em Tempo Real (`MaterialRequisition` no Prisma, `RequisitionService.ts`, `RequisitionController.ts`, rotas `POST /requisitions`, `GET /requisitions`, `PATCH /requisitions/:id/cancel`, tela `Requisitions.vue` e integração no menu lateral com `ClipboardList`) - **Concluído**
+
 
 

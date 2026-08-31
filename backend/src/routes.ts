@@ -10,6 +10,7 @@ import { DashboardController } from './controllers/DashboardController';
 import { StockItemController } from './controllers/StockItemController';
 import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
+import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
 import { requireRole, requireAuth } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
@@ -28,6 +29,7 @@ const dashboardController = new DashboardController();
 const stockItemController = new StockItemController();
 const mountingPairController = new MountingPairController();
 const stockMovementController = new StockMovementController();
+const requisitionController = new RequisitionController();
 routes.get('/factory-units', async (_req, res) => {
   try {
     const units = await prisma.factoryUnit.findMany({
@@ -60,6 +62,11 @@ routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['lide
 // 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
 routes.post('/inventory/movements', requireAuth, requireRole(['lider', 'movimentador']), stockMovementController.create);
 routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
+
+// 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
+routes.post('/requisitions', requireAuth, requisitionController.create);
+routes.get('/requisitions', requireAuth, requisitionController.index);
+routes.patch('/requisitions/:id/cancel', requireAuth, requisitionController.cancel);
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
 routes.get('/dashboard/summary', requireAuth, dashboardController.getSummary);

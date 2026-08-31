@@ -67,6 +67,7 @@ model FactoryUnit {
   stockItems         StockItem[]
   stockItemLocations StockItemLocation[]
   stockMovements     StockMovement[]
+  requisitions       MaterialRequisition[]
 
   @@schema("sobra_corte")
 }
@@ -374,5 +375,44 @@ model StockMovement {
   @@index([factoryUnitId, stockItemId])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, operatorId, createdAt])
+  @@schema("sobra_corte")
+}
+
+enum RequisitionStatus {
+  PENDENTE
+  ATENDIDA_TOTAL
+  ATENDIDA_PARCIAL
+  CANCELADA
+
+  @@schema("sobra_corte")
+}
+
+// 📋 REQUISIÇÃO DIGITAL DE REPOSIÇÃO (MÓDULO DIGITAL DE REQUISIÇÕES)
+model MaterialRequisition {
+  id                String            @id @default(uuid())
+  code              String            // Ex: REQ-2026-0001
+  requestSector     SectorType        // Setor solicitante: CORTE, APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM
+  sku               String?           // COD. PRODUTO / SKU (caixa alta)
+  modelName         String?           // NOME DO MODELO / LINHA (caixa alta)
+  description       String            // Peça / Material solicitado
+  sizeGrade         String?           // Grade / Tamanho (ex: 39/40)
+  footSide          FootSide?         // E / D ou null
+  quantityRequested Float             // Quantidade solicitada
+  quantityFulfilled Float             @default(0) // Quantidade atendida
+  reason            String            // Motivo da avaria / defeito
+  status            RequisitionStatus @default(PENDENTE)
+
+  requesterId       String?           // Matrícula DASS do solicitante
+  requesterName     String?           // Nome do solicitante
+  factoryUnitId     Int
+  factoryUnit       FactoryUnit       @relation(fields: [factoryUnitId], references: [id])
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([factoryUnitId, code])
+  @@index([factoryUnitId, status, createdAt(sort: Desc)])
+  @@index([factoryUnitId, requestSector, status])
+  @@index([factoryUnitId, sku])
   @@schema("sobra_corte")
 }

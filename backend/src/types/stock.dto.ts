@@ -137,6 +137,33 @@ export const MovementHistoryFilterSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 
+// 📋 DTOs para Módulo Digital de Requisições
+export const RequisitionStatusEnum = z.enum([
+  'PENDENTE',
+  'ATENDIDA_TOTAL',
+  'ATENDIDA_PARCIAL',
+  'CANCELADA',
+]);
+
+export const CreateRequisitionSchema = z.object({
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']),
+  sku: z.string().trim().min(1, 'COD. PRODUTO / SKU é obrigatório').transform((val) => val.toUpperCase()),
+  modelName: z.string().trim().min(1, 'NOME DO MODELO / LINHA é obrigatório').transform((val) => val.toUpperCase()),
+  description: z.string().trim().min(1, 'Peça / Material solicitado é obrigatório').transform((val) => val.toUpperCase()),
+  sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  footSide: FootSideEnum.optional().nullable(),
+  quantityRequested: z.coerce.number().positive('Quantidade solicitada deve ser maior que zero'),
+  reason: z.string().trim().min(1, 'Motivo do defeito/avaria é obrigatório').transform((val) => val.toUpperCase()),
+});
+
+export const RequisitionFilterSchema = z.object({
+  status: RequisitionStatusEnum.optional(),
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']).optional(),
+  search: z.string().trim().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
 // Tipos Inferidos
 export type CorteItemDTO = z.infer<typeof CorteItemSchema>;
 export type ApoioItemDTO = z.infer<typeof ApoioItemSchema>;
@@ -148,6 +175,8 @@ export type BatchCreateStockItemDTO = z.infer<typeof BatchCreateStockItemSchema>
 export type ExecuteMatchDTO = z.infer<typeof ExecuteMatchSchema>;
 export type CreateStockMovementDTO = z.infer<typeof CreateStockMovementSchema>;
 export type MovementHistoryFilterDTO = z.infer<typeof MovementHistoryFilterSchema>;
+export type CreateRequisitionDTO = z.infer<typeof CreateRequisitionSchema>;
+export type RequisitionFilterDTO = z.infer<typeof RequisitionFilterSchema>;
 
 export interface OperatorContext {
   factoryUnitId: number;

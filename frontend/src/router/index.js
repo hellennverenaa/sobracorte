@@ -8,6 +8,7 @@ import Movement from '@/pages/Movement.vue'
 import InventoryHub from '@/pages/InventoryHub.vue'
 import MountingMatchingPairs from '@/pages/MountingMatchingPairs.vue'
 import StockMovementHistory from '@/pages/StockMovementHistory.vue'
+import Requisitions from '@/pages/Requisitions.vue'
 import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
@@ -39,6 +40,15 @@ const routes = [
     alias: '/mounting-matching-pairs',
     name: 'MountingMatchingPairs', 
     component: MountingMatchingPairs, 
+    meta: { 
+      requiresAuth: true,
+      roles: ['admin', 'lider', 'movimentador', 'leitor'] 
+    } 
+  },
+  { 
+    path: '/requisitions', 
+    name: 'Requisitions', 
+    component: Requisitions, 
     meta: { 
       requiresAuth: true,
       roles: ['admin', 'lider', 'movimentador', 'leitor'] 

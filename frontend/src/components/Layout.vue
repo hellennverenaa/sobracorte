@@ -3,7 +3,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
-  LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History
+  LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
+  ClipboardList
 } from 'lucide-vue-next'
 import { ref } from 'vue'
 
@@ -18,13 +19,14 @@ async function logout() {
 }
 
 const menuItems = [
-  { label: 'Dashboard',           path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Estoque Multi-Setor', path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Casamento de Pares',  path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Histórico & Auditoria', path: '/stock-history', icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
-  { label: 'Relatórios',          path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
-  { label: 'Usuários',            path: '/users',           icon: Users,           roles: ['admin'] },
-  { label: 'Configurações',       path: '/settings',        icon: Settings,        roles: ['admin', 'lider'] }
+  { label: 'Dashboard',             path: '/',                icon: LayoutDashboard, roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Estoque Multi-Setor',   path: '/inventory',       icon: Layers,          roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Casamento de Pares',    path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'lider'] },
+  { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
+  { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'lider'] }
 ]
 </script>
 
