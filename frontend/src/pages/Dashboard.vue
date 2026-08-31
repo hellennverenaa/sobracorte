@@ -207,7 +207,7 @@ const currentFilteredEfficiency = computed(() => {
     MONTAGEM: setoresData.value.montagem,
   }
   const s = secMap[selectedSector.value] || { totalEntries: 0, totalExits: 0 }
-  const taxa = s.totalEntries > 0 ? Math.round((s.totalExits / s.totalEntries) * 100) : 0
+  const taxa = s.totalEntries > 0 ? Math.min(100, Math.round((s.totalExits / s.totalEntries) * 100)) : 0
   return {
     taxa,
     entries: s.totalEntries || 0,

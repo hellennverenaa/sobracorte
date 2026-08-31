@@ -273,6 +273,21 @@ ORDER BY "formablePairs" DESC;
 - **Cartão 6.3:** ✅ Padronização de COD. PRODUTO / SKU, Gestão de Lado (ESQ/DIR) e Casamento Multi-Setor (`SectorFormInput.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `MountingPairService.ts` e `stock.dto.ts` com suporte unificado para Solas, Cabedais e Montagem) - **Concluído**
 - **Cartão 6.4:** ✅ Correção de Lados em Pré-Fabricado, Uppercase Global, Nome do Modelo e Busca no Casamento (`SectorFormInput.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `StockMovementHistory.vue`, `Reports.vue`, `ReportController.ts`, `SettingsController.ts`, `MountingPairService.ts`, `StockItemService.ts`, `globals.css` e `stock.dto.ts`) - **Concluído**
 - **Cartão 6.5:** ✅ Busca Multi-Itens em Lote com Disparo por Botão no Estoque (`InventoryHub.vue`, `Materials.vue`, `StockItemService.ts`, `StockItemController.ts` e `MaterialController.ts` com suporte a múltiplos SKUs/códigos colados, botão "Buscar Itens", reset em 1 clique e badge de termos filtrados) - **Concluído**
+- **Cartão 6.6:** ✅ Botão Visual de Busca (Estoque), Auditoria Contábil Global & Trava de Saldo Não-Negativo (`InventoryHub.vue`, `DashboardController.ts`, `Dashboard.vue`, `StockMovementService.ts`, `MountingPairService.ts` com isolamento estrito de grandezas físicas, taxa de reaproveitamento delimitada em 100%, conciliação física de saldo contábil e botão de busca sob demanda) - **Concluído**
+
+---
+
+## 📦 8. Planejamento da Fase 7: Módulo Digital de Requisições & Solicitações de Materiais
+
+### 🎯 Objetivos Estratégicos:
+1. **Fluxo Digital de Solicitação de Materiais:**
+   - Permitir que setores solicitantes (ex: Montagem, Costura, Expedição) criem pedidos/solicitações de sobras de estoque para a equipe de Corte e Almoxarifado.
+2. **Status e Ciclo de Vida da Requisição:**
+   - Estados estruturados: `PENDENTE` ➔ `EM_SEPARACAO` ➔ `ATENDIDA` / `CANCELADA`.
+3. **Baixa e Rastreabilidade Automática:**
+   - Ao confirmar o atendimento da requisição, debitar automaticamente os itens do estoque físico e gerar o log de movimentação com identificação do solicitante e operador atendente.
+4. **Interface Intuitiva com Carrinho/Lista de Pedidos:**
+   - Visualização clara dos itens solicitados, prateleiras sugeridas para separação rápida e comprovante digital/impressão de romaneio de entrega.
 
 
 

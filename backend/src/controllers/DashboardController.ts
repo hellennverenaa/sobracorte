@@ -156,7 +156,7 @@ export class DashboardController {
 
       const totalEntries = stockEntriesCount + legacyEntriesCount;
       const totalExits = stockExitsCount + legacyExitsCount;
-      const taxaReaproveitamento = totalEntries > 0 ? Math.round((totalExits / totalEntries) * 100) : 0;
+      const taxaReaproveitamento = totalEntries > 0 ? Math.min(100, Math.round((totalExits / totalEntries) * 100)) : 0;
       const totalParadosSemGiro = stagnantMaterialsCount + stagnantStockItemsCount;
 
       // 1. Métricas / KPIs consolidados globais
@@ -178,40 +178,55 @@ export class DashboardController {
 
       const totalParesCasados = Math.floor((Number(paresCasadosCount._sum?.quantity) || 0) / 2);
 
+      const corteTotalEntries = legacyEntriesCount + corteStockEntries;
+      const corteTotalExits = legacyExitsCount + corteStockExits;
+      const montagemTotalEntries = Number(montagemEntriesCount._sum?.quantity) || 0;
+      const montagemTotalExits = Number(montagemExitsCount._sum?.quantity) || 0;
+
       const setores = {
         corte: {
           itemsCount: totalMaterialsCount,
           totalQuantity: Number(corteQtyAgg._sum.quantity) || 0,
-          totalEntries: legacyEntriesCount + corteStockEntries,
-          totalExits: legacyExitsCount + corteStockExits,
+          unit: 'M²',
+          totalEntries: corteTotalEntries,
+          totalExits: corteTotalExits,
+          taxaReaproveitamento: corteTotalEntries > 0 ? Math.min(100, Math.round((corteTotalExits / corteTotalEntries) * 100)) : 0,
           totalParadosSemGiro: stagnantMaterialsCount,
         },
         apoio: {
           itemsCount: apoioCount,
           totalQuantity: Number(apoioQtyAgg._sum.quantity) || 0,
+          unit: 'PÇS',
           totalEntries: apoioEntriesCount,
           totalExits: apoioExitsCount,
+          taxaReaproveitamento: apoioEntriesCount > 0 ? Math.min(100, Math.round((apoioExitsCount / apoioEntriesCount) * 100)) : 0,
           totalParadosSemGiro: apoioStagnantCount,
         },
         preFabricado: {
           itemsCount: preFabCount,
           totalQuantity: Number(preFabQtyAgg._sum.quantity) || 0,
+          unit: 'PARES/PÉS',
           totalEntries: preFabEntriesCount,
           totalExits: preFabExitsCount,
+          taxaReaproveitamento: preFabEntriesCount > 0 ? Math.min(100, Math.round((preFabExitsCount / preFabEntriesCount) * 100)) : 0,
           totalParadosSemGiro: preFabStagnantCount,
         },
         expedicao: {
           itemsCount: expedicaoCount,
           totalQuantity: Number(expedicaoQtyAgg._sum.quantity) || 0,
+          unit: 'PÇS/UN',
           totalEntries: expedicaoEntriesCount,
           totalExits: expedicaoExitsCount,
+          taxaReaproveitamento: expedicaoEntriesCount > 0 ? Math.min(100, Math.round((expedicaoExitsCount / expedicaoEntriesCount) * 100)) : 0,
           totalParadosSemGiro: expedicaoStagnantCount,
         },
         montagem: {
           itemsCount: montagemCount,
           totalQuantity: Number(montagemQtyAgg._sum.quantity) || 0,
-          totalEntries: Number(montagemEntriesCount._sum?.quantity) || 0,
-          totalExits: Number(montagemExitsCount._sum?.quantity) || 0,
+          unit: 'PÉS',
+          totalEntries: montagemTotalEntries,
+          totalExits: montagemTotalExits,
+          taxaReaproveitamento: montagemTotalEntries > 0 ? Math.min(100, Math.round((montagemTotalExits / montagemTotalEntries) * 100)) : 0,
           totalParadosSemGiro: montagemStagnantCount,
           peEsq: Number(montagemEsqAgg._sum.quantity) || 0,
           peDir: Number(montagemDirAgg._sum.quantity) || 0,

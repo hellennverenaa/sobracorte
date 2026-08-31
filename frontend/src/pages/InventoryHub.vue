@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
@@ -312,12 +312,6 @@ onMounted(() => {
   stockStore.setActiveSector(initialSector);
   loadData(currentPage.value);
 });
-
-onUnmounted(() => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-});
 </script>
 
 <template>
@@ -399,7 +393,7 @@ onUnmounted(() => {
             <div class="relative flex-1">
               <input
                 v-model="search"
-                @keyup.enter="handleExplicitSearch"
+                @keydown.enter="handleExplicitSearch"
                 type="text"
                 placeholder="Cole múltiplos SKUs separados por vírgula, espaço ou quebra de linha..."
                 class="w-full border border-gray-200 py-2 pl-3 pr-8 rounded outline-none focus:border-blue-500 text-sm uppercase bg-white"
@@ -409,7 +403,7 @@ onUnmounted(() => {
                 type="button"
                 @click="clearSearch"
                 class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
-                title="Limpar Filtro"
+                title="Limpar Filtro (X)"
               >
                 <X class="w-4 h-4" />
               </button>
@@ -421,7 +415,7 @@ onUnmounted(() => {
               class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded text-xs flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
             >
               <Search class="w-4 h-4" />
-              <span>Buscar Itens</span>
+              <span>Buscar</span>
             </button>
           </div>
         </div>
