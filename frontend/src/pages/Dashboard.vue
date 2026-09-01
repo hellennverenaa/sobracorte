@@ -136,57 +136,71 @@ const origemColors = [
 
 // --- CÁLCULOS REATIVOS ADAPTÁVEIS AO FILTRO DE SETOR ---
 
-// 1. Volume Adaptável
+// 1. Volume Adaptável & Desmembramento de Unidades de Medida
 const currentFilteredVolume = computed(() => {
   if (selectedSector.value === 'TODOS') {
+    const corteQty = Number(setoresData.value.corte?.totalQuantity || 0)
+    const apoioQty = Number(setoresData.value.apoio?.totalQuantity || 0)
+    const preFabQty = Number(setoresData.value.preFabricado?.totalQuantity || 0)
+    const expedicaoQty = Number(setoresData.value.expedicao?.totalQuantity || 0)
+    const montagemQty = Number(setoresData.value.montagem?.totalQuantity || 0)
+    const calcadosQty = apoioQty + preFabQty + expedicaoQty + montagemQty
+
     return {
-      label: 'Volume Total em Estoque',
-      itemsCount: realStats.value.totalItems,
-      quantity: volumePorSetor.value.reduce((acc, v) => acc + (v.quantity || 0), 0),
-      unit: 'unidades / m²'
+      isAllSectors: true,
+      label: 'Cadastros Ativos em Estoque',
+      mainCount: realStats.value.totalItems,
+      mainUnit: 'cadastros',
+      corteVolume: corteQty,
+      componentesVolume: calcadosQty,
     }
   }
   if (selectedSector.value === 'CORTE') {
     return {
+      isAllSectors: false,
       label: 'Estoque de Matéria-Prima (Corte)',
-      itemsCount: setoresData.value.corte.itemsCount,
-      quantity: setoresData.value.corte.totalQuantity,
-      unit: 'm² / m / un'
+      mainCount: Number(setoresData.value.corte?.totalQuantity || 0),
+      mainUnit: 'm²',
+      itemsCount: setoresData.value.corte?.itemsCount || 0
     }
   }
   if (selectedSector.value === 'APOIO') {
     return {
-      label: 'Estoque de Peças / Apoio',
-      itemsCount: setoresData.value.apoio.itemsCount,
-      quantity: setoresData.value.apoio.totalQuantity,
-      unit: 'peças'
+      isAllSectors: false,
+      label: 'Estoque de Peças (Apoio)',
+      mainCount: Number(setoresData.value.apoio?.totalQuantity || 0),
+      mainUnit: 'peças',
+      itemsCount: setoresData.value.apoio?.itemsCount || 0
     }
   }
   if (selectedSector.value === 'PRE_FABRICADO') {
     return {
+      isAllSectors: false,
       label: 'Estoque de Solas (Pré-Fabricado)',
-      itemsCount: setoresData.value.preFabricado.itemsCount,
-      quantity: setoresData.value.preFabricado.totalQuantity,
-      unit: 'pares de solas'
+      mainCount: Number(setoresData.value.preFabricado?.totalQuantity || 0),
+      mainUnit: 'pares de solas',
+      itemsCount: setoresData.value.preFabricado?.itemsCount || 0
     }
   }
   if (selectedSector.value === 'EXPEDICAO') {
     return {
+      isAllSectors: false,
       label: 'Estoque de Cabedais (Expedição)',
-      itemsCount: setoresData.value.expedicao.itemsCount,
-      quantity: setoresData.value.expedicao.totalQuantity,
-      unit: 'cabedais'
+      mainCount: Number(setoresData.value.expedicao?.totalQuantity || 0),
+      mainUnit: 'cabedais',
+      itemsCount: setoresData.value.expedicao?.itemsCount || 0
     }
   }
   if (selectedSector.value === 'MONTAGEM') {
     return {
+      isAllSectors: false,
       label: 'Estoque de Pés Órfãos (Montagem)',
-      itemsCount: setoresData.value.montagem.itemsCount,
-      quantity: setoresData.value.montagem.totalQuantity,
-      unit: 'pés avulsos'
+      mainCount: Number(setoresData.value.montagem?.totalQuantity || 0),
+      mainUnit: 'pés avulsos',
+      itemsCount: setoresData.value.montagem?.itemsCount || 0
     }
   }
-  return { label: 'Estoque', itemsCount: 0, quantity: 0, unit: 'un' }
+  return { isAllSectors: false, label: 'Estoque', mainCount: 0, mainUnit: 'un', itemsCount: 0 }
 })
 
 // 2. Entradas & Taxa de Reaproveitamento Adaptáveis
@@ -455,21 +469,44 @@ onUnmounted(() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
           <!-- 1. Volume de Sobras (Dinâmico conforme setor filtrado) -->
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-indigo-600 relative group overflow-hidden">
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-indigo-600 relative group overflow-hidden flex flex-col justify-between">
             <div class="flex justify-between items-start">
-              <div>
+              <div class="w-full">
                 <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">
                   {{ currentFilteredVolume.label }}
                 </p>
-                <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
-                  {{ formatNumber(currentFilteredVolume.quantity) }}
-                  <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.unit }}</span>
-                </h3>
-                <p class="text-[11px] text-indigo-600 font-bold mt-0.5">
-                  {{ formatNumber(currentFilteredVolume.itemsCount) }} cadastros ativos
-                </p>
+
+                <!-- Visão "Todos os Setores": Destaque no total de cadastros e desmembramento de grandezas -->
+                <template v-if="currentFilteredVolume.isAllSectors">
+                  <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+                    {{ formatNumber(currentFilteredVolume.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
+                  </h3>
+                  <div class="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-100">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-100">
+                      <Scissors class="w-3 h-3 text-emerald-600" />
+                      Tecido/Couro: {{ formatNumber(currentFilteredVolume.corteVolume) }} m²
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[11px] font-bold border border-blue-100">
+                      <Package class="w-3 h-3 text-blue-600" />
+                      Peças/Calçados: {{ formatNumber(currentFilteredVolume.componentesVolume) }} un
+                    </span>
+                  </div>
+                </template>
+
+                <!-- Visão Setorial: Saldo numérico na unidade estrita do setor ativo -->
+                <template v-else>
+                  <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+                    {{ formatNumber(currentFilteredVolume.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
+                  </h3>
+                  <p class="text-[11px] text-indigo-600 font-bold mt-1">
+                    {{ formatNumber(currentFilteredVolume.itemsCount) }} cadastros ativos no setor
+                  </p>
+                </template>
               </div>
-              <div class="bg-indigo-50 p-2.5 rounded-xl text-indigo-600 shadow-inner">
+
+              <div class="bg-indigo-50 p-2.5 rounded-xl text-indigo-600 shadow-inner shrink-0 ml-2">
                 <Box class="w-5 h-5" />
               </div>
             </div>
@@ -514,7 +551,7 @@ onUnmounted(() => {
                   {{ formatNumber(currentFilteredStagnant) }}
                 </h3>
                 <p class="text-[10px] text-amber-700 font-bold mt-0.5 bg-amber-50 inline-block px-1.5 py-0.5 rounded">
-                  Atenção Operacional ⚠️
+                  Atenção Operacional
                 </p>
               </div>
               <div class="bg-amber-50 p-2.5 rounded-xl text-amber-600 shadow-inner">
