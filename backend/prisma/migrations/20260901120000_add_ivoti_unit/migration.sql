@@ -36,8 +36,8 @@ BEGIN
           );
 
         -- C. OriginConfig
-        INSERT INTO "sobra_corte"."OriginConfig" ("name", "active", "factoryUnitId")
-        SELECT o."name", o."active", ivt_unit_id
+        INSERT INTO "sobra_corte"."OriginConfig" ("name", "sector", "factoryUnitId")
+        SELECT o."name", o."sector", ivt_unit_id
         FROM "sobra_corte"."OriginConfig" o
         WHERE o."factoryUnitId" = sest_unit_id
           AND NOT EXISTS (

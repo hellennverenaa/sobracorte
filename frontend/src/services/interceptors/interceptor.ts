@@ -66,7 +66,7 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       const synced = await instance.post('/auth/check-user', null, {
         headers: { Authorization: `Bearer ${newToken}`, 'X-Dass-Unit': user.unit?.code },
         _retry: true,
-      } as RetryableRequestConfig);
+      } as unknown as RetryableRequestConfig);
       const tokenPayload = JSON.parse(atob(newToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(newToken.split('.')[1].length / 4) * 4, '=')));
       localStorage.setItem('user', JSON.stringify({
         ...user,
