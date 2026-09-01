@@ -1,0 +1,505 @@
+{
+  "info": {
+    "_postman_id": "sobracorte-v2-complete-collection-api",
+    "name": "SobraCorte v2 - Complete Multi-Sector API Collection",
+    "description": "Collection completa e atualizada da API do SobraCorte v2 com suporte a Multi-Tenancy (SEST, STJ, ITB, VDC, ITP, IVT), Estoque Multi-Setor (5 Setores Industriais), Casamento de Pares, Módulo Digital de Requisições, Relatórios Analíticos com filtro Últimos 30 Dias, Dashboard e Gestão de Usuários RBAC.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "SEU_TOKEN_JWT_AQUI",
+      "type": "string"
+    },
+    {
+      "key": "unitCode",
+      "value": "SEST",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Injeção do header de tenant multi-unidade em todas as requisições",
+          "pm.request.headers.upsert({ key: 'X-Dass-Unit', value: pm.collectionVariables.get('unitCode') || 'SEST' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Autenticação & Multi-Unidade",
+      "item": [
+        {
+          "name": "Listar Unidades Fabris (Público)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/factory-units",
+              "host": ["{{base_url}}"],
+              "path": ["factory-units"]
+            },
+            "description": "Lista todas as fábricas ativas no sistema (SEST, STJ, ITB, VDC, ITP, IVT)."
+          }
+        },
+        {
+          "name": "Login Multi-Unidade (POST /auth/login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var data = pm.response.json();",
+                  "    if (data.token) {",
+                  "        pm.collectionVariables.set('token', data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usuario\": \"HELLEN.MAGALHAES\",\n  \"unitCode\": \"SEST\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Autentica o usuário e emite o token contextualizado para a fábrica escolhida (com bypass para Admin Master)."
+          }
+        },
+        {
+          "name": "Validar Sessão / Check-User (POST /auth/check-user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Dass-Unit", "value": "{{unitCode}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/check-user",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "check-user"]
+            },
+            "description": "Valida o token JWT emitido pelo Portal Unix e sincroniza o usuário no banco de dados da fábrica."
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Estoque Multi-Setor (5 Setores)",
+      "item": [
+        {
+          "name": "Busca Unificada de Estoque (GET /inventory/search)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/inventory/search?sector=TODOS&q=&page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "search"],
+              "query": [
+                { "key": "sector", "value": "TODOS" },
+                { "key": "q", "value": "" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Retorna o estoque unificado com suporte a todos os 5 setores industriais (Corte, Apoio, Pré-Fabricado, Expedição, Montagem)."
+          }
+        },
+        {
+          "name": "Autocomplete Inteligente por Setor (GET /inventory/search-suggestions)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/inventory/search-suggestions?sector=MONTAGEM&q=PEGASUS",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "search-suggestions"],
+              "query": [
+                { "key": "sector", "value": "MONTAGEM" },
+                { "key": "q", "value": "PEGASUS" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cadastro em Lote Multi-Setor (POST /inventory/batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"sector\": \"CORTE\",\n      \"code\": \"1001\",\n      \"name\": \"TECIDO SINTETICO PRETO 1.4MM\",\n      \"unit\": \"m²\",\n      \"type\": \"TECIDO\",\n      \"quantity\": 150.0,\n      \"location\": \"A-01\",\n      \"observation\": \"Lote Teste QA\"\n    },\n    {\n      \"sector\": \"APOIO\",\n      \"code\": \"MOL-001\",\n      \"name\": \"PEGASUS 40 - GASPEA LATERAL\",\n      \"pieceCode\": \"MOL-001\",\n      \"productName\": \"PEGASUS 40\",\n      \"description\": \"GASPEA LATERAL\",\n      \"quantity\": 50,\n      \"unit\": \"UN\",\n      \"location\": \"AP-01\"\n    },\n    {\n      \"sector\": \"MONTAGEM\",\n      \"code\": \"SKU-PEG40-BLK\",\n      \"name\": \"PEGASUS 40 - PE MONTADO\",\n      \"sku\": \"SKU-PEG40-BLK\",\n      \"productName\": \"PEGASUS 40\",\n      \"description\": \"PE MONTADO\",\n      \"sizeGrade\": \"41\",\n      \"footSide\": \"E\",\n      \"quantity\": 15,\n      \"unit\": \"UN\",\n      \"location\": \"MO-02\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/batch",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "batch"]
+            },
+            "description": "Grava itens em lote com transação ACID e separação correta de persistência por setor."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Movimentações & Auditoria",
+      "item": [
+        {
+          "name": "Registrar Movimentação de Estoque (POST /inventory/movements)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stockItemId\": 1,\n  \"type\": \"SAIDA\",\n  \"quantity\": 5,\n  \"sector\": \"MONTAGEM\",\n  \"reason\": \"Reaproveitamento na esteira 02\",\n  \"origem\": \"Montagem\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/movements",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "movements"]
+            }
+          }
+        },
+        {
+          "name": "Histórico Consolidado de Auditoria (GET /inventory/movements/history)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/inventory/movements/history?sector=TODOS&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "movements", "history"],
+              "query": [
+                { "key": "sector", "value": "TODOS" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Casamento de Pares (Montagem)",
+      "item": [
+        {
+          "name": "Listar Casamentos Disponíveis (GET /inventory/mounting/matching-pairs)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/inventory/mounting/matching-pairs?minPairs=1",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "mounting", "matching-pairs"],
+              "query": [
+                { "key": "minPairs", "value": "1" }
+              ]
+            },
+            "description": "Calcula cruzamento automático de pés esquerdos (E) e direitos (D) no mesmo SKU e Grade."
+          }
+        },
+        {
+          "name": "Executar Casamento de Par (POST /inventory/mounting/execute-match)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leftItemId\": 1,\n  \"rightItemId\": 2,\n  \"quantity\": 5,\n  \"destinationLocation\": \"EXP-01\",\n  \"sector\": \"MONTAGEM\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/inventory/mounting/execute-match",
+              "host": ["{{base_url}}"],
+              "path": ["inventory", "mounting", "execute-match"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Requisições Digitais de Reposição (Fluxo DASS)",
+      "item": [
+        {
+          "name": "Consultar Disponibilidade de Saldo (POST /requisitions/check-availability)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sector\": \"MONTAGEM\",\n  \"sku\": \"SKU-PEG40-BLK\",\n  \"sizeGrade\": \"41\",\n  \"footSide\": \"PAR\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/requisitions/check-availability",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions", "check-availability"]
+            }
+          }
+        },
+        {
+          "name": "Criar Requisição Digital Multi-Itens (POST /requisitions)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestSector\": \"MONTAGEM\",\n  \"solicitanteMatricula\": \"3018783\",\n  \"requesterName\": \"HELLEN VERENA\",\n  \"reason\": \"Reposição de peça danificada na esteira 01\",\n  \"items\": [\n    {\n      \"sku\": \"SKU-PEG40-BLK\",\n      \"description\": \"PE MONTADO PEGASUS 40\",\n      \"sizeGrade\": \"41\",\n      \"footSide\": \"E\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/requisitions",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions"]
+            }
+          }
+        },
+        {
+          "name": "Listar Requisições com Filtros (GET /requisitions)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/requisitions?status=PENDENTE&sector=TODOS",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions"],
+              "query": [
+                { "key": "status", "value": "PENDENTE" },
+                { "key": "sector", "value": "TODOS" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Contador de Requisições Pendentes para o Sininho (GET /requisitions/pending-count)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/requisitions/pending-count",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions", "pending-count"]
+            }
+          }
+        },
+        {
+          "name": "Atender / Dar Baixa na Requisição (POST /requisitions/:id/fulfill)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationName\": \"MO-02\",\n  \"notes\": \"Atendimento completo em 1 clique\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/requisitions/1/fulfill",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions", "1", "fulfill"]
+            }
+          }
+        },
+        {
+          "name": "Cancelar Requisição (PATCH /requisitions/:id/cancel)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Item localizado na bancada de pré-montagem\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/requisitions/1/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["requisitions", "1", "cancel"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Relatórios Analíticos",
+      "item": [
+        {
+          "name": "Relatório de Movimentações - Últimos 30 Dias (GET /reports/movements)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reports/movements?periodo=last_30_days&sector=TODOS",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "movements"],
+              "query": [
+                { "key": "periodo", "value": "last_30_days" },
+                { "key": "sector", "value": "TODOS" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Relatório Consolidado de Inventário (GET /reports/inventory)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reports/inventory",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "inventory"]
+            }
+          }
+        },
+        {
+          "name": "Relatório de Requisições (GET /reports/requisitions)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/reports/requisitions?periodo=last_30_days&status=TODOS",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "requisitions"],
+              "query": [
+                { "key": "periodo", "value": "last_30_days" },
+                { "key": "status", "value": "TODOS" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Dashboard & Indicadores",
+      "item": [
+        {
+          "name": "Resumo Consolidado do Dashboard (GET /dashboard/summary)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard/summary",
+              "host": ["{{base_url}}"],
+              "path": ["dashboard", "summary"]
+            },
+            "description": "Retorna todos os KPIs consolidados em 1 única requisição HTTP (Single Round-Trip)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Usuários & RBAC Setorial",
+      "item": [
+        {
+          "name": "Listar Usuários da Fábrica (GET /users)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Alterar Nível de Acesso e Setor Vinculado (PUT /users/:id)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin_setor\",\n  \"assignedSector\": \"CORTE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/1",
+              "host": ["{{base_url}}"],
+              "path": ["users", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Configurações Fabris",
+      "item": [
+        {
+          "name": "Listar Unidades de Medida (GET /settings/units)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/settings/units",
+              "host": ["{{base_url}}"],
+              "path": ["settings", "units"]
+            }
+          }
+        },
+        {
+          "name": "Listar Categorias de Materiais (GET /settings/categories)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/settings/categories",
+              "host": ["{{base_url}}"],
+              "path": ["settings", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Listar Origens e Motivos de Sobras (GET /settings/origins)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/settings/origins",
+              "host": ["{{base_url}}"],
+              "path": ["settings", "origins"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

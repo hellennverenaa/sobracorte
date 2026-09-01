@@ -370,7 +370,7 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
+          <label class="flex items-center justify-between text-xs font-bold text-gray-500 uppercase mb-1">
             <span>Unidade de Medida *</span>
             <span v-if="isUnitLocked" class="text-[10px] text-amber-600 flex items-center gap-0.5" title="Unidade fixada pela categoria">
               <Lock class="w-3 h-3" /> Fixa
