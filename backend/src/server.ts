@@ -23,8 +23,17 @@ app.use(cookieParser());
 app.use(helmet());
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 150,
-  message: { error: "⚠️ Tráfego suspeito detectado. Acesso bloqueado temporariamente por 15 minutos." },
+  max: 3000,
+  message: { error: "Muitas requisições originadas deste IP. Por favor, tente novamente em instantes." },
+  skip: (req) => {
+    const path = req.path || '';
+    return path === '/' ||
+           path === '/health' ||
+           path === '/auth/health' ||
+           path === '/factory-units' ||
+           path === '/auth/units' ||
+           path.startsWith('/requisitions/pending-count');
+  }
 }));
 app.use(routes);
 

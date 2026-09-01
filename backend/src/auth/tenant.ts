@@ -31,22 +31,24 @@ export async function resolveTenantRequestWithAdminCheck(
 ) {
   const jwtUnit = typeof claims.unidade === 'string' ? claims.unidade.trim().toUpperCase() : '';
   const registration = Number(claims.matricula);
+  const validRegistration = Number.isSafeInteger(registration) && registration > 0 ? registration : 0;
   const usuario = typeof claims.usuario === 'string' ? claims.usuario.trim().toUpperCase() : '';
-  if (!jwtUnit || !Number.isSafeInteger(registration) || registration <= 0) {
-    throw new TenantAuthorizationError('Token sem unidade ou matrícula válida.', 401);
+  
+  if (!jwtUnit && !header) {
+    throw new TenantAuthorizationError('Token sem unidade válida.', 401);
   }
 
   const requestedUnit = header?.trim().toUpperCase() || jwtUnit;
-  let isGlobalAdmin = globalAdminRegistrations.has(registration);
+  let isGlobalAdmin = validRegistration > 0 ? globalAdminRegistrations.has(validRegistration) : false;
 
-  if (!isGlobalAdmin && isDbAdminCheck && requestedUnit !== jwtUnit) {
-    isGlobalAdmin = await isDbAdminCheck(registration, usuario);
+  if (!isGlobalAdmin && isDbAdminCheck) {
+    isGlobalAdmin = await isDbAdminCheck(validRegistration, usuario);
   }
 
   if (requestedUnit !== jwtUnit && !isGlobalAdmin) {
-    throw new TenantAuthorizationError('Acesso negado para a unidade selecionada.', 403);
+    throw new TenantAuthorizationError('Acesso negado: Seu usuário não possui permissão para acessar a unidade selecionada.', 403);
   }
-  return { requestedUnit, isGlobalAdmin, registration };
+  return { requestedUnit, isGlobalAdmin, registration: validRegistration };
 }
 
 type ActiveTenant = { id: number; code: string; name: string };

@@ -280,15 +280,15 @@ onMounted(() => {
                   <div class="flex justify-center gap-2">
                     <button @click="openEditModal(user)"
                       class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Permissão e Setor"
-                      :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
+                      :disabled="user.usuario === (auth.user?.usuario || auth.user?.nome)"
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === (auth.user?.usuario || auth.user?.nome) }">
                       <Edit class="w-5 h-5" />
                     </button>
 
-                    <button @click="deleteUser(user.id)"
+                    <button @click="deleteUser(user)"
                       class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover Usuário"
-                      :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
+                      :disabled="user.usuario === (auth.user?.usuario || auth.user?.nome)"
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === (auth.user?.usuario || auth.user?.nome) }">
                       <Trash2 class="w-5 h-5" />
                     </button>
                   </div>

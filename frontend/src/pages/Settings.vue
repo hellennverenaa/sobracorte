@@ -446,18 +446,18 @@
 
           <div class="p-6 space-y-6">
 
-            <!-- CARD DE INSTRUÇÕES E FORMATO EXIGIDO (UX/UI VISUAL) -->
+            <!-- CARD DE INSTRUÇÕES E FORMATO EXIGIDO (UX/UI DINÂMICA POR SETOR) -->
             <div class="bg-gradient-to-br from-slate-50 to-blue-50/40 border border-blue-100 rounded-2xl p-6 space-y-4">
               <div class="flex items-center gap-2 text-blue-900 font-bold text-sm">
                 <HelpCircle class="w-4 h-4 text-blue-600" />
-                <span>Padrão Exigido para o Arquivo CSV</span>
+                <span>{{ sectorCsvPattern.title }}</span>
               </div>
               
               <p class="text-xs text-gray-600 leading-relaxed">
-                Para garantir o processamento correto e evitar rejeição, seu arquivo <strong>.csv</strong> deve utilizar delimitador por <strong>ponto e vírgula (;)</strong> ou <strong>vírgula (,)</strong> e conter as colunas especificadas abaixo no cabeçalho (primeira linha):
+                Para garantir o processamento correto e evitar rejeição no setor selecionado, seu arquivo <strong>.csv</strong> deve utilizar delimitador por <strong>ponto e vírgula (;)</strong> ou <strong>vírgula (,)</strong> e conter as colunas especificadas abaixo no cabeçalho (primeira linha):
               </p>
 
-              <!-- Tabela de Colunas -->
+              <!-- Tabela Dinâmica de Colunas -->
               <div class="overflow-x-auto rounded-xl border border-blue-100 bg-white">
                 <table class="w-full text-left text-xs">
                   <thead class="bg-blue-50/70 text-blue-900 font-bold uppercase tracking-wider">
@@ -468,45 +468,28 @@
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100 text-gray-700 font-medium">
-                    <tr>
-                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">codigo</td>
-                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
-                      <td class="px-4 py-2.5">Código único do material. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">1001</code></td>
-                    </tr>
-                    <tr>
-                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">descricao</td>
-                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
-                      <td class="px-4 py-2.5">Descrição completa do material. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO SINTETICO PRETO 1.4MM</code></td>
-                    </tr>
-                    <tr>
-                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">categoria</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Nome da Categoria cadastrada. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO</code> (Padrão: GERAL)</td>
-                    </tr>
-                    <tr>
-                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">unidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Sigla da unidade de medida. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">m²</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">kg</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">un</code> (Padrão: UN)</td>
-                    </tr>
-                    <tr>
-                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">quantidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Saldo inicial numérico. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">150.0</code> (Padrão: 0)</td>
+                    <tr v-for="col in sectorCsvPattern.columns" :key="col.name">
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">{{ col.name }}</td>
+                      <td class="px-4 py-2.5">
+                        <span v-if="col.req" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span>
+                        <span v-else class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span>
+                      </td>
+                      <td class="px-4 py-2.5">{{ col.desc }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              <!-- Bloco de Exemplo Visual -->
+              <!-- Bloco de Exemplo Visual Dinâmico -->
               <div class="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono overflow-x-auto shadow-inner">
                 <div class="text-slate-400 text-[10px] mb-2 font-sans font-bold uppercase tracking-wider flex items-center justify-between">
-                  <span>Exemplo de Arquivo CSV Válido</span>
+                  <span>Exemplo de Arquivo CSV Válido ({{ formatSectorName(templateSector) }})</span>
                   <span>Codificação: UTF-8</span>
                 </div>
-                <code>codigo;descricao;categoria;unidade;quantidade</code><br />
-                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0</code><br />
-                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0</code><br />
-                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5</code>
+                <code>{{ sectorCsvPattern.headerExample }}</code><br />
+                <template v-for="(exLine, idx) in sectorCsvPattern.examples" :key="idx">
+                  <code class="text-emerald-400">{{ exLine }}</code><br />
+                </template>
               </div>
             </div>
 
@@ -695,7 +678,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
@@ -1103,44 +1086,104 @@ const importResult = ref(null)
 const templateSector = ref(authStore.user?.assignedSector || 'CORTE')
 const importSector = ref(authStore.user?.assignedSector || 'CORTE')
 
-function downloadCSVTemplate(targetSector = 'CORTE') {
-  let content = ""
-  let fileName = "modelo_importacao_geral.csv"
+// --- PADRÃO EXIGIDO DE CSV DINÂMICO & REATIVO POR SETOR ---
+const sectorCsvPattern = computed(() => {
+  const sec = templateSector.value || 'CORTE'
 
-  if (targetSector === 'CORTE') {
-    fileName = "modelo_importacao_corte.csv"
-    content = "setor;codigo;descricao;categoria;unidade;quantidade\n" +
-              "CORTE;1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
-              "CORTE;1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
-              "CORTE;1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n"
-  } else if (targetSector === 'APOIO') {
-    fileName = "modelo_importacao_apoio.csv"
-    content = "setor;codigo;descricao;cor;quantidade;unidade\n" +
-              "APOIO;MOL-001;GASPEA LATERAL;PRETO;50;UN\n" +
-              "APOIO;MOL-002;TALONEIRA TRASEIRA;BRANCO;30;UN\n"
-  } else if (targetSector === 'PRE_FABRICADO') {
-    fileName = "modelo_importacao_pre_fabricado.csv"
-    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
-              "PRE_FABRICADO;SOL-PEG40;SOLA PEGASUS 40;PRETO/BRANCO;41;PAR;20;PAR\n" +
-              "PRE_FABRICADO;SOL-VOMERO;SOLA VOMERO 17;AZUL;39;E;15;UN\n"
-  } else if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') {
-    fileName = "modelo_importacao_cabedais.csv"
-    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
-              "EXPEDICAO;SKU-PEG40-BLK;CABEDAL PEGASUS 40;PRETO;40;PAR;25;PAR\n" +
-              "EXPEDICAO;SKU-AIRMAX-WHT;CABEDAL AIR MAX SC;BRANCO;38;D;10;UN\n"
-  } else if (targetSector === 'MONTAGEM') {
-    fileName = "modelo_importacao_montagem.csv"
-    content = "setor;codigo;descricao;cor;grade;lado;quantidade;unidade\n" +
-              "MONTAGEM;SKU-CORTEZ-WHT;PE MONTADO CORTEZ;BRANCO/VERMELHO;41;E;8;UN\n" +
-              "MONTAGEM;SKU-CORTEZ-WHT;PE MONTADO CORTEZ;BRANCO/VERMELHO;41;D;8;UN\n"
-  } else {
-    fileName = "modelo_importacao_consumo.csv"
-    content = "setor;codigo;descricao;categoria;unidade;quantidade\n" +
-              "CONSUMO;INS-001;ADESIVO SOLVENTE PVC;QUIMICOS;L;50.0\n" +
-              "CONSUMO;INS-002;FITA ADESIVA DUPLA FACE;FITAS;RL;100.0\n"
+  if (sec === 'CORTE') {
+    return {
+      title: 'Padrão Exigido para o Arquivo CSV — CORTE (Matéria-Prima)',
+      columns: [
+        { name: 'codigo', req: true, desc: 'Código único do material. Ex: 1001' },
+        { name: 'descricao', req: true, desc: 'Descrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM' },
+        { name: 'categoria', req: false, desc: 'Categoria cadastrada. Ex: TECIDO, COURO, FORRO, SINTETICO (Padrão: GERAL)' },
+        { name: 'unidade', req: false, desc: 'Sigla da unidade de medida. Ex: m², m, kg, un (Padrão: m²)' },
+        { name: 'quantidade', req: false, desc: 'Saldo numérico inicial. Ex: 150.0 (Padrão: 0)' },
+        { name: 'prateleira', req: false, desc: 'Localização ou prateleira física. Ex: A-01, B-02' },
+      ],
+      headerExample: 'codigo;descricao;categoria;unidade;quantidade;prateleira',
+      examples: [
+        '1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;A-01',
+        '1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;A-02',
+        '1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;B-01',
+        '1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;C-01',
+      ],
+    }
   }
 
-  // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
+  if (sec === 'APOIO') {
+    return {
+      title: 'Padrão Exigido para o Arquivo CSV — APOIO (Moldes & Peças Cortadas)',
+      columns: [
+        { name: 'sku', req: true, desc: 'Código / SKU ou Molde da peça. Ex: MOL-001' },
+        { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: PEGASUS 40' },
+        { name: 'peca', req: true, desc: 'Nome / Descrição da peça avulsa. Ex: GASPEA LATERAL' },
+        { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
+        { name: 'prateleira', req: false, desc: 'Localização ou box no apoio. Ex: AP-01' },
+      ],
+      headerExample: 'sku;modelo;peca;quantidade;prateleira',
+      examples: [
+        'MOL-001;PEGASUS 40;GASPEA LATERAL;50;AP-01',
+        'MOL-002;AIR MAX SC;TALONEIRA TRASEIRA;30;AP-02',
+        'MOL-003;VOMERO 17;LINGUETA SUPERIOR;40;AP-03',
+      ],
+    }
+  }
+
+  if (sec === 'PRE_FABRICADO' || sec === 'EXPEDICAO' || sec === 'MONTAGEM') {
+    const secLabel = sec === 'PRE_FABRICADO' ? 'PRÉ-FABRICADO (Solas)' : sec === 'EXPEDICAO' ? 'CABEDAIS (Expedição)' : 'MONTAGEM (Pés Órfãos)'
+    const pecaEx = sec === 'PRE_FABRICADO' ? 'SOLA PEGASUS' : sec === 'EXPEDICAO' ? 'CABEDAL AIR MAX' : 'PE MONTADO CORTEZ'
+    return {
+      title: `Padrão Exigido para o Arquivo CSV — ${secLabel}`,
+      columns: [
+        { name: 'sku', req: true, desc: 'SKU ou código do produto. Ex: SKU-PEG40-BLK' },
+        { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: PEGASUS 40' },
+        { name: 'peca', req: false, desc: `Componente do calçado. Ex: ${pecaEx}` },
+        { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41' },
+        { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado automaticamente em 1E + 1D)' },
+        { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
+        { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, MO-02' },
+      ],
+      headerExample: 'sku;modelo;peca;grade;lado;quantidade;prateleira',
+      examples: [
+        `SKU-PEG40-BLK;PEGASUS 40;${pecaEx};41;PAR;20;PR-01`,
+        `SKU-PEG40-BLK;PEGASUS 40;${pecaEx};40;E;15;MO-02`,
+        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};38;D;10;MO-03`,
+      ],
+    }
+  }
+
+  // CONSUMO
+  return {
+    title: 'Padrão Exigido para o Arquivo CSV — CONSUMO (Insumos & Químicos)',
+    columns: [
+      { name: 'codigo_material', req: true, desc: 'Código único do insumo ou químico. Ex: INS-001' },
+      { name: 'descricao', req: true, desc: 'Descrição do material de consumo. Ex: ADESIVO SOLVENTE PVC' },
+      { name: 'unidade', req: false, desc: 'Unidade de medida de consumo. Ex: L, KG, RL, UN (Padrão: UN)' },
+      { name: 'saldo_consumo', req: false, desc: 'Saldo inicial em estoque de consumo. Ex: 50.0 (Padrão: 0)' },
+      { name: 'prateleira', req: false, desc: 'Prateleira ou armário de químicos/insumos. Ex: CS-01' },
+    ],
+    headerExample: 'codigo_material;descricao;unidade;saldo_consumo;prateleira',
+    examples: [
+      'INS-001;ADESIVO SOLVENTE PVC;L;50.0;CS-01',
+      'INS-002;FITA ADESIVA DUPLA FACE;RL;100.0;CS-02',
+      'INS-003;DESMOLDANTE LIQUIDO;KG;25.0;CS-03',
+    ],
+  }
+})
+
+watch(templateSector, (newSec) => {
+  if (!authStore.user?.assignedSector || authStore.user?.assignedSector === 'TODOS' || authStore.user?.role === 'admin') {
+    importSector.value = newSec
+  }
+})
+
+function downloadCSVTemplate(targetSector = templateSector.value || 'CORTE') {
+  templateSector.value = targetSector
+  const pat = sectorCsvPattern.value
+  const content = `${pat.headerExample}\n${pat.examples.join('\n')}\n`
+  const fileName = `modelo_importacao_${targetSector.toLowerCase()}.csv`
+
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

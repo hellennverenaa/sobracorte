@@ -18,13 +18,23 @@ const isSwitchingUnit = ref(false)
 let notificationInterval = null
 
 async function logout() {
+  if (notificationInterval) {
+    clearInterval(notificationInterval)
+    notificationInterval = null
+  }
+  await router.push('/login')
   await authStore.logout()
-  router.push('/login')
 }
 
 async function fetchPendingCount() {
   try {
-    if (!authStore.isAuthenticated) return
+    if (!authStore.isAuthenticated || !authStore.user) {
+      if (notificationInterval) {
+        clearInterval(notificationInterval)
+        notificationInterval = null
+      }
+      return
+    }
     const res = await api.get('/requisitions/pending-count')
     pendingCount.value = res.data?.pendingCount || 0
   } catch (error) {
@@ -52,11 +62,14 @@ onMounted(() => {
   if (authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin) {
     authStore.fetchAvailableUnits()
   }
-  notificationInterval = setInterval(fetchPendingCount, 25000)
+  notificationInterval = setInterval(fetchPendingCount, 45000)
 })
 
 onUnmounted(() => {
-  if (notificationInterval) clearInterval(notificationInterval)
+  if (notificationInterval) {
+    clearInterval(notificationInterval)
+    notificationInterval = null
+  }
 })
 
 const menuItems = [

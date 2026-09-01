@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';

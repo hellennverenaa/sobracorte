@@ -46,6 +46,7 @@ routes.get('/factory-units', async (_req, res) => {
   }
 });
 
+routes.post('/auth/login', authController.login);
 routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
 routes.get('/materials', requireAuth, materialController.index);

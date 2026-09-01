@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../prisma';
+import { prisma, prismaWithoutTenant } from '../prisma';
 import jwt from 'jsonwebtoken';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
@@ -32,11 +32,11 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       req.get('X-Dass-Unit'),
       vars.GLOBAL_ADMIN_REGISTRATIONS,
       async (matricula, usuario) => {
-        const adminUser = await prisma.user.findFirst({
+        const adminUser = await prismaWithoutTenant.user.findFirst({
           where: {
             OR: [
-              { matriculaDass: BigInt(matricula) },
-              { usuario: usuario }
+              ...(matricula > 0 ? [{ matriculaDass: BigInt(matricula) }] : []),
+              ...(usuario ? [{ usuario: String(usuario).toUpperCase().trim() }] : [])
             ],
             role: 'admin'
           }
