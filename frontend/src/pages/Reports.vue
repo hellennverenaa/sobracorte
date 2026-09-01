@@ -67,7 +67,7 @@ const filters = ref({
   sector: 'TODOS',
   tipoMovimento: 'TODOS',
   status: 'TODOS',
-  periodo: 'mes_atual', // hoje, semana, mes_atual, ano_atual, custom
+  periodo: 'last_30_days', // 'last_30_days' como padrão
   dataInicio: '',
   dataFim: '',
   origin: 'TODOS',
@@ -103,10 +103,12 @@ const requisitionStatuses = [
 ]
 
 const periods = [
-  { value: 'hoje', label: 'Hoje' },
-  { value: 'semana', label: 'Esta Semana' },
+  { value: 'last_30_days', label: 'Últimos 30 Dias (Padrão)' },
   { value: 'mes_atual', label: 'Este Mês' },
+  { value: 'semana', label: 'Esta Semana' },
+  { value: 'hoje', label: 'Hoje' },
   { value: 'ano_atual', label: 'Este Ano' },
+  { value: 'all', label: 'Todos os Registros' },
   { value: 'custom', label: 'Período Personalizado' }
 ]
 
@@ -142,7 +144,11 @@ function getDatesFromPeriod(period) {
   let start = new Date()
   let end = new Date()
 
-  if (period === 'hoje') {
+  if (period === 'last_30_days') {
+    start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(23, 59, 59, 999)
+  } else if (period === 'hoje') {
     start.setHours(0, 0, 0, 0)
     end.setHours(23, 59, 59, 999)
   } else if (period === 'semana') {
@@ -162,6 +168,11 @@ function getDatesFromPeriod(period) {
     start.setHours(0, 0, 0, 0)
     end = new Date()
     end.setHours(23, 59, 59, 999)
+  } else if (period === 'all') {
+    return {
+      start: null,
+      end: null
+    }
   } else if (period === 'custom') {
     if (!filters.value.dataInicio || !filters.value.dataFim) return null
     start = new Date(filters.value.dataInicio + 'T00:00:00')
@@ -169,8 +180,8 @@ function getDatesFromPeriod(period) {
   }
 
   return {
-    start: start.toISOString(),
-    end: end.toISOString()
+    start: start ? start.toISOString() : null,
+    end: end ? end.toISOString() : null
   }
 }
 
@@ -183,7 +194,7 @@ async function generateReport() {
 
   try {
     const dates = getDatesFromPeriod(filters.value.periodo)
-    if (!dates) {
+    if (filters.value.periodo === 'custom' && !dates) {
       showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
       loading.value = false
       return
@@ -191,11 +202,13 @@ async function generateReport() {
 
     if (reportType.value === 'requisitions') {
       const params = new URLSearchParams({
-        dataInicio: dates.start,
-        dataFim: dates.end,
         sector: filters.value.sector,
         status: filters.value.status,
       })
+      if (dates?.start && dates?.end) {
+        params.append('dataInicio', dates.start)
+        params.append('dataFim', dates.end)
+      }
       if (filters.value.search) params.append('search', filters.value.search)
 
       const res = await api.get(`/reports/requisitions?${params.toString()}`)
@@ -210,17 +223,15 @@ async function generateReport() {
       }
     } else {
       const params = new URLSearchParams({
-        dataInicio: dates.start,
-        dataFim: dates.end,
         sector: filters.value.sector,
         tipoMovimento: filters.value.tipoMovimento,
+        origin: filters.value.origin,
       })
-      if (filters.value.origin && filters.value.origin !== 'TODOS') {
-        params.append('origin', filters.value.origin)
+      if (dates?.start && dates?.end) {
+        params.append('dataInicio', dates.start)
+        params.append('dataFim', dates.end)
       }
-      if (filters.value.search) {
-        params.append('search', filters.value.search)
-      }
+      if (filters.value.search) params.append('search', filters.value.search)
 
       const res = await api.get(`/reports/movements?${params.toString()}`)
       reportData.value = res.data.items || []

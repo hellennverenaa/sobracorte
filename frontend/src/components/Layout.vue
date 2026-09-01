@@ -22,8 +22,10 @@ async function logout() {
     clearInterval(notificationInterval)
     notificationInterval = null
   }
-  await router.push('/login')
-  await authStore.logout()
+  try {
+    await authStore.logout()
+  } catch (_) {}
+  window.location.href = '/sobra_corte/login'
 }
 
 async function fetchPendingCount() {

@@ -84,6 +84,7 @@ export class ReportController {
 
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
+      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
       const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
       const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
       const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
@@ -97,6 +98,11 @@ export class ReportController {
         start = new Date(String(rawStart));
         start.setHours(0, 0, 0, 0);
         end = new Date(String(rawEnd));
+        end.setHours(23, 59, 59, 999);
+      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
+        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        start.setHours(0, 0, 0, 0);
+        end = new Date();
         end.setHours(23, 59, 59, 999);
       }
 
@@ -334,6 +340,7 @@ export class ReportController {
 
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
+      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
       const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
       const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
       const rawSearch = search ? String(search).trim() : null;
@@ -345,6 +352,11 @@ export class ReportController {
         start = new Date(String(rawStart));
         start.setHours(0, 0, 0, 0);
         end = new Date(String(rawEnd));
+        end.setHours(23, 59, 59, 999);
+      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
+        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        start.setHours(0, 0, 0, 0);
+        end = new Date();
         end.setHours(23, 59, 59, 999);
       }
 
