@@ -454,6 +454,16 @@
 
     </div>
 
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
   </Layout>
 </template>
 
