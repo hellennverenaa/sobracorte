@@ -197,23 +197,25 @@
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vinculadas à Categoria</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
-            <form @submit.prevent="addLocation" class="flex gap-3 items-end flex-wrap">
+            <form @submit.prevent="addLocation" class="space-y-4">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
                 <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
               </div>
-              <div class="w-64 min-w-[180px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria Vinculada</label>
-                <select v-model="newLocation.categoryId" required
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
-                  <option value="" disabled selected>Selecione a Categoria...</option>
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Categorias permitidas nesta localização (selecione uma ou mais)</label>
+                <div class="flex flex-wrap gap-2">
+                  <button v-for="cat in categories" :key="cat.id" type="button" @click="toggleLocationCategory(cat.id)"
+                    class="px-3 py-1.5 rounded-full border text-xs font-bold transition-colors"
+                    :class="newLocation.categoryIds.includes(cat.id)
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'">
                     {{ cat.name }}
-                  </option>
-                </select>
+                  </button>
+                </div>
               </div>
-              <button type="submit" :disabled="loadingLocation"
+              <button type="submit" :disabled="loadingLocation || newLocation.categoryIds.length === 0"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
                 <Plus class="w-4 h-4" /> Adicionar
               </button>
@@ -224,7 +226,7 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
-                <th class="px-6 py-3 text-center">Categoria Vinculada</th>
+                <th class="px-6 py-3 text-center">Categorias Permitidas</th>
                 <th class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
@@ -232,10 +234,13 @@
               <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
                 <td class="px-6 py-3 text-center">
-                  <span class="px-2.5 py-1 rounded-full text-xs font-bold border"
-                    :class="loc.category ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-100 text-gray-400 border-gray-200'">
-                    {{ loc.category ? loc.category.name : 'Não vinculada' }}
-                  </span>
+                  <div class="flex flex-wrap justify-center gap-1.5">
+                    <span v-for="cat in loc.categories" :key="cat.id"
+                      class="px-2.5 py-1 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-100">
+                      {{ cat.name }}
+                    </span>
+                    <span v-if="!loc.categories?.length" class="text-xs text-gray-400 italic">Nenhuma</span>
+                  </div>
                 </td>
                 <td class="px-6 py-3 text-center">
                   <button @click="deleteLocation(loc)"
@@ -600,7 +605,14 @@ async function deleteUnit(unit) {
 // LOCALIZAÇÕES
 const locations = ref([])
 const loadingLocation = ref(false)
-const newLocation = ref({ name: '', categoryId: '' })
+const newLocation = ref({ name: '', categoryIds: [] })
+
+function toggleLocationCategory(categoryId) {
+  const selected = newLocation.value.categoryIds
+  const index = selected.indexOf(categoryId)
+  if (index === -1) selected.push(categoryId)
+  else selected.splice(index, 1)
+}
 
 async function fetchLocations() {
   loadingLocation.value = true
@@ -616,16 +628,16 @@ async function fetchLocations() {
 
 async function addLocation() {
   if (!newLocation.value.name.trim()) return
-  if (!newLocation.value.categoryId) {
-    return showNotification('error', 'Selecione a Categoria Vinculada.')
+  if (newLocation.value.categoryIds.length === 0) {
+    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
   }
   try {
     await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
-      categoryId: Number(newLocation.value.categoryId)
+      categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
-    newLocation.value = { name: '', categoryId: '' }
+    newLocation.value = { name: '', categoryIds: [] }
     await fetchLocations()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar localização.'

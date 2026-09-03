@@ -100,12 +100,7 @@ export class SettingsController {
           error: `Não é possível excluir: ${materiaisVinculados} material(is) usa(m) esta categoria.`
         });
       }
-      await prisma.$transaction([
-        prisma.location.updateMany({
-          where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
-        }),
-        prisma.categoryConfig.delete({ where: { id } }),
-      ]);
+      await prisma.categoryConfig.delete({ where: { id } });
       res.json({ message: 'Categoria excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -210,9 +205,12 @@ export class SettingsController {
       const locations = await prisma.location.findMany({
         where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' },
-        include: { category: true }
+        include: { categories: { include: { category: true } } }
       });
-      res.json(locations);
+      res.json(locations.map(({ categories, ...location }) => ({
+        ...location,
+        categories: categories.map((link) => link.category),
+      })));
     } catch (error) {
       console.error('Erro ao buscar localizações:', error);
       res.status(500).json({ error: 'Erro ao buscar localizações' });
@@ -221,26 +219,41 @@ export class SettingsController {
 
   async createLocation(req: Request, res: Response) {
     try {
-      const { name, categoryId } = req.body;
+      const { name, categoryIds } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
-      if (!categoryId) {
-        return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
+      if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos uma categoria permitida.' });
       }
-      const category = await prisma.categoryConfig.findFirst({
-        where: { id: Number(categoryId), factoryUnitId: req.tenant!.id }, select: { id: true },
+      const normalizedCategoryIds = [...new Set(categoryIds.map(Number))];
+      if (normalizedCategoryIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+        return res.status(400).json({ error: 'Categoria inválida.' });
+      }
+      const categories = await prisma.categoryConfig.findMany({
+        where: { id: { in: normalizedCategoryIds }, factoryUnitId: req.tenant!.id }, select: { id: true },
       });
-      if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
+      if (categories.length !== normalizedCategoryIds.length) {
+        return res.status(404).json({ error: 'Uma ou mais categorias não foram encontradas.' });
+      }
       const location = await prisma.location.create({
         data: {
           name: String(name).trim(),
-          categoryId: Number(categoryId),
-          factoryUnitId: req.tenant!.id
+          factoryUnitId: req.tenant!.id,
+          categories: {
+            create: normalizedCategoryIds.map((categoryId) => ({
+              category: {
+                connect: {
+                  id_factoryUnitId: { id: categoryId, factoryUnitId: req.tenant!.id },
+                },
+              },
+            })),
+          },
         },
-        include: { category: true }
+        include: { categories: { include: { category: true } } }
       });
-      res.status(201).json(location);
+      const { categories: links, ...createdLocation } = location;
+      res.status(201).json({ ...createdLocation, categories: links.map((link) => link.category) });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa localização já existe.' });

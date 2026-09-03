@@ -55,17 +55,27 @@ model Material {
 
 // 📍 TABELA DE DOMÍNIO (Apenas locais pré-cadastrados, vinculados à Categoria)
 model Location {
-  id            Int             @id @default(autoincrement())
+  id            Int                @id @default(autoincrement())
   name          String
-  categoryId    Int?
   factoryUnitId Int
-  factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])
-  category      CategoryConfig? @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
+  factoryUnit   FactoryUnit        @relation(fields: [factoryUnitId], references: [id])
+  categories    LocationCategory[]
 
   materials MaterialLocation[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
+  @@schema("sobra_corte")
+}
+
+model LocationCategory {
+  locationId    Int
+  categoryId    Int
+  factoryUnitId Int
+  location      Location       @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  category      CategoryConfig @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+
+  @@id([locationId, categoryId])
   @@index([factoryUnitId, categoryId])
   @@schema("sobra_corte")
 }
@@ -156,15 +166,15 @@ model UnitConfig {
 // 🏷️ TABELA DE CONFIGURAÇÃO: Valores permitidos para Material.type
 // Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
 model CategoryConfig {
-  id            Int         @id @default(autoincrement())
+  id            Int                @id @default(autoincrement())
   name          String
-  unitLock      String      @default("livre") // "m2" | "m" | "livre" (Legado)
-  unitLocked    Boolean     @default(false)
+  unitLock      String             @default("livre") // "m2" | "m" | "livre" (Legado)
+  unitLocked    Boolean            @default(false)
   defaultUnitId Int?
   factoryUnitId Int
-  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
-  defaultUnit   UnitConfig? @relation(fields: [defaultUnitId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
-  locations     Location[]
+  factoryUnit   FactoryUnit        @relation(fields: [factoryUnitId], references: [id])
+  defaultUnit   UnitConfig?        @relation(fields: [defaultUnitId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
+  locations     LocationCategory[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
