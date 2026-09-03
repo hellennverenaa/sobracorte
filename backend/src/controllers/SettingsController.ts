@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { DEFAULT_MEASUREMENT_UNITS, DEFAULT_ORIGINS } from '../settings/defaults';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -123,20 +124,8 @@ export class SettingsController {
       });
 
       if (units.length === 0) {
-        const initialUnits = [
-          { name: 'Metro', symbol: 'm' },
-          { name: 'Metro Quadrado', symbol: 'm²' },
-          { name: 'Quilograma', symbol: 'kg' },
-          { name: 'Grama', symbol: 'g' },
-          { name: 'Unidade', symbol: 'un' },
-          { name: 'Par', symbol: 'par' },
-          { name: 'Rolo', symbol: 'rolo' },
-          { name: 'Centímetro', symbol: 'cm' },
-          { name: 'Litro', symbol: 'l' },
-          { name: 'Caixa', symbol: 'cx' }
-        ];
         await prisma.unitConfig.createMany({
-          data: initialUnits.map((unit) => ({ ...unit, factoryUnitId: req.tenant!.id })),
+          data: DEFAULT_MEASUREMENT_UNITS.map((unit) => ({ ...unit, factoryUnitId: req.tenant!.id })),
           skipDuplicates: true
         });
         units = await prisma.unitConfig.findMany({
@@ -286,10 +275,20 @@ export class SettingsController {
 
   async getOrigins(req: Request, res: Response) {
     try {
-      const origins = await prisma.originConfig.findMany({
+      let origins = await prisma.originConfig.findMany({
         where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' }
       });
+      if (origins.length === 0) {
+        await prisma.originConfig.createMany({
+          data: DEFAULT_ORIGINS.map((name) => ({ name, factoryUnitId: req.tenant!.id })),
+          skipDuplicates: true,
+        });
+        origins = await prisma.originConfig.findMany({
+          where: { factoryUnitId: req.tenant!.id },
+          orderBy: { name: 'asc' },
+        });
+      }
       res.json(origins);
     } catch (error) {
       console.error('Erro ao buscar origens:', error);
