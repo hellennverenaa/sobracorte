@@ -19,6 +19,7 @@ model FactoryUnit {
   locations         Location[]
   materialLocations MaterialLocation[]
   movements         Movement[]
+  deletionAudits    MaterialDeletionAudit[]
   users             User[]
   units             UnitConfig[]
   categories        CategoryConfig[]
@@ -28,18 +29,20 @@ model FactoryUnit {
 }
 
 model Material {
-  id            Int         @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   code          String
   name          String
-  quantity      Float // Saldo Total na fábrica
-  unit          String
-  type          String
-  observation   String?     @default("")
-  minStock      Float       @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  quantity      Decimal        @db.Decimal(18, 3) // Saldo Total na fábrica
+  categoryId    Int
+  unitId        Int
+  observation   String?        @default("")
+  minStock      Decimal        @default(0) @db.Decimal(18, 3)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   factoryUnitId Int
-  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+  factoryUnit   FactoryUnit    @relation(fields: [factoryUnitId], references: [id])
+  category      CategoryConfig @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId])
+  unit          UnitConfig     @relation(fields: [unitId, factoryUnitId], references: [id, factoryUnitId])
 
   movements Movement[]
   locations MaterialLocation[] // Relação com os múltiplos locais
@@ -48,7 +51,8 @@ model Material {
   @@unique([factoryUnitId, code])
   @@unique([id, factoryUnitId])
   @@index([factoryUnitId, name])
-  @@index([factoryUnitId, type])
+  @@index([factoryUnitId, categoryId])
+  @@index([factoryUnitId, unitId])
   @@index([factoryUnitId, quantity(sort: Desc)])
   @@schema("sobra_corte")
 }
@@ -62,6 +66,7 @@ model Location {
   categories    LocationCategory[]
 
   materials MaterialLocation[]
+  movements Movement[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
@@ -88,11 +93,11 @@ model MaterialLocation {
 
   // Se no futuro você quiser saber QUANTOS kg tem em CADA prateleira separadamente, 
   // nós já deixamos o campo de quantidade aqui pronto para uso!
-  quantity Float? @default(0)
+  quantity Decimal @default(0) @db.Decimal(18, 3)
 
   factoryUnit FactoryUnit @relation(fields: [factoryUnitId], references: [id])
   material    Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
-  location    Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  location    Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Restrict)
 
   @@id([materialId, locationId]) // Impede que o mesmo material seja duplicado no mesmo local
   @@index([factoryUnitId, locationId])
@@ -100,27 +105,57 @@ model MaterialLocation {
 }
 
 model Movement {
-  id       Int    @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   type     String
-  quantity Float
+  quantity Decimal @db.Decimal(18, 3)
 
-  origem String? // Opcional para não quebrar os registros antigos
+  materialCode     String
+  materialName     String
+  materialCategory String
+  materialUnit     String
+  locationId       Int?
+  locationName     String?
+  originId         Int?
+  originName       String?
 
   reason    String?
   createdAt DateTime @default(now())
 
-  materialId    Int
+  materialId    Int?
   factoryUnitId Int
-  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
-  material      Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  factoryUnit   FactoryUnit   @relation(fields: [factoryUnitId], references: [id])
+  material      Material?     @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  location      Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  origin        OriginConfig? @relation(fields: [originId], references: [id], onDelete: SetNull)
 
   // DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
   operatorId   String? // Matrícula vinda da DASS
   operatorName String? // Nome vindo da DASS
 
   @@index([factoryUnitId, materialId])
+  @@index([factoryUnitId, locationId, createdAt])
+  @@index([factoryUnitId, originId, createdAt])
   @@index([factoryUnitId, createdAt])
-  @@index([factoryUnitId, origem, createdAt])
+  @@schema("sobra_corte")
+}
+
+model MaterialDeletionAudit {
+  id            Int         @id @default(autoincrement())
+  materialId    Int?
+  code          String
+  name          String
+  categoryName  String
+  unitSymbol    String
+  quantity      Decimal     @db.Decimal(18, 3)
+  locations     Json
+  deletedAt     DateTime    @default(now())
+  deletedById   String?
+  deletedByName String?
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+
+  @@index([factoryUnitId, deletedAt])
+  @@index([factoryUnitId, materialId])
   @@schema("sobra_corte")
 }
 
@@ -157,6 +192,7 @@ model UnitConfig {
   factoryUnitId Int
   factoryUnit   FactoryUnit      @relation(fields: [factoryUnitId], references: [id])
   categories    CategoryConfig[]
+  materials     Material[]
 
   @@unique([factoryUnitId, symbol])
   @@unique([id, factoryUnitId])
@@ -168,13 +204,13 @@ model UnitConfig {
 model CategoryConfig {
   id            Int                @id @default(autoincrement())
   name          String
-  unitLock      String             @default("livre") // "m2" | "m" | "livre" (Legado)
   unitLocked    Boolean            @default(false)
   defaultUnitId Int?
   factoryUnitId Int
   factoryUnit   FactoryUnit        @relation(fields: [factoryUnitId], references: [id])
   defaultUnit   UnitConfig?        @relation(fields: [defaultUnitId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     LocationCategory[]
+  materials     Material[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
@@ -189,6 +225,7 @@ model OriginConfig {
   name          String
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+  movements     Movement[]
 
   @@unique([factoryUnitId, name])
   @@schema("sobra_corte")

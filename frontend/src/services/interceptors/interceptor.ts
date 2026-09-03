@@ -50,6 +50,13 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
 
     if (isRefreshing) {
       await enqueue();
+      // A request can already have a stale Authorization header when it is
+      // resumed from the queue. Always overwrite it with the refreshed token.
+      const refreshedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (refreshedUser.token) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedUser.token}`;
+      }
       return instance(originalRequest);
     }
 
@@ -89,6 +96,8 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       queue.forEach((p) => p.resolve());
       queue = [];
 
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
       return instance(originalRequest);
     } catch (refreshError) {
 

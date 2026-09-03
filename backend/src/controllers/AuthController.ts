@@ -7,7 +7,7 @@ type AuthenticatedUser = NonNullable<Express.Request['user']>;
 function serializeUser<T extends { matriculaDass: bigint | null }>(user: T) {
   return {
     ...user,
-    matriculaDass: user.matriculaDass === null ? null : Number(user.matriculaDass),
+    matriculaDass: user.matriculaDass === null ? null : user.matriculaDass.toString(),
   };
 }
 

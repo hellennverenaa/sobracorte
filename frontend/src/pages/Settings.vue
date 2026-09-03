@@ -264,7 +264,7 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <GitBranch class="w-4 h-4 text-amber-500" /> Origens de Sobra
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Movement.origem</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">origens permitidas nas entradas</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-amber-50/30">
             <form @submit.prevent="addOrigin" class="flex gap-3 items-end">
@@ -386,10 +386,10 @@
                   <span>Exemplo de Arquivo CSV Válido</span>
                   <span>Codificação: UTF-8</span>
                 </div>
-                <code>codigo;descricao;categoria;unidade;quantidade</code><br />
-                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0</code><br />
-                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0</code><br />
-                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5</code>
+                <code>codigo;descricao;categoria;unidade;quantidade;localizacao</code><br />
+                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;GERAL</code><br />
+                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;GERAL</code><br />
+                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;GERAL</code>
               </div>
             </div>
 
@@ -719,11 +719,11 @@ const importing = ref(false)
 const importResult = ref(null)
 
 function downloadCSVTemplate() {
-  const content = "codigo;descricao;categoria;unidade;quantidade\n" +
-                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
-                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
-                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n" +
-                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0\n";
+  const content = "codigo;descricao;categoria;unidade;quantidade;localizacao\n" +
+                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;GERAL\n" +
+                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;GERAL\n" +
+                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;GERAL\n" +
+                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;GERAL\n";
   
   // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
@@ -734,7 +734,7 @@ function downloadCSVTemplate() {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 0)
   showNotification('success', 'Modelo de exemplo baixado com sucesso!')
 }
 

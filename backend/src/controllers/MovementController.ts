@@ -5,24 +5,51 @@ import { MovementRequestError, parseMovementInput } from '../movements/validatio
 export class MovementController {
   async index(req: Request, res: Response) {
     try {
-      const movements = await prisma.movement.findMany({
-        where: { factoryUnitId: req.tenant!.id },
-        take: 100,
-        orderBy: { createdAt: 'desc' },
-        include: { material: true },
-      });
+      const requestedPage = Number(req.query.page);
+      const requestedPageSize = Number(req.query.pageSize);
+      const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+      const pageSize = Number.isInteger(requestedPageSize) && requestedPageSize > 0 ? Math.min(requestedPageSize, 200) : 50;
+      const q = String(req.query.q ?? '').trim();
+      const where = {
+        factoryUnitId: req.tenant!.id,
+        ...(q ? { OR: [
+          { materialCode: { contains: q, mode: 'insensitive' as const } },
+          { materialName: { contains: q, mode: 'insensitive' as const } },
+        ] } : {}),
+      };
+      const [total, movements] = await Promise.all([
+        prisma.movement.count({ where }),
+        prisma.movement.findMany({
+          where,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
+      ]);
 
-      res.json(movements.map((movement) => ({
-        ...movement,
-        tipo: movement.type,
-        quantidade: movement.quantity,
-        data: movement.createdAt,
-        motivo: movement.reason,
-        observacao: movement.reason,
-        usuario: movement.operatorName,
-        operador: movement.operatorName,
-        nomeMaterial: movement.material?.name || movement.material?.code,
-      })));
+      res.json({
+        data: movements.map((movement) => ({
+          id: movement.id,
+          type: movement.type,
+          quantity: String(movement.quantity),
+          createdAt: movement.createdAt,
+          reason: movement.reason,
+          operatorId: movement.operatorId,
+          operatorName: movement.operatorName,
+          originId: movement.originId,
+          originName: movement.originName,
+          locationId: movement.locationId,
+          locationName: movement.locationName,
+          material: {
+            id: movement.materialId,
+            code: movement.materialCode,
+            name: movement.materialName,
+            categoryName: movement.materialCategory,
+            unit: movement.materialUnit,
+          },
+        })),
+        meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      });
     } catch {
       res.status(500).json({ error: 'Erro ao buscar movimentações.' });
     }
@@ -39,16 +66,22 @@ export class MovementController {
       }
 
       const result = await prisma.$transaction(async (tx) => {
-        const [material, location] = await Promise.all([
-          tx.material.findFirst({ where: { id: input.materialId, factoryUnitId: req.tenant!.id }, select: { id: true } }),
-          tx.location.findUnique({
-            where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: input.location } },
-            select: { id: true },
-          }),
-        ]);
+        const material = await tx.material.findFirst({ where: { id: input.materialId, factoryUnitId: req.tenant!.id }, include: { category: true, unit: true } });
+        const location = input.locationId
+          ? await tx.location.findFirst({ where: { id: input.locationId, factoryUnitId: req.tenant!.id } })
+          : await tx.location.findUnique({ where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: input.location } } });
 
         if (!material) throw new MovementRequestError('Material não encontrado.', 404);
         if (!location) throw new MovementRequestError('Localização não encontrada.', 404);
+        const allowed = await tx.locationCategory.findFirst({ where: { locationId: location.id, categoryId: material.categoryId, factoryUnitId: req.tenant!.id } });
+        if (!allowed) throw new MovementRequestError('A categoria do material não é permitida nessa localização.', 400);
+
+        const origin = input.type === 'entrada'
+          ? (input.originId
+            ? await tx.originConfig.findFirst({ where: { id: input.originId, factoryUnitId: req.tenant!.id } })
+            : await tx.originConfig.findUnique({ where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: input.origin! } } }))
+          : null;
+        if (input.type === 'entrada' && !origin) throw new MovementRequestError('Origem não encontrada.', 400);
 
         if (input.type === 'entrada') {
           await tx.material.update({
@@ -71,7 +104,7 @@ export class MovementController {
             data: { quantity: { decrement: input.quantity } },
           });
           if (locationUpdate.count === 0) {
-            throw new MovementRequestError(`Estoque insuficiente na localização: ${input.location}`, 409);
+            throw new MovementRequestError(`Estoque insuficiente na localização: ${location.name}`, 409);
           }
 
           const materialUpdate = await tx.material.updateMany({
@@ -89,7 +122,14 @@ export class MovementController {
             factoryUnitId: req.tenant!.id,
             type: input.type,
             quantity: input.quantity,
-            origem: input.origin,
+            originId: origin?.id ?? null,
+            originName: origin?.name ?? null,
+            materialCode: material.code,
+            materialName: material.name,
+            materialCategory: material.category.name,
+            materialUnit: material.unit.symbol,
+            locationId: location.id,
+            locationName: location.name,
             reason: input.reason,
             operatorId,
             operatorName,

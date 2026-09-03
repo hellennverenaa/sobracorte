@@ -41,7 +41,7 @@ Sistema corporativo voltado ao controle de estoque de materiais, sobras de produ
 
 ## Controle de Acesso Baseado em Papéis (RBAC Matrix)
 
-O sistema enforca o controle de acesso tanto na barra lateral reativa ([Layout.vue](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/components/Layout.vue)) quanto no guardião de rotas do Vue Router ([router/index.js](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/router/index.js)):
+O sistema aplica o controle de acesso tanto na barra lateral reativa (`frontend/src/components/Layout.vue`) quanto no guardião de rotas do Vue Router (`frontend/src/router/index.js`):
 
 | Nível / Cargo    | Dashboard (`/`) | Materiais (`/materials`) | Movimentação (`/movement`) | Relatórios (`/reports`) | Usuários (`/users`) | Configurações (`/settings`) |
 | :--------------- | :-------------: | :----------------------: | :------------------------: | :---------------------: | :-----------------: | :-------------------------: |
@@ -132,3 +132,12 @@ npx prisma generate
 
 > [!CAUTION]
 > Em produção e no ambiente de testes, aplique somente as migrations versionadas com `npx prisma migrate deploy`.
+> A migration `20260903170000_integrity_snapshots` altera colunas e chaves estrangeiras e pode obter locks. Faça backup, teste sobre uma cópia recente e programe janela de manutenção. Ela aborta se encontrar saldos negativos, mais de três casas decimais, domínios não resolvidos ou divergência entre o saldo total e as localizações.
+
+## Contratos e integridade
+
+- Quantidades são decimais com até três casas e são enviadas pela API como strings.
+- Listagens de materiais, movimentações e relatórios retornam `{ data, meta }`, com `page`, `pageSize`, `total` e `totalPages`.
+- Movimentações preservam snapshots de material, categoria, unidade, localização, origem e operador. A exclusão física de um material não apaga seu histórico e gera um registro de auditoria.
+- O dashboard separa saldos por unidade de medida; quantidades de unidades incompatíveis não são somadas.
+- A importação CSV exige `codigo;descricao;categoria;unidade;quantidade;localizacao`, valida o arquivo inteiro e é atômica: qualquer erro de linha impede todas as inclusões.

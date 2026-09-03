@@ -1,18 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
-import { useApi } from '@/composables/useApi'
-import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileText, FileBarChart, CheckCircle, XCircle } from 'lucide-vue-next'
-import { exportToCSV } from '@/utils/export'
+import { FileSpreadsheet, Printer, Search, Calendar, Filter, FileBarChart } from 'lucide-vue-next'
 import { api } from '@/services/httpClient'
 import { useToast } from '@/composables/useToast'
-
-const { request } = useApi()
 
 // --- ESTADOS ---
 const loading = ref(false)
 const reportData = ref([])
 const hasSearched = ref(false)
+const reportPage = ref(1)
+const reportMeta = ref({ page: 1, pageSize: 100, total: 0, totalPages: 1 })
 
 const { notification, showNotification } = useToast()
 
@@ -86,45 +84,44 @@ function getDatesFromPeriod(period) {
     end = new Date(filters.value.dataFim + 'T23:59:59')
   }
   
-  // Retorna as datas em formato ISO para o Backend entender
+  const localDate = value => {
+    const year = value.getFullYear()
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
   return { 
-    start: start.toISOString(), 
-    end: end.toISOString() 
+    start: localDate(start),
+    end: localDate(end)
   }
 }
 
-async function generateReport() {
+function reportParams() {
+  const dates = getDatesFromPeriod(filters.value.periodo)
+  if (!dates) return null
+  return {
+    startDate: dates.start,
+    endDate: dates.end,
+    category: filters.value.tipoMaterial === 'todos' ? undefined : filters.value.tipoMaterial,
+    type: filters.value.tipoMovimento === 'todos' ? undefined : filters.value.tipoMovimento,
+  }
+}
+
+async function generateReport(page = 1) {
   loading.value = true
   hasSearched.value = true
   reportData.value = []
 
   try {
-    const dates = getDatesFromPeriod(filters.value.periodo)
-    if (!dates) {
+    const params = reportParams()
+    if (!params) {
       showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
-      loading.value = false
       return
     }
-
-    const queryUrl = `/reports/movements?dataInicio=${dates.start}&dataFim=${dates.end}`
-    const apiData = await request(queryUrl)
-
-    reportData.value = apiData.filter(mov => {
-      if (filters.value.tipoMaterial !== 'todos') {
-        const tipoMat = String(mov.material?.type || mov.material?.tipo || 'outros').toLowerCase();
-        if (tipoMat !== filters.value.tipoMaterial.toLowerCase()) {
-          return false;
-        }
-      }
-
-      if (filters.value.tipoMovimento !== 'todos') {
-        if (mov.tipo.toLowerCase() !== filters.value.tipoMovimento.toLowerCase()) {
-          return false;
-        }
-      }
-      
-      return true; // Se passou por todos os filtros, aparece na tabela!
-    })
+    const response = await api.get('/reports/movements', { params: { ...params, page, pageSize: reportMeta.value.pageSize } })
+    reportData.value = response.data.data
+    reportMeta.value = response.data.meta
+    reportPage.value = response.data.meta.page
 
   } catch (err) {
     console.error(err)
@@ -135,23 +132,19 @@ async function generateReport() {
 }
 
 // --- EXPORTAR EXCEL ---
-function downloadExcel() {
-  if (reportData.value.length === 0) return
-  
-  // O Backend já devolve quase pronto, só ajustamos a Data para o Excel Brasileiro
-  const rows = reportData.value.map(mov => ({
-    DATA: new Date(mov.data_hora).toLocaleDateString('pt-BR'),
-    HORA: new Date(mov.data_hora).toLocaleTimeString('pt-BR'),
-    TIPO_MOVIMENTO: mov.tipo,
-    MATERIAL: mov.material?.descricao || mov.nomeMaterial || '-',
-    CODIGO: mov.codigo,
-    QUANTIDADE: Number(mov.quantidade).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }),
-    UNIDADE: mov.unidade,
-    MOTIVO: mov.motivo,
-    USUARIO: mov.responsavel
-  }))
-
-  exportToCSV(`SobrasDASS_Relatorio_${filters.value.periodo}`, rows)
+async function downloadExcel() {
+  if (!reportMeta.value.total) return
+  try {
+    const response = await api.get('/reports/movements/export', { params: reportParams(), responseType: 'blob' })
+    const url = URL.createObjectURL(response.data)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `SobrasDASS_Relatorio_${filters.value.periodo}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    showNotification('error', 'Erro ao exportar o relatório completo.')
+  }
 }
 
 // --- EXPORTAR PDF (Impressão) ---
@@ -160,13 +153,25 @@ function printPDF() {
 }
 
 // Totais Calculados (Para mostrar no rodapé da tabela, se você tiver um)
-const totalEntradas = computed(() => reportData.value.filter(m => m.tipo.toLowerCase() === 'entrada').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
-const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCase() === 'saida').reduce((acc, cur) => acc + Number(cur.quantidade), 0))
+const totalsByUnit = computed(() => {
+  const totals = new Map()
+  for (const movement of reportData.value) {
+    const unit = movement.material?.unit || 'sem unidade'
+    const current = totals.get(unit) || { unit, entradas: 0, saidas: 0 }
+    current[movement.type === 'entrada' ? 'entradas' : 'saidas'] += Number(movement.quantity)
+    totals.set(unit, current)
+  }
+  return [...totals.values()]
+})
 
 </script>
 
 <template>
   <Layout>
+    <div v-if="notification.show" :class="notification.type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'"
+      class="fixed top-4 right-4 px-4 py-3 rounded border shadow-lg z-[100]">
+      {{ notification.message }}
+    </div>
 
     <div class="max-w-6xl mx-auto px-4 py-8">
       
@@ -212,7 +217,7 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
           </div>
 
           <div class="flex items-end">
-            <button @click="generateReport" :disabled="loading" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+            <button @click="generateReport(1)" :disabled="loading" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
               <Search v-if="!loading" class="w-4 h-4" />
               {{ loading ? 'Processando...' : 'Gerar Relatório' }}
             </button>
@@ -229,11 +234,11 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
         
         <div class="flex justify-between items-center mb-4 print:hidden">
           <div class="text-sm text-gray-500">
-            Encontrados <strong>{{ reportData.length }}</strong> registros.
+            Encontrados <strong>{{ reportMeta.total }}</strong> registros.
           </div>
-          <div class="flex gap-2" v-if="reportData.length > 0">
+          <div class="flex gap-2" v-if="reportMeta.total > 0">
             <button @click="printPDF" class="bg-gray-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-gray-900">
-              <Printer class="w-4 h-4" /> Imprimir / PDF
+              <Printer class="w-4 h-4" /> Imprimir página / PDF
             </button>
             <button @click="downloadExcel" class="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-700">
               <FileSpreadsheet class="w-4 h-4" /> Excel
@@ -263,19 +268,19 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
             <tbody class="divide-y divide-gray-100 text-xs print:divide-gray-300">
               <tr v-for="row in reportData" :key="row.id">
                 <td class="p-4 text-gray-600">
-                  {{ new Date(row.data).toLocaleDateString('pt-BR') }} <span class="text-gray-400">{{ new Date(row.data).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) }}</span>
+                  {{ new Date(row.createdAt).toLocaleDateString('pt-BR') }} <span class="text-gray-400">{{ new Date(row.createdAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) }}</span>
                 </td>
                 <td class="p-4">
-                  <span class="font-bold uppercase" :class="row.tipo === 'entrada' ? 'text-red-600' : 'text-green-600'">{{ row.tipo }}</span>
+                  <span class="font-bold uppercase" :class="row.type === 'entrada' ? 'text-red-600' : 'text-green-600'">{{ row.type }}</span>
                 </td>
                 <td class="p-4 font-bold text-gray-900">
-                  {{ (row.material?.descricao || row.nomeMaterial) }}
-                  <span v-if="row.material?.codigo" class="block text-[9px] text-gray-400 font-mono">{{ row.material.codigo }}</span>
+                  {{ row.material?.name || '-' }}
+                  <span v-if="row.material?.code" class="block text-[9px] text-gray-400 font-mono">{{ row.material.code }}</span>
                 </td>
-                <td class="p-4 capitalize text-gray-600">{{ row.material?.tipo || '-' }}</td>
-                <td class="p-4 text-center text-xs font-bold text-blue-600 uppercase">{{ row.origem || '-' }}</td>
+                <td class="p-4 capitalize text-gray-600">{{ row.material?.categoryName || '-' }}</td>
+                <td class="p-4 text-center text-xs font-bold text-blue-600 uppercase">{{ row.originName || '-' }}</td>
                 <td class="p-4 text-right font-bold text-gray-800">
-                  {{ row.quantidade }} <span class="text-[9px] text-gray-400">{{ row.material?.unidade }}</span>
+                  {{ row.quantity }} <span class="text-[9px] text-gray-400">{{ row.material?.unit }}</span>
                 </td>
               </tr>
               <tr v-if="reportData.length === 0">
@@ -286,12 +291,22 @@ const totalSaidas = computed(() => reportData.value.filter(m => m.tipo.toLowerCa
               <tr>
                 <td colspan="3" class="p-4 text-right">TOTAIS DO PERÍODO:</td>
                 <td colspan="3" class="p-4 text-right">
-                  <div class="text-green-600">Saídas: {{ totalSaidas.toLocaleString('pt-BR') }}</div>
-                  <div class="text-red-600">Entradas: {{ totalEntradas.toLocaleString('pt-BR') }}</div>
+                  <div v-for="total in totalsByUnit" :key="total.unit" class="mb-1">
+                    <span class="text-slate-500">{{ total.unit }} — </span>
+                    <span class="text-green-600">Saídas: {{ total.saidas.toLocaleString('pt-BR') }}</span>
+                    <span class="text-red-600 ml-2">Entradas: {{ total.entradas.toLocaleString('pt-BR') }}</span>
+                  </div>
                 </td>
               </tr>
             </tfoot>
           </table>
+          <div v-if="reportMeta.totalPages > 1" class="flex items-center justify-between border-t px-4 py-3 text-xs text-gray-500 print:hidden">
+            <span>Página {{ reportPage }} de {{ reportMeta.totalPages }}</span>
+            <div class="flex gap-2">
+              <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="reportPage <= 1 || loading" @click="generateReport(reportPage - 1)">Anterior</button>
+              <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="reportPage >= reportMeta.totalPages || loading" @click="generateReport(reportPage + 1)">Próxima</button>
+            </div>
+          </div>
         </div>
       </div>
 

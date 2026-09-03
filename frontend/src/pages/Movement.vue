@@ -1,5 +1,9 @@
 <template>
   <Layout>
+    <div v-if="notification.show" :class="notification.type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'"
+      class="fixed top-4 right-4 px-4 py-3 rounded border shadow-lg z-[100]">
+      {{ notification.message }}
+    </div>
     <div class="flex flex-col h-full px-6 pt-6 bg-gray-50/50 relative">
 
 
@@ -56,11 +60,10 @@
                   class="absolute z-50 w-full bg-white border border-gray-100 rounded-xl shadow-xl mt-2 max-h-60 overflow-y-auto custom-scrollbar ring-1 ring-black/5">
                   <li v-for="mat in filteredMaterials" :key="mat.id" @click="selectMaterial(mat)"
                     class="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b last:border-0 border-gray-50 group flex justify-between items-center transition-colors">
-                    <span class="font-bold text-gray-700 group-hover:text-blue-700">{{ mat.descricao || mat.name
-                    }}</span>
+                    <span class="font-bold text-gray-700 group-hover:text-blue-700">{{ mat.name }}</span>
                     <span
                       class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono font-bold border border-gray-200">#{{
-                        mat.codigo || mat.code }}</span>
+                        mat.code }}</span>
                   </li>
                 </ul>
               </div>
@@ -69,21 +72,19 @@
                 class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden animate-fade-in">
                 <div class="relative z-10">
                   <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Item Selecionado</div>
-                  <div class="font-bold text-gray-800 text-lg leading-tight pr-8">{{ selectedMaterial.descricao ||
-                    selectedMaterial.name }}</div>
+                  <div class="font-bold text-gray-800 text-lg leading-tight pr-8">{{ selectedMaterial.name }}</div>
                   <div class="mt-3 flex items-center gap-4">
                     <div>
                       <span class="text-xs text-gray-400 block">Código</span>
                       <span
                         class="font-mono text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{{
-                          selectedMaterial.codigo || selectedMaterial.code }}</span>
+                          selectedMaterial.code }}</span>
                     </div>
                     <div>
                       <span class="text-xs text-gray-400 block">Estoque Total</span>
                       <span class="font-bold transition-colors"
                         :class="form.type === 'ENTRADA' ? 'text-red-600' : 'text-green-600'">
-                        {{ formatNumber(selectedMaterial.quantidade || selectedMaterial.quantity) }} {{
-                          selectedMaterial.unidade || selectedMaterial.unit }}
+                        {{ formatNumber(selectedMaterial.quantity) }} {{ selectedMaterial.unit?.symbol }}
                       </span>
                     </div>
                   </div>
@@ -93,24 +94,24 @@
               <div>
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Quantidade</label>
                 <div class="relative">
-                  <input v-model.number="form.quantity" type="number" step="0.001"
+                  <input v-model="form.quantity" type="number" step="0.001"
                     class="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-xl text-gray-800"
                     placeholder="0.000" required />
                   <div class="absolute right-4 top-3.5 text-sm font-bold text-gray-400 pointer-events-none uppercase">{{
-                    selectedMaterial ? (selectedMaterial.unidade || selectedMaterial.unit) : 'und' }}</div>
+                    selectedMaterial?.unit?.symbol || 'und' }}</div>
                 </div>
               </div>
 
               <div class="mt-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">Localização no Estoque</label>
-                <select v-model="form.location" :disabled="form.type === 'SAIDA' && !form.location"
+                <select v-model="form.locationId" :disabled="form.type === 'SAIDA' && !form.locationId"
                   class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-red-500">
                   <option value="" disabled selected hidden>Selecione a prateleira...</option>
                   <option v-for="option in locationOptions" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
-                <p v-if="form.type === 'SAIDA' && !form.location" class="text-xs text-red-500 mt-1 font-medium">
+                <p v-if="form.type === 'SAIDA' && !form.locationId" class="text-xs text-red-500 mt-1 font-medium">
                   Este material está zerado em todas as prateleiras.
                 </p>
               </div>
@@ -120,12 +121,12 @@
                   Origem da Sobra <span class="text-red-500">*</span>
                 </label>
                 <div class="relative">
-                  <select v-model="form.origem"
+                  <select v-model="form.originId"
                     class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    :class="!form.origem ? 'text-gray-400' : 'text-gray-900'">
+                    :class="!form.originId ? 'text-gray-400' : 'text-gray-900'">
                     <option value="" disabled selected hidden>Selecione o motivo da sobra...</option>
-                    <option v-for="item in origensSobra" :key="item" :value="item">
-                      {{ item }}
+                    <option v-for="item in origensSobra" :key="item.id" :value="item.id">
+                      {{ item.name }}
                     </option>
                   </select>
                 </div>
@@ -195,33 +196,32 @@
                     <td class="px-6 py-4">
                       <div class="flex flex-col">
                         <span class="font-bold text-gray-700 text-sm group-hover:text-blue-700 transition-colors">{{
-                          item.nomeMaterial || (item.material ? (item.material.descricao || item.material.name) :
-                          'Excluído') }}</span>
+                          item.material?.name || 'Excluído' }}</span>
                         <span class="text-[10px] text-gray-400 font-mono" v-if="item.material">Cód: {{
-                          item.material.codigo || item.material.code }}</span>
-                        <span v-if="item.origem" class="text-[9px] font-bold text-blue-500 uppercase mt-0.5">Origem: {{
-                          item.origem }}</span>
+                          item.material.code }}</span>
+                        <span v-if="item.originName" class="text-[9px] font-bold text-blue-500 uppercase mt-0.5">Origem: {{
+                          item.originName }}</span>
                       </div>
                     </td>
                     <td class="px-6 py-4 text-center">
                       <span
                         class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border shadow-sm"
-                        :class="((item.tipo || item.type || '').toLowerCase()) === 'entrada' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'">
-                        {{ item.tipo || item.type }}
+                        :class="item.type === 'entrada' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'">
+                        {{ item.type }}
                       </span>
                     </td>
                     <td class="px-6 py-4 text-right">
-                      <div class="text-sm font-bold text-gray-800">{{ formatNumber(item.quantidade || item.quantity) }}
+                      <div class="text-sm font-bold text-gray-800">{{ formatNumber(item.quantity) }}
                       </div>
                     </td>
                     <td class="px-6 py-4 text-center">
                       <span
                         class="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full border border-gray-200 uppercase tracking-wider">
-                        {{ item.usuario || item.operatorName || 'Sistema' }}
+                        {{ item.operatorName || 'Sistema' }}
                       </span>
                     </td>
                     <td class="px-6 py-4 text-center">
-                      <div v-if="item.motivo || item.reason" class="relative group/tooltip inline-block">
+                      <div v-if="item.reason" class="relative group/tooltip inline-block">
                         <svg xmlns="http://www.w3.org/2000/svg"
                           class="h-5 w-5 text-gray-400 hover:text-blue-500 cursor-help" fill="none" viewBox="0 0 24 24"
                           stroke="currentColor">
@@ -230,7 +230,7 @@
                         </svg>
                         <div
                           class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-800 text-white text-xs rounded-xl p-3 hidden group-hover/tooltip:block z-50 shadow-2xl text-left w-auto max-w-sm">
-                          <span class="block whitespace-normal leading-relaxed">{{ item.motivo || item.reason }}</span>
+                          <span class="block whitespace-normal leading-relaxed">{{ item.reason }}</span>
                           <div
                             class="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-gray-800">
                           </div>
@@ -242,6 +242,14 @@
                 </tbody>
               </table>
             </div>
+            <div class="flex items-center justify-between border-t px-5 py-3 text-xs text-gray-500">
+              <span>{{ historyMeta.total }} registros</span>
+              <div class="flex items-center gap-2">
+                <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="historyPage <= 1" @click="changeHistoryPage(historyPage - 1)">Anterior</button>
+                <span>Página {{ historyPage }} / {{ historyMeta.totalPages || 1 }}</span>
+                <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="historyPage >= historyMeta.totalPages" @click="changeHistoryPage(historyPage + 1)">Próxima</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -251,7 +259,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { api } from '../services/httpClient'
 import { useToast } from '@/composables/useToast'
@@ -260,7 +268,7 @@ import { formatNumber, formatDate } from '@/utils/format'
 const dbLocations = ref([]);
 const origensSobra = ref([]);
 
-const form = ref({ type: 'SAIDA', quantity: '', reason: '', location: '', origem: '' })
+const form = ref({ type: 'SAIDA', quantity: '', reason: '', locationId: '', originId: '' })
 
 const materials = ref([])
 const history = ref([])
@@ -268,6 +276,14 @@ const searchQuery = ref('')
 const selectedMaterial = ref(null)
 const showDropdown = ref(false)
 const historySearch = ref('')
+const historyPage = ref(1)
+const historyMeta = ref({ total: 0, totalPages: 1, pageSize: 50 })
+let searchTimer
+let historyTimer
+let isSelectingMaterial = false
+const closeDropdownOnOutsideClick = (event) => {
+  if (!event.target.closest('.relative')) showDropdown.value = false
+}
 const { notification, showNotification } = useToast()
 
 const locationOptions = computed(() => {
@@ -277,7 +293,7 @@ const locationOptions = computed(() => {
     const validLocations = matLocations
       .filter(ml => ml.quantity > 0)
       .map(ml => ({
-        value: ml.location.name,
+        value: ml.locationId || ml.location?.id,
         label: `${ml.location.name} (Saldo: ${ml.quantity})`
       }))
 
@@ -287,43 +303,9 @@ const locationOptions = computed(() => {
     return validLocations
   }
 
-  if (!selectedMaterial.value) {
-    const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
-    const generalLocations = dbLocations.value.filter(loc => 
-      !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
-    );
-    const targets = generalLocations.length > 0 ? generalLocations : dbLocations.value;
-    return targets.map(loc => ({ value: loc.name, label: loc.name }));
-  }
-
-  const categoria = String(selectedMaterial.value.type || selectedMaterial.value.category || '').toUpperCase().trim();
-
-  let smartLocations = [];
-  if (categoria.includes('LINHA')) {
-    smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
-  } else if (categoria.includes('AVIAMENTO')) {
-    smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
-  } else if (categoria.includes('ELASTICO') || categoria.includes('ELÁSTICO')) {
-    smartLocations = dbLocations.value.filter(loc => 
-      loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
-    );
-  } else if (categoria.includes('FERRAMENTA')) {
-    smartLocations = dbLocations.value.filter(loc => 
-      loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
-    );
-  }
-
-  if (smartLocations.length === 0) {
-    const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
-    smartLocations = dbLocations.value.filter(loc => 
-      !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
-    );
-    if (smartLocations.length === 0) {
-      smartLocations = dbLocations.value;
-    }
-  }
-
-  return smartLocations.map(loc => ({ value: loc.name, label: loc.name }));
+  const categoryId = selectedMaterial.value?.categoryId || selectedMaterial.value?.category?.id;
+  const linked = dbLocations.value.filter(loc => (loc.categories || []).some(c => c.id === categoryId));
+  return linked.map(loc => ({ value: loc.id, label: loc.name }));
 })
 
 watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
@@ -332,64 +314,39 @@ watch([selectedMaterial, () => form.value.type], ([newMat, newType]) => {
   if (newType === 'SAIDA') {
     const hasStock = (newMat.locations || []).find(ml => ml.quantity > 0)
     if (hasStock) {
-      form.value.location = hasStock.location.name
+      form.value.locationId = hasStock.locationId || hasStock.location?.id
     } else {
-      form.value.location = ''
+      form.value.locationId = ''
     }
   } else {
-    const categoria = String(newMat.type || newMat.category || '').toUpperCase().trim();
-    let smartLocations = [];
-    if (categoria.includes('LINHA')) {
-      smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('LINHA'));
-    } else if (categoria.includes('AVIAMENTO')) {
-      smartLocations = dbLocations.value.filter(loc => loc.name.toUpperCase().includes('AVIAMENTO'));
-    } else if (categoria.includes('ELASTICO') || categoria.includes('ELÁSTICO')) {
-      smartLocations = dbLocations.value.filter(loc => 
-        loc.name.toUpperCase().includes('ELASTICO') || loc.name.toUpperCase().includes('ELÁSTICO')
-      );
-    } else if (categoria.includes('FERRAMENTA')) {
-      smartLocations = dbLocations.value.filter(loc => 
-        loc.name.toUpperCase().includes('FERRAMENTA') || loc.name.toUpperCase().includes('MANUTENÇÃO') || loc.name.toUpperCase().includes('MANUTENCAO')
-      );
-    }
-
-    if (smartLocations.length === 0) {
-      const exclusoes = ['LINHA', 'AVIAMENTO', 'ELASTICO', 'ELÁSTICO', 'FERRAMENTA', 'MANUTENÇÃO', 'MANUTENCAO'];
-      smartLocations = dbLocations.value.filter(loc => 
-        !exclusoes.some(exc => loc.name.toUpperCase().includes(exc))
-      );
-      if (smartLocations.length === 0) {
-        smartLocations = dbLocations.value;
-      }
-    }
-
-    if (smartLocations.length > 0) {
-      form.value.location = smartLocations[0].name;
+    const categoryId = newMat.categoryId || newMat.category?.id;
+    const linked = dbLocations.value.filter(loc => (loc.categories || []).some(c => c.id === categoryId));
+    if (linked.length > 0) {
+      form.value.locationId = linked[0].id;
     } else {
-      form.value.location = '';
+      form.value.locationId = '';
     }
   }
 })
 
 async function fetchData() {
   try {
-    const [matRes, histRes, originsRes, locationsRes] = await Promise.all([
-      api.get('/materials'),
-      api.get('/movements'),
+    const [histRes, originsRes, locationsRes] = await Promise.all([
+      api.get('/movements', { params: { page: historyPage.value, pageSize: historyMeta.value.pageSize, q: historySearch.value || undefined } }),
       api.get('/settings/origins'),
       api.get('/settings/locations')
     ]);
 
-    materials.value = matRes.data;
-    history.value = histRes.data;
-    origensSobra.value = originsRes.data.map(o => o.name);
+    history.value = histRes.data?.data || histRes.data;
+    historyMeta.value = { ...historyMeta.value, ...(histRes.data?.meta || {}) };
+    origensSobra.value = originsRes.data?.data || originsRes.data;
     dbLocations.value = locationsRes.data;
 
   } catch (error) {
     console.error("Erro no fetchData:", error);
 
     const errorMsg = error.response?.data?.error || 'Erro ao carregar dados do servidor.';
-    showNotification(`⚠️ ${errorMsg}`, 'error');
+    showNotification('error', `⚠️ ${errorMsg}`);
   }
 }
 
@@ -397,10 +354,33 @@ const filteredMaterials = computed(() => {
   if (!searchQuery.value) return []
   const term = searchQuery.value.toLowerCase().trim()
   return materials.value.filter(m =>
-    (m.descricao || m.name || '').toLowerCase().includes(term) ||
-    String(m.codigo || m.code || '').toLowerCase().includes(term)
+    (m.name || '').toLowerCase().includes(term) ||
+    String(m.code || '').toLowerCase().includes(term)
   ).slice(0, 10)
 })
+
+watch(searchQuery, (value) => {
+  clearTimeout(searchTimer)
+  if (isSelectingMaterial) { isSelectingMaterial = false; return }
+  selectedMaterial.value = null
+  if (!value.trim()) { materials.value = []; return }
+  searchTimer = setTimeout(async () => {
+    const response = await api.get('/materials', { params: { page: 1, pageSize: 20, q: value.trim() } })
+    materials.value = response.data?.data || response.data || []
+    showDropdown.value = true
+  }, 300)
+})
+
+watch(historySearch, () => {
+  clearTimeout(historyTimer)
+  historyTimer = setTimeout(() => { historyPage.value = 1; fetchData() }, 300)
+})
+
+function changeHistoryPage(nextPage) {
+  if (nextPage < 1 || nextPage > historyMeta.value.totalPages) return
+  historyPage.value = nextPage
+  fetchData()
+}
 
 const filteredHistory = computed(() => {
   let list = history.value
@@ -416,8 +396,9 @@ const filteredHistory = computed(() => {
 })
 
 function selectMaterial(mat) {
+  isSelectingMaterial = true
   selectedMaterial.value = mat
-  searchQuery.value = mat.descricao || mat.name
+  searchQuery.value = mat.name
   showDropdown.value = false
 }
 
@@ -430,37 +411,37 @@ function filterMaterials() {
 async function submitMovement() {
   if (!selectedMaterial.value) {
     const term = searchQuery.value.trim();
-    const match = materials.value.find(m => String(m.codigo || m.code) === term);
+    const match = materials.value.find(m => String(m.code) === term);
     if (match) selectedMaterial.value = match;
-    else return showNotification('Selecione um material válido!', 'error');
+    else return showNotification('error', 'Selecione um material válido!');
   }
 
   if (!form.value.quantity || form.value.quantity <= 0) {
-    return showNotification('Digite uma quantidade válida!', 'error');
+    return showNotification('error', 'Digite uma quantidade válida!');
   }
-  if (!form.value.location) {
-    return showNotification('Selecione a prateleira de destino!', 'error');
+  if (!form.value.locationId) {
+    return showNotification('error', 'Selecione a prateleira de destino!');
   }
 
-  if (form.value.type === 'ENTRADA' && !form.value.origem) {
-    return showNotification('Selecione a origem da sobra!', 'error');
+  if (form.value.type === 'ENTRADA' && !form.value.originId) {
+    return showNotification('error', 'Selecione a origem da sobra!');
   }
 
   try {
     await api.post('/movements', {
       materialId: Number(selectedMaterial.value.id),
       type: form.value.type,
-      quantity: Number(form.value.quantity),
+      quantity: String(form.value.quantity),
       reason: form.value.reason || '',
-      location: form.value.location,
-      origem: form.value.type === 'ENTRADA' ? form.value.origem : null
+      locationId: form.value.locationId,
+      originId: form.value.type === 'ENTRADA' ? form.value.originId : null
     });
 
-    showNotification(`Registro de ${form.value.type} salvo!`, 'success', form.value.type);
+    showNotification('success', `Registro de ${form.value.type} salvo!`);
 
     form.value.quantity = '';
     form.value.reason = '';
-    form.value.origem = '';
+    form.value.originId = '';
     searchQuery.value = '';
     selectedMaterial.value = null;
 
@@ -472,15 +453,19 @@ async function submitMovement() {
 
     console.error(`Erro ao salvar movimentação (HTTP ${httpStatus || 'indisponível'}): ${errorMsg}`);
 
-    showNotification(`❌ Erro ${httpStatus ? `(${httpStatus})` : ''}: ${errorMsg}`, 'error');
+    showNotification('error', `❌ Erro ${httpStatus ? `(${httpStatus})` : ''}: ${errorMsg}`);
   }
 }
 
 onMounted(() => {
   fetchData()
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.relative')) showDropdown.value = false
-  })
+  document.addEventListener('click', closeDropdownOnOutsideClick)
+})
+
+onUnmounted(() => {
+  clearTimeout(searchTimer)
+  clearTimeout(historyTimer)
+  document.removeEventListener('click', closeDropdownOnOutsideClick)
 })
 </script>
 

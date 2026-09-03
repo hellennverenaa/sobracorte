@@ -25,22 +25,24 @@ export class SettingsController {
 
   async createCategory(req: Request, res: Response) {
     try {
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, defaultUnitId, unitLocked } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
-      if (defaultUnitId) {
+      if (defaultUnitId !== undefined && defaultUnitId !== null) {
+        if (!Number.isInteger(Number(defaultUnitId)) || Number(defaultUnitId) <= 0) return res.status(400).json({ error: 'Unidade de medida inválida.' });
         const unit = await prisma.unitConfig.findFirst({
-          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id, active: true }, select: { id: true },
         });
         if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
+      const locked = Boolean(unitLocked);
+      if (locked && !defaultUnitId) return res.status(400).json({ error: 'Categoria com unidade fixa exige unidade padrão.' });
       const category = await prisma.categoryConfig.create({
         data: {
           name: String(name).trim().toUpperCase(),
-          unitLock: unitLock || 'livre',
           defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
-          unitLocked: Boolean(unitLocked),
+          unitLocked: locked,
           factoryUnitId: req.tenant!.id
         },
         include: { defaultUnit: true }
@@ -58,21 +60,32 @@ export class SettingsController {
   async updateCategory(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, defaultUnitId, unitLocked } = req.body;
 
       const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
-      if (defaultUnitId) {
+      if (defaultUnitId !== undefined && defaultUnitId !== null) {
+        if (!Number.isInteger(Number(defaultUnitId)) || Number(defaultUnitId) <= 0) return res.status(400).json({ error: 'Unidade de medida inválida.' });
         const unit = await prisma.unitConfig.findFirst({
-          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id, active: true }, select: { id: true },
         });
         if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+      const nextDefault = defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : existing.defaultUnitId;
+      const nextLocked = unitLocked !== undefined ? Boolean(unitLocked) : existing.unitLocked;
+      if (nextLocked && !nextDefault) return res.status(400).json({ error: 'Categoria com unidade fixa exige unidade padrão.' });
+      if (nextLocked) {
+        const incompatibleMaterials = await prisma.material.count({
+          where: { factoryUnitId: req.tenant!.id, categoryId: id, unitId: { not: nextDefault! } },
+        });
+        if (incompatibleMaterials > 0) {
+          return res.status(409).json({ error: `Não é possível fixar esta unidade: ${incompatibleMaterials} material(is) usa(m) outra unidade.` });
+        }
       }
       const category = await prisma.categoryConfig.update({
         where: { id },
         data: {
           name: name ? String(name).trim().toUpperCase() : undefined,
-          unitLock: unitLock !== undefined ? unitLock : undefined,
           defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
           unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
         },
@@ -93,7 +106,7 @@ export class SettingsController {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
       const materiaisVinculados = await prisma.material.count({
-        where: { factoryUnitId: req.tenant!.id, type: category.name }
+        where: { factoryUnitId: req.tenant!.id, categoryId: category.id }
       });
       if (materiaisVinculados > 0) {
         return res.status(409).json({
@@ -146,7 +159,7 @@ export class SettingsController {
         return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
       }
 
-      const cleanSymbol = String(symbol).trim();
+      const cleanSymbol = String(symbol).trim().toLowerCase().replace(/^m2$|^mt2$/, 'm²');
       const cleanName = String(name).trim();
 
       const existing = await prisma.unitConfig.findUnique({
@@ -187,6 +200,15 @@ export class SettingsController {
       const unit = await prisma.unitConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!unit) {
         return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+
+      const materiaisVinculados = await prisma.material.count({ where: { factoryUnitId: req.tenant!.id, unitId: id } });
+      if (materiaisVinculados > 0) {
+        return res.status(409).json({ error: `Não é possível desativar: ${materiaisVinculados} material(is) usa(m) esta unidade.` });
+      }
+      const categoriasVinculadas = await prisma.categoryConfig.count({ where: { factoryUnitId: req.tenant!.id, defaultUnitId: id } });
+      if (categoriasVinculadas > 0) {
+        return res.status(409).json({ error: `Não é possível desativar: ${categoriasVinculadas} categoria(s) usa(m) esta unidade como padrão.` });
       }
 
       await prisma.unitConfig.update({
@@ -274,7 +296,10 @@ export class SettingsController {
           error: `Não é possível excluir: ${materiaisVinculados} material(is) tem saldo nesta localização.`
         });
       }
-      const deleted = await prisma.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      const deleted = await prisma.$transaction(async (tx) => {
+        await tx.materialLocation.deleteMany({ where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: 0 } });
+        return tx.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      });
       if (deleted.count === 0) return res.status(404).json({ error: 'Localização não encontrada.' });
       res.json({ message: 'Localização excluída com sucesso.' });
     } catch (error: unknown) {

@@ -22,7 +22,8 @@
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria</label>
           <select v-model="selectedCategory"
             class="w-full border p-2 rounded outline-none focus:border-blue-500 bg-white">
-            <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+            <option value="Todos">Todos</option>
+            <option v-for="cat in dbCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
           </select>
         </div>
         <div class="w-2/3">
@@ -52,12 +53,12 @@
                 <td class="px-4 py-3 text-center">
                   <span
                     class="px-2 py-1 text-xs bg-gray-100 rounded-full font-bold text-gray-600 border border-gray-200">{{
-                      item.type }}</span>
+                      item.category?.name }}</span>
                 </td>
                 <td class="px-4 py-3 text-right font-bold text-gray-800">
                   {{ formatNumber(item.quantity) }}
                   <span class="text-xs bg-blue-50 text-blue-800 px-1 rounded ml-1 border border-blue-100">{{
-                    item.unit
+                    item.unit?.symbol
                   }}</span>
                 </td>
                 <td class="px-4 py-3 text-center">
@@ -97,6 +98,14 @@
               </tr>
             </tbody>
           </table>
+          <div class="flex items-center justify-between border-t px-4 py-3 text-xs text-gray-500">
+            <span>{{ pageMeta.total }} materiais</span>
+            <div class="flex items-center gap-2">
+              <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="page <= 1" @click="changePage(page - 1)">Anterior</button>
+              <span>Página {{ page }} / {{ pageMeta.totalPages || 1 }}</span>
+              <button class="px-3 py-1 border rounded disabled:opacity-40" :disabled="page >= pageMeta.totalPages" @click="changePage(page + 1)">Próxima</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -121,7 +130,7 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Unidade</label>
-                <div class="text-gray-900 font-bold">{{ viewingItem.unit }}</div>
+                <div class="text-gray-900 font-bold">{{ viewingItem.unit?.symbol }}</div>
               </div>
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Estoque</label>
@@ -130,7 +139,7 @@
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase">Localização</label>
-              <div class="text-gray-900">{{ viewingItem.location || "Não informada" }}</div>
+              <div class="text-gray-900">{{ viewingItem.locationNames || "Não informada" }}</div>
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase">Observação</label>
@@ -168,13 +177,13 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
-                <select v-model="form.type" required
+                <select v-model="form.categoryId" required
                   class="w-full border p-2 rounded bg-white outline-none transition-colors"
-                  :class="!form.type ? 'text-gray-400' : 'text-gray-900'">
+                  :class="!form.categoryId ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a categoria...</option>
-                  <option v-for="cat in categories.filter((c) => c !== 'Todos')" :key="cat" :value="cat"
+                  <option v-for="cat in dbCategories" :key="cat.id" :value="cat.id"
                     class="text-gray-900">
-                    {{ cat }}
+                    {{ cat.name }}
                   </option>
                 </select>
               </div>
@@ -187,11 +196,11 @@
                     Definido pela Categoria
                   </span>
                 </div>
-                <select v-model="form.unit" required :disabled="isUnitLocked"
+                <select v-model="form.unitId" required :disabled="isUnitLocked"
                   class="w-full border p-2 rounded outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed bg-white"
-                  :class="!form.unit ? 'text-gray-400' : 'text-gray-900'">
+                  :class="!form.unitId ? 'text-gray-400' : 'text-gray-900'">
                   <option value="" disabled selected hidden>Selecione a unidade...</option>
-                  <option v-for="u in dbUnits" :key="u.id" :value="u.symbol" class="text-gray-900">
+                  <option v-for="u in dbUnits" :key="u.id" :value="u.id" class="text-gray-900">
                     {{ u.name }} ({{ u.symbol }})
                   </option>
                 </select>
@@ -201,21 +210,26 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-bold text-gray-700 mb-1">Estoque Inicial</label>
-                <input type="number" step="0.01" v-model.number="form.quantity" :disabled="!!editingItem"
+                <input type="text" inputmode="decimal" v-model="form.quantity" :disabled="!!editingItem"
                   class="w-full border p-2 rounded outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                   :title="editingItem ? 'Alterações de saldo devem ser feitas na tela de Movimentação' : ''" />
               </div>
               <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Estoque Mínimo</label>
+                <input type="text" inputmode="decimal" v-model="form.minStock"
+                  class="w-full border p-2 rounded outline-none" placeholder="0.000" />
+              </div>
+              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Localização (Prateleira)</label>
-                <select v-model="form.location" required :disabled="!form.type || !!editingItem"
+                <select v-model="form.locationId" required :disabled="!form.categoryId || !!editingItem"
                   class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-                  :class="!form.location ? 'text-gray-400' : 'text-gray-900'"
+                  :class="!form.locationId ? 'text-gray-400' : 'text-gray-900'"
                   :title="editingItem ? 'Transferências de prateleira devem ser feitas na tela de Movimentação' : ''">
                   <option value="" disabled selected hidden>
-                    {{ form.type ? "Selecione a prateleira..." : "Escolha a Categoria primeiro" }}
+                    {{ form.categoryId ? "Selecione a prateleira..." : "Escolha a Categoria primeiro" }}
                   </option>
-                  <option v-for="loc in availableLocations" :key="loc" :value="loc" class="text-gray-900">
-                    {{ loc }}
+                  <option v-for="loc in availableLocations" :key="loc.id" :value="loc.id" class="text-gray-900">
+                    {{ loc.name }}
                   </option>
                 </select>
               </div>
@@ -254,7 +268,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import Layout from "../components/Layout.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import { Lock } from 'lucide-vue-next';
@@ -267,6 +281,8 @@ import { formatNumber } from '@/utils/format';
 const materials = ref([]);
 const search = ref("");
 const selectedCategory = ref("Todos");
+const page = ref(1);
+const pageMeta = ref({ page: 1, pageSize: 50, total: 0, totalPages: 1 });
 const showCreateModal = ref(false);
 const editingItem = ref(null);
 const viewingItem = ref(null);
@@ -277,8 +293,7 @@ const authStore = useAuthStore();
 const { notification, showNotification } = useToast();
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
-const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
-const categories = ref(["Todos"]);
+const form = ref({ code: "", name: "", categoryId: "", unitId: "", quantity: "0", minStock: "0", locationId: "", observation: "" });
 const dbCategories = ref([]);
 const dbLocations = ref([]);
 const dbUnits = ref([]);
@@ -293,68 +308,44 @@ async function fetchSettings() {
     dbCategories.value = catsRes.data;
     dbLocations.value = locsRes.data;
     dbUnits.value = unitsRes.data;
-    categories.value = ["Todos", ...catsRes.data.map(c => c.name)];
   } catch (e) {
     console.error("Erro ao carregar configurações de categorias/localizações/unidades:", e);
   }
 }
 
 const availableLocations = computed(() => {
-  if (!form.value.type) return []; 
-
-  const categoriaSelecionada = String(form.value.type).toUpperCase().trim();
-  const catObj = dbCategories.value.find(c => String(c.name).toUpperCase().trim() === categoriaSelecionada);
-
-  const filtradasRelacionais = dbLocations.value.filter(loc =>
-    (loc.categories || []).some(category =>
-      (catObj && category.id === catObj.id) ||
-      String(category.name).toUpperCase().trim() === categoriaSelecionada
-    )
+  if (!form.value.categoryId) return [];
+  const linked = dbLocations.value.filter(loc =>
+    (loc.categories || []).some(category => category.id === form.value.categoryId)
   );
-
-  if (filtradasRelacionais.length > 0) {
-    return filtradasRelacionais.map(l => l.name);
-  }
-
-  // Fallback seguro: se a localização for legada e não possuir vínculo relacional no banco, permite a lista total
-  return dbLocations.value.map(l => l.name);
+  return linked;
 });
 
 const isUnitLocked = computed(() => {
-  const selectedCatName = form.value.type;
-  if (!selectedCatName) return false;
-  const foundCat = dbCategories.value.find(
-    c => String(c.name).toUpperCase().trim() === String(selectedCatName).toUpperCase().trim()
-  );
+  const foundCat = dbCategories.value.find(c => c.id === form.value.categoryId);
   if (!foundCat) return false;
   if (foundCat.unitLocked && foundCat.defaultUnit) return true;
-  return foundCat.unitLock === 'm2' || foundCat.unitLock === 'm';
+    return false;
 });
 
 watch(
-  () => form.value.type,
-  (newType, oldType) => {
-    if (newType !== oldType && oldType !== undefined && oldType !== "") {
-      form.value.location = "";
+  () => form.value.categoryId,
+  (newCategory, oldCategory) => {
+    if (newCategory !== oldCategory && oldCategory) {
+      form.value.locationId = "";
     }
 
-    if (newType) {
+    if (newCategory) {
       const isCreating = !editingItem.value;
-      const userChangedCategory = oldType !== "" && oldType !== undefined;
+      const userChangedCategory = Boolean(oldCategory);
 
       if (isCreating || userChangedCategory) {
-        const foundCat = dbCategories.value.find(
-          c => String(c.name).toUpperCase().trim() === String(newType).toUpperCase().trim()
-        );
+        const foundCat = dbCategories.value.find(c => c.id === newCategory);
         if (foundCat) {
           if (foundCat.unitLocked && foundCat.defaultUnit) {
-            form.value.unit = foundCat.defaultUnit.symbol;
-          } else if (foundCat.unitLock === 'm2') {
-            form.value.unit = "m²"; 
-          } else if (foundCat.unitLock === 'm') {
-            form.value.unit = "m"; 
+            form.value.unitId = foundCat.defaultUnit.id;
           } else if (userChangedCategory) {
-            form.value.unit = ""; 
+            form.value.unitId = "";
           }
         }
       }
@@ -366,36 +357,40 @@ watch(
 async function fetchMaterials(config = {}) {
   try {
     const response = await api.get('/materials', config);
-    materials.value = response.data;
-    return response.data;
+    const body = response.data?.data ? response.data : { data: response.data, meta: {} };
+    materials.value = body.data || [];
+    pageMeta.value = { ...pageMeta.value, ...(body.meta || {}) };
+    return materials.value;
   } catch (e) {
     console.error('Erro ao buscar materiais:', e);
     return [];
   }
 }
 
-const paginatedMaterials = computed(() => {
-  return materials.value
-    .filter((m) => {
-      const term = search.value.toLowerCase();
-      return (
-        (selectedCategory.value === 'Todos' || m.type === selectedCategory.value) &&
-        (m.name.toLowerCase().includes(term) || String(m.code).toLowerCase().includes(term))
-      );
-    })
-    .sort((a, b) => b.id - a.id)
-    .slice(0, 50);
+const paginatedMaterials = computed(() => materials.value);
+
+let searchTimer;
+watch([search, selectedCategory], () => {
+  clearTimeout(searchTimer);
+  page.value = 1;
+  searchTimer = setTimeout(() => fetchMaterials({ params: { page: 1, pageSize: pageMeta.value.pageSize, q: search.value || undefined, categoryId: selectedCategory.value === 'Todos' ? undefined : selectedCategory.value } }), 300);
 });
+
+function changePage(nextPage) {
+  if (nextPage < 1 || nextPage > pageMeta.value.totalPages) return;
+  page.value = nextPage;
+  fetchMaterials({ params: { page: nextPage, pageSize: pageMeta.value.pageSize, q: search.value || undefined, categoryId: selectedCategory.value === 'Todos' ? undefined : selectedCategory.value } });
+}
 
 function openCreateModal() {
   editingItem.value = null;
-  form.value = { code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" };
+  form.value = { code: "", name: "", categoryId: "", unitId: "", quantity: "0", minStock: "0", locationId: "", observation: "" };
   showCreateModal.value = true;
 }
 
 function editItem(item) {
   editingItem.value = item;
-  form.value = { ...item, location: item.location || "Não definido" };
+  form.value = { ...item, categoryId: item.categoryId || item.category?.id, unitId: item.unitId || item.unit?.id, locationId: item.locationId || item.location?.id || "", quantity: String(item.quantity ?? "0"), minStock: String(item.minStock ?? "0") };
   showCreateModal.value = true;
 }
 
@@ -413,36 +408,36 @@ async function saveItem() {
   if (!form.value.code) {
     return showNotification("error", "O código do material é obrigatório!");
   }
-  if (!/^\d+$/.test(form.value.code)) {
-    return showNotification("error", "O código deve conter APENAS números!");
+  if (!String(form.value.name).trim()) {
+    return showNotification("error", "A descrição do material é obrigatória!");
   }
-  if (!form.value.type) {
+  if (!form.value.categoryId) {
     return showNotification("error", "Selecione uma Categoria válida!");
   }
-  if (!form.value.unit) {
+  if (!form.value.unitId) {
     return showNotification("error", "A Unidade de Medida é obrigatória!");
   }
-  if (!form.value.location) {
+  if (!editingItem.value && !form.value.locationId) {
     return showNotification("error", "Selecione uma Localização (Prateleira)!");
+  }
+  const decimal = /^(?:0|[1-9]\d*)(?:[.,]\d{1,3})?$/;
+  if (!decimal.test(String(form.value.quantity).trim()) || !decimal.test(String(form.value.minStock).trim())) {
+    return showNotification("error", "Quantidade e estoque mínimo devem ser decimais válidos (até 3 casas).");
   }
 
   try {
-    const userJson = localStorage.getItem("user");
-    const user = userJson ? JSON.parse(userJson) : null;
-    const userId = user ? user.id : 1;
-
     const payloadLimpo = {
       code: form.value.code,
       name: form.value.name,
-      unit: form.value.unit,
-      type: form.value.type,
+      categoryId: form.value.categoryId,
+      unitId: form.value.unitId,
       observation: form.value.observation,
-      userId: userId
+      minStock: String(form.value.minStock).replace(',', '.'),
     };
 
     if (!editingItem.value) {
-      payloadLimpo.quantity = Number(form.value.quantity);
-      payloadLimpo.location = form.value.location;
+      payloadLimpo.initialQuantity = String(form.value.quantity).replace(',', '.');
+      payloadLimpo.locationId = form.value.locationId;
     }
 
     if (editingItem.value) {
@@ -458,7 +453,7 @@ async function saveItem() {
     );
 
     showCreateModal.value = false;
-    await fetchMaterials();
+    await fetchMaterials({ params: { page: page.value, pageSize: pageMeta.value.pageSize, q: search.value || undefined, categoryId: selectedCategory.value === 'Todos' ? undefined : selectedCategory.value } });
 
   } catch (error) {
     console.error("Erro ao salvar/atualizar material:", error);
@@ -495,6 +490,8 @@ async function confirmDelete(item) {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchMaterials(), fetchSettings()]);
+  await Promise.all([fetchMaterials({ params: { page: 1, pageSize: pageMeta.value.pageSize } }), fetchSettings()]);
 });
+
+onUnmounted(() => clearTimeout(searchTimer));
 </script>

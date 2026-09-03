@@ -4,22 +4,23 @@ import Layout from '@/components/Layout.vue'
 
 import { useApi } from "../composables/useApi"
 import {
-  TrendingUp, TrendingDown, Package, AlertOctagon,
-  PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
+  Package, PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
 } from 'lucide-vue-next'
 
-const { fetchStats, fetchDistribuicao, fetchOrigemSobras, fetchTopMateriais } = useApi()
+const { fetchDashboardSummary } = useApi()
 
 // --- ESTADOS ---
-const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
-const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
+const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0, totalExits: 0, exitToEntryPercent: null })
+const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0, totalExits: 0 })
+const summaryData = ref({ units: [], categories: [], origins: [], topMaterials: [] })
+const selectedUnitId = ref(null)
+const selectedUnitSymbol = computed(() => summaryData.value.units.find(unit => unit.unitId === selectedUnitId.value)?.unit ?? null)
 
 // Gráficos: refs simples — os loops/reduce pesados foram movidos para o banco
-const pieChartData    = ref([]) // alimentado por GET /dashboard/distribuicao
-const origemChartData = ref([]) // alimentado por GET /dashboard/origem-sobras
-const topMaterials    = ref([]) // alimentado por GET /dashboard/top-materiais
+const pieChartData    = ref([])
+const origemChartData = ref([])
+const topMaterials    = ref([])
 
-const isLoading       = ref(true)
 const hoveredCategory = ref(null)
 const hoveredOrigem   = ref(null)
 const isUpdating      = ref(false)
@@ -45,6 +46,7 @@ watch(() => realStats.value.totalMaterials, (n, o) => animateValue('totalMateria
 watch(() => realStats.value.lowStock,       (n, o) => animateValue('lowStock',       o || 0, n))
 watch(() => realStats.value.totalMovements, (n, o) => animateValue('totalMovements', o || 0, n))
 watch(() => realStats.value.totalEntries,   (n, o) => animateValue('totalEntries',   o || 0, n))
+watch(() => realStats.value.totalExits,     (n, o) => animateValue('totalExits',     o || 0, n))
 
 // --- LÓGICA DE NEGÓCIO ---
 
@@ -54,17 +56,13 @@ function formatNumber(value) {
 }
 
 // Barra de Progresso e Giro (lê de displayStats — custo zero)
-const totalExitsDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0
-  const ent = Number(displayStats.value.totalEntries)   || 0
-  return Math.max(0, mov - ent)
-})
+const totalExitsDisplay = computed(() => Number(displayStats.value.totalExits) || 0)
 
 const efficiencyRateDisplay = computed(() => {
-  const mov = Number(displayStats.value.totalMovements) || 0
-  if (mov === 0) return 0
-  return Math.round((totalExitsDisplay.value / mov) * 100)
+  const rate = realStats.value.exitToEntryPercent
+  return rate === null ? 0 : rate
 })
+const inventoryProgressWidth = computed(() => Math.max(0, Math.min(100, 100 - efficiencyRateDisplay.value)))
 
 // --- PALETA DE CORES (idêntica à lógica original) ---
 
@@ -90,12 +88,6 @@ const origemColors = [
   '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
   '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'
 ]
-
-// maxMaterialValue — leitura barata; banco já devolve ordenado
-const maxMaterialValue = computed(() => {
-  if (topMaterials.value.length === 0) return 1
-  return Number(topMaterials.value[0].quantity) || 1
-})
 
 // Estilos conic-gradient — apenas leituras de refs simples (custo zero)
 const pieChartStyle = computed(() => {
@@ -124,107 +116,70 @@ const origemChartStyle = computed(() => {
   return { background: `conic-gradient(${gradientStr})` }
 })
 
-// --- Helper: executa chamadas analíticas de forma segura garantindo fallback ---
-async function safeFetch(apiFn, fallback = []) {
-  try {
-    const data = await apiFn()
-    return Array.isArray(data) ? data : fallback
-  } catch (err) {
-    if (err?.response?.status === 429) {
-      console.warn(`[Dashboard] Rate limit atingido (HTTP 429). Mantendo dados estáticos.`)
-    } else if (err?.response?.status === 404) {
-      console.warn(`[Dashboard] Rota não encontrada (HTTP 404). Retornando fallback.`)
-    } else {
-      console.warn(`[Dashboard] Falha na requisição:`, err?.response?.status ?? err?.message)
-    }
-    return fallback
-  }
-}
-
-// Micro-atraso para intercalar os lotes e aliviar o servidor / reverse proxy
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
 let isFetchingData = false
 
-// --- CARREGAMENTO OTIMIZADO & ESCALONADO EM LOTES (MITIGAÇÃO HTTP 429 E 404) ---
+function applyUnitSummary() {
+  const unitId = selectedUnitId.value
+  const unitSymbol = selectedUnitSymbol.value
+  const distribuicaoRaw = summaryData.value.categories.filter(item => item.unitId === unitId)
+  const origemRaw = summaryData.value.origins.filter(item => item.unit === unitSymbol)
+  const topRaw = summaryData.value.topMaterials.filter(item => item.unitId === unitId)
+
+  const totalDist = distribuicaoRaw.reduce((total, item) => total + Number(item.quantity || 0), 0)
+  pieChartData.value = distribuicaoRaw
+    .map(item => ({
+      label: item.name,
+      value: Number(item.quantity) || 0,
+      percent: totalDist > 0 ? (Number(item.quantity) / totalDist) * 100 : 0,
+      color: getColorForCategory(item.name)
+    }))
+    .sort((a, b) => b.value - a.value)
+
+  const totalOrigem = origemRaw.reduce((total, item) => total + Number(item.quantity || 0), 0)
+  origemChartData.value = origemRaw
+    .map((item, index) => ({
+      label: item.name,
+      value: Number(item.quantity) || 0,
+      percent: totalOrigem > 0 ? (Number(item.quantity) / totalOrigem) * 100 : 0,
+      color: origemColors[index % origemColors.length]
+    }))
+    .sort((a, b) => b.value - a.value)
+
+  topMaterials.value = topRaw
+}
+
+watch(selectedUnitId, applyUnitSummary)
+
 async function loadData() {
   if (isFetchingData) return
   isFetchingData = true
   isUpdating.value = true
 
   try {
-    // LOTE 1: KPIs Principais + Distribuição por Categoria
-    const batch1Results = await Promise.allSettled([
-      fetchStats(),
-      safeFetch(fetchDistribuicao)
-    ])
-
-    const statsData = batch1Results[0].status === 'fulfilled' ? batch1Results[0].value : { totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 }
-    const distribuicaoRaw = batch1Results[1].status === 'fulfilled' ? batch1Results[1].value : []
-
-    // 1. Cards de KPI
-    realStats.value = {
-      totalMaterials: statsData.totalMaterials || statsData.total_materials || 0,
-      lowStock:       statsData.lowStock       || statsData.low_stock       || 0,
-      totalMovements: statsData.totalMovements || statsData.movimentacoes   || 0,
-      totalEntries:   statsData.totalEntries   || statsData.entradas        || 0
+    const summary = await fetchDashboardSummary()
+    const statsData = summary.stats || summary
+    summaryData.value = {
+      units: summary.units || [],
+      categories: summary.categories || [],
+      origins: summary.origins || [],
+      topMaterials: summary.topMaterials || []
     }
-
-    // 2. Gráfico de Distribuição por Categoria
-    const totalDist = distribuicaoRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
-    pieChartData.value = distribuicaoRaw
-      .map(item => {
-        const label = String(item.type || 'outros')
-        const value = Number(item._sum?.quantity) || 0
-        return {
-          label:   label.charAt(0).toUpperCase() + label.slice(1),
-          value,
-          percent: totalDist > 0 ? (value / totalDist) * 100 : 0,
-          color:   getColorForCategory(label)
-        }
-      })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-
-    // Pausa de 60ms entre requisições para desobstruir a fila do Rate Limiter
-    await delay(60)
-
-    // LOTE 2: Origem das Sobras + Top 5 Materiais
-    const batch2Results = await Promise.allSettled([
-      safeFetch(fetchOrigemSobras),
-      safeFetch(fetchTopMateriais)
-    ])
-
-    const origemRaw = batch2Results[0].status === 'fulfilled' ? batch2Results[0].value : []
-    const topRaw = batch2Results[1].status === 'fulfilled' ? batch2Results[1].value : []
-
-    // 3. Gráfico de Origem das Sobras
-    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
-    origemChartData.value = origemRaw
-      .map((item, i) => {
-        const value = Number(item._sum?.quantity) || 0
-        return {
-          label:   item.origem || 'Outros',
-          value,
-          percent: totalOrigem > 0 ? (value / totalOrigem) * 100 : 0,
-          color:   origemColors[i % origemColors.length]
-        }
-      })
-      .slice(0, 5)
-
-    // 4. Top 5 Materiais
-    topMaterials.value = topRaw.map(m => ({
-      ...m,
-      codigo:     m.code,
-      descricao:  m.name,
-      quantidade: m.quantity,
-      unidade:    m.unit
-    }))
+    realStats.value = {
+      totalMaterials: statsData.totalMaterials || 0,
+      lowStock: statsData.lowStock || 0,
+      totalMovements: statsData.totalMovements || 0,
+      totalEntries: statsData.totalEntries || 0,
+      totalExits: statsData.totalExits || 0,
+      exitToEntryPercent: statsData.exitToEntryPercent ?? null
+    }
+    if (!summaryData.value.units.some(unit => unit.unitId === selectedUnitId.value)) {
+      selectedUnitId.value = summaryData.value.units[0]?.unitId ?? null
+    }
+    applyUnitSummary()
 
   } catch (error) {
     console.error('Erro inesperado no dashboard:', error)
   } finally {
-    isLoading.value = false
     isFetchingData = false
     setTimeout(() => isUpdating.value = false, 800)
   }
@@ -265,8 +220,14 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div
-            class="mt-4 md:mt-0 bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 flex items-center gap-4 shadow-inner w-full md:w-auto justify-between md:justify-end">
+          <div class="mt-4 md:mt-0 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <label class="bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 shadow-inner">
+              <span class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Unidade dos gráficos</span>
+              <select v-model="selectedUnitId" class="bg-transparent font-bold text-slate-700 outline-none min-w-28">
+                <option v-for="unit in summaryData.units" :key="unit.unitId" :value="unit.unitId">{{ unit.unit }}</option>
+              </select>
+            </label>
+            <div class="bg-slate-50 px-6 py-3 rounded-xl border border-slate-200 flex items-center gap-4 shadow-inner justify-between md:justify-end">
             <div class="text-right">
               <div class="text-3xl font-black text-slate-700 leading-none tabular-nums">
                 {{ currentTime.toLocaleTimeString('pt-BR') }}
@@ -276,6 +237,7 @@ onUnmounted(() => {
               </div>
             </div>
             <Clock class="w-8 h-8 text-slate-300" />
+            </div>
           </div>
         </div>
 
@@ -359,7 +321,7 @@ onUnmounted(() => {
             </div>
             <div class="w-full bg-slate-900 h-2 mt-4 rounded-full overflow-hidden border border-slate-600">
               <div class="bg-blue-500 h-full transition-all duration-1000 ease-out"
-                :style="{ width: `${100 - efficiencyRateDisplay}%` }"></div>
+                :style="{ width: `${inventoryProgressWidth}%` }"></div>
             </div>
           </div>
 
@@ -503,12 +465,12 @@ onUnmounted(() => {
                     </td>
                     <td class="p-3">
                       <div class="font-bold text-slate-800 text-sm truncate max-w-[150px] group-hover:text-blue-600 transition-colors"
-                        :title="item.descricao || item.name">{{ item.descricao || item.name }}</div>
-                      <div class="text-[10px] text-slate-400 font-mono mt-1">Cód: {{ item.codigo || item.code }}</div>
+                        :title="item.name">{{ item.name }}</div>
+                      <div class="text-[10px] text-slate-400 font-mono mt-1">Cód: {{ item.code }}</div>
                     </td>
                     <td class="p-3 text-right">
-                      <div class="text-base font-black text-slate-800 tracking-tight">{{ formatNumber(item.quantidade || item.quantity) }}</div>
-                      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">{{ item.unidade || item.unit }}</div>
+                      <div class="text-base font-black text-slate-800 tracking-tight">{{ formatNumber(item.quantity) }}</div>
+                      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">{{ item.unit }}</div>
                     </td>
                   </tr>
                   <tr v-if="topMaterials.length === 0">
