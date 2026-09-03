@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   //url      = env("DATABASE_URL")
-  schemas  = ["sobra_corte", "autenticacao"]
+  schemas  = ["sobra_corte"]
 }
 
 model FactoryUnit {
@@ -129,45 +129,13 @@ model User {
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
 
-  // Apenas a chave estrangeira para ligar com a DASS
+  // Identificador externo vindo da DASS; sem FK entre domínios.
   matriculaDass BigInt?
-  dassInfo      UsuariosDass? @relation(fields: [matriculaDass], references: [matricula])
 
   @@unique([factoryUnitId, usuario])
   @@unique([factoryUnitId, email])
   @@unique([factoryUnitId, matriculaDass])
   @@schema("sobra_corte")
-}
-
-// Essa é a tabela de referencia de usuarios da api principal de autenticacao. Nao deve ser auterada de forma alguma, só deve ser utilizada como referencia ao usuario da api.
-model UsuariosDass {
-  id           BigInt    @default(autoincrement())
-  createdAt    DateTime? @default(now()) @map("createdat") @db.Timestamptz
-  updatedAt    DateTime? @default(now()) @map("updatedat") @db.Timestamptz
-  codigoBarras BigInt    @map("codigo_barras")
-  matricula    BigInt    @unique(map: "matricula_unique")
-  nome         String?   @db.VarChar
-  usuario      String?   @db.VarChar
-  senha        String?   @db.VarChar
-  funcao       String?   @db.VarChar
-  setor        String?   @db.VarChar
-  testeCalce   Int?      @default(0) @map("teste_calce")
-  penseAja     Int?      @default(0) @map("pense_aja")
-  season       Int?      @default(0)
-  ambulatorio  Int?      @default(0)
-  limpeza      Int?      @default(0)
-  telas        Int?
-  unidade      String?   @db.VarChar
-  nivel        String?   @db.VarChar
-  peConfirmado Int?      @map("pe_confirmado")
-  rfid         BigInt?
-
-  // Relação com a tabela User do app
-  userApps User[]
-
-  @@id([id, codigoBarras, matricula], map: "usuarios_pk")
-  @@map("usuarios")
-  @@schema("autenticacao")
 }
 
 // 📐 TABELA DE CONFIGURAÇÃO: Unidades de Medida Permitidas
