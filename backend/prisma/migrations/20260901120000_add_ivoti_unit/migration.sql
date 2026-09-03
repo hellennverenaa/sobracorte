@@ -3,6 +3,9 @@ INSERT INTO "sobra_corte"."FactoryUnit" ("code", "name", "active") VALUES
     ('IVT', 'Ivoti', true)
 ON CONFLICT ("code") DO UPDATE SET "name" = EXCLUDED."name", "active" = EXCLUDED."active";
 
+-- Garantir a existência da coluna sector em OriginConfig antes da replicação
+ALTER TABLE "sobra_corte"."OriginConfig" ADD COLUMN IF NOT EXISTS "sector" "sobra_corte"."SectorType";
+
 -- Replicar configurações padrão (UnitConfig, CategoryConfig, OriginConfig) de SEST para IVT
 DO $$
 DECLARE

@@ -23,7 +23,6 @@ const adapter = new PrismaPg(
 //     ficarão expostos sem filtro de tenant.
 const GLOBAL_MODELS = new Set<string>([
   "FactoryUnit",   // Tabela-pai do tenant — sem factoryUnitId próprio
-  "UsuariosDass",  // Schema `autenticacao` — tabela de referência externa
 ]);
 
 // ─── Operações que injetam `where.factoryUnitId` ─────────────────────────────

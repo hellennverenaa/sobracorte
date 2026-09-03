@@ -1,7 +1,4 @@
 -- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "autenticacao";
-
--- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "sobra_corte";
 
 -- CreateTable
@@ -67,32 +64,6 @@ CREATE TABLE IF NOT EXISTS "sobra_corte"."User" (
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE IF NOT EXISTS "autenticacao"."usuarios" (
-    "id" BIGSERIAL NOT NULL,
-    "createdat" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "updatedat" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    "codigo_barras" BIGINT NOT NULL,
-    "matricula" BIGINT NOT NULL,
-    "nome" VARCHAR,
-    "usuario" VARCHAR,
-    "senha" VARCHAR,
-    "funcao" VARCHAR,
-    "setor" VARCHAR,
-    "teste_calce" INTEGER DEFAULT 0,
-    "pense_aja" INTEGER DEFAULT 0,
-    "season" INTEGER DEFAULT 0,
-    "ambulatorio" INTEGER DEFAULT 0,
-    "limpeza" INTEGER DEFAULT 0,
-    "telas" INTEGER,
-    "unidade" VARCHAR,
-    "nivel" VARCHAR,
-    "pe_confirmado" INTEGER,
-    "rfid" BIGINT,
-
-    CONSTRAINT "usuarios_pk" PRIMARY KEY ("id","codigo_barras","matricula")
-);
-
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "Material_code_key" ON "sobra_corte"."Material"("code");
 
@@ -106,7 +77,7 @@ CREATE INDEX IF NOT EXISTS "Material_code_idx" ON "sobra_corte"."Material"("code
 CREATE UNIQUE INDEX IF NOT EXISTS "Location_name_key" ON "sobra_corte"."Location"("name");
 
 -- CreateIndex
-CREATE INDEX IF NOT EXISTS "MaterialLocation_locationId_idx" ON "sobra_corte"."MaterialLocation"("locationId");       
+CREATE INDEX IF NOT EXISTS "MaterialLocation_locationId_idx" ON "sobra_corte"."MaterialLocation"("locationId");
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "Movement_materialId_idx" ON "sobra_corte"."Movement"("materialId");
@@ -129,9 +100,6 @@ CREATE INDEX IF NOT EXISTS "User_usuario_idx" ON "sobra_corte"."User"("usuario")
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "User_email_idx" ON "sobra_corte"."User"("email");
 
--- CreateIndex
-CREATE UNIQUE INDEX IF NOT EXISTS "matricula_unique" ON "autenticacao"."usuarios"("matricula");
-
 -- AddForeignKey
 DO $$
 BEGIN
@@ -145,9 +113,5 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Movement_materialId_fkey') THEN
         ALTER TABLE "sobra_corte"."Movement" ADD CONSTRAINT "Movement_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "sobra_corte"."Material"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'User_matriculaDass_fkey') THEN
-        ALTER TABLE "sobra_corte"."User" ADD CONSTRAINT "User_matriculaDass_fkey" FOREIGN KEY ("matriculaDass") REFERENCES "autenticacao"."usuarios"("matricula") ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
 END $$;
