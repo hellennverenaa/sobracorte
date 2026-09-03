@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import jsonwebtoken from 'jsonwebtoken';
-import { deriveInitialRole, isUserRole } from '../src/auth/roles';
+import { canAssignRole, INITIAL_USER_ROLE, isUserRole } from '../src/auth/roles';
 import { verifyAccessToken } from '../src/auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequest } from '../src/auth/tenant';
 
@@ -20,11 +20,15 @@ test('verifyAccessToken rejeita token expirado', () => {
   assert.throws(() => verifyAccessToken(token, secret), { name: 'TokenExpiredError' });
 });
 
-test('deriveInitialRole deriva o papel pelo cargo sem administradores hardcoded', () => {
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Líder de produção' }), 'lider');
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Auxiliar' }), 'movimentador');
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Operador' }), 'leitor');
-  assert.equal(deriveInitialRole({ usuario: 'HELLEN.MAGALHAES', funcao: 'Operador' }), 'leitor');
+test('novos usuários sempre entram como leitores', () => {
+  assert.equal(INITIAL_USER_ROLE, 'leitor');
+});
+
+test('somente administrador global pode atribuir papel de admin', () => {
+  assert.equal(canAssignRole('admin', false), false);
+  assert.equal(canAssignRole('admin', true), true);
+  assert.equal(canAssignRole('lider', false), true);
+  assert.equal(canAssignRole('leitor', false), true);
 });
 
 test('resolveTenantRequest mantém usuários comuns em sua unidade', () => {

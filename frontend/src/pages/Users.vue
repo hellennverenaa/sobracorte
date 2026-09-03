@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
-import { Trash2, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle } from "lucide-vue-next";
+import { RotateCcw, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye } from "lucide-vue-next";
 import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import { useToast } from '@/composables/useToast';
@@ -18,12 +18,15 @@ const editingUser = ref(null);
 const { notification, showNotification } = useToast();
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
-const roleOptions = [
+const allRoleOptions = [
   { value: "admin", label: "Admin Master", icon: Shield, color: "text-purple-600 bg-purple-100" },
   { value: "lider", label: "Líder", icon: UserCheck, color: "text-blue-600 bg-blue-100" },
   { value: "movimentador", label: "Movimentador", icon: Activity, color: "text-orange-600 bg-orange-100" },
   { value: "leitor", label: "Leitor", icon: Eye, color: "text-gray-600 bg-gray-100" },
 ];
+const roleOptions = computed(() => allRoleOptions.filter(
+  (option) => option.value !== 'admin' || auth.user?.isGlobalAdmin,
+));
 
 const fetchUsers = async () => {
   loading.value = true;
@@ -66,23 +69,20 @@ const openEditModal = (user) => {
 };
 
 
-const deleteUser = (userTarget) => {
-  const userId = typeof userTarget === 'object' ? userTarget.id : userTarget;
-  const userName = typeof userTarget === 'object' ? (userTarget.nome || userTarget.usuario) : 'este usuário';
-
+const resetUserRole = (userTarget) => {
   openConfirmModal({
-    title: 'Remover Usuário',
-    message: `Tem certeza que deseja remover o usuário "${userName}" do sistema local?`,
-    confirmText: 'Sim, Remover',
-    variant: 'danger',
+    title: 'Reverter Permissão',
+    message: `Deseja reverter "${userTarget.nome || userTarget.usuario}" para o nível Leitor?`,
+    confirmText: 'Reverter para Leitor',
+    variant: 'warning',
     action: async () => {
       try {
-        await api.delete(`/users/${userId}`);
-        showNotification('success', 'Usuário removido com sucesso!');
-        fetchUsers();
+        await api.put(`/users/${userTarget.id}`, { role: 'leitor' });
+        showNotification('success', 'Permissão revertida para Leitor.');
+        await fetchUsers();
       } catch (error) {
-        console.error("Erro ao excluir usuário:", error);
-        const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir usuário.";
+        console.error("Erro ao reverter permissão:", error);
+        const errorMsg = error.response?.data?.error || "Erro de conexão ao reverter permissão.";
         showNotification('error', errorMsg);
       }
     }
@@ -100,7 +100,7 @@ const filteredUsers = computed(() => {
 });
 
 const getRoleInfo = (role) => {
-  return roleOptions.find((r) => r.value === role) || roleOptions[3];
+  return allRoleOptions.find((r) => r.value === role) || allRoleOptions[3];
 };
 
 onMounted(() => {
@@ -184,11 +184,11 @@ onMounted(() => {
                       <Edit class="w-5 h-5" />
                     </button>
 
-                    <button @click="deleteUser(user.id)"
-                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover Usuário"
-                      :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
-                      <Trash2 class="w-5 h-5" />
+                    <button @click="resetUserRole(user)"
+                      class="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Reverter para Leitor"
+                      :disabled="user.usuario === auth.user.usuario || user.role === 'leitor'"
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario || user.role === 'leitor' }">
+                      <RotateCcw class="w-5 h-5" />
                     </button>
                   </div>
                 </td>
@@ -242,6 +242,17 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
 
   </Layout>
 </template>

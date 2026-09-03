@@ -9,7 +9,7 @@ import { ImportController } from './controllers/ImportController';
 import { DashboardController } from './controllers/DashboardController';
 import { prisma } from './prisma';
 import { requireRole, requireAuth } from './middlewares/roleMiddleware';
-import { isUserRole } from './auth/roles';
+import { canAssignRole, isUserRole } from './auth/roles';
 
 const routes = Router();
 
@@ -87,6 +87,9 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
     if (!isUserRole(role)) {
       return res.status(400).json({ error: 'Nível de acesso inválido' });
     }
+    if (!canAssignRole(role, Boolean(req.isGlobalAdmin))) {
+      return res.status(403).json({ error: 'Apenas um administrador global pode promover administradores.' });
+    }
 
     const result = await prisma.user.updateMany({
       where: { id, factoryUnitId: req.tenant!.id },
@@ -104,27 +107,6 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error);
     res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
-  }
-});
-
-routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: 'Usuário inválido' });
-  }
-
-  try {
-    const target = await prisma.user.findFirst({ where: { id, factoryUnitId: req.tenant!.id }, select: { usuario: true } });
-    if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
-    if (target.usuario === req.user?.usuario) {
-      return res.status(409).json({ error: 'Não é possível remover o próprio usuário.' });
-    }
-
-    await prisma.user.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
-    return res.json({ message: 'Usuário removido com sucesso.' });
-  } catch (error) {
-    console.error('Erro ao remover usuário:', error);
-    return res.status(500).json({ error: 'Erro interno ao remover usuário' });
   }
 });
 

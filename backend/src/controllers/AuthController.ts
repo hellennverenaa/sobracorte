@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { deriveInitialRole } from '../auth/roles';
+import { INITIAL_USER_ROLE } from '../auth/roles';
 import { prisma } from '../prisma';
 
 type AuthenticatedUser = NonNullable<Express.Request['user']>;
@@ -30,7 +30,7 @@ async function syncUser(user: AuthenticatedUser, factoryUnitId: number) {
     create: {
       usuario,
       ...commonData,
-      role: deriveInitialRole({ usuario, funcao: user.funcao }),
+      role: INITIAL_USER_ROLE,
       factoryUnitId,
     },
   });
