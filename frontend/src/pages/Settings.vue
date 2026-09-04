@@ -363,18 +363,23 @@
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">categoria</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Nome da Categoria cadastrada. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO</code> (Padrão: GERAL)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Nome exato de uma categoria cadastrada.</td>
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">unidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Sigla da unidade de medida. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">m²</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">kg</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">un</code> (Padrão: UN)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Sigla de uma unidade ativa e permitida para a categoria.</td>
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">quantidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Saldo inicial numérico. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">150.0</code> (Padrão: 0)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Saldo inicial não negativo, com até três casas decimais.</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">localizacao</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Nome exato de uma localização permitida para a categoria.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -383,13 +388,12 @@
               <!-- Bloco de Exemplo Visual -->
               <div class="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono overflow-x-auto shadow-inner">
                 <div class="text-slate-400 text-[10px] mb-2 font-sans font-bold uppercase tracking-wider flex items-center justify-between">
-                  <span>Exemplo de Arquivo CSV Válido</span>
+                  <span>Estrutura do arquivo</span>
                   <span>Codificação: UTF-8</span>
                 </div>
                 <code>codigo;descricao;categoria;unidade;quantidade;localizacao</code><br />
-                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;GERAL</code><br />
-                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;GERAL</code><br />
-                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;GERAL</code>
+                <code class="text-emerald-400">CODIGO;DESCRICAO;CATEGORIA_CADASTRADA;UNIDADE_PERMITIDA;0.000;LOCALIZACAO_COMPATIVEL</code><br />
+                <span class="text-slate-400 font-sans">O modelo baixado é preenchido com os domínios reais desta fábrica.</span>
               </div>
             </div>
 
@@ -445,9 +449,14 @@
                   <p v-if="importResult.error" class="text-xs text-red-700 leading-relaxed">
                     {{ importResult.error }}
                   </p>
+                  <ul v-if="importResult.errors?.length" class="mt-2 space-y-1 text-xs text-red-700 list-disc pl-4">
+                    <li v-for="detail in importResult.errors" :key="`${detail.line}-${detail.message}`">
+                      Linha {{ detail.line }}: {{ detail.message }}
+                    </li>
+                  </ul>
                   
                   <p v-else class="text-xs text-emerald-700 leading-relaxed opacity-90">
-                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
+                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.processados }}</strong> processados no total.
                   </p>
                 </div>
               </div>
@@ -719,11 +728,33 @@ const importing = ref(false)
 const importResult = ref(null)
 
 function downloadCSVTemplate() {
-  const content = "codigo;descricao;categoria;unidade;quantidade;localizacao\n" +
-                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;GERAL\n" +
-                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;GERAL\n" +
-                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;GERAL\n" +
-                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;GERAL\n";
+  const activeUnits = new Map(units.value.map(unit => [unit.id, unit]))
+  const examples = categories.value.flatMap(category => {
+    const location = locations.value.find(loc =>
+      (loc.categories || []).some(allowedCategory => allowedCategory.id === category.id)
+    )
+    const unit = category.unitLocked
+      ? activeUnits.get(category.defaultUnitId)
+      : activeUnits.get(category.defaultUnitId) || units.value[0]
+    return location && unit ? [{ category, unit, location }] : []
+  }).slice(0, 4)
+
+  if (examples.length === 0) {
+    showNotification('error', 'Cadastre ao menos uma categoria com unidade ativa e localização compatível antes de baixar o modelo.')
+    return
+  }
+
+  const downloadId = globalThis.crypto?.randomUUID?.().slice(0, 8) || String(Date.now())
+  const csvCell = value => `"${String(value).replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`
+  const rows = examples.map(({ category, unit, location }, index) => [
+    `EXEMPLO-${downloadId}-${index + 1}`,
+    `MATERIAL DE EXEMPLO ${index + 1}`,
+    category.name,
+    unit.symbol,
+    '0.000',
+    location.name,
+  ].map(csvCell).join(';'))
+  const content = `codigo;descricao;categoria;unidade;quantidade;localizacao\n${rows.join('\n')}\n`
   
   // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
@@ -773,8 +804,12 @@ async function importCSV() {
     showNotification('success', `${res.data.inseridos} materiais importados com sucesso!`)
     selectedFile.value = null
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
-    importResult.value = { error: msg }
+    const responseData = e.response?.data
+    const msg = responseData?.error || 'Erro ao importar a planilha.'
+    importResult.value = {
+      error: msg,
+      errors: Array.isArray(responseData?.errors) ? responseData.errors : [],
+    }
     showNotification('error', msg)
   } finally {
     importing.value = false
