@@ -24,6 +24,7 @@ model FactoryUnit {
   units             UnitConfig[]
   categories        CategoryConfig[]
   origins           OriginConfig[]
+  roleChangeAudits  RoleChangeAudit[]
 
   @@schema("sobra_corte")
 }
@@ -180,6 +181,26 @@ model User {
   @@unique([factoryUnitId, usuario])
   @@unique([factoryUnitId, email])
   @@unique([factoryUnitId, matriculaDass])
+  @@schema("sobra_corte")
+}
+
+// Audit trail for explicit RBAC changes. The target identity is snapshotted
+// so the record remains useful even if the user is later removed.
+model RoleChangeAudit {
+  id            Int         @id @default(autoincrement())
+  userId        Int
+  usuario       String
+  nome          String
+  previousRole  String
+  newRole       String
+  changedAt     DateTime    @default(now())
+  changedById   String?
+  changedByName String?
+  factoryUnitId Int
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+
+  @@index([factoryUnitId, changedAt])
+  @@index([factoryUnitId, userId, changedAt])
   @@schema("sobra_corte")
 }
 

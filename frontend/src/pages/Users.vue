@@ -46,11 +46,11 @@ const saveUserRole = async () => {
   if (!editingUser.value) return;
 
   try {
-    await api.put(`/users/${editingUser.value.id}`, editingUser.value);
+    const response = await api.put(`/users/${editingUser.value.id}`, { role: editingUser.value.role });
 
     const index = users.value.findIndex((u) => u.id === editingUser.value.id);
     if (index !== -1) {
-      users.value[index].role = editingUser.value.role;
+      users.value[index] = response.data;
     }
 
     showNotification("success", "Permissão atualizada com sucesso!");

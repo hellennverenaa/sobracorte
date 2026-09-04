@@ -15,6 +15,49 @@ import { canAssignRole, isUserRole } from './auth/roles';
 
 const routes = Router();
 
+type RoleChangeActor = { matricula?: unknown; id?: unknown; nome?: string; usuario?: string };
+
+/** Updates one tenant-local role and records only actual changes atomically. */
+export async function updateUserRole(
+  client: any,
+  targetId: number,
+  factoryUnitId: number,
+  role: string,
+  actor: RoleChangeActor,
+) {
+  return client.$transaction(async (tx: any) => {
+    const currentUser = await tx.user.findFirst({ where: { id: targetId, factoryUnitId } });
+    if (!currentUser) throw new Error('USER_NOT_FOUND');
+    if (currentUser.role === role) return { updatedUser: currentUser, changed: false };
+
+    // The role predicate makes concurrent updates fail closed instead of
+    // writing an audit with a stale previousRole.
+    const updated = await tx.user.updateMany({
+      where: { id: targetId, factoryUnitId, role: currentUser.role },
+      data: { role },
+    });
+    if (updated.count !== 1) throw new Error('ROLE_CHANGED_CONCURRENTLY');
+
+    await tx.roleChangeAudit.create({
+      data: {
+        userId: currentUser.id,
+        usuario: currentUser.usuario,
+        nome: currentUser.nome,
+        previousRole: currentUser.role,
+        newRole: role,
+        factoryUnitId,
+        changedById: actor.matricula ? String(actor.matricula) : (actor.id ? String(actor.id) : null),
+        changedByName: actor.nome || actor.usuario || null,
+      },
+    });
+
+    return {
+      updatedUser: await tx.user.findFirstOrThrow({ where: { id: targetId, factoryUnitId } }),
+      changed: true,
+    };
+  });
+}
+
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
@@ -119,12 +162,12 @@ routes.put('/users/:id', mutationLimiter, requireRole(['admin']), async (req, re
       return res.status(403).json({ error: 'Apenas um administrador global pode promover administradores.' });
     }
 
-    const result = await prisma.user.updateMany({
-      where: { id, factoryUnitId: req.tenant!.id },
-      data: { role }
+    const result = await updateUserRole(prisma, id, req.tenant!.id, role, req.user ?? {});
+    if (!result.changed) return res.status(200).json({
+      ...result.updatedUser,
+      matriculaDass: result.updatedUser.matriculaDass?.toString() ?? null,
     });
-    if (result.count === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
-    const updatedUser = await prisma.user.findFirstOrThrow({ where: { id, factoryUnitId: req.tenant!.id } });
+    const updatedUser = result.updatedUser;
 
     const safeUser = {
       ...updatedUser,
@@ -133,6 +176,12 @@ routes.put('/users/:id', mutationLimiter, requireRole(['admin']), async (req, re
 
     res.json(safeUser);
   } catch (error) {
+    if (error instanceof Error && error.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    if (error instanceof Error && error.message === 'ROLE_CHANGED_CONCURRENTLY') {
+      return res.status(409).json({ error: 'O papel do usuário foi alterado por outra requisição. Tente novamente.' });
+    }
     console.error("Erro ao atualizar usuário:", error);
     res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
   }
