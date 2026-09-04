@@ -15,12 +15,32 @@ const isLoading = ref(false)
 const units = ref([])
 const selectedUnit = ref('')
 const unitsLoading = ref(true)
+const lastUnitStorageKey = 'sobracorte:last-unit'
+
+function loadLastUnit() {
+  try {
+    return localStorage.getItem(lastUnitStorageKey) || ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberLastUnit(unitCode) {
+  try {
+    localStorage.setItem(lastUnitStorageKey, unitCode)
+  } catch {
+    // A indisponibilidade do armazenamento local não deve impedir o login.
+  }
+}
 
 onMounted(async () => {
   try {
     const response = await api.get('/factory-units')
     units.value = Array.isArray(response.data?.data) ? response.data.data : []
-    selectedUnit.value = units.value[0]?.code || ''
+    const lastUnit = loadLastUnit()
+    selectedUnit.value = units.value.some(unit => unit.code === lastUnit)
+      ? lastUnit
+      : units.value[0]?.code || ''
     if (units.value.length === 0) error.value = 'Nenhuma unidade está disponível para acesso.'
   } catch {
     error.value = 'Não foi possível carregar as unidades. O login está indisponível.'
@@ -49,6 +69,7 @@ async function handleLogin() {
   isLoading.value = true
   try {
     await authStore.login(username.value.trim(), password.value, selectedUnit.value)
+    rememberLastUnit(selectedUnit.value)
     router.push('/')
   } catch (err) {
     error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'
