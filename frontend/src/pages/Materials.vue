@@ -85,7 +85,9 @@
                     </button>
 
                     <button v-if="authStore.can('cadastrar_materiais')" @click="confirmDelete(item)"
-                      class="text-gray-400 hover:text-red-600 transition-colors" title="Excluir">
+                      :disabled="Number(item.quantity) !== 0"
+                      class="text-gray-400 hover:text-red-600 transition-colors disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+                      :title="Number(item.quantity) === 0 ? 'Excluir' : 'O material precisa estar com estoque zerado para ser excluído'">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -462,6 +464,9 @@ async function confirmDelete(item) {
   // ESCUDO 2: Bloqueia movimentadores/leitores intrusos (Intacto!)
   if (!authStore.can('cadastrar_materiais')) {
     return showNotification("error", "Acesso Negado: Apenas Líderes ou Admins podem excluir materiais.");
+  }
+  if (Number(item.quantity) !== 0) {
+    return showNotification("error", "O material só pode ser excluído quando todo o estoque estiver zerado.");
   }
 
   openConfirmModal({

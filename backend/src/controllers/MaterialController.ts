@@ -285,6 +285,9 @@ export class MaterialController {
           include: { category: true, unit: true, locations: { include: { location: true } } },
         });
         if (!material) throw new Error('MATERIAL_NOT_FOUND');
+        if (Number(material.quantity) !== 0 || material.locations.some((entry) => Number(entry.quantity) !== 0)) {
+          throw new Error('MATERIAL_HAS_STOCK');
+        }
         await tx.materialDeletionAudit.create({
           data: {
             materialId: material.id,
@@ -300,10 +303,16 @@ export class MaterialController {
           },
         });
         await tx.material.delete({ where: { id: material.id } });
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       res.json({ message: 'Material excluído; histórico preservado.' });
     } catch (error) {
       if (error instanceof Error && error.message === 'MATERIAL_NOT_FOUND') return res.status(404).json({ error: 'Material não encontrado.' });
+      if (error instanceof Error && error.message === 'MATERIAL_HAS_STOCK') {
+        return res.status(409).json({ error: 'O material só pode ser excluído quando todo o estoque estiver zerado.' });
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return res.status(409).json({ error: 'O estoque foi alterado durante a exclusão. Atualize a lista e tente novamente.' });
+      }
       console.error('Erro ao deletar material:', error);
       res.status(500).json({ error: 'Erro ao deletar material' });
     }
