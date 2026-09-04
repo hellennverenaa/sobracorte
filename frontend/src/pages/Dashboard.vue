@@ -177,7 +177,8 @@ async function loadData() {
       exitToEntryPercent: statsData.exitToEntryPercent ?? null
     }
     if (!summaryData.value.units.some(unit => unit.unitId === selectedUnitId.value)) {
-      selectedUnitId.value = summaryData.value.units[0]?.unitId ?? null
+      const defaultUnit = summaryData.value.units.find(unit => unit.unit === 'm²')
+      selectedUnitId.value = defaultUnit?.unitId ?? summaryData.value.units[0]?.unitId ?? null
     }
     applyUnitSummary()
 
