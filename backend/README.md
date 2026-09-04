@@ -72,7 +72,7 @@ O CSV de materiais usa as colunas obrigatórias `codigo;descricao;categoria;unid
 Instruções estritas para colocar a API no ar no servidor oficial de Produção da DASS.
 
 ### 1. Pré-requisitos
-* Node.js (v18 ou superior)
+* Node.js 20.19+, 22.12+ ou 24+
 * Banco de Dados PostgreSQL (versão 13+)
 * PM2 instalado globalmente (`npm install -g pm2`)
 
@@ -104,3 +104,5 @@ pm2 start dist/src/server.js --name "sobracorte-api"
 pm2 save
 pm2 startup
 ```
+
+Para monitoramento, use `GET /health/live` como liveness e `GET /health/ready` como readiness. O segundo retorna `503` enquanto o banco estiver indisponível.

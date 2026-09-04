@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { Prisma } from '../generated/prisma';
 import { importMaterials, ImportValidationError, MaterialImportInput } from '../import/materialImport';
+import { INITIAL_STOCK_ORIGIN, INITIAL_STOCK_REASON } from '../movements/constants';
 
 function decimalInput(value: unknown, { allowZero = true } = {}): string | null {
   if (value === undefined || value === null || String(value).trim() === '') return allowZero ? '0' : null;
@@ -75,7 +76,6 @@ export class MaterialController {
           code: m.code,
           name: m.name,
           quantity: decimalString(m.quantity),
-          minStock: decimalString(m.minStock),
           categoryId: m.categoryId,
           unitId: m.unitId,
           category: { id: m.category.id, name: m.category.name },
@@ -108,13 +108,12 @@ export class MaterialController {
       const locationId = Number(req.body.locationId);
       const locationName = String(req.body.location ?? '').trim();
       const quantity = decimalInput(req.body.initialQuantity ?? req.body.quantidade ?? req.body.quantity);
-      const minStock = decimalInput(req.body.minStock ?? req.body.estoqueMinimo);
 
       if (!code || !name) return res.status(400).json({ error: 'Código e descrição são obrigatórios.' });
       if (!Number.isInteger(categoryId) || categoryId <= 0 || !Number.isInteger(unitId) || unitId <= 0) {
         return res.status(400).json({ error: 'Categoria e unidade de medida são obrigatórias.' });
       }
-      if (!quantity || !minStock) {
+      if (!quantity) {
         return res.status(400).json({ error: 'O saldo inicial deve ser um número maior ou igual a zero.' });
       }
       if (locationId <= 0 && !locationName) return res.status(400).json({ error: 'A localização é obrigatória.' });
@@ -138,7 +137,7 @@ export class MaterialController {
         const material = await tx.material.create({
           data: {
             code, name, categoryId, unitId,
-            quantity, minStock,
+            quantity, minStock: 0,
             observation: String(req.body.observacoes || req.body.observation || ''),
             factoryUnitId: req.tenant!.id,
             locations: { create: { locationId: loc.id, quantity } },
@@ -159,14 +158,16 @@ export class MaterialController {
               materialUnit: material.unit.symbol,
               locationId: loc.id,
               locationName: loc.name,
-              reason: 'Saldo Inicial de Implantação',
+              originName: INITIAL_STOCK_ORIGIN,
+              reason: INITIAL_STOCK_REASON,
               operatorId: req.user?.matricula ? String(req.user.matricula) : null,
               operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação',
             },
           });
         }
 
-        return { ...material, quantity: decimalString(material.quantity), minStock: decimalString(material.minStock) };
+        const { minStock: _legacyMinStock, ...publicMaterial } = material;
+        return { ...publicMaterial, quantity: decimalString(material.quantity) };
       });
       
       res.status(201).json(novo);
@@ -201,9 +202,6 @@ export class MaterialController {
       }
       if (req.body.unitId !== undefined && (!Number.isInteger(Number(req.body.unitId)) || Number(req.body.unitId) <= 0)) {
         return res.status(400).json({ error: 'Unidade de medida inválida.' });
-      }
-      if (req.body.minStock !== undefined && decimalInput(req.body.minStock) === null) {
-        return res.status(400).json({ error: 'O estoque mínimo deve ter até três casas decimais.' });
       }
       if (req.body.code !== undefined && !String(req.body.code).trim()) return res.status(400).json({ error: 'O código não pode ser vazio.' });
       if (req.body.name !== undefined && !String(req.body.name).trim()) return res.status(400).json({ error: 'A descrição não pode ser vazia.' });
@@ -249,14 +247,14 @@ export class MaterialController {
             name: req.body.name !== undefined ? String(req.body.name).trim() : undefined,
             categoryId: req.body.categoryId !== undefined ? nextCategoryId : undefined,
             unitId: req.body.unitId !== undefined ? nextUnitId : undefined,
-            minStock: req.body.minStock !== undefined ? decimalInput(req.body.minStock) ?? undefined : undefined,
             observation: req.body.observation !== undefined ? String(req.body.observation) : undefined,
           },
           include: { category: true, unit: true },
         });
       });
       
-      res.json({ ...atualizado, quantity: decimalString(atualizado.quantity), minStock: decimalString(atualizado.minStock) });
+      const { minStock: _legacyMinStock, ...publicMaterial } = atualizado;
+      res.json({ ...publicMaterial, quantity: decimalString(atualizado.quantity) });
     } catch (error) {
       if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
         return res.status(404).json({ error: 'Localização não encontrada.' });

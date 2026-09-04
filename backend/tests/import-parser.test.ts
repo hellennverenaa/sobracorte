@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseCSV, parseCsvRecord, parseDecimal } from '../src/import/csvParser';
+import { MAX_IMPORT_ROWS, parseCSV, parseCsvRecord, parseDecimal } from '../src/import/csvParser';
 
 test('parseia CSV RFC 4180 com aspas, delimitador e quebra de linha', () => {
   const input = 'codigo;descricao;categoria;unidade;quantidade;localizacao\n' +
@@ -40,4 +40,12 @@ test('não multiplica decimais com ponto', () => {
 
 test('detecta aspas não fechadas', () => {
   assert.deepEqual(parseCsvRecord('"sem fechamento;A', ';'), { error: 'aspas não fechadas' });
+});
+
+test('rejeita arquivos acima do limite de linhas', () => {
+  const header = 'codigo;descricao;categoria;unidade;quantidade;localizacao';
+  const rows = Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, index) => `${index};X;TECIDO;m;1;A`);
+  const result = parseCSV([header, ...rows].join('\n'));
+  assert.equal(result.rows.length, 0);
+  assert.match(result.errors[0].message, new RegExp(String(MAX_IMPORT_ROWS)));
 });

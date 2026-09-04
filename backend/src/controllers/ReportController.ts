@@ -102,7 +102,6 @@ export class ReportController {
         code: material.code,
         name: material.name,
         quantity: decimalString(material.quantity),
-        minStock: decimalString(material.minStock),
         categoryId: material.categoryId ?? null,
         unitId: material.unitId ?? null,
         category: material.category?.name ?? null,
@@ -160,23 +159,25 @@ export class ReportController {
   /** Stream complete reports so exports do not have a silent row cap. */
   async exportInventory(req: Request, res: Response) {
     try {
+      const batchSize = 500;
+      const findBatch = (cursorId?: number) => db.material.findMany({
+        where: { factoryUnitId: req.tenant!.id, ...(cursorId !== undefined && { id: { gt: cursorId } }) },
+        take: batchSize,
+        orderBy: [{ id: 'asc' }],
+        include: { category: true, unit: true, locations: { include: { location: true } } },
+      });
+      let materials = await findBatch();
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="sobracorte-inventario.csv"');
-      res.write('\uFEFF' + csvLine(['CODIGO', 'DESCRICAO', 'CATEGORIA', 'UNIDADE', 'QUANTIDADE', 'ESTOQUE_MINIMO', 'LOCALIZACAO']));
-      let cursorId: number | undefined;
-      const batchSize = 500;
+      res.write('\uFEFF' + csvLine(['CODIGO', 'DESCRICAO', 'CATEGORIA', 'UNIDADE', 'QUANTIDADE', 'LOCALIZACAO']));
       while (true) {
-        const materials = await db.material.findMany({
-          where: { factoryUnitId: req.tenant!.id, ...(cursorId !== undefined && { id: { gt: cursorId } }) }, take: batchSize,
-          orderBy: [{ id: 'asc' }], include: { category: true, unit: true, locations: { include: { location: true } } },
-        });
         if (!materials.length) break;
         for (const material of materials) {
           const locations = (material.locations ?? []).map((entry: any) => entry.location?.name).filter(Boolean).join(' | ');
-          res.write(csvLine([material.code, material.name, material.category?.name, material.unit?.symbol, decimalString(material.quantity), decimalString(material.minStock), locations]));
+          res.write(csvLine([material.code, material.name, material.category?.name, material.unit?.symbol, decimalString(material.quantity), locations]));
         }
-        cursorId = materials[materials.length - 1].id;
         if (materials.length < batchSize) break;
+        materials = await findBatch(materials[materials.length - 1].id);
       }
       return res.end();
     } catch (error) {
@@ -192,24 +193,26 @@ export class ReportController {
     const filters = movementFilters(req.query, req.tenant!.id, range.value);
     if (filters.error) return res.status(400).json({ error: filters.error });
     try {
+      const batchSize = 500;
+      const where = filters.value;
+      const findBatch = (cursorId?: number) => db.movement.findMany({
+        where: { ...where, ...(cursorId !== undefined && { id: { lt: cursorId } }) },
+        take: batchSize,
+        orderBy: [{ id: 'desc' }],
+        include: { material: true, location: true, origin: true },
+      });
+      let movements = await findBatch();
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="sobracorte-movimentacoes.csv"');
       res.write('\uFEFF' + csvLine(['DATA', 'TIPO', 'CODIGO', 'DESCRICAO', 'CATEGORIA', 'UNIDADE', 'QUANTIDADE', 'LOCALIZACAO', 'ORIGEM', 'MOTIVO', 'OPERADOR']));
-      let cursorId: number | undefined;
-      const batchSize = 500;
-      const where = filters.value;
       while (true) {
-        const movements = await db.movement.findMany({
-          where: { ...where, ...(cursorId !== undefined && { id: { lt: cursorId } }) }, take: batchSize,
-          orderBy: [{ id: 'desc' }], include: { material: true, location: true, origin: true },
-        });
         if (!movements.length) break;
         for (const movement of movements) {
           const material = materialDto(movement.material, movement);
           res.write(csvLine([movement.createdAt?.toISOString?.() ?? movement.createdAt, String(movement.type).toLowerCase(), material.code, material.name, material.categoryName, material.unit, decimalString(movement.quantity), movement.location?.name ?? movement.locationName, movement.origin?.name ?? movement.originName, movement.reason, movement.operatorName ?? 'Sistema']));
         }
-        cursorId = movements[movements.length - 1].id;
         if (movements.length < batchSize) break;
+        movements = await findBatch(movements[movements.length - 1].id);
       }
       return res.end();
     } catch (error) {

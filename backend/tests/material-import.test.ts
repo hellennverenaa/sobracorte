@@ -14,8 +14,12 @@ function fakeClient() {
     $transaction: async (callback: any) => {
       transactionCalls += 1;
       const tx: any = {
-        material: { create: async (args: any) => { created.push(args); return { id: 9 }; } },
-        movement: { create: async (args: any) => { created.push(args); return args; } },
+        material: { createManyAndReturn: async (args: any) => {
+          created.push(args);
+          return args.data.map((item: any, index: number) => ({ id: 9 + index, code: item.code }));
+        } },
+        materialLocation: { createMany: async (args: any) => { created.push(args); return { count: args.data.length }; } },
+        movement: { createMany: async (args: any) => { created.push(args); return { count: args.data.length }; } },
       };
       return callback(tx);
     },
@@ -30,9 +34,23 @@ test('importação válida resolve IDs, snapshots e usa uma transação', async 
   const result = await importMaterials(10, [{ code: '1001', name: 'Tecido preto', category: 'TECIDO', unit: 'm', location: 'A-01', quantity: '150.0' }], undefined, client);
   assert.deepEqual(result, { inseridos: 1, processados: 1 });
   assert.equal(client.transactionCalls, 1);
-  assert.equal(client.created[0].data.quantity, '150.000');
-  assert.equal(client.created[1].data.materialCode, '1001');
-  assert.equal(client.created[1].data.originId, 4);
+  assert.equal(client.created[0].data[0].quantity, '150.000');
+  assert.equal(client.created[2].data[0].materialCode, '1001');
+  assert.equal(client.created[2].data[0].originId, null);
+  assert.equal(client.created[2].data[0].originName, 'Saldo inicial');
+});
+
+test('origem informada e inexistente é rejeitada sem fallback silencioso', async () => {
+  const client = fakeClient();
+  await assert.rejects(
+    importMaterials(10, [{ code: '1002', name: 'Tecido', category: 'TECIDO', unit: 'm', location: 'A-01', quantity: '1', origin: 'Inexistente' }], undefined, client),
+    (error: unknown) => {
+      assert.ok(error instanceof ImportValidationError);
+      assert.match(error.errors[0].message, /origem não encontrada/);
+      return true;
+    },
+  );
+  assert.equal(client.transactionCalls, 0);
 });
 
 test('falha de domínio impede a transação e retorna linha', async () => {

@@ -19,6 +19,8 @@ export type CsvParseResult = {
   delimiter: ',' | ';' | '\t';
 };
 
+export const MAX_IMPORT_ROWS = 5000;
+
 const HEADER_ALIASES: Record<keyof Omit<ParsedMaterialRow, 'line'>, string[]> = {
   code: ['codigo', 'código', 'code', 'id_produto', 'produto'],
   name: ['descricao', 'descrição', 'name', 'nome', 'material'],
@@ -124,6 +126,13 @@ export function parseCSV(buffer: Buffer | string): CsvParseResult {
   const records = splitRecords(text);
   if (records.length === 0) {
     return { rows: [], errors: [{ line: 1, message: 'arquivo vazio' }], delimiter: ';' };
+  }
+  if (records.length - 1 > MAX_IMPORT_ROWS) {
+    return {
+      rows: [],
+      errors: [{ line: MAX_IMPORT_ROWS + 2, message: `o arquivo excede o limite de ${MAX_IMPORT_ROWS} materiais` }],
+      delimiter: detectDelimiter(records[0].value),
+    };
   }
 
   const delimiter = detectDelimiter(records[0].value);

@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import multer from 'multer';
 import type { ServerConfig } from './config/dotenv';
 import { routes } from './routes';
+import { prisma } from './prisma';
 
 type AppConfig = Pick<ServerConfig, 'corsOrigins'>;
 
@@ -26,6 +27,17 @@ export function createApp(config: AppConfig) {
 
   app.get('/', (_req: Request, res: Response) => {
     res.json({ message: 'API SobraCorte running.' });
+  });
+  app.get('/health/live', (_req: Request, res: Response) => {
+    res.json({ status: 'ok' });
+  });
+  app.get('/health/ready', async (_req: Request, res: Response) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return res.json({ status: 'ready' });
+    } catch {
+      return res.status(503).json({ status: 'unavailable' });
+    }
   });
 
   app.use(routes);

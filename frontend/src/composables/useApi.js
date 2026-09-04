@@ -15,7 +15,8 @@ export function useApi() {
         method: options.method || 'GET',
         data: options.data,
         headers: options.headers,
-        params: options.params
+        params: options.params,
+        signal: options.signal
       })
       return response.data ?? {}
     } catch (requestError) {
@@ -28,8 +29,8 @@ export function useApi() {
     }
   }
 
-  async function fetchDashboardSummary() {
-    const response = await api.get('/dashboard/summary')
+  async function fetchDashboardSummary(options = {}) {
+    const response = await api.get('/dashboard/summary', { signal: options.signal })
     return response.data?.data ?? response.data
   }
 

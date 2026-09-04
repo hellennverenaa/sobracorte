@@ -1,5 +1,6 @@
 import { prisma } from '../prisma';
 import { parseDecimal, ParsedMaterialRow } from './csvParser';
+import { INITIAL_STOCK_ORIGIN, INITIAL_STOCK_REASON } from '../movements/constants';
 
 export type MaterialImportInput = {
   code: unknown;
@@ -13,7 +14,6 @@ export type MaterialImportInput = {
   location?: unknown;
   originId?: unknown;
   origin?: unknown;
-  minStock?: unknown;
 };
 
 export type ImportLineError = { line: number; message: string };
@@ -30,7 +30,6 @@ type ResolvedInput = {
   code: string;
   name: string;
   quantity: string;
-  minStock: string;
   categoryId: number;
   unitId: number;
   locationId: number;
@@ -76,16 +75,14 @@ export async function importMaterials(
     const code = text(input.code);
     const name = text(input.name).toUpperCase();
     const quantity = decimal(input.quantity);
-    const minStock = decimal(input.minStock ?? '0');
     if (!code) errors.push({ line, message: 'código obrigatório' });
     if (!name) errors.push({ line, message: 'descrição obrigatória' });
     if (quantity === null) errors.push({ line, message: 'quantidade deve ser decimal não negativa com até 3 casas' });
-    if (minStock === null) errors.push({ line, message: 'estoque mínimo inválido' });
     return {
-      line, code, name, quantity: quantity ?? '0.000', minStock: minStock ?? '0.000',
+      line, code, name, quantity: quantity ?? '0.000',
       categoryId: positiveId(input.categoryId), unitId: positiveId(input.unitId), locationId: positiveId(input.locationId),
       category: nameFor(input.category), unit: nameFor(input.unit), location: text(input.location),
-      originId: positiveId(input.originId), origin: text(input.origin),
+      originId: positiveId(input.originId), originIdInput: text(input.originId), origin: text(input.origin),
     };
   });
 
@@ -128,53 +125,61 @@ export async function importMaterials(
     if (category && unit && category.unitLocked && category.defaultUnitId !== unit.id) {
       errors.push({ line: item.line, message: `a categoria exige a unidade ${category.defaultUnitId}` });
     }
-    const origin = positiveId(item.originId)
-      ? origins.find((candidate: any) => candidate.id === positiveId(item.originId))
-      : originByName.get(nameFor(item.origin)) || originByName.get('OUTROS');
-    if (Number(item.quantity) > 0 && !origin) errors.push({ line: item.line, message: 'origem "Outros" não está configurada para esta unidade' });
-    if (category && unit && location && (origin || Number(item.quantity) === 0)) {
-      resolved.push({ line: item.line, code: item.code, name: item.name, quantity: item.quantity, minStock: item.minStock, categoryId: category.id, unitId: unit.id, locationId: location.id, originId: origin?.id ?? null, originName: origin?.name ?? null, categoryName: category.name, unitSymbol: unit.symbol, locationName: location.name });
+    const requestedOriginId = positiveId(item.originId);
+    const hasRequestedOrigin = Boolean(item.originIdInput) || Boolean(item.origin);
+    const origin = requestedOriginId
+      ? origins.find((candidate: any) => candidate.id === requestedOriginId)
+      : item.origin ? originByName.get(nameFor(item.origin)) : null;
+    if (hasRequestedOrigin && !origin) {
+      errors.push({ line: item.line, message: `origem não encontrada: ${item.origin || item.originIdInput}` });
+    }
+    if (category && unit && location && (!hasRequestedOrigin || origin)) {
+      resolved.push({ line: item.line, code: item.code, name: item.name, quantity: item.quantity, categoryId: category.id, unitId: unit.id, locationId: location.id, originId: origin?.id ?? null, originName: origin?.name ?? (Number(item.quantity) > 0 ? INITIAL_STOCK_ORIGIN : null), categoryName: category.name, unitSymbol: unit.symbol, locationName: location.name });
     }
   }
   if (errors.length > 0) throw new ImportValidationError(errors);
 
   await client.$transaction(async (tx: any) => {
-    for (const item of resolved) {
-      const material = await tx.material.create({
-        data: {
-          factoryUnitId: tenantId,
-          code: item.code,
-          name: item.name,
-          quantity: item.quantity,
-          categoryId: item.categoryId,
-          unitId: item.unitId,
-          minStock: item.minStock,
-          observation: 'Importado via planilha de materiais CSV',
-          locations: { create: { locationId: item.locationId, quantity: item.quantity } },
-        },
-      });
-      if (Number(item.quantity) > 0) {
-        await tx.movement.create({
-          data: {
-            materialId: material.id,
-            factoryUnitId: tenantId,
-            type: 'entrada',
-            quantity: item.quantity,
-            locationId: item.locationId,
-            locationName: item.locationName,
-            originId: item.originId,
-            originName: item.originName,
-            materialCode: item.code,
-            materialName: item.name,
-            materialCategory: item.categoryName,
-            materialUnit: item.unitSymbol,
-            reason: 'Saldo Inicial de Implantação',
-            operatorId: user?.matricula == null ? null : String(user.matricula),
-            operatorName: user?.nome || user?.usuario || 'Sistema / Implantação',
-          },
-        });
-      }
-    }
+    const created = await tx.material.createManyAndReturn({
+      data: resolved.map((item) => ({
+        factoryUnitId: tenantId,
+        code: item.code,
+        name: item.name,
+        quantity: item.quantity,
+        categoryId: item.categoryId,
+        unitId: item.unitId,
+        minStock: 0,
+        observation: 'Importado via planilha de materiais CSV',
+      })),
+      select: { id: true, code: true },
+    });
+    const materialIdByCode = new Map(created.map((item: any) => [item.code, item.id]));
+    await tx.materialLocation.createMany({
+      data: resolved.map((item) => ({
+        materialId: materialIdByCode.get(item.code),
+        locationId: item.locationId,
+        factoryUnitId: tenantId,
+        quantity: item.quantity,
+      })),
+    });
+    const movements = resolved.filter((item) => Number(item.quantity) > 0).map((item) => ({
+      materialId: materialIdByCode.get(item.code),
+      factoryUnitId: tenantId,
+      type: 'entrada',
+      quantity: item.quantity,
+      locationId: item.locationId,
+      locationName: item.locationName,
+      originId: item.originId,
+      originName: item.originName,
+      materialCode: item.code,
+      materialName: item.name,
+      materialCategory: item.categoryName,
+      materialUnit: item.unitSymbol,
+      reason: INITIAL_STOCK_REASON,
+      operatorId: user?.matricula == null ? null : String(user.matricula),
+      operatorName: user?.nome || user?.usuario || 'Sistema / Implantação',
+    }));
+    if (movements.length > 0) await tx.movement.createMany({ data: movements });
   });
   return { inseridos: resolved.length, processados: inputs.length };
 }

@@ -4,14 +4,14 @@ import Layout from '@/components/Layout.vue'
 
 import { useApi } from "../composables/useApi"
 import {
-  Package, PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle
+  Package, PieChart, Wallet, Box, RefreshCw, Activity, Clock, Trophy, MapPin, HelpCircle, AlertTriangle
 } from 'lucide-vue-next'
 
 const { fetchDashboardSummary } = useApi()
 
 // --- ESTADOS ---
-const realStats    = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0, totalExits: 0, exitToEntryPercent: null })
-const displayStats = ref({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0, totalExits: 0 })
+const realStats    = ref({ totalMaterials: 0, totalMovements: 0, totalEntries: 0, totalExits: 0, exitToEntryPercent: null })
+const displayStats = ref({ totalMaterials: 0, totalMovements: 0, totalEntries: 0, totalExits: 0 })
 const summaryData = ref({ units: [], categories: [], origins: [], topMaterials: [] })
 const selectedUnitId = ref(null)
 const selectedUnitSymbol = computed(() => summaryData.value.units.find(unit => unit.unitId === selectedUnitId.value)?.unit ?? null)
@@ -24,9 +24,13 @@ const topMaterials    = ref([])
 const hoveredCategory = ref(null)
 const hoveredOrigem   = ref(null)
 const isUpdating      = ref(false)
+const loadError       = ref('')
 const currentTime     = ref(new Date())
 let refreshInterval   = null
 let clockInterval     = null
+let updatingTimeout   = null
+let dashboardController = null
+let isMounted = false
 
 // --- ANIMAÇÃO DE NÚMEROS ---
 function animateValue(key, start, end, duration = 1000) {
@@ -43,7 +47,6 @@ function animateValue(key, start, end, duration = 1000) {
 }
 
 watch(() => realStats.value.totalMaterials, (n, o) => animateValue('totalMaterials', o || 0, n))
-watch(() => realStats.value.lowStock,       (n, o) => animateValue('lowStock',       o || 0, n))
 watch(() => realStats.value.totalMovements, (n, o) => animateValue('totalMovements', o || 0, n))
 watch(() => realStats.value.totalEntries,   (n, o) => animateValue('totalEntries',   o || 0, n))
 watch(() => realStats.value.totalExits,     (n, o) => animateValue('totalExits',     o || 0, n))
@@ -154,9 +157,11 @@ async function loadData() {
   if (isFetchingData) return
   isFetchingData = true
   isUpdating.value = true
+  loadError.value = ''
+  dashboardController = new AbortController()
 
   try {
-    const summary = await fetchDashboardSummary()
+    const summary = await fetchDashboardSummary({ signal: dashboardController.signal })
     const statsData = summary.stats || summary
     summaryData.value = {
       units: summary.units || [],
@@ -166,7 +171,6 @@ async function loadData() {
     }
     realStats.value = {
       totalMaterials: statsData.totalMaterials || 0,
-      lowStock: statsData.lowStock || 0,
       totalMovements: statsData.totalMovements || 0,
       totalEntries: statsData.totalEntries || 0,
       totalExits: statsData.totalExits || 0,
@@ -178,22 +182,32 @@ async function loadData() {
     applyUnitSummary()
 
   } catch (error) {
+    if (error.code === 'ERR_CANCELED') return
     console.error('Erro inesperado no dashboard:', error)
+    loadError.value = 'Não foi possível atualizar os indicadores. Os dados exibidos podem estar desatualizados.'
   } finally {
     isFetchingData = false
-    setTimeout(() => isUpdating.value = false, 800)
+    dashboardController = null
+    if (isMounted) {
+      clearTimeout(updatingTimeout)
+      updatingTimeout = setTimeout(() => { isUpdating.value = false }, 800)
+    }
   }
 }
 
 onMounted(() => {
+  isMounted = true
   loadData()
   clockInterval   = setInterval(() => { currentTime.value = new Date() }, 1000)
   refreshInterval = setInterval(loadData, 60000)
 })
 
 onUnmounted(() => {
+  isMounted = false
   clearInterval(refreshInterval)
   clearInterval(clockInterval)
+  clearTimeout(updatingTimeout)
+  dashboardController?.abort()
 })
 </script>
 
@@ -201,6 +215,11 @@ onUnmounted(() => {
   <Layout>
     <div class="min-h-screen bg-slate-200 p-6 md:p-8 transition-colors duration-500">
       <div class="max-w-7xl mx-auto">
+
+        <div v-if="loadError" class="mb-6 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700" role="alert">
+          <span class="flex items-center gap-2"><AlertTriangle class="h-5 w-5 shrink-0" />{{ loadError }}</span>
+          <button type="button" class="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700" @click="loadData">Tentar novamente</button>
+        </div>
 
         <div
           class="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-lg border border-slate-300 animate-fade-in-down">

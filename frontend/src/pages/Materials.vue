@@ -215,11 +215,6 @@
                   :title="editingItem ? 'Alterações de saldo devem ser feitas na tela de Movimentação' : ''" />
               </div>
               <div>
-                <label class="block text-sm font-bold text-gray-700 mb-1">Estoque Mínimo</label>
-                <input type="text" inputmode="decimal" v-model="form.minStock"
-                  class="w-full border p-2 rounded outline-none" placeholder="0.000" />
-              </div>
-              <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Localização (Prateleira)</label>
                 <select v-model="form.locationId" required :disabled="!form.categoryId || !!editingItem"
                   class="w-full border p-2 rounded bg-white outline-none font-medium transition-colors disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
@@ -293,7 +288,7 @@ const authStore = useAuthStore();
 const { notification, showNotification } = useToast();
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
-const form = ref({ code: "", name: "", categoryId: "", unitId: "", quantity: "0", minStock: "0", locationId: "", observation: "" });
+const form = ref({ code: "", name: "", categoryId: "", unitId: "", quantity: "0", locationId: "", observation: "" });
 const dbCategories = ref([]);
 const dbLocations = ref([]);
 const dbUnits = ref([]);
@@ -384,13 +379,13 @@ function changePage(nextPage) {
 
 function openCreateModal() {
   editingItem.value = null;
-  form.value = { code: "", name: "", categoryId: "", unitId: "", quantity: "0", minStock: "0", locationId: "", observation: "" };
+  form.value = { code: "", name: "", categoryId: "", unitId: "", quantity: "0", locationId: "", observation: "" };
   showCreateModal.value = true;
 }
 
 function editItem(item) {
   editingItem.value = item;
-  form.value = { ...item, categoryId: item.categoryId || item.category?.id, unitId: item.unitId || item.unit?.id, locationId: item.locationId || item.location?.id || "", quantity: String(item.quantity ?? "0"), minStock: String(item.minStock ?? "0") };
+  form.value = { ...item, categoryId: item.categoryId || item.category?.id, unitId: item.unitId || item.unit?.id, locationId: item.locationId || item.location?.id || "", quantity: String(item.quantity ?? "0") };
   showCreateModal.value = true;
 }
 
@@ -421,8 +416,8 @@ async function saveItem() {
     return showNotification("error", "Selecione uma Localização (Prateleira)!");
   }
   const decimal = /^(?:0|[1-9]\d*)(?:[.,]\d{1,3})?$/;
-  if (!decimal.test(String(form.value.quantity).trim()) || !decimal.test(String(form.value.minStock).trim())) {
-    return showNotification("error", "Quantidade e estoque mínimo devem ser decimais válidos (até 3 casas).");
+  if (!decimal.test(String(form.value.quantity).trim())) {
+    return showNotification("error", "A quantidade deve ser um decimal válido (até 3 casas).");
   }
 
   try {
@@ -432,7 +427,6 @@ async function saveItem() {
       categoryId: form.value.categoryId,
       unitId: form.value.unitId,
       observation: form.value.observation,
-      minStock: String(form.value.minStock).replace(',', '.'),
     };
 
     if (!editingItem.value) {

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { readFile, unlink } from 'node:fs/promises';
 import { ImportValidationError, csvRowsToImportInput, importMaterials } from '../import/materialImport';
 import { parseCSV } from '../import/csvParser';
 
@@ -7,12 +8,11 @@ export class ImportController {
     if (!req.file) {
       return res.status(400).json({ error: 'Nenhum arquivo CSV foi enviado. Selecione um arquivo .csv.' });
     }
-    if (!req.file.originalname.toLowerCase().endsWith('.csv')) {
-      return res.status(400).json({ error: 'Formato de arquivo inválido. Apenas arquivos no formato .csv são aceitos.' });
-    }
-
     try {
-      const parsed = parseCSV(req.file.buffer);
+      if (!req.file.originalname.toLowerCase().endsWith('.csv')) {
+        return res.status(400).json({ error: 'Formato de arquivo inválido. Apenas arquivos no formato .csv são aceitos.' });
+      }
+      const parsed = parseCSV(await readFile(req.file.path));
       if (parsed.errors.length || parsed.rows.length === 0) {
         return res.status(422).json({
           error: 'O arquivo CSV contém dados inválidos. Nenhuma alteração foi aplicada.',
@@ -27,6 +27,8 @@ export class ImportController {
       }
       console.error('Erro na importação do CSV:', error);
       return res.status(500).json({ error: 'Erro interno ao processar a planilha CSV.' });
+    } finally {
+      await unlink(req.file.path).catch(() => undefined);
     }
   }
 }

@@ -78,9 +78,9 @@ GLOBAL_ADMIN_REGISTRATIONS="12345,67890"
 Crie também `frontend/.env`:
 
 ```env
-VITE_AUTH_API_URL="http://localhost:2399/api"
-VITE_SOBRACORTE_API_URL="http://localhost:2399/api/sobracorte"
-VITE_PORTAL_UNIX_URL="http://10.100.1.43/unix/"
+VITE_AUTH_API_URL="/api"
+VITE_SOBRACORTE_API_URL="/api/sobracorte"
+VITE_PORTAL_UNIX_URL="/unix/"
 VITE_DEV_PORT=3000
 ```
 
@@ -113,7 +113,7 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-O auth existente fica em `2400`, o gateway em `2399`, o backend em `3333` e o frontend em `3000`. O navegador acessa `/api/auth` e `/api/sobracorte` pelo gateway existente.
+O auth existente fica em `2400`, o gateway em `2399`, o backend em `3333` e o frontend em `3000`. Em desenvolvimento, o Vite encaminha `/api` ao gateway local em `127.0.0.1:2399` e `/unix` ao servidor corporativo. Em produção, o proxy reverso encaminha as mesmas rotas relativas.
 
 ---
 

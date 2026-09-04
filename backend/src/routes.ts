@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import os from 'node:os';
 import rateLimit from 'express-rate-limit';
 import { AuthController } from './controllers/AuthController';
 import { MaterialController } from './controllers/MaterialController';
@@ -41,7 +42,7 @@ const mutationLimiter = rateLimit({
 });
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  dest: os.tmpdir(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
