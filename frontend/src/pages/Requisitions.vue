@@ -136,7 +136,7 @@ const sectorOptions = [
   { id: 'CORTE', label: 'Corte (Matéria-Prima)', icon: Scissors },
   { id: 'APOIO', label: 'Apoio (Peças Cortadas)', icon: Wrench },
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', icon: Layers },
-  { id: 'EXPEDICAO', label: 'Cabedais', icon: Box },
+  { id: 'DISTRIBUICAO', label: 'Distribuição', icon: Box },
   { id: 'MONTAGEM', label: 'Montagem', icon: Footprints },
 ];
 
@@ -472,7 +472,8 @@ function formatSectorName(sec: string) {
     CORTE: 'Corte',
     APOIO: 'Apoio',
     PRE_FABRICADO: 'Pré-Fabricado',
-    EXPEDICAO: 'Cabedais',
+    DISTRIBUICAO: 'Distribuição',
+    EXPEDICAO: 'Distribuição',
     MONTAGEM: 'Montagem',
   };
   return map[sec] || sec;
@@ -524,7 +525,7 @@ onMounted(() => {
               <ClipboardList class="w-6 h-6" />
             </div>
             <div>
-              <h1 class="text-xl font-black text-slate-900 tracking-tight">Central de Requisições de Reposição</h1>
+              <h1 class="text-xl font-black text-slate-900 tracking-tight">Central de Requisições de Sobras</h1>
               <p class="text-xs text-slate-500 font-medium">Digitalização, multi-itens e verificação inteligente de sobras na fábrica</p>
             </div>
           </div>
@@ -632,7 +633,7 @@ onMounted(() => {
             <option value="CORTE">Corte</option>
             <option value="APOIO">Apoio</option>
             <option value="PRE_FABRICADO">Pré-Fabricado</option>
-            <option value="EXPEDICAO">Cabedais</option>
+            <option value="DISTRIBUICAO">Distribuição</option>
             <option value="MONTAGEM">Montagem</option>
           </select>
         </div>

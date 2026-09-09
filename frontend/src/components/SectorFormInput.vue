@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, nextTick, onMounted, computed } from 'vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
+import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import { 
   Scissors, Wrench, Layers, Box, Footprints, 
@@ -9,8 +10,23 @@ import {
 
 const emit = defineEmits(['saved', 'cancel']);
 const stockStore = useStockStore();
+const authStore = useAuthStore();
 
-const activeSector = ref<SectorType>('CORTE');
+const userSector = computed(() => {
+  const s = authStore.user?.assignedSector;
+  if (!s || s === 'TODOS') return null;
+  return (s === 'EXPEDICAO' || s === 'CABEDAIS' ? 'DISTRIBUICAO' : s) as SectorType;
+});
+
+const isSectorLocked = computed(() => {
+  return authStore.userRole !== 'admin' && !authStore.isAdmin && !!userSector.value;
+});
+
+const activeSector = ref<SectorType>(
+  isSectorLocked.value && userSector.value
+    ? userSector.value
+    : (stockStore.activeSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : stockStore.activeSector)
+);
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -47,13 +63,29 @@ const isUnitLocked = computed(() => {
   return Boolean(cat?.unitLocked);
 });
 
-const sectors = [
+const allSectors = [
   { id: 'CORTE' as SectorType, label: 'Corte (Matéria-Prima)', icon: Scissors },
   { id: 'APOIO' as SectorType, label: 'Apoio (Peças / Moldes)', icon: Wrench },
   { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', icon: Layers },
-  { id: 'EXPEDICAO' as SectorType, label: 'Cabedais', icon: Box },
+  { id: 'DISTRIBUICAO' as SectorType, label: 'Distribuição', icon: Box },
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', icon: Footprints },
 ];
+
+const availableSectors = computed(() => {
+  if (isSectorLocked.value && userSector.value) {
+    return allSectors.filter(s => s.id === userSector.value);
+  }
+  return allSectors;
+});
+
+const availableCategories = computed(() => {
+  const currentSec = activeSector.value;
+  return dbCategories.value.filter(cat => {
+    if (!cat.sector) return true;
+    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector;
+    return catSec === currentSec;
+  });
+});
 
 async function fetchDynamicSettings() {
   loadingSettings.value = true;
@@ -68,8 +100,9 @@ async function fetchDynamicSettings() {
     dbUnits.value = unitsRes.data || [];
     dbLocations.value = locsRes.data || [];
 
-    if (dbCategories.value.length > 0 && !formData.type) {
-      formData.type = dbCategories.value[0].name;
+    const catsForSector = availableCategories.value;
+    if (catsForSector.length > 0 && !formData.type) {
+      formData.type = catsForSector[0].name;
       onCategoryChange();
     }
   } catch (err) {
@@ -89,17 +122,22 @@ function onCategoryChange() {
 }
 
 const availableLocations = computed(() => {
-  // Se for o setor CORTE, filtra estritamente pela categoria selecionada
-  if (activeSector.value === 'CORTE') {
-    if (!formData.type) return [];
+  const currentSec = activeSector.value;
+  const sectorLocs = dbLocations.value.filter(loc => {
+    if (!loc.sector) return true;
+    const locSec = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
+    return locSec === currentSec;
+  });
+
+  if (currentSec === 'CORTE') {
+    if (!formData.type) return sectorLocs;
 
     const categoriaSelecionada = String(formData.type).toUpperCase().trim();
     const catObj = dbCategories.value.find(
       c => String(c.name).toUpperCase().trim() === categoriaSelecionada
     );
 
-    // 1. Filtragem relacional (por categoryLinks, categoryId ou category.name)
-    const filtradasRelacionais = dbLocations.value.filter(loc => {
+    return sectorLocs.filter(loc => {
       if (loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0) {
         const matchLink = loc.categoryLinks.some((link: any) => 
           (catObj && link.categoryId === catObj.id) ||
@@ -115,12 +153,9 @@ const availableLocations = computed(() => {
       }
       return false;
     });
-
-    return filtradasRelacionais;
   }
 
-  // Para os demais setores, disponibiliza todas as prateleiras
-  return dbLocations.value;
+  return sectorLocs;
 });
 
 function handleSizeGradeInput(event: Event) {
@@ -135,6 +170,9 @@ function handleSizeGradeInput(event: Event) {
 }
 
 function selectSector(sector: SectorType) {
+  if (isSectorLocked.value && userSector.value && sector !== userSector.value) {
+    return;
+  }
   activeSector.value = sector;
   errorMessage.value = '';
   successMessage.value = '';
@@ -233,6 +271,7 @@ async function handleSubmit() {
       };
       break;
 
+    case 'DISTRIBUICAO':
     case 'EXPEDICAO':
       if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
         errorMessage.value = 'COD. PRODUTO / SKU, Grade e Combinação do Cabedal são obrigatórios.';
@@ -240,6 +279,7 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
+        sector: 'DISTRIBUICAO',
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
@@ -301,7 +341,7 @@ onMounted(async () => {
       <!-- Seletor de Setores -->
       <div class="flex flex-wrap gap-1.5 bg-gray-100 p-1 rounded">
         <button
-          v-for="sec in sectors"
+          v-for="sec in availableSectors"
           :key="sec.id"
           type="button"
           @click="selectSector(sec.id)"
@@ -362,10 +402,10 @@ onMounted(async () => {
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm"
             required
           >
-            <option v-for="cat in dbCategories" :key="cat.id" :value="cat.name">
+            <option v-for="cat in availableCategories" :key="cat.id" :value="cat.name">
               {{ cat.name }}
             </option>
-            <option v-if="dbCategories.length === 0" value="OUTROS">OUTROS</option>
+            <option v-if="availableCategories.length === 0" value="OUTROS">OUTROS</option>
           </select>
         </div>
 
@@ -525,8 +565,8 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 4. EXPEDIÇÃO (Cabedais) -->
-      <div v-if="activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <!-- 4. DISTRIBUIÇÃO (Cabedais) -->
+      <div v-if="activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input

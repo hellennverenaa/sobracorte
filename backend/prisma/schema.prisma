@@ -13,6 +13,7 @@ enum SectorType {
   CORTE
   APOIO
   PRE_FABRICADO
+  DISTRIBUICAO
   EXPEDICAO
   MONTAGEM
   CONSUMO
@@ -227,6 +228,7 @@ model UnitConfig {
 model CategoryConfig {
   id            Int         @id @default(autoincrement())
   name          String
+  sector        SectorType? // Setor vinculado à categoria (CORTE, APOIO, etc.)
   unitLock      String      @default("livre") // "m2" | "m" | "livre" (Legado)
   unitLocked    Boolean     @default(false)
   defaultUnitId Int?
@@ -239,6 +241,7 @@ model CategoryConfig {
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
   @@index([factoryUnitId, defaultUnitId])
+  @@index([factoryUnitId, sector])
   @@schema("sobra_corte")
 }
 

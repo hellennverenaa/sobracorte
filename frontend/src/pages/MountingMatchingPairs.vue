@@ -14,7 +14,7 @@ const authStore = useAuthStore();
 const pairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
   { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Pés Órfãos', icon: Footprints },
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Solas', icon: Layers },
-  { id: 'EXPEDICAO', label: 'Cabedais', sublabel: 'Cabedais Avulsos', icon: Box },
+  { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais Avulsos', icon: Box },
 ];
 
 const activeSector = ref<SectorType>('MONTAGEM');
@@ -42,8 +42,12 @@ const canOperateMatchingSector = computed(() => {
   if (!authStore.user) return false;
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
-  if (!authStore.user.assignedSector) return true;
-  return authStore.user.assignedSector.toUpperCase().trim() === activeSector.value.toUpperCase().trim();
+  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return true;
+  const userSec = authStore.user.assignedSector.toUpperCase().trim();
+  const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
+  const curSec = activeSector.value.toUpperCase().trim();
+  const normCurSec = (curSec === 'EXPEDICAO' || curSec === 'CABEDAIS') ? 'DISTRIBUICAO' : curSec;
+  return normUserSec === normCurSec;
 });
 
 async function loadPairs() {
@@ -67,7 +71,7 @@ function selectSectorTab(sector: SectorType) {
 function openConfirmModal(pair: MatchingPair) {
   selectedPair.value = pair;
   matchQuantity.value = Math.min(1, pair.formablePairs);
-  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : activeSector.value === 'EXPEDICAO' ? 'Cabedais' : 'Montagem';
+  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : (activeSector.value === 'DISTRIBUICAO' || activeSector.value === 'EXPEDICAO') ? 'Distribuição (Cabedais)' : 'Montagem';
   matchReason.value = `Pares de ${sectorLabel} retirados fisicamente das prateleiras e encaminhados para a produção`;
   showConfirmModal.value = true;
 }

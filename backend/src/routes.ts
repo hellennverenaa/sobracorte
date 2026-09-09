@@ -127,7 +127,7 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
     if (role) updateData.role = role;
     if (assignedSector !== undefined) {
       let sec = assignedSector ? String(assignedSector).toUpperCase().trim() : null;
-      if (sec === 'CABEDAIS') sec = 'EXPEDICAO';
+      if (sec === 'CABEDAIS' || sec === 'EXPEDICAO') sec = 'DISTRIBUICAO';
       updateData.assignedSector = sec as any;
     }
 

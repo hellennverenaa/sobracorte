@@ -59,8 +59,16 @@ export class RequisitionService {
     },
     factoryUnitId: number
   ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number } }> {
+    let reqSector = req.requestSector;
+    if ((reqSector as string) === 'EXPEDICAO' || (reqSector as string) === 'CABEDAIS') {
+      reqSector = 'DISTRIBUICAO';
+    }
+    const sectorFilter = (reqSector === 'DISTRIBUICAO' || (reqSector as string) === 'EXPEDICAO')
+      ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
+      : reqSector;
+
     // 1. CORTE: Matéria-Prima
-    if (req.requestSector === 'CORTE') {
+    if (reqSector === 'CORTE') {
       const materials = await prisma.material.findMany({
         where: {
           factoryUnitId,
@@ -136,7 +144,7 @@ export class RequisitionService {
     if (req.footSide === 'PAR') {
       const baseFilter = {
         factoryUnitId,
-        sector: req.requestSector,
+        sector: sectorFilter as any,
         quantity: { gt: 0 },
         OR: [
           ...(req.sku ? [
@@ -191,7 +199,7 @@ export class RequisitionService {
     const stockItems = await prisma.stockItem.findMany({
       where: {
         factoryUnitId,
-        sector: req.requestSector,
+        sector: sectorFilter as any,
         quantity: { gt: 0 },
         OR: [
           ...(req.sku ? [
@@ -271,10 +279,12 @@ export class RequisitionService {
     const createdItems = await prisma.$transaction(async (tx) => {
       const results = [];
       for (const item of rawItems) {
+        let sec = item.requestSector;
+        if ((sec as string) === 'EXPEDICAO' || (sec as string) === 'CABEDAIS') sec = 'DISTRIBUICAO';
         const created = await tx.materialRequisition.create({
           data: {
             code,
-            requestSector: item.requestSector as SectorType,
+            requestSector: sec as SectorType,
             sku: item.sku || null,
             modelName: item.modelName || null,
             description: item.description,
@@ -323,7 +333,11 @@ export class RequisitionService {
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
       ...(status ? { status } : {}),
-      ...(requestSector ? { requestSector: requestSector as SectorType } : {}),
+      ...(requestSector ? {
+        requestSector: (requestSector === 'DISTRIBUICAO' || (requestSector as string) === 'EXPEDICAO')
+          ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
+          : (requestSector as SectorType)
+      } : {}),
       ...(search ? {
         OR: [
           { code: { contains: search, mode: 'insensitive' } },
@@ -450,9 +464,12 @@ export class RequisitionService {
         });
       } else if (req.footSide === 'PAR') {
         // 2. PAR COMPLETO: Debitar coordenadamente Pé Esquerdo ('E') E Pé Direito ('D')
+        const reqSec = (req.requestSector === 'DISTRIBUICAO' || (req.requestSector as string) === 'EXPEDICAO') ? 'DISTRIBUICAO' : req.requestSector;
+        const sectorFilter = (reqSec === 'DISTRIBUICAO') ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] } : reqSec;
+
         const baseFilter = {
           factoryUnitId,
-          sector: req.requestSector,
+          sector: sectorFilter as any,
           quantity: { gte: dto.quantity },
           OR: [
             ...(req.sku ? [
@@ -546,10 +563,13 @@ export class RequisitionService {
         });
       } else {
         // 3. Multi-Setor Padrão (APOIO ou Pé Individual)
+        const reqSec = (req.requestSector === 'DISTRIBUICAO' || (req.requestSector as string) === 'EXPEDICAO') ? 'DISTRIBUICAO' : req.requestSector;
+        const sectorFilter = (reqSec === 'DISTRIBUICAO') ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] } : reqSec;
+
         const stockItem = await tx.stockItem.findFirst({
           where: {
             factoryUnitId,
-            sector: req.requestSector,
+            sector: sectorFilter as any,
             quantity: { gte: dto.quantity },
             OR: [
               ...(req.sku ? [

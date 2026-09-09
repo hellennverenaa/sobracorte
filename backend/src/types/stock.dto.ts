@@ -4,6 +4,7 @@ export const SectorEnum = z.enum([
   'CORTE',
   'APOIO',
   'PRE_FABRICADO',
+  'DISTRIBUICAO',
   'EXPEDICAO',
   'MONTAGEM',
   'CONSUMO',
@@ -70,7 +71,20 @@ export const PreFabricadoItemSchema = z.object({
   observation: z.string().trim().optional().default(''),
 });
 
-// 🔹 4. EXPEDIÇÃO: Cabedais por SKU
+// 🔹 4. DISTRIBUIÇÃO: Cabedais e Componentes por SKU
+export const DistribuicaoItemSchema = z.object({
+  sector: z.literal('DISTRIBUICAO'),
+  sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
+  productName: z.string().trim().optional().default(''),
+  color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
+  sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
+  footSide: FootSideEnum.optional().nullable(),
+  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  observation: z.string().trim().optional().default(''),
+});
+
+// 🔹 4.1 EXPEDIÇÃO: Mantido para retrocompatibilidade
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
@@ -112,6 +126,7 @@ export const StockItemUnionSchema = z.discriminatedUnion('sector', [
   CorteItemSchema,
   ApoioItemSchema,
   PreFabricadoItemSchema,
+  DistribuicaoItemSchema,
   ExpedicaoItemSchema,
   MontagemItemSchema,
   ConsumoItemSchema,
@@ -162,7 +177,7 @@ export const RequisitionStatusEnum = z.enum([
 ]);
 
 export const RequisitionItemInputSchema = z.object({
-  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']),
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
@@ -180,7 +195,7 @@ export const CreateRequisitionPayloadSchema = z.union([
 ]);
 
 export const CheckStockAvailabilitySchema = z.object({
-  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']),
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
@@ -190,7 +205,7 @@ export const CheckStockAvailabilitySchema = z.object({
 
 export const RequisitionFilterSchema = z.object({
   status: RequisitionStatusEnum.optional(),
-  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM']).optional(),
+  requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']).optional(),
   search: z.string().trim().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),

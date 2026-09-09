@@ -116,7 +116,12 @@ export class ReportController {
       }
 
       if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
-        stockWhere.sector = rawSector;
+        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        if (sec === 'DISTRIBUICAO') {
+          stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+        } else {
+          stockWhere.sector = sec;
+        }
       }
 
       if (rawType !== 'TODOS') {
@@ -370,8 +375,12 @@ export class ReportController {
       }
 
       if (rawSector !== 'TODOS') {
-        const sec = rawSector === 'CABEDAIS' ? 'EXPEDICAO' : rawSector;
-        whereClause.requestSector = sec;
+        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        if (sec === 'DISTRIBUICAO') {
+          whereClause.requestSector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+        } else {
+          whereClause.requestSector = sec;
+        }
       }
 
       if (rawStatus !== 'TODOS') {

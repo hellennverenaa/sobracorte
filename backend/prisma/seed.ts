@@ -59,6 +59,7 @@ async function main() {
           await prismaWithoutTenant.categoryConfig.create({
             data: {
               name: c.name,
+              sector: c.sector,
               unitLock: c.unitLock,
               unitLocked: c.unitLocked,
               factoryUnitId: targetUnit.id,

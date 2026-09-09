@@ -308,7 +308,11 @@ export class StockMovementService {
 
     const where: Prisma.StockMovementWhereInput = {
       factoryUnitId,
-      ...(sector ? { sector } : {}),
+      ...(sector ? {
+        sector: (sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO')
+          ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
+          : sector
+      } : {}),
       ...(stockItemId ? { stockItemId } : {}),
       ...(operatorId ? { operatorId } : {}),
     };

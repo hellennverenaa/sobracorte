@@ -66,7 +66,7 @@ const sectorOptions = [
   { value: "CORTE", label: "Corte (Matéria-Prima)" },
   { value: "APOIO", label: "Apoio (Peças Cortadas)" },
   { value: "PRE_FABRICADO", label: "Pré-Fabricado (Solas)" },
-  { value: "EXPEDICAO", label: "Cabedais" },
+  { value: "DISTRIBUICAO", label: "Distribuição" },
   { value: "MONTAGEM", label: "Montagem" },
   { value: "CONSUMO", label: "Consumo" },
 ];
@@ -162,7 +162,8 @@ function formatSectorName(sec) {
     CORTE: 'Corte',
     APOIO: 'Apoio',
     PRE_FABRICADO: 'Pré-Fabricado',
-    EXPEDICAO: 'Cabedais',
+    DISTRIBUICAO: 'Distribuição',
+    EXPEDICAO: 'Distribuição',
     MONTAGEM: 'Montagem',
     CONSUMO: 'Consumo',
   };
@@ -345,7 +346,7 @@ onMounted(() => {
               <option value="CORTE">CORTE (MATÉRIA-PRIMA)</option>
               <option value="APOIO">APOIO (MOLDES / PEÇAS)</option>
               <option value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
-              <option value="EXPEDICAO">CABEDAIS</option>
+              <option value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
               <option value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
               <option value="CONSUMO">CONSUMO (INSUMOS)</option>
             </select>

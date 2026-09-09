@@ -80,7 +80,7 @@ const sectors = [
   { value: 'CORTE', label: 'Corte (Matéria-Prima)' },
   { value: 'APOIO', label: 'Apoio (Moldes/Peças)' },
   { value: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)' },
-  { value: 'EXPEDICAO', label: 'Cabedais' },
+  { value: 'DISTRIBUICAO', label: 'Distribuição' },
   { value: 'MONTAGEM', label: 'Montagem (Pés Órfãos)' },
   { value: 'CONSUMO', label: 'Consumo (Insumos)' },
 ]
@@ -357,7 +357,8 @@ function getSectorShort(sec) {
     CORTE: 'CORTE',
     APOIO: 'APOIO',
     PRE_FABRICADO: 'PRÉ-FAB.',
-    EXPEDICAO: 'EXPED.',
+    DISTRIBUICAO: 'DISTRIB.',
+    EXPEDICAO: 'DISTRIB.',
     MONTAGEM: 'MONTAGEM',
     CONSUMO: 'CONSUMO'
   }
@@ -399,6 +400,7 @@ function getSectorBadge(sector) {
     CORTE: 'bg-emerald-100 text-emerald-800 border-emerald-300',
     APOIO: 'bg-sky-100 text-sky-800 border-sky-300',
     PRE_FABRICADO: 'bg-amber-100 text-amber-800 border-amber-300',
+    DISTRIBUICAO: 'bg-purple-100 text-purple-800 border-purple-300',
     EXPEDICAO: 'bg-purple-100 text-purple-800 border-purple-300',
     MONTAGEM: 'bg-pink-100 text-pink-800 border-pink-300',
     CONSUMO: 'bg-indigo-100 text-indigo-800 border-indigo-300',

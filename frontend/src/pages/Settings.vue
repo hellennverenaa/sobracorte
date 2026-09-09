@@ -61,6 +61,20 @@
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase bg-white"
                   style="text-transform: uppercase" />
               </div>
+
+              <div class="w-48 min-w-[160px]">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
+                <select v-model="newCategory.sector"
+                  :disabled="authStore.user?.role === 'admin_setor'"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium uppercase">
+                  <option value="">Geral / Livre</option>
+                  <option value="CORTE">Corte</option>
+                  <option value="APOIO">Apoio</option>
+                  <option value="PRE_FABRICADO">Pré-Fabricado</option>
+                  <option value="DISTRIBUICAO">Distribuição</option>
+                  <option value="MONTAGEM">Montagem</option>
+                </select>
+              </div>
               
               <div class="w-64 min-w-[180px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
@@ -90,20 +104,43 @@
             </form>
           </div>
 
+          <!-- Filtro de Setor para Categorias -->
+          <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-3">
+            <span class="text-xs font-bold text-gray-500 uppercase">Categorias Cadastradas</span>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-bold text-gray-500 uppercase">Filtrar Setor:</label>
+              <select v-model="categoryFilterSector"
+                class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium uppercase outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                <option value="TODOS">Todos os Setores</option>
+                <option value="CORTE">Corte</option>
+                <option value="APOIO">Apoio</option>
+                <option value="PRE_FABRICADO">Pré-Fabricado</option>
+                <option value="DISTRIBUICAO">Distribuição</option>
+                <option value="MONTAGEM">Montagem</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Lista -->
           <div v-if="loadingCategory" class="p-8 text-center text-gray-400">Carregando...</div>
           <table v-else class="w-full text-left">
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome</th>
+                <th class="px-6 py-3 text-center">Setor</th>
                 <th class="px-6 py-3 text-center">Unidade Padrão</th>
                 <th class="px-6 py-3 text-center">Regra de Trava</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-              <tr v-for="cat in categories" :key="cat.id" class="hover:bg-gray-50/50 transition-colors">
+              <tr v-for="cat in filteredCategories" :key="cat.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 font-bold text-gray-800 font-mono text-sm">{{ cat.name }}</td>
+                <td class="px-6 py-3 text-center">
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200">
+                    {{ formatSectorName(cat.sector) }}
+                  </span>
+                </td>
                 <td class="px-6 py-3 text-center">
                   <span v-if="cat.defaultUnit" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
                     {{ cat.defaultUnit.name }} ({{ cat.defaultUnit.symbol }})
@@ -125,8 +162,8 @@
                   </button>
                 </td>
               </tr>
-              <tr v-if="categories.length === 0">
-                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
+              <tr v-if="filteredCategories.length === 0">
+                <td :colspan="canManageSettings ? 5 : 4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -233,7 +270,7 @@
                     <option value="CORTE">Corte</option>
                     <option value="APOIO">Apoio</option>
                     <option value="PRE_FABRICADO">Pré-Fabricado</option>
-                    <option value="EXPEDICAO">Cabedais</option>
+                    <option value="DISTRIBUICAO">Distribuição</option>
                     <option value="MONTAGEM">Montagem</option>
                     <option value="CONSUMO">Consumo</option>
                   </select>
@@ -247,11 +284,11 @@
 
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">
-                  Categorias Permitidas nesta Prateleira (Selecione uma ou mais)
+                  Categorias Permitidas nesta Prateleira (Filtradas pelo Setor da Localização)
                 </label>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="cat in categories"
+                    v-for="cat in availableCategoriesForNewLocation"
                     :key="cat.id"
                     type="button"
                     @click="toggleCategorySelection(cat.id)"
@@ -365,7 +402,7 @@
                   <option value="CORTE">Corte</option>
                   <option value="APOIO">Apoio</option>
                   <option value="PRE_FABRICADO">Pré-Fabricado</option>
-                  <option value="EXPEDICAO">Cabedais</option>
+                  <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem</option>
                   <option value="CONSUMO">Consumo</option>
                 </select>
@@ -433,7 +470,7 @@
                 <option value="CORTE">Modelo: Corte (Matéria-Prima)</option>
                 <option value="APOIO">Modelo: Apoio (Moldes/Peças)</option>
                 <option value="PRE_FABRICADO">Modelo: Pré-Fabricado (Solas)</option>
-                <option value="EXPEDICAO">Modelo: Cabedais (Expedição)</option>
+                <option value="DISTRIBUICAO">Modelo: Distribuição</option>
                 <option value="MONTAGEM">Modelo: Montagem (Pés Órfãos)</option>
                 <option value="CONSUMO">Modelo: Consumo (Insumos)</option>
               </select>
@@ -532,7 +569,7 @@
                   <option value="CORTE">Corte (Matéria-Prima)</option>
                   <option value="APOIO">Apoio (Moldes/Peças)</option>
                   <option value="PRE_FABRICADO">Pré-Fabricado (Solas)</option>
-                  <option value="EXPEDICAO">Cabedais (Expedição)</option>
+                  <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem (Pés Órfãos)</option>
                   <option value="CONSUMO">Consumo (Insumos)</option>
                 </select>
@@ -614,7 +651,7 @@
               <option value="CORTE">Corte</option>
               <option value="APOIO">Apoio</option>
               <option value="PRE_FABRICADO">Pré-Fabricado</option>
-              <option value="EXPEDICAO">Cabedais</option>
+              <option value="DISTRIBUICAO">Distribuição</option>
               <option value="MONTAGEM">Montagem</option>
               <option value="CONSUMO">Consumo</option>
             </select>
@@ -622,11 +659,11 @@
 
           <div>
             <label class="block font-bold text-gray-500 uppercase mb-1.5">
-              Categorias Permitidas nesta Prateleira (Selecione uma ou mais) *
+              Categorias Permitidas nesta Prateleira (Filtradas pelo Setor da Localização) *
             </label>
             <div class="flex flex-wrap gap-2">
               <button
-                v-for="cat in categories"
+                v-for="cat in availableCategoriesForEditLocation"
                 :key="cat.id"
                 type="button"
                 @click="toggleEditCategorySelection(cat.id)"
@@ -698,7 +735,8 @@ function formatSectorName(sec) {
     CORTE: 'Corte',
     APOIO: 'Apoio',
     PRE_FABRICADO: 'Pré-Fabricado',
-    EXPEDICAO: 'Cabedais',
+    DISTRIBUICAO: 'Distribuição',
+    EXPEDICAO: 'Distribuição',
     MONTAGEM: 'Montagem',
     CONSUMO: 'Consumo',
   }
@@ -773,7 +811,22 @@ async function handleConfirmedAction() {
 // CATEGORIAS
 const categories = ref([])
 const loadingCategory = ref(false)
-const newCategory = ref({ name: '', defaultUnitId: '', unitLocked: false })
+const categoryFilterSector = ref('TODOS')
+const newCategory = ref({
+  name: '',
+  sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+  defaultUnitId: '',
+  unitLocked: false
+})
+
+const filteredCategories = computed(() => {
+  if (categoryFilterSector.value === 'TODOS') return categories.value
+  const target = categoryFilterSector.value === 'EXPEDICAO' ? 'DISTRIBUICAO' : categoryFilterSector.value
+  return categories.value.filter(cat => {
+    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
+    return catSec === target
+  })
+})
 
 async function fetchCategories() {
   loadingCategory.value = true
@@ -792,11 +845,17 @@ async function addCategory() {
   try {
     const res = await api.post('/settings/categories', {
       name: newCategory.value.name.trim(),
+      sector: newCategory.value.sector || null,
       defaultUnitId: newCategory.value.defaultUnitId ? Number(newCategory.value.defaultUnitId) : null,
       unitLocked: Boolean(newCategory.value.unitLocked)
     })
     showNotification('success', `Categoria "${newCategory.value.name}" criada com sucesso!`)
-    newCategory.value = { name: '', defaultUnitId: '', unitLocked: false }
+    newCategory.value = {
+      name: '',
+      sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+      defaultUnitId: '',
+      unitLocked: false
+    }
     if (res.data) categories.value.unshift(res.data)
     await fetchCategories()
   } catch (e) {
@@ -894,7 +953,7 @@ const locations = ref([])
 const loadingLocation = ref(false)
 const newLocation = ref({
   name: '',
-  sector: authStore.user?.assignedSector || '',
+  sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
   categoryIds: []
 })
 const showEditLocationModal = ref(false)
@@ -903,6 +962,60 @@ const editingLocation = ref({
   name: '',
   sector: '',
   categoryIds: []
+})
+
+const availableCategoriesForNewLocation = computed(() => {
+  const targetSector = newLocation.value.sector
+  if (!targetSector) return categories.value
+  const normTarget = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector
+  return categories.value.filter(cat => {
+    if (!cat.sector) return true
+    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
+    return catSec === normTarget
+  })
+})
+
+const availableCategoriesForEditLocation = computed(() => {
+  const targetSector = editingLocation.value.sector
+  if (!targetSector) return categories.value
+  const normTarget = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector
+  return categories.value.filter(cat => {
+    if (!cat.sector) return true
+    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
+    return catSec === normTarget
+  })
+})
+
+watch(() => newLocation.value.sector, (newSec) => {
+  if (newSec) {
+    const normTarget = newSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : newSec
+    const validIds = new Set(
+      categories.value
+        .filter(cat => {
+          if (!cat.sector) return true
+          const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
+          return catSec === normTarget
+        })
+        .map(c => c.id)
+    )
+    newLocation.value.categoryIds = newLocation.value.categoryIds.filter(id => validIds.has(id))
+  }
+})
+
+watch(() => editingLocation.value.sector, (newSec) => {
+  if (newSec) {
+    const normTarget = newSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : newSec
+    const validIds = new Set(
+      categories.value
+        .filter(cat => {
+          if (!cat.sector) return true
+          const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
+          return catSec === normTarget
+        })
+        .map(c => c.id)
+    )
+    editingLocation.value.categoryIds = editingLocation.value.categoryIds.filter(id => validIds.has(id))
+  }
 })
 
 function toggleCategorySelection(catId) {
@@ -1130,9 +1243,9 @@ const sectorCsvPattern = computed(() => {
     }
   }
 
-  if (sec === 'PRE_FABRICADO' || sec === 'EXPEDICAO' || sec === 'MONTAGEM') {
-    const secLabel = sec === 'PRE_FABRICADO' ? 'PRÉ-FABRICADO (Solas)' : sec === 'EXPEDICAO' ? 'CABEDAIS (Expedição)' : 'MONTAGEM (Pés Órfãos)'
-    const pecaEx = sec === 'PRE_FABRICADO' ? 'SOLA PEGASUS' : sec === 'EXPEDICAO' ? 'CABEDAL AIR MAX' : 'PE MONTADO CORTEZ'
+  if (sec === 'PRE_FABRICADO' || sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO' || sec === 'MONTAGEM') {
+    const secLabel = sec === 'PRE_FABRICADO' ? 'PRÉ-FABRICADO (Solas)' : (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'DISTRIBUIÇÃO' : 'MONTAGEM (Pés Órfãos)'
+    const pecaEx = sec === 'PRE_FABRICADO' ? 'SOLA PEGASUS' : (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'CABEDAL AIR MAX' : 'PE MONTADO CORTEZ'
     return {
       title: `Padrão Exigido para o Arquivo CSV — ${secLabel}`,
       columns: [

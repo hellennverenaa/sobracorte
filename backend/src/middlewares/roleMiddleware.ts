@@ -128,8 +128,11 @@ export const requireSectorMatch = (getSector: (req: Request) => string | undefin
     const userAssignedSector = req.user?.assignedSector;
 
     if (userAssignedSector && targetSector) {
-      const normalizedTarget = targetSector.toUpperCase().trim();
-      const normalizedUser = userAssignedSector.toUpperCase().trim();
+      let normalizedTarget = targetSector.toUpperCase().trim();
+      let normalizedUser = userAssignedSector.toUpperCase().trim();
+      if (normalizedTarget === 'CABEDAIS' || normalizedTarget === 'EXPEDICAO') normalizedTarget = 'DISTRIBUICAO';
+      if (normalizedUser === 'CABEDAIS' || normalizedUser === 'EXPEDICAO') normalizedUser = 'DISTRIBUICAO';
+
       if (normalizedTarget !== normalizedUser) {
         return res.status(403).json({
           error: `Acesso negado: Seu perfil tem permissão de operação apenas no setor ${userAssignedSector}.`,

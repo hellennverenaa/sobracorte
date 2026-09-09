@@ -18,7 +18,7 @@ const sectorFilterOptions = [
   { id: 'CORTE',          label: 'Corte (Matéria-Prima)',   icon: Scissors },
   { id: 'APOIO',          label: 'Apoio (Moldes/Peças)',    icon: Box },
   { id: 'PRE_FABRICADO',  label: 'Pré-Fabricado (Solas)',   icon: Package },
-  { id: 'EXPEDICAO',      label: 'Cabedais',                icon: Layers },
+  { id: 'DISTRIBUICAO',   label: 'Distribuição',            icon: Layers },
   { id: 'MONTAGEM',       label: 'Montagem (Pés Órfãos)',   icon: Footprints },
 ]
 
@@ -182,13 +182,13 @@ const currentFilteredVolume = computed(() => {
       itemsCount: setoresData.value.preFabricado?.itemsCount || 0
     }
   }
-  if (selectedSector.value === 'EXPEDICAO') {
+  if (selectedSector.value === 'DISTRIBUICAO' || selectedSector.value === 'EXPEDICAO') {
     return {
       isAllSectors: false,
-      label: 'Estoque de Cabedais (Expedição)',
-      mainCount: Number(setoresData.value.expedicao?.totalQuantity || 0),
+      label: 'Estoque de Distribuição (Cabedais)',
+      mainCount: Number(setoresData.value.distribuicao?.totalQuantity || setoresData.value.expedicao?.totalQuantity || 0),
       mainUnit: 'cabedais',
-      itemsCount: setoresData.value.expedicao?.itemsCount || 0
+      itemsCount: setoresData.value.distribuicao?.itemsCount || setoresData.value.expedicao?.itemsCount || 0
     }
   }
   if (selectedSector.value === 'MONTAGEM') {

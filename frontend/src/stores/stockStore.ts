@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/httpClient';
 
-export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
+export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
 
 export interface MatchingPair {
   sku: string;
@@ -35,6 +35,7 @@ export interface StockState {
     totalApoio: number;
     totalPreFabricado: number;
     totalExpedicao: number;
+    totalDistribuicao?: number;
     totalMontagem: number;
   };
   sectors: {
@@ -42,6 +43,7 @@ export interface StockState {
     apoio: { total: number; data: any[] };
     preFabricado: { total: number; data: any[] };
     expedicao: { total: number; data: any[] };
+    distribuicao?: { total: number; data: any[] };
     montagem: { total: number; data: any[] };
   };
   filterLocations: Array<{ id: number; name: string }>;
@@ -108,8 +110,9 @@ export const useStockStore = defineStore('stock', {
           return state.sectors.apoio;
         case 'PRE_FABRICADO':
           return state.sectors.preFabricado;
+        case 'DISTRIBUICAO':
         case 'EXPEDICAO':
-          return state.sectors.expedicao;
+          return state.sectors.distribuicao || state.sectors.expedicao || { total: 0, data: [] };
         case 'MONTAGEM':
           return state.sectors.montagem;
         default:

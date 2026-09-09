@@ -26,6 +26,11 @@ export class MountingPairService {
     sector: SectorType = 'MONTAGEM',
     searchQuery: string = ''
   ): Promise<MatchingPairRawResult[]> {
+    let normalizedSector = sector;
+    if ((normalizedSector as string) === 'EXPEDICAO' || (normalizedSector as string) === 'CABEDAIS') {
+      normalizedSector = 'DISTRIBUICAO';
+    }
+
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 
         COALESCE(e."sku", e."pieceCode", e."productName", '-') AS "sku",
@@ -58,8 +63,8 @@ export class MountingPairService {
         AND e."sizeGrade" = d."sizeGrade"
         AND COALESCE(e."color", '') = COALESCE(d."color", '')
       WHERE e."factoryUnitId" = ${factoryUnitId}
-        AND e.sector = ${sector}::sobra_corte."SectorType"
-        AND d.sector = ${sector}::sobra_corte."SectorType"
+        AND (e.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND e.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
+        AND (d.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND d.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
         AND e."footSide" = 'E'
         AND d."footSide" = 'D'
         AND e.quantity > 0
@@ -180,8 +185,8 @@ export class MountingPairService {
       const sectorLabel =
         leftItem.sector === 'PRE_FABRICADO'
           ? 'Pré-Fabricado (Solas)'
-          : leftItem.sector === 'EXPEDICAO'
-          ? 'Cabedais'
+          : (leftItem.sector === 'DISTRIBUICAO' || (leftItem.sector as string) === 'EXPEDICAO')
+          ? 'Distribuição'
           : 'Montagem';
 
       // 4. Auditoria atômica: Registrar saída do Pé Esquerdo

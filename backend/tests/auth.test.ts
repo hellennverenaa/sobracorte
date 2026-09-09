@@ -20,10 +20,10 @@ test('verifyAccessToken rejeita token expirado', () => {
   assert.throws(() => verifyAccessToken(token, secret), { name: 'TokenExpiredError' });
 });
 
-test('deriveInitialRole deriva o papel pelo cargo sem administradores hardcoded', () => {
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Líder de produção' }), 'lider');
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Auxiliar' }), 'movimentador');
-  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Operador' }), 'leitor');
+test('deriveInitialRole atribui papel leitor por padrão, desacoplado de cargos de RH', () => {
+  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Líder de produção' }), 'leitor');
+  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Encarregado' }), 'leitor');
+  assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Auxiliar' }), 'leitor');
   assert.equal(deriveInitialRole({ usuario: 'HELLEN.MAGALHAES', funcao: 'Operador' }), 'leitor');
 });
 

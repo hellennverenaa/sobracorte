@@ -50,6 +50,18 @@ export class StockItemController {
       const { q, search, sector, page, limit } = req.query;
       const searchQuery = q || search;
 
+      let targetSector = sector ? (String(sector).toUpperCase() as SectorType) : undefined;
+      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
+        targetSector = 'DISTRIBUICAO' as SectorType;
+      }
+
+      // Se o usuário tiver assignedSector e não for admin master, força o setor vinculado
+      if (req.user?.role !== 'admin' && !req.isGlobalAdmin && req.user?.assignedSector) {
+        let userSec = String(req.user.assignedSector).toUpperCase().trim();
+        if (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') userSec = 'DISTRIBUICAO';
+        targetSector = userSec as SectorType;
+      }
+
       const operatorContext = {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
@@ -58,7 +70,7 @@ export class StockItemController {
 
       const params = {
         q: searchQuery ? String(searchQuery) : undefined,
-        sector: sector ? (String(sector).toUpperCase() as SectorType) : undefined,
+        sector: targetSector,
         page: page ? Number(page) : 1,
         limit: limit ? Number(limit) : 50,
       };
@@ -81,7 +93,18 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
-      const targetSector = (sector ? String(sector).toUpperCase() : 'MONTAGEM') as SectorType;
+      let targetSector = (sector ? String(sector).toUpperCase() : 'MONTAGEM') as SectorType;
+      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
+        targetSector = 'DISTRIBUICAO' as SectorType;
+      }
+
+      // Se o usuário tiver assignedSector e não for admin master, força o setor vinculado
+      if (req.user?.role !== 'admin' && !req.isGlobalAdmin && req.user?.assignedSector) {
+        let userSec = String(req.user.assignedSector).toUpperCase().trim();
+        if (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') userSec = 'DISTRIBUICAO';
+        targetSector = userSec as SectorType;
+      }
+
       const query = q ? String(q) : '';
 
       const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id);

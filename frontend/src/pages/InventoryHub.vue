@@ -18,11 +18,25 @@ const router = useRouter();
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
-const validSectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM'];
+const validSectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'];
+
+const userSector = computed(() => {
+  const s = authStore.user?.assignedSector;
+  if (!s || s === 'TODOS') return null;
+  return (s === 'EXPEDICAO' || s === 'CABEDAIS' ? 'DISTRIBUICAO' : s) as SectorType;
+});
+
+const isSectorLocked = computed(() => {
+  return authStore.userRole !== 'admin' && !authStore.isAdmin && !!userSector.value;
+});
 
 function getSectorFromRoute(): SectorType {
-  const sec = (route.query.sector as string)?.toUpperCase();
-  if (validSectors.includes(sec as SectorType)) {
+  if (isSectorLocked.value && userSector.value) {
+    return userSector.value;
+  }
+  const rawSec = (route.query.sector as string)?.toUpperCase();
+  const sec = rawSec === 'EXPEDICAO' || rawSec === 'CABEDAIS' ? 'DISTRIBUICAO' : rawSec;
+  if (sec && validSectors.includes(sec as SectorType)) {
     return sec as SectorType;
   }
   return 'CORTE';
@@ -66,15 +80,25 @@ const movementLoading = ref(false);
 // Modal de Detalhes
 const viewingItem = ref<any>(null);
 
-const tabs = [
+const allTabs = [
   { id: 'CORTE' as SectorType, label: 'Corte', countKey: 'totalCorte', icon: Scissors },
   { id: 'APOIO' as SectorType, label: 'Apoio', countKey: 'totalApoio', icon: Wrench },
   { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', countKey: 'totalPreFabricado', icon: Layers },
-  { id: 'EXPEDICAO' as SectorType, label: 'Cabedais', countKey: 'totalExpedicao', icon: Box },
+  { id: 'DISTRIBUICAO' as SectorType, label: 'Distribuição', countKey: 'totalExpedicao', icon: Box },
   { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', countKey: 'totalMontagem', icon: Footprints },
 ];
 
+const visibleTabs = computed(() => {
+  if (isSectorLocked.value && userSector.value) {
+    return allTabs.filter(t => t.id === userSector.value);
+  }
+  return allTabs;
+});
+
 async function selectTab(tab: SectorType) {
+  if (isSectorLocked.value && userSector.value && tab !== userSector.value) {
+    return;
+  }
   activeTab.value = tab;
   currentPage.value = 1;
   stockStore.setActiveSector(tab);
@@ -193,8 +217,12 @@ const canOperateCurrentSector = computed(() => {
   if (!authStore.user) return false;
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
-  if (!authStore.user.assignedSector) return true;
-  return authStore.user.assignedSector.toUpperCase().trim() === activeTab.value.toUpperCase().trim();
+  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return true;
+  const userSec = authStore.user.assignedSector.toUpperCase().trim();
+  const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
+  const tabSec = activeTab.value.toUpperCase().trim();
+  const normTabSec = (tabSec === 'EXPEDICAO' || tabSec === 'CABEDAIS') ? 'DISTRIBUICAO' : tabSec;
+  return normUserSec === normTabSec;
 });
 
 function openMovementModal(item: any) {
@@ -307,8 +335,17 @@ function formatNumber(num: number) {
 watch(
   () => route.query.sector,
   (newSec) => {
+    if (isSectorLocked.value && userSector.value) {
+      if (newSec !== userSector.value) {
+        router.replace({
+          query: { ...route.query, sector: userSector.value }
+        });
+      }
+      return;
+    }
     if (newSec) {
-      const secUpper = (newSec as string).toUpperCase() as SectorType;
+      const rawUpper = (newSec as string).toUpperCase();
+      const secUpper = (rawUpper === 'EXPEDICAO' || rawUpper === 'CABEDAIS' ? 'DISTRIBUICAO' : rawUpper) as SectorType;
       if (validSectors.includes(secUpper) && secUpper !== activeTab.value) {
         activeTab.value = secUpper;
         stockStore.setActiveSector(secUpper);
@@ -322,6 +359,11 @@ onMounted(() => {
   const initialSector = getSectorFromRoute();
   activeTab.value = initialSector;
   stockStore.setActiveSector(initialSector);
+  if (isSectorLocked.value && route.query.sector !== initialSector) {
+    router.replace({
+      query: { ...route.query, sector: initialSector }
+    });
+  }
   loadData(currentPage.value);
 });
 </script>
@@ -379,10 +421,11 @@ onMounted(() => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor Ativo</label>
           <select
             v-model="activeTab"
+            :disabled="isSectorLocked"
             @change="selectTab(activeTab)"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
           >
-            <option v-for="t in tabs" :key="t.id" :value="t.id">
+            <option v-for="t in visibleTabs" :key="t.id" :value="t.id">
               {{ t.label }} ({{ (stockStore.metrics as any)[t.countKey] || 0 }})
             </option>
           </select>
@@ -436,7 +479,7 @@ onMounted(() => {
       <!-- Abas Setoriais Integradas no Topo da Tabela -->
       <div class="mx-4 flex border-b border-gray-200 space-x-2 overflow-x-auto bg-white px-3 pt-2 rounded-t border-t border-l border-r">
         <button
-          v-for="t in tabs"
+          v-for="t in visibleTabs"
           :key="t.id"
           @click="selectTab(t.id)"
           class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap"

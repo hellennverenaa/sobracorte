@@ -115,8 +115,8 @@ export class DashboardController {
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'APOIO' }, _sum: { quantity: true } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO' } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'PRE_FABRICADO' }, _sum: { quantity: true } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'EXPEDICAO' } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'EXPEDICAO' }, _sum: { quantity: true } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } }, _sum: { quantity: true } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } }, _sum: { quantity: true } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'E', quantity: { gt: 0 } }, _sum: { quantity: true } }),
@@ -125,17 +125,17 @@ export class DashboardController {
         // Entradas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'EXPEDICAO', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: 'ENTRADA' } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'ENTRADA' }, _sum: { quantity: true } }),
         // Saídas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'EXPEDICAO', type: { in: ['SAIDA', 'REFUGO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR'] } }, _sum: { quantity: true } }),
         // Parados >30d por setor
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'EXPEDICAO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         // Agrupamento de maiores entradas acumuladas
         prisma.movement.groupBy({

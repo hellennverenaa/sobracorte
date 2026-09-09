@@ -16,8 +16,9 @@ export class MountingPairController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const sectorParam = (req.query.sector as string)?.toUpperCase();
-      const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'EXPEDICAO'];
+      let sectorParam = (req.query.sector as string)?.toUpperCase();
+      if (sectorParam === 'EXPEDICAO' || sectorParam === 'CABEDAIS') sectorParam = 'DISTRIBUICAO';
+      const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'];
       const sector: SectorType = validSectors.includes(sectorParam as SectorType)
         ? (sectorParam as SectorType)
         : 'MONTAGEM';

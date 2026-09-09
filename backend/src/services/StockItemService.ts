@@ -150,6 +150,7 @@ export class StockItemService {
               };
               break;
 
+            case 'DISTRIBUICAO':
             case 'EXPEDICAO':
               sectorSpecificData = {
                 componentType: 'CABEDAL' as ComponentType,
@@ -252,7 +253,12 @@ export class StockItemService {
     };
 
     const buildSectorWhere = (sec: SectorType) => {
-      const base: any = { factoryUnitId, sector: sec };
+      const base: any = { factoryUnitId };
+      if (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') {
+        base.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+      } else {
+        base.sector = sec;
+      }
       if (searchTerms.length === 0) return base;
 
       switch (sec) {
@@ -277,6 +283,7 @@ export class StockItemService {
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
           };
+        case 'DISTRIBUICAO':
         case 'EXPEDICAO':
           return {
             ...base,
@@ -301,7 +308,10 @@ export class StockItemService {
       }
     };
 
-    const targetSector = sector || 'CORTE';
+    let targetSector = sector || 'CORTE';
+    if (targetSector === 'EXPEDICAO' || targetSector === ('CABEDAIS' as any)) {
+      targetSector = 'DISTRIBUICAO';
+    }
 
     // Execução paralela de buscas e contagens por setor (Zero N+1 Queries)
     const [
@@ -351,10 +361,10 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      prisma.stockItem.count({ where: buildSectorWhere('EXPEDICAO') }),
-      targetSector === 'EXPEDICAO'
+      prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }),
+      (targetSector === 'DISTRIBUICAO' || targetSector === 'EXPEDICAO')
         ? prisma.stockItem.findMany({
-            where: buildSectorWhere('EXPEDICAO'),
+            where: buildSectorWhere('DISTRIBUICAO'),
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -431,6 +441,8 @@ export class StockItemService {
         };
       });
 
+    const isDistribuicao = targetSector === 'DISTRIBUICAO' || targetSector === 'EXPEDICAO';
+
     const activeSectorCount =
       targetSector === 'CORTE'
         ? corteCount
@@ -438,7 +450,7 @@ export class StockItemService {
         ? apoioCount
         : targetSector === 'PRE_FABRICADO'
         ? preFabCount
-        : targetSector === 'EXPEDICAO'
+        : isDistribuicao
         ? expedicaoCount
         : montagemCount;
 
@@ -450,7 +462,7 @@ export class StockItemService {
               ? apoioItems
               : targetSector === 'PRE_FABRICADO'
               ? preFabItems
-              : targetSector === 'EXPEDICAO'
+              : isDistribuicao
               ? expedicaoItems
               : montagemItems
           );
@@ -469,6 +481,7 @@ export class StockItemService {
         totalCorte: corteCount,
         totalApoio: apoioCount,
         totalPreFabricado: preFabCount,
+        totalDistribuicao: expedicaoCount,
         totalExpedicao: expedicaoCount,
         totalMontagem: montagemCount,
       },
@@ -476,7 +489,8 @@ export class StockItemService {
         corte: { total: corteCount, data: targetSector === 'CORTE' ? formattedActiveItems : [] },
         apoio: { total: apoioCount, data: targetSector === 'APOIO' ? formattedActiveItems : [] },
         preFabricado: { total: preFabCount, data: targetSector === 'PRE_FABRICADO' ? formattedActiveItems : [] },
-        expedicao: { total: expedicaoCount, data: targetSector === 'EXPEDICAO' ? formattedActiveItems : [] },
+        distribuicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
+        expedicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
       },
       filterOptions: {

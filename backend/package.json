@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "NODE_ENV=test tsx --test tests/**/*.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"
   },
   "keywords": [],

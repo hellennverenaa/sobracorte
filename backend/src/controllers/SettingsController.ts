@@ -39,9 +39,25 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
+      const rawSector = req.query.sector as string | undefined;
+      let targetSector = rawSector ? rawSector.toUpperCase().trim() : undefined;
+      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
+      }
+
+      const whereClause: any = { factoryUnitId: req.tenant!.id };
+      if (targetSector) {
+        whereClause.OR = [
+          { sector: targetSector as any },
+          { sector: null }
+        ];
+      }
+
       const categories = await prisma.categoryConfig.findMany({
-        where: { factoryUnitId: req.tenant!.id },
-        orderBy: { id: 'desc' },
+        where: whereClause,
+        orderBy: [{ sector: 'asc' }, { name: 'asc' }],
         include: { defaultUnit: true }
       });
       res.json(categories);
@@ -58,10 +74,17 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, unitLock, defaultUnitId, unitLocked, sector } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
+
+      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || 'CORTE');
+      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
+      }
+
       if (defaultUnitId) {
         const unit = await prisma.unitConfig.findFirst({
           where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
@@ -71,6 +94,7 @@ export class SettingsController {
       const category = await prisma.categoryConfig.create({
         data: {
           name: String(name).trim().toUpperCase(),
+          sector: targetSector as any,
           unitLock: unitLock || 'livre',
           defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
           unitLocked: Boolean(unitLocked),
@@ -96,7 +120,13 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, unitLock, defaultUnitId, unitLocked, sector } = req.body;
+
+      let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
+      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+        targetSector = req.user.assignedSector;
+      }
 
       const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
@@ -112,6 +142,7 @@ export class SettingsController {
           where: { id },
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
+            sector: targetSector !== undefined ? (targetSector as any) : undefined,
             unitLock: unitLock !== undefined ? unitLock : undefined,
             defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
             unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
@@ -360,7 +391,7 @@ export class SettingsController {
 
       const sectorFilter = req.query.sector as string | undefined;
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
-      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
@@ -405,7 +436,7 @@ export class SettingsController {
       }
 
       let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
-      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
         targetSector = req.user.assignedSector;
       }
@@ -418,21 +449,35 @@ export class SettingsController {
         idsToLink = [Number(categoryId)];
       }
 
-      if (idsToLink.length === 0) {
-        return res.status(400).json({ error: 'Ao menos uma categoria vinculada é obrigatória.' });
+      let finalCategoryIds: number[] = [];
+      let primaryCategoryId: number | null = null;
+
+      if (idsToLink.length > 0) {
+        const categoryWhere: any = {
+          id: { in: idsToLink },
+          factoryUnitId: req.tenant!.id,
+        };
+        if (targetSector) {
+          categoryWhere.OR = [
+            { sector: targetSector as any },
+            { sector: null }
+          ];
+        }
+
+        const validCategories = await prisma.categoryConfig.findMany({
+          where: categoryWhere,
+          select: { id: true, name: true, sector: true }
+        });
+
+        if (validCategories.length === 0) {
+          return res.status(400).json({
+            error: `Nenhuma categoria válida encontrada para o setor ${targetSector || 'especificado'}.`
+          });
+        }
+
+        finalCategoryIds = validCategories.map(c => c.id);
+        primaryCategoryId = finalCategoryIds[0];
       }
-
-      const validCategories = await prisma.categoryConfig.findMany({
-        where: { id: { in: idsToLink }, factoryUnitId: req.tenant!.id },
-        select: { id: true }
-      });
-
-      if (validCategories.length === 0) {
-        return res.status(404).json({ error: 'Nenhuma categoria válida encontrada.' });
-      }
-
-      const finalCategoryIds = validCategories.map(c => c.id);
-      const primaryCategoryId = finalCategoryIds[0];
 
       const location = await prisma.location.create({
         data: {
@@ -440,11 +485,11 @@ export class SettingsController {
           sector: targetSector as any,
           categoryId: primaryCategoryId,
           factoryUnitId: req.tenant!.id,
-          categoryLinks: {
+          categoryLinks: finalCategoryIds.length > 0 ? {
             create: finalCategoryIds.map(cId => ({
               categoryId: cId
             }))
-          }
+          } : undefined
         },
         include: {
           category: true,
@@ -481,18 +526,33 @@ export class SettingsController {
       }
 
       let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
-      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
         targetSector = req.user.assignedSector;
       }
 
       let finalCategoryIds: number[] | undefined;
-      if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-        const validCategories = await prisma.categoryConfig.findMany({
-          where: { id: { in: categoryIds.map(Number) }, factoryUnitId: req.tenant!.id },
-          select: { id: true }
-        });
-        finalCategoryIds = validCategories.map(c => c.id);
+      if (Array.isArray(categoryIds)) {
+        if (categoryIds.length > 0) {
+          const effectiveSector = targetSector !== undefined ? targetSector : existing.sector;
+          const categoryWhere: any = {
+            id: { in: categoryIds.map(Number).filter(n => !isNaN(n) && n > 0) },
+            factoryUnitId: req.tenant!.id,
+          };
+          if (effectiveSector) {
+            categoryWhere.OR = [
+              { sector: effectiveSector as any },
+              { sector: null }
+            ];
+          }
+          const validCategories = await prisma.categoryConfig.findMany({
+            where: categoryWhere,
+            select: { id: true }
+          });
+          finalCategoryIds = validCategories.map(c => c.id);
+        } else {
+          finalCategoryIds = [];
+        }
       }
 
       const updated = await prisma.$transaction(async (tx) => {
@@ -621,7 +681,7 @@ export class SettingsController {
 
       const sectorFilter = req.query.sector as string | undefined;
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
-      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
@@ -660,7 +720,7 @@ export class SettingsController {
       }
 
       let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
-      if (targetSector === 'CABEDAIS') targetSector = 'EXPEDICAO';
+      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
         targetSector = req.user.assignedSector;
       }
