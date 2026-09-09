@@ -80,6 +80,8 @@ export class RequisitionController {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
+        role: req.user?.role || null,
+        assignedSector: req.user?.assignedSector || null,
       };
 
       const result = await requisitionService.listRequisitions(parsed, operatorContext);
@@ -137,13 +139,16 @@ export class RequisitionController {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
+        role: req.user?.role || null,
+        assignedSector: req.user?.assignedSector || null,
       };
 
       const result = await requisitionService.fulfillRequisition(id, parsed, operatorContext);
       return res.json({ success: true, requisition: result });
     } catch (error: any) {
       console.error('Erro ao atender requisição:', error);
-      return res.status(400).json({ error: error.message || 'Erro ao processar baixa da requisição.' });
+      const status = error.status || (error.message?.includes('Acesso negado') ? 403 : 400);
+      return res.status(status).json({ error: error.message || 'Erro ao processar baixa da requisição.' });
     }
   }
 
@@ -157,9 +162,11 @@ export class RequisitionController {
       }
 
       const { sector } = req.query;
-      const targetSector = sector ? (String(sector).toUpperCase() as any) : undefined;
+      const userSec = (req.user?.assignedSector && req.user?.role !== 'admin' && req.user?.assignedSector !== 'TODOS')
+        ? req.user.assignedSector
+        : sector ? (String(sector).toUpperCase() as any) : undefined;
 
-      const result = await requisitionService.getPendingCount(req.tenant.id, targetSector);
+      const result = await requisitionService.getPendingCount(req.tenant.id, userSec);
       return res.json(result);
     } catch (error) {
       console.error('Erro ao buscar contagem de pendências:', error);

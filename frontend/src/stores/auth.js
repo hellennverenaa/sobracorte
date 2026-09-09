@@ -200,6 +200,10 @@ export const useAuthStore = defineStore('auth', {
         return role === 'admin_setor';
       }
 
+      if (action === 'aprovar_requisicao') {
+        return role === 'admin_setor';
+      }
+
       return false;
     }
   }

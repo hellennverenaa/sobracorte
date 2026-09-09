@@ -330,13 +330,22 @@ export class RequisitionService {
     const { status, requestSector, search, page = 1, limit = 20 } = filter;
     const skip = (page - 1) * limit;
 
+    // Se o usuário não for admin master e tiver setor atribuído (e não for 'TODOS'), restringir ao seu setor
+    let effectiveSector = requestSector;
+    if (context.role !== 'admin' && context.assignedSector && context.assignedSector !== 'TODOS') {
+      const normalizedUserSector = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
+        ? 'DISTRIBUICAO'
+        : context.assignedSector;
+      effectiveSector = normalizedUserSector as SectorType;
+    }
+
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
       ...(status ? { status } : {}),
-      ...(requestSector ? {
-        requestSector: (requestSector === 'DISTRIBUICAO' || (requestSector as string) === 'EXPEDICAO')
+      ...(effectiveSector ? {
+        requestSector: (effectiveSector === 'DISTRIBUICAO' || (effectiveSector as string) === 'EXPEDICAO')
           ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
-          : (requestSector as SectorType)
+          : (effectiveSector as SectorType)
       } : {}),
       ...(search ? {
         OR: [
@@ -399,6 +408,28 @@ export class RequisitionService {
 
       if (req.status !== 'PENDENTE' && req.status !== 'ATENDIDA_PARCIAL') {
         throw new Error('Apenas requisições pendentes ou atendidas parcialmente podem receber baixa.');
+      }
+
+      // Governança de Perfis: Somente admin master ou admin_setor do respectivo setor podem aprovar/atender
+      if (context.role !== 'admin') {
+        if (context.role !== 'admin_setor') {
+          const err: any = new Error('Acesso negado: Apenas administradores podem aprovar ou dar baixa em requisições.');
+          err.status = 403;
+          throw err;
+        }
+
+        const userSec = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
+          ? 'DISTRIBUICAO'
+          : context.assignedSector;
+        const reqSec = (req.requestSector === 'CABEDAIS' || req.requestSector === 'EXPEDICAO')
+          ? 'DISTRIBUICAO'
+          : req.requestSector;
+
+        if (!userSec || userSec !== reqSec) {
+          const err: any = new Error(`Acesso negado: Apenas o Admin de Setor de ${req.requestSector} pode aprovar esta requisição.`);
+          err.status = 403;
+          throw err;
+        }
       }
 
       const pendingQty = req.quantityRequested - req.quantityFulfilled;

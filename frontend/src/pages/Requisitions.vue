@@ -27,6 +27,7 @@ interface RequisitionItem {
   quantityFulfilled: number;
   reason: string;
   status: 'PENDENTE' | 'ATENDIDA_TOTAL' | 'ATENDIDA_PARCIAL' | 'CANCELADA';
+  requesterId?: string;
   requesterName?: string;
   createdAt: string;
   stockAvailable: number;
@@ -62,13 +63,27 @@ const requisitions = ref<RequisitionItem[]>([]);
 const totalCount = ref(0);
 const currentPage = ref(1);
 const totalPages = ref(1);
-const loading = ref(false);
+const isMasterAdmin = computed(() => {
+  return authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin);
+});
+
+const userAssignedSector = computed(() => {
+  const sec = authStore.user?.assignedSector;
+  if (!sec || sec === 'TODOS') return null;
+  return (sec === 'EXPEDICAO' || sec === 'CABEDAIS') ? 'DISTRIBUICAO' : sec;
+});
 
 const filterStatus = ref(route.query.status ? String(route.query.status) : '');
-const filterSector = ref('');
+const filterSector = ref(!isMasterAdmin.value && userAssignedSector.value ? userAssignedSector.value : '');
 const search = ref('');
 const appliedSearch = ref('');
 const onlyPendingWithStock = ref(false);
+
+watch(userAssignedSector, (newSec) => {
+  if (!isMasterAdmin.value && newSec) {
+    filterSector.value = newSec;
+  }
+}, { immediate: true });
 
 // Modal de Nova Requisição Multi-Itens
 const showCreateModal = ref(false);
@@ -396,6 +411,33 @@ async function submitRequisition() {
   }
 }
 
+// Permissões RBAC e Governança de Aprovação por Setor
+function canFulfill(item: RequisitionItem) {
+  if (item.status !== 'PENDENTE' && item.status !== 'ATENDIDA_PARCIAL') return false;
+  if (!item.stockAvailable || item.stockAvailable <= 0) return false;
+  if (isMasterAdmin.value) return true;
+  if (authStore.user?.role === 'admin_setor') {
+    const userSec = userAssignedSector.value;
+    const reqSec = (item.requestSector === 'EXPEDICAO' || item.requestSector === 'CABEDAIS') ? 'DISTRIBUICAO' : item.requestSector;
+    return Boolean(userSec && userSec === reqSec);
+  }
+  return false;
+}
+
+function canCancel(item: RequisitionItem) {
+  if (item.status !== 'PENDENTE') return false;
+  if (isMasterAdmin.value) return true;
+  if (authStore.user?.role === 'admin_setor') {
+    const userSec = userAssignedSector.value;
+    const reqSec = (item.requestSector === 'EXPEDICAO' || item.requestSector === 'CABEDAIS') ? 'DISTRIBUICAO' : item.requestSector;
+    return Boolean(userSec && userSec === reqSec);
+  }
+  if (authStore.user?.matricula && item.requesterId && String(authStore.user.matricula) === String(item.requesterId)) {
+    return true;
+  }
+  return false;
+}
+
 // Atendimento Rápido em 1 Clique
 function openFulfill(item: RequisitionItem) {
   fulfillingItem.value = item;
@@ -623,13 +665,19 @@ onMounted(() => {
         </div>
 
         <div class="w-full md:w-1/4">
-          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Setor Solicitante</label>
+          <label class="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center justify-between">
+            <span>Setor Solicitante</span>
+            <span v-if="!isMasterAdmin && userAssignedSector" class="text-[10px] text-indigo-600 font-semibold lowercase">
+              (fixo ao seu setor)
+            </span>
+          </label>
           <select
             v-model="filterSector"
             @change="loadRequisitions(1)"
-            class="w-full border border-slate-200 p-2 rounded-xl outline-none focus:border-indigo-500 bg-white text-xs font-medium"
+            :disabled="!isMasterAdmin && Boolean(userAssignedSector)"
+            class="w-full border border-slate-200 p-2 rounded-xl outline-none focus:border-indigo-500 bg-white text-xs font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
           >
-            <option value="">Todos os Setores</option>
+            <option v-if="isMasterAdmin || !userAssignedSector" value="">Todos os Setores</option>
             <option value="CORTE">Corte</option>
             <option value="APOIO">Apoio</option>
             <option value="PRE_FABRICADO">Pré-Fabricado</option>
@@ -815,10 +863,10 @@ onMounted(() => {
                 <td class="px-4 py-3 text-center">
                   <div class="flex items-center justify-center gap-1.5">
                     <button
-                      v-if="(item.status === 'PENDENTE' || item.status === 'ATENDIDA_PARCIAL') && item.stockAvailable > 0 && authStore.can('cadastrar_materiais')"
+                      v-if="canFulfill(item)"
                       @click="openFulfill(item)"
                       class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[10.5px] flex items-center gap-1 shadow-xs transition-colors"
-                      title="Atender Requisição"
+                      title="Atender Requisição (Aprovar e Baixar Estoque)"
                     >
                       <CheckCheck class="w-3.5 h-3.5" />
                       <span>Atender</span>
@@ -833,7 +881,7 @@ onMounted(() => {
                     </button>
 
                     <button
-                      v-if="item.status === 'PENDENTE' && authStore.can('cadastrar_materiais')"
+                      v-if="canCancel(item)"
                       @click="cancelItem(item)"
                       class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                       title="Cancelar Solicitação"

@@ -238,4 +238,6 @@ export interface OperatorContext {
   factoryUnitId: number;
   operatorId?: string | null;
   operatorName?: string | null;
+  role?: string | null;
+  assignedSector?: string | null;
 }

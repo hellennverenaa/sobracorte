@@ -54,21 +54,20 @@ async function handleConfirmedAction() {
 }
 
 const roleOptions = [
-  { value: "admin", label: "Admin Master", icon: Shield, color: "text-purple-600 bg-purple-100" },
-  { value: "admin_setor", label: "Admin de Setor", icon: ShieldCheck, color: "text-indigo-600 bg-indigo-100" },
-  { value: "lider", label: "Líder", icon: UserCheck, color: "text-blue-600 bg-blue-100" },
-  { value: "movimentador", label: "Movimentador", icon: Activity, color: "text-orange-600 bg-orange-100" },
-  { value: "leitor", label: "Leitor", icon: Eye, color: "text-gray-600 bg-gray-100" },
+  { value: "admin", label: "Admin Master", description: "Acesso irrestrito a todos os setores, configurações globais e aprovações", icon: Shield, color: "text-purple-600 bg-purple-100" },
+  { value: "admin_setor", label: "Admin de Setor", description: "Gestor e aprovador de requisições restrito ao seu setor atribuído", icon: ShieldCheck, color: "text-indigo-600 bg-indigo-100" },
+  { value: "lider", label: "Líder", description: "Liderança de linha operacional (movimentações de estoque e solicitações)", icon: UserCheck, color: "text-blue-600 bg-blue-100" },
+  { value: "movimentador", label: "Movimentador", description: "Operador de estoque físico e transferências do setor", icon: Activity, color: "text-orange-600 bg-orange-100" },
+  { value: "leitor", label: "Leitor", description: "Acesso de consulta ao estoque e abertura de solicitações", icon: Eye, color: "text-gray-600 bg-gray-100" },
 ];
 
 const sectorOptions = [
-  { value: null, label: "Todos os Setores (Irrestrito)" },
-  { value: "CORTE", label: "Corte (Matéria-Prima)" },
-  { value: "APOIO", label: "Apoio (Peças Cortadas)" },
-  { value: "PRE_FABRICADO", label: "Pré-Fabricado (Solas)" },
+  { value: null, label: "Todos os Setores (Irrestrito / Master)" },
+  { value: "CORTE", label: "Corte" },
+  { value: "APOIO", label: "Apoio" },
+  { value: "PRE_FABRICADO", label: "Pré-Fabricado" },
   { value: "DISTRIBUICAO", label: "Distribuição" },
   { value: "MONTAGEM", label: "Montagem" },
-  { value: "CONSUMO", label: "Consumo" },
 ];
 
 const fetchUsers = async () => {
@@ -320,13 +319,16 @@ onMounted(() => {
             <label class="block font-bold text-gray-700 uppercase mb-2">Nível de Acesso *</label>
             <div class="space-y-2">
               <label v-for="option in roleOptions" :key="option.value"
-                class="flex items-center p-2.5 border rounded-lg cursor-pointer transition-all hover:bg-gray-50"
+                class="flex items-start p-2.5 border rounded-lg cursor-pointer transition-all hover:bg-gray-50"
                 :class="{ 'border-blue-500 bg-blue-50 ring-1 ring-blue-500': editingUser.role === option.value }">
                 <input type="radio" v-model="editingUser.role" :value="option.value"
-                  class="text-blue-600 focus:ring-blue-500 h-4 w-4 mr-3" />
-                <div class="flex items-center gap-2">
-                  <component :is="option.icon" class="w-4 h-4 text-gray-500" />
-                  <span class="font-bold text-gray-800">{{ option.label }}</span>
+                  class="text-blue-600 focus:ring-blue-500 h-4 w-4 mr-3 mt-0.5" />
+                <div class="flex items-start gap-2">
+                  <component :is="option.icon" class="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+                  <div>
+                    <span class="font-bold text-gray-800">{{ option.label }}</span>
+                    <p class="text-[11px] text-gray-500 font-normal leading-tight mt-0.5">{{ option.description }}</p>
+                  </div>
                 </div>
               </label>
             </div>
@@ -343,18 +345,17 @@ onMounted(() => {
               :disabled="editingUser.role === 'admin'"
             >
               <option :value="null">TODOS OS SETORES / IRRESTRITO (MASTER)</option>
-              <option value="CORTE">CORTE (MATÉRIA-PRIMA)</option>
-              <option value="APOIO">APOIO (MOLDES / PEÇAS)</option>
-              <option value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
+              <option value="CORTE">CORTE</option>
+              <option value="APOIO">APOIO</option>
+              <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>
               <option value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
-              <option value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
-              <option value="CONSUMO">CONSUMO (INSUMOS)</option>
+              <option value="MONTAGEM">MONTAGEM</option>
             </select>
             <p v-if="editingUser.role === 'admin'" class="text-xs text-gray-500 mt-1">
               * Administradores Master possuem acesso automático a todos os setores.
             </p>
             <p v-else class="text-[11px] text-gray-500 mt-1">
-              * Líderes e Movimentadores ficam restritos às operações de escrita (entrada, movimentação e baixa) neste setor.
+              * Administrador de Setor aprova requisições e gerencia seu setor. Líderes e Movimentadores realizam operações no estoque deste setor.
             </p>
           </div>
         </div>
