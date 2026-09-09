@@ -99,7 +99,7 @@ const routes = [
     component: Settings, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'admin_setor', 'lider'] 
+      roles: ['admin', 'admin_setor'] 
     } 
   },
   { 

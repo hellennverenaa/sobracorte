@@ -171,23 +171,23 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
   }
 });
 
-routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getCategories);
-routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createCategory);
-routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.updateCategory);
-routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteCategory);
+routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getCategories);
+routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createCategory);
+routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
+routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
 
-routes.get('/settings/units', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getUnits);
-routes.post('/settings/units', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createUnit);
-routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteUnit);
+routes.get('/settings/units', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getUnits);
+routes.post('/settings/units', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createUnit);
+routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteUnit);
 
-routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getLocations);
-routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createLocation);
-routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.updateLocation);
-routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteLocation);
+routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getLocations);
+routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createLocation);
+routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.updateLocation);
+routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteLocation);
 
-routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.getOrigins);
-routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.createOrigin);
-routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'admin_setor', 'lider']), settingsController.deleteOrigin);
+routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getOrigins);
+routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
+routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
 
 routes.post('/import/csv', requireAuth, requireRole(['admin']), upload.single('arquivo'), importController.importCSV);
 

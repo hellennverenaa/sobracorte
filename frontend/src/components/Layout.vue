@@ -82,7 +82,7 @@ const menuItems = [
   { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
   { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'admin_setor', 'lider'] },
   { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
-  { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'admin_setor', 'lider'] }
+  { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'admin_setor'] }
 ]
 </script>
 

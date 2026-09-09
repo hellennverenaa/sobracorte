@@ -13,7 +13,7 @@ function checkSettingsPermission(req: Request, targetSector?: string): { allowed
   if (req.user?.role === 'leitor') {
     return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
   }
-  if (req.user?.role === 'admin_setor' || req.user?.role === 'lider') {
+  if (req.user?.role === 'admin_setor') {
     if (targetSector && req.user.assignedSector) {
       const userSec = req.user.assignedSector.toUpperCase().trim();
       const tgtSec = targetSector.toUpperCase().trim();

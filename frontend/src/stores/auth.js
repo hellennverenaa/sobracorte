@@ -197,7 +197,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       if (action === 'gerenciar_configuracoes' || action === 'editar_configuracoes') {
-        return role === 'lider' || role === 'admin_setor';
+        return role === 'admin_setor';
       }
 
       return false;

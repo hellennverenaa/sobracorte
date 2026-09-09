@@ -728,7 +728,7 @@ import {
 const authStore = useAuthStore()
 
 // --- PERMISSÕES ---
-const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor' || authStore.user?.role === 'lider')
+const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor')
 
 function formatSectorName(sec) {
   const map = {
@@ -755,7 +755,7 @@ const tabs = computed(() => {
     ]
   }
 
-  // 2. Admin Master e Admin de Setor / Líder dos demais setores: todas as abas
+  // 2. Admin Master e Admin de Setor: todas as abas
   return [
     { key: 'categories', label: 'Categorias',             icon: Tag },
     { key: 'units',      label: 'Unidades de Medida',     icon: Ruler },
