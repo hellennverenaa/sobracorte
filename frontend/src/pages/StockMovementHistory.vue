@@ -86,6 +86,8 @@ function getTypeBadge(type: string) {
       return { label: 'EXCLUSÃO CONFIG', class: 'bg-rose-100 text-rose-900 border-rose-300 font-bold' };
     case 'EDICAO_CONFIGURACAO':
       return { label: 'EDIÇÃO CONFIG', class: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
+    case 'CRIACAO_CONFIGURACAO':
+      return { label: 'CRIAÇÃO CONFIG', class: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold' };
     default:
       return { label: type, class: 'bg-gray-100 text-gray-800 border-gray-200' };
   }
@@ -183,6 +185,7 @@ onMounted(() => {
             <option value="CASAMENTO_PAR">CASAMENTO DE PAR</option>
             <option value="EXCLUSAO_CONFIGURACAO">EXCLUSÃO DE CONFIGURAÇÃO</option>
             <option value="EDICAO_CONFIGURACAO">EDIÇÃO DE CONFIGURAÇÃO</option>
+            <option value="CRIACAO_CONFIGURACAO">CRIAÇÃO DE CONFIGURAÇÃO</option>
           </select>
         </div>
 
@@ -253,10 +256,15 @@ onMounted(() => {
                 </td>
 
                 <td class="px-4 py-3 text-right font-bold text-gray-800">
-                  {{ mov.quantity }}
-                  <span class="text-xs bg-blue-50 text-blue-800 px-1 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                    UN
-                  </span>
+                  <template v-if="mov.sector === 'CONFIGURACOES'">
+                    <span class="text-xs text-gray-400 font-normal">-</span>
+                  </template>
+                  <template v-else>
+                    {{ mov.quantity }}
+                    <span class="text-xs bg-blue-50 text-blue-800 px-1 rounded ml-1 border border-blue-100 font-mono font-semibold">
+                      UN
+                    </span>
+                  </template>
                 </td>
 
                 <td class="px-4 py-3 text-sm text-gray-700">

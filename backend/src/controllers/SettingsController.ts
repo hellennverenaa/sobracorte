@@ -91,16 +91,33 @@ export class SettingsController {
         });
         if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
-      const category = await prisma.categoryConfig.create({
-        data: {
-          name: String(name).trim().toUpperCase(),
-          sector: targetSector as any,
-          unitLock: unitLock || 'livre',
-          defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
-          unitLocked: Boolean(unitLocked),
-          factoryUnitId: req.tenant!.id
-        },
-        include: { defaultUnit: true }
+      const category = await prisma.$transaction(async (tx) => {
+        const cat = await tx.categoryConfig.create({
+          data: {
+            name: String(name).trim().toUpperCase(),
+            sector: targetSector as any,
+            unitLock: unitLock || 'livre',
+            defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
+            unitLocked: Boolean(unitLocked),
+            factoryUnitId: req.tenant!.id
+          },
+          include: { defaultUnit: true }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'CRIACAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Categorias',
+            reason: `Criação de Categoria: ${cat.name} (Setor: ${targetSector || 'GERAL'})`
+          }
+        });
+
+        return cat;
       });
       res.status(201).json(category);
     } catch (error: unknown) {
@@ -309,13 +326,30 @@ export class SettingsController {
         return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
       }
 
-      const unit = await prisma.unitConfig.create({
-        data: {
-          name: cleanName,
-          symbol: cleanSymbol,
-          active: true,
-          factoryUnitId: req.tenant!.id
-        }
+      const unit = await prisma.$transaction(async (tx) => {
+        const u = await tx.unitConfig.create({
+          data: {
+            name: cleanName,
+            symbol: cleanSymbol,
+            active: true,
+            factoryUnitId: req.tenant!.id
+          }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'CRIACAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Unidades',
+            reason: `Criação de Unidade: ${cleanName} (${cleanSymbol})`
+          }
+        });
+
+        return u;
       });
       res.status(201).json(unit);
     } catch (error: unknown) {
@@ -479,24 +513,41 @@ export class SettingsController {
         primaryCategoryId = finalCategoryIds[0];
       }
 
-      const location = await prisma.location.create({
-        data: {
-          name: String(name).trim().toUpperCase(),
-          sector: targetSector as any,
-          categoryId: primaryCategoryId,
-          factoryUnitId: req.tenant!.id,
-          categoryLinks: finalCategoryIds.length > 0 ? {
-            create: finalCategoryIds.map(cId => ({
-              categoryId: cId
-            }))
-          } : undefined
-        },
-        include: {
-          category: true,
-          categoryLinks: {
-            include: { category: true }
+      const location = await prisma.$transaction(async (tx) => {
+        const loc = await tx.location.create({
+          data: {
+            name: String(name).trim().toUpperCase(),
+            sector: targetSector as any,
+            categoryId: primaryCategoryId,
+            factoryUnitId: req.tenant!.id,
+            categoryLinks: finalCategoryIds.length > 0 ? {
+              create: finalCategoryIds.map(cId => ({
+                categoryId: cId
+              }))
+            } : undefined
+          },
+          include: {
+            category: true,
+            categoryLinks: {
+              include: { category: true }
+            }
           }
-        }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'CRIACAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Localizações',
+            reason: `Criação de Localização: ${loc.name} (Setor: ${targetSector || 'GERAL'})`
+          }
+        });
+
+        return loc;
       });
       res.status(201).json(location);
     } catch (error: unknown) {
@@ -556,19 +607,21 @@ export class SettingsController {
       }
 
       const updated = await prisma.$transaction(async (tx) => {
-        if (finalCategoryIds && finalCategoryIds.length > 0) {
+        if (finalCategoryIds !== undefined) {
           // Remove vínculos antigos
           await tx.locationCategory.deleteMany({
             where: { locationId: id, factoryUnitId: req.tenant!.id }
           });
-          // Cria novos vínculos
-          await tx.locationCategory.createMany({
-            data: finalCategoryIds.map(cId => ({
-              locationId: id,
-              categoryId: cId,
-              factoryUnitId: req.tenant!.id
-            }))
-          });
+          if (finalCategoryIds.length > 0) {
+            // Cria novos vínculos
+            await tx.locationCategory.createMany({
+              data: finalCategoryIds.map(cId => ({
+                locationId: id,
+                categoryId: cId,
+                factoryUnitId: req.tenant!.id
+              }))
+            });
+          }
         }
 
         const loc = await tx.location.update({
@@ -576,7 +629,7 @@ export class SettingsController {
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,
-            categoryId: finalCategoryIds && finalCategoryIds.length > 0 ? finalCategoryIds[0] : undefined
+            categoryId: finalCategoryIds !== undefined ? (finalCategoryIds.length > 0 ? finalCategoryIds[0] : null) : undefined
           },
           include: {
             category: true,
@@ -725,12 +778,29 @@ export class SettingsController {
         targetSector = req.user.assignedSector;
       }
 
-      const origin = await prisma.originConfig.create({
-        data: {
-          name: String(name).trim().toUpperCase(),
-          sector: targetSector as any,
-          factoryUnitId: req.tenant!.id
-        }
+      const origin = await prisma.$transaction(async (tx) => {
+        const orig = await tx.originConfig.create({
+          data: {
+            name: String(name).trim().toUpperCase(),
+            sector: targetSector as any,
+            factoryUnitId: req.tenant!.id
+          }
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'CRIACAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Origens',
+            reason: `Criação de Origem: ${orig.name} (Setor: ${targetSector || 'GERAL'})`
+          }
+        });
+
+        return orig;
       });
       res.status(201).json(origin);
     } catch (error: unknown) {

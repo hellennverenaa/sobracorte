@@ -345,6 +345,7 @@ export class StockMovementService {
               sizeGrade: true,
               color: true,
               footSide: true,
+              type: true,
             },
           },
         },

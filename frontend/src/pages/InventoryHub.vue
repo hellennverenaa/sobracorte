@@ -524,6 +524,7 @@ onMounted(() => {
               <!-- Headers PRÉ-FABRICADO -->
               <tr v-if="activeTab === 'PRE_FABRICADO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Material</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COMBINAÇÃO</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
@@ -609,6 +610,20 @@ onMounted(() => {
                   <td class="px-4 py-3">
                     <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku || item.productName }}</span>
                     <span v-if="item.productName && item.productName !== item.sku" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-center whitespace-nowrap">
+                    <span
+                      v-if="item.type === 'BORRACHA'"
+                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs"
+                    >
+                      Borracha
+                    </span>
+                    <span
+                      v-else
+                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
+                    >
+                      EVA (Não Processada)
+                    </span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
@@ -827,6 +842,13 @@ onMounted(() => {
               <div class="text-gray-900 font-medium">{{ viewingItem.name || viewingItem.description }}</div>
             </div>
 
+            <div v-if="viewingItem.sector === 'PRE_FABRICADO' || viewingItem.type">
+              <label class="block text-xs font-bold text-gray-500 uppercase">Material do Solado</label>
+              <div class="text-gray-900 font-bold">
+                {{ viewingItem.type === 'BORRACHA' ? 'Borracha' : (viewingItem.type === 'EVA' ? 'EVA (Sola Não Processada)' : (viewingItem.type || '-')) }}
+              </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Saldo em Estoque</label>
@@ -893,6 +915,9 @@ onMounted(() => {
 
               <div class="text-xs font-semibold text-gray-800 mb-2">
                 {{ getItemDescription(selectedItem) }}
+                <span v-if="selectedItem.sector === 'PRE_FABRICADO' && selectedItem.type" class="text-emerald-700 font-bold ml-1">
+                  [{{ selectedItem.type === 'BORRACHA' ? 'Borracha' : 'EVA' }}]
+                </span>
                 <span v-if="selectedItem.sizeGrade" class="text-gray-600 font-normal">
                   - Grade: <strong>{{ selectedItem.sizeGrade }}</strong>
                 </span>

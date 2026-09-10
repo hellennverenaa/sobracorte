@@ -30,6 +30,7 @@ export const MovementTypeEnum = z.enum([
   'SAIDA_REQUISICAO',
   'EXCLUSAO_CONFIGURACAO',
   'EDICAO_CONFIGURACAO',
+  'CRIACAO_CONFIGURACAO',
 ]);
 
 // 🔹 1. CORTE: Matéria-Prima
@@ -63,6 +64,9 @@ export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
+  type: z.enum(['EVA', 'BORRACHA'], {
+    errorMap: () => ({ message: 'Material do solado (EVA ou BORRACHA) é obrigatório' }),
+  }),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),

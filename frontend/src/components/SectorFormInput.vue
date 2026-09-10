@@ -48,7 +48,7 @@ const formData = reactive({
   code: '',
   name: '',
   unit: 'M2',
-  type: '',
+  type: activeSector.value === 'PRE_FABRICADO' ? 'EVA' : '',
   pieceCode: '',
   description: '',
   materialColor: '',
@@ -155,6 +155,21 @@ const availableLocations = computed(() => {
     });
   }
 
+  if (currentSec === 'PRE_FABRICADO' && formData.type) {
+    const materialSelected = formData.type.toUpperCase().trim();
+    return sectorLocs.filter(loc => {
+      const hasLinks = loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0;
+      if (!hasLinks && !loc.categoryId) {
+        return true;
+      }
+      const matchLink = loc.categoryLinks?.some((link: any) =>
+        link.category && String(link.category.name).toUpperCase().trim().includes(materialSelected)
+      );
+      const matchCat = loc.category && String(loc.category.name).toUpperCase().trim().includes(materialSelected);
+      return matchLink || matchCat;
+    });
+  }
+
   return sectorLocs;
 });
 
@@ -174,6 +189,9 @@ function selectSector(sector: SectorType) {
     return;
   }
   activeSector.value = sector;
+  if (sector === 'PRE_FABRICADO') {
+    formData.type = 'EVA';
+  }
   errorMessage.value = '';
   successMessage.value = '';
   nextTick(() => {
@@ -190,7 +208,7 @@ function resetForm() {
   formData.code = '';
   formData.name = '';
   formData.unit = dbUnits.value.length > 0 ? dbUnits.value[0].symbol : 'M2';
-  formData.type = dbCategories.value.length > 0 ? dbCategories.value[0].name : '';
+  formData.type = activeSector.value === 'PRE_FABRICADO' ? 'EVA' : (dbCategories.value.length > 0 ? dbCategories.value[0].name : '');
   formData.pieceCode = '';
   formData.description = '';
   formData.materialColor = '';
@@ -257,12 +275,13 @@ async function handleSubmit() {
       break;
 
     case 'PRE_FABRICADO':
-      if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'Nome do Modelo, Grade e Combinação da Sola são obrigatórios.';
+      if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !formData.type) {
+        errorMessage.value = 'Nome do Modelo, Material do Solado (EVA ou Borracha), Grade e Combinação da Sola são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
+        type: formData.type.trim().toUpperCase(),
         sku: (formData.sku || formData.productName).trim().toUpperCase(),
         productName: formData.productName.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
@@ -491,7 +510,7 @@ onMounted(async () => {
       </div>
 
       <!-- 3. PRÉ-FABRICADO (Solas) -->
-      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div v-if="activeSector === 'PRE_FABRICADO'" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -513,6 +532,18 @@ onMounted(async () => {
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material do Solado *</label>
+          <select
+            v-model="formData.type"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
+            required
+          >
+            <option value="EVA">EVA (Sola Não Processada)</option>
+            <option value="BORRACHA">Borracha</option>
+          </select>
         </div>
 
         <div>

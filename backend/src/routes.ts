@@ -50,22 +50,22 @@ routes.post('/auth/login', authController.login);
 routes.post('/auth/check-user', requireAuth, authController.checkUser);
 
 routes.get('/materials', requireAuth, materialController.index);
-routes.post('/materials', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
-routes.put('/materials/:id', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
-routes.delete('/materials/:id', requireAuth, requireRole(['lider']), requireSectorMatch(() => 'CORTE'), materialController.delete);
+routes.post('/materials', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
+routes.put('/materials/:id', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
+routes.delete('/materials/:id', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.delete);
 routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
 
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
-routes.post('/inventory/batch', requireAuth, requireRole(['lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
+routes.post('/inventory/batch', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
 routes.get('/inventory/search', requireAuth, stockItemController.search);
 routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
 routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);
-routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector || 'MONTAGEM'), mountingPairController.executeMatch);
+routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector || 'MONTAGEM'), mountingPairController.executeMatch);
 
 // 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
-routes.post('/inventory/movements', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
+routes.post('/inventory/movements', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
 routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
@@ -84,7 +84,7 @@ routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistri
 routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMateriais);
 
 routes.get('/movements', requireAuth, movementController.index);
-routes.post('/movements', requireAuth, requireRole(['lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
+routes.post('/movements', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
 
 routes.get('/reports/inventory', requireAuth, reportController.inventory);
 routes.get('/reports/movements', requireAuth, reportController.movements);

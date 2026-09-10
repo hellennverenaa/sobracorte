@@ -49,6 +49,7 @@ enum MovementType {
   SAIDA_REQUISICAO
   EXCLUSAO_CONFIGURACAO
   EDICAO_CONFIGURACAO
+  CRIACAO_CONFIGURACAO
 
   @@schema("sobra_corte")
 }

@@ -142,6 +142,7 @@ export class StockItemService {
             case 'PRE_FABRICADO':
               sectorSpecificData = {
                 componentType: 'SOLADO' as ComponentType,
+                type: (item.type || 'EVA').trim().toUpperCase(),
                 sku: (item.sku || item.productName).trim().toUpperCase(),
                 productName: item.productName.trim().toUpperCase(),
                 color: item.color.trim().toUpperCase(),
@@ -279,6 +280,7 @@ export class StockItemService {
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
               { productName: { contains: term, mode: 'insensitive' } },
+              { type: { contains: term, mode: 'insensitive' } },
               { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),

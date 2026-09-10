@@ -242,11 +242,13 @@
       <!-- ABA 3: LOCALIZAÇÕES                       -->
       <div v-if="activeTab === 'locations'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-wrap gap-3">
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <MapPin class="w-4 h-4 text-emerald-500" /> Localizações de Armazenamento
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vínculo multi-categoria & setor</span>
+            <span class="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-semibold">
+              {{ authStore.user?.role === 'admin_setor' ? `Setor: ${formatSectorName(authStore.user.assignedSector)}` : 'Governança de Prateleiras' }}
+            </span>
           </div>
           
           <!-- Formulário de adição de Localização (Oculto para perfil leitor) -->
@@ -259,11 +261,16 @@
                     class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white uppercase" />
                 </div>
 
-                <div class="w-48 min-w-[160px]">
+                <div v-if="authStore.user?.role === 'admin_setor'" class="w-48 min-w-[160px]">
+                  <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
+                  <div class="px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-lg text-sm font-bold text-emerald-800 uppercase">
+                    {{ formatSectorName(authStore.user.assignedSector) }}
+                  </div>
+                </div>
+                <div v-else class="w-48 min-w-[160px]">
                   <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
                   <select
                     v-model="newLocation.sector"
-                    :disabled="authStore.user?.role === 'admin_setor'"
                     class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
                   >
                     <option value="">Geral / Livre</option>
@@ -276,17 +283,18 @@
                   </select>
                 </div>
 
-                <button type="submit" :disabled="loadingLocation || newLocation.categoryIds.length === 0"
+                <button type="submit" :disabled="loadingLocation || !newLocation.name.trim()"
                   class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50 h-10">
                   <Plus class="w-4 h-4" /> Adicionar Localização
                 </button>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">
-                  Categorias Permitidas nesta Prateleira (Filtradas pelo Setor da Localização)
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5 flex items-center justify-between">
+                  <span>Categorias / Materiais Permitidos (Opcional - Filtrado pelo Setor da Prateleira)</span>
+                  <span class="text-[11px] text-gray-400 font-normal">Se não selecionar, a prateleira é de uso livre do setor</span>
                 </label>
-                <div class="flex flex-wrap gap-2">
+                <div v-if="availableCategoriesForNewLocation.length > 0" class="flex flex-wrap gap-2">
                   <button
                     v-for="cat in availableCategoriesForNewLocation"
                     :key="cat.id"
@@ -300,8 +308,11 @@
                     {{ cat.name }}
                   </button>
                 </div>
-                <p v-if="newLocation.categoryIds.length === 0" class="text-[11px] text-amber-600 font-semibold mt-1">
-                  Selecione ao menos 1 categoria para vincular à prateleira.
+                <p v-else class="text-xs text-gray-500 italic">
+                  Nenhuma categoria cadastrada para este setor. A prateleira será de uso geral vinculada ao setor.
+                </p>
+                <p v-if="availableCategoriesForNewLocation.length > 0 && newLocation.categoryIds.length === 0" class="text-[11px] text-emerald-700 font-medium mt-1">
+                  ✓ Uso livre: Qualquer material ou componente deste setor pode ser armazenado aqui.
                 </p>
               </div>
             </form>
@@ -318,7 +329,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-50">
-              <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
+              <tr v-for="loc in filteredLocations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -342,7 +353,7 @@
                     >
                       {{ loc.category.name }}
                     </span>
-                    <span v-else class="text-xs text-gray-400 italic">Não vinculada</span>
+                    <span v-else class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Geral do Setor</span>
                   </div>
                 </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
@@ -640,11 +651,16 @@
             />
           </div>
 
-          <div>
+          <div v-if="authStore.user?.role === 'admin_setor'">
+            <label class="block font-bold text-gray-500 uppercase mb-1">Setor</label>
+            <div class="border border-emerald-200 bg-emerald-50 p-2.5 rounded-lg text-sm font-bold text-emerald-800 uppercase">
+              {{ formatSectorName(authStore.user.assignedSector) }}
+            </div>
+          </div>
+          <div v-else>
             <label class="block font-bold text-gray-500 uppercase mb-1">Setor</label>
             <select
               v-model="editingLocation.sector"
-              :disabled="authStore.user?.role === 'admin_setor'"
               class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
             >
               <option value="">Geral / Livre</option>
@@ -658,10 +674,11 @@
           </div>
 
           <div>
-            <label class="block font-bold text-gray-500 uppercase mb-1.5">
-              Categorias Permitidas nesta Prateleira (Filtradas pelo Setor da Localização) *
+            <label class="block font-bold text-gray-500 uppercase mb-1.5 flex items-center justify-between">
+              <span>Categorias Permitidas (Opcional - Filtradas pelo Setor)</span>
+              <span class="text-[10px] text-gray-400 font-normal">Deixe vazio para uso geral do setor</span>
             </label>
-            <div class="flex flex-wrap gap-2">
+            <div v-if="availableCategoriesForEditLocation.length > 0" class="flex flex-wrap gap-2">
               <button
                 v-for="cat in availableCategoriesForEditLocation"
                 :key="cat.id"
@@ -675,8 +692,8 @@
                 {{ cat.name }}
               </button>
             </div>
-            <p v-if="editingLocation.categoryIds.length === 0" class="text-[11px] text-red-600 font-semibold mt-1">
-              Selecione ao menos 1 categoria permitida.
+            <p v-else class="text-xs text-gray-500 italic">
+              Nenhuma categoria cadastrada para este setor. A prateleira fica vinculada diretamente ao setor.
             </p>
           </div>
 
@@ -690,7 +707,7 @@
             </button>
             <button
               type="submit"
-              :disabled="editingLocation.categoryIds.length === 0"
+              :disabled="!editingLocation.name.trim()"
               class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm disabled:opacity-50"
             >
               Salvar Alterações
@@ -964,6 +981,17 @@ const editingLocation = ref({
   categoryIds: []
 })
 
+const filteredLocations = computed(() => {
+  if (authStore.user?.role === 'admin_setor' && authStore.user?.assignedSector) {
+    const userSec = authStore.user.assignedSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : authStore.user.assignedSector
+    return locations.value.filter(loc => {
+      const locSec = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector
+      return locSec === userSec || (!locSec && userSec === 'CORTE')
+    })
+  }
+  return locations.value
+})
+
 const availableCategoriesForNewLocation = computed(() => {
   const targetSector = newLocation.value.sector
   if (!targetSector) return categories.value
@@ -1040,10 +1068,13 @@ function openEditLocationModal(loc) {
   const catIds = loc.categoryLinks && loc.categoryLinks.length > 0
     ? loc.categoryLinks.map(l => l.categoryId)
     : (loc.categoryId ? [loc.categoryId] : [])
+  const targetSector = authStore.user?.role === 'admin_setor'
+    ? authStore.user.assignedSector
+    : (loc.sector || '')
   editingLocation.value = {
     id: loc.id,
     name: loc.name,
-    sector: loc.sector || '',
+    sector: targetSector,
     categoryIds: [...catIds]
   }
   showEditLocationModal.value = true
@@ -1051,13 +1082,13 @@ function openEditLocationModal(loc) {
 
 async function saveEditLocation() {
   if (!editingLocation.value.name.trim()) return
-  if (editingLocation.value.categoryIds.length === 0) {
-    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
-  }
   try {
+    const targetSector = authStore.user?.role === 'admin_setor'
+      ? authStore.user.assignedSector
+      : (editingLocation.value.sector || null)
     await api.put(`/settings/locations/${editingLocation.value.id}`, {
       name: editingLocation.value.name.trim(),
-      sector: editingLocation.value.sector || null,
+      sector: targetSector,
       categoryIds: editingLocation.value.categoryIds
     })
     showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
@@ -1083,19 +1114,19 @@ async function fetchLocations() {
 
 async function addLocation() {
   if (!newLocation.value.name.trim()) return
-  if (newLocation.value.categoryIds.length === 0) {
-    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
-  }
   try {
+    const targetSector = authStore.user?.role === 'admin_setor'
+      ? authStore.user.assignedSector
+      : (newLocation.value.sector || null)
     const res = await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
-      sector: newLocation.value.sector || null,
+      sector: targetSector,
       categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
     newLocation.value = {
       name: '',
-      sector: authStore.user?.assignedSector || '',
+      sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
       categoryIds: []
     }
     if (res.data) locations.value.unshift(res.data)

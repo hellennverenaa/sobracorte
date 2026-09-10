@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE sobra_corte."MovementType" ADD VALUE IF NOT EXISTS 'CRIACAO_CONFIGURACAO';
