@@ -3,7 +3,7 @@ export interface DecodedToken {
     usuario: string;
     codbarras: string;
     rfid: string;
-    matricula: string;
+    matricula?: string | null;
     setor: string;
     nivel: string;
     unidade: string;

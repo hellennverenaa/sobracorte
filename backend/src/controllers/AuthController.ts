@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { INITIAL_USER_ROLE } from '../auth/roles';
+import { normalizeRegistration, registrationToBigInt } from '../auth/tenant';
 import { prisma } from '../prisma';
 
 type AuthenticatedUser = NonNullable<Express.Request['user']>;
@@ -11,20 +12,21 @@ function serializeUser<T extends { matriculaDass: bigint | null }>(user: T) {
   };
 }
 
-async function syncUser(user: AuthenticatedUser, factoryUnitId: number) {
+export async function syncUser(user: AuthenticatedUser, factoryUnitId: number, client: any = prisma) {
   const usuario = String(user.usuario || '').toUpperCase().trim();
   if (!usuario) throw new Error('Token sem identificação de usuário.');
 
+  const matricula = normalizeRegistration(user.matricula);
   const email = user.email || `${usuario.toLowerCase()}@grupodass.com.br`;
   const commonData = {
     nome: user.nome || usuario,
     email,
     setor: user.setor || 'NÃO DEFINIDO',
     funcao: user.funcao || 'NÃO DEFINIDO',
-    matriculaDass: user.matricula ? BigInt(user.matricula) : null,
+    matriculaDass: registrationToBigInt(matricula),
   };
 
-  return prisma.user.upsert({
+  return client.user.upsert({
     where: { factoryUnitId_usuario: { factoryUnitId, usuario } },
     update: commonData,
     create: {
