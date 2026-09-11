@@ -95,14 +95,13 @@ export class StockItemService {
             },
           });
 
-          // Auditoria em StockMovement
-          await tx.stockMovement.create({
+          // Auditoria em Movement (histórico oficial de matérias-primas do Corte)
+          await tx.movement.create({
             data: {
               factoryUnitId,
-              sector: 'CORTE',
-              type: 'ENTRADA',
+              materialId: materialRecord.id,
+              type: 'entrada',
               quantity: item.quantity,
-              destinationLocationId: loc.id,
               origem: 'Saldo Inicial / Entrada no Setor',
               reason: item.observation || 'Entrada em lote no Estoque de Corte',
               operatorId: operatorId || null,
@@ -122,6 +121,7 @@ export class StockItemService {
             factoryUnitId,
             sector: item.sector as SectorType,
             quantity: item.quantity,
+            unit: (item as any).unit ? (item as any).unit.trim().toUpperCase() : 'UND',
             observation: item.observation || '',
           };
 

@@ -129,3 +129,49 @@ test('Montagem aceita apenas números inteiros e rejeita decimais', () => {
     /Quantidade no setor de Montagem deve ser um número inteiro/
   );
 });
+
+test('Unidade de medida padroniza como UND por padrão nos setores discretos', () => {
+  const apoio = ApoioItemSchema.parse({
+    sector: 'APOIO',
+    pieceCode: 'MOL-01',
+    description: 'Molde Teste',
+    materialColor: 'PRETO',
+    sizeGrade: '37',
+    quantity: 5,
+    location: 'PRAT-A',
+  });
+  assert.equal(apoio.unit, 'UND');
+
+  const preFab = PreFabricadoItemSchema.parse({
+    sector: 'PRE_FABRICADO',
+    productName: 'Sola Teste',
+    type: 'EVA',
+    color: 'BRANCO',
+    sizeGrade: '38',
+    quantity: 10,
+    location: 'PRAT-B',
+  });
+  assert.equal(preFab.unit, 'UND');
+
+  const dist = DistribuicaoItemSchema.parse({
+    sector: 'DISTRIBUICAO',
+    sku: 'CAB-01',
+    type: 'CABEDAL',
+    color: 'AZUL',
+    sizeGrade: '39',
+    quantity: 8,
+    location: 'PRAT-C',
+  });
+  assert.equal(dist.unit, 'UND');
+
+  const mont = MontagemItemSchema.parse({
+    sector: 'MONTAGEM',
+    sku: 'MONT-01',
+    sizeGrade: '40',
+    footSide: 'E',
+    quantity: 3,
+    location: 'PRAT-D',
+  });
+  assert.equal(mont.unit, 'UND');
+});
+

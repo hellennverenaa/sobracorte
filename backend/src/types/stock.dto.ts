@@ -55,6 +55,7 @@ export const ApoioItemSchema = z.object({
   materialColor: z.string().trim().min(1, 'Material e Cor são obrigatórios'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   quantity: z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UND'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -71,6 +72,7 @@ export const PreFabricadoItemSchema = z.object({
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UND'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -87,6 +89,7 @@ export const DistribuicaoItemSchema = z.object({
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UND'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -101,6 +104,7 @@ export const ExpedicaoItemSchema = z.object({
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UND'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -114,6 +118,7 @@ export const MontagemItemSchema = z.object({
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
   quantity: z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UND'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });

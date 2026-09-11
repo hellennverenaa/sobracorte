@@ -301,21 +301,11 @@ async function handleConfirmMovement() {
 }
 
 function getItemUnitBadge(item: any) {
-  if (!item) return 'UN';
-  switch (item.sector) {
-    case 'CORTE':
-      return item.unit || 'UN';
-    case 'APOIO':
-      return 'PÇS';
-    case 'PRE_FABRICADO':
-      return 'PARES';
-    case 'EXPEDICAO':
-      return 'UN';
-    case 'MONTAGEM':
-      return 'PÉS';
-    default:
-      return 'UN';
+  if (!item) return 'UND';
+  if (item.sector === 'CORTE') {
+    return item.unit || 'UN';
   }
+  return item.unit || 'UND';
 }
 
 function getItemIdentifier(item: any) {
@@ -579,7 +569,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      {{ item.unit || 'UN' }}
+                      {{ getItemUnitBadge(item) }}
                     </span>
                   </td>
                 </template>
@@ -601,7 +591,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      PÇS
+                      {{ getItemUnitBadge(item) }}
                     </span>
                   </td>
                 </template>
@@ -650,7 +640,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      {{ item.footSide ? 'PÉS' : 'PARES' }}
+                      {{ getItemUnitBadge(item) }}
                     </span>
                   </td>
                 </template>
@@ -699,7 +689,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      {{ item.footSide ? 'PÉS' : 'UN' }}
+                      {{ getItemUnitBadge(item) }}
                     </span>
                   </td>
                 </template>
@@ -730,7 +720,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      PÉS
+                      {{ getItemUnitBadge(item) }}
                     </span>
                   </td>
                 </template>
@@ -875,7 +865,7 @@ onMounted(() => {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Saldo em Estoque</label>
-                <div class="text-gray-900 font-bold">{{ viewingItem.quantity }} {{ viewingItem.unit || '' }}</div>
+                <div class="text-gray-900 font-bold">{{ formatNumber(viewingItem.quantity) }} {{ getItemUnitBadge(viewingItem) }}</div>
               </div>
               <div>
                 <label class="block text-xs font-bold text-gray-500 uppercase">Prateleiras / Box</label>

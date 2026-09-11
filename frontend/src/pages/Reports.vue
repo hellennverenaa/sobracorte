@@ -315,7 +315,7 @@ function downloadExcel() {
     GRADE: mov.gradeTamanho || '-',
     LADO: mov.ladoPe || '-',
     QUANTIDADE: Number(mov.quantidade || 0),
-    UNIDADE: mov.unidade || mov.material?.unidade || 'UN',
+    UNIDADE: mov.unidade || mov.material?.unidade || 'UND',
     LOCALIZACAO: mov.prateleira || '-',
     ORIGEM_SOBRA: mov.origem || '-',
     MOTIVO_OPERACAO: mov.motivo || '-',

@@ -390,6 +390,7 @@ async function handleSubmit() {
         description: formData.description.trim().toUpperCase(),
         materialColor: (formData.materialColor || 'PADRAO').trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+        unit: 'UND',
       };
       break;
 
@@ -406,6 +407,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
+        unit: 'UND',
       };
       break;
 
@@ -424,6 +426,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
+        unit: 'UND',
       };
       break;
 
@@ -439,6 +442,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
+        unit: 'UND',
       };
       break;
   }

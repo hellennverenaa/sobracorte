@@ -48,7 +48,7 @@ export class ReportController {
         material: s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
         descricao: s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
         quantidade: s.quantity,
-        unidade: s.unit || 'un',
+        unidade: s.unit || 'UND',
         categoria: s.sector,
         gradeTamanho: s.sizeGrade || '-',
         ladoPe: s.footSide || '-',
@@ -115,13 +115,15 @@ export class ReportController {
         stockWhere.createdAt = { gte: start, lte: end };
       }
 
-      if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
+      if (rawSector !== 'TODOS' && rawSector !== 'ALL' && rawSector !== 'CORTE') {
         const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
         } else {
           stockWhere.sector = sec;
         }
+      } else {
+        stockWhere.sector = { not: 'CORTE' };
       }
 
       if (rawType !== 'TODOS') {
@@ -156,7 +158,8 @@ export class ReportController {
         };
       }
 
-      // --- FILTROS PRISMA PARA MOVEMENT (LEGADO CORTE) ---
+      // --- FILTROS PRISMA PARA MOVEMENT (CORTE) & STOCKMOVEMENT (OUTROS SETORES) ---
+      const shouldQueryStock = rawSector !== 'CORTE';
       const shouldQueryLegacy = rawSector === 'TODOS' || rawSector === 'ALL' || rawSector === 'CORTE';
       const legacyWhere: Record<string, any> = {
         factoryUnitId,
@@ -168,7 +171,7 @@ export class ReportController {
 
       if (rawType !== 'TODOS') {
         if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          legacyWhere.type = 'saida';
+          legacyWhere.type = { in: ['saida', 'refugo'] };
         } else if (rawType === 'CASAMENTO_PAR') {
           legacyWhere.type = 'never_match';
         } else {
@@ -197,14 +200,16 @@ export class ReportController {
       }
 
       const [stockMovements, legacyMovements, locationsList] = await Promise.all([
-        prisma.stockMovement.findMany({
-          where: stockWhere,
-          orderBy: { createdAt: 'desc' },
-          take: start ? undefined : 500,
-          include: {
-            stockItem: true,
-          },
-        }),
+        shouldQueryStock
+          ? prisma.stockMovement.findMany({
+              where: stockWhere,
+              orderBy: { createdAt: 'desc' },
+              take: start ? undefined : 500,
+              include: {
+                stockItem: true,
+              },
+            })
+          : [],
         shouldQueryLegacy
           ? prisma.movement.findMany({
               where: legacyWhere,
@@ -253,7 +258,7 @@ export class ReportController {
           gradeTamanho: item?.sizeGrade || '-',
           ladoPe: item?.footSide || '-',
           quantidade: m.quantity,
-          unidade: item?.unit || 'un',
+          unidade: item?.unit || 'UND',
           prateleira: locFormatted,
           origem: m.origem || 'Geração no Setor',
           motivo: m.reason || m.origem || '-',
@@ -264,7 +269,7 @@ export class ReportController {
             codigo: code,
             descricao: desc,
             tipo: item?.type || item?.sector || m.sector,
-            unidade: item?.unit || 'un',
+            unidade: item?.unit || 'UND',
           },
           nomeMaterial: desc,
         };
@@ -281,11 +286,11 @@ export class ReportController {
           tipo: m.type.toUpperCase(),
           codigo: m.material?.code || '-',
           descricao: m.material?.name || '-',
-          tipoMaterial: m.material?.type || 'Corte',
+          tipoMaterial: m.material?.type || 'CORTE',
           gradeTamanho: '-',
           ladoPe: '-',
           quantidade: m.quantity,
-          unidade: m.material?.unit || 'm²',
+          unidade: m.material?.unit || 'UN',
           prateleira: primaryLoc,
           origem: m.origem || 'Corte / Produção',
           motivo: m.reason || m.origem || '-',
@@ -295,8 +300,8 @@ export class ReportController {
           material: {
             codigo: m.material?.code || '-',
             descricao: m.material?.name || '-',
-            tipo: m.material?.type || 'Corte',
-            unidade: m.material?.unit || 'm²',
+            tipo: m.material?.type || 'CORTE',
+            unidade: m.material?.unit || 'UN',
           },
           nomeMaterial: m.material?.name || '-',
         };

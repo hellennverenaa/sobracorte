@@ -127,15 +127,13 @@ export class StockMovementService {
           });
         }
 
-        // Auditoria em StockMovement
-        const movement = await tx.stockMovement.create({
+        // Auditoria em Movement (histórico oficial de matérias-primas do Corte)
+        const movement = await tx.movement.create({
           data: {
             factoryUnitId,
-            sector: 'CORTE',
-            type,
+            materialId: material.id,
+            type: type.toLowerCase(),
             quantity,
-            sourceLocationId: locationId || null,
-            destinationLocationId: destinationLocationId || null,
             origem: origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída'))),
             reason: reason || '',
             operatorId: operatorId || null,
@@ -147,7 +145,7 @@ export class StockMovementService {
           success: true,
           movementId: movement.id,
           materialId: material.id,
-          type: movement.type,
+          type: movement.type.toUpperCase(),
           quantity: movement.quantity,
         };
       }
