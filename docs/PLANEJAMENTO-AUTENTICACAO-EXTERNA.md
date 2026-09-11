@@ -1,7 +1,6 @@
 # Planejamento e operação — autenticação externa por unidade
 
-Status: implementação concluída no código desta branch; publicação e validação
-end-to-end ainda pendentes.
+Status: implementação e validação local concluídas; publicação pendente.
 
 Data do registro: 2026-09-11
 
@@ -214,18 +213,24 @@ serviço auth e Gateway reais. O status de cada execução deve ser anexado ao
 registro de mudança sem transformar uma cobertura estática em aprovação de
 produção.
 
-### Lacunas conhecidas no registro atual
+### Validação local concluída
 
-- A migration `20260911120000_rename_stj_to_saj` ainda não foi aplicada no
-  PostgreSQL local; não há contagens pós-migration a declarar.
-- O smoke end-to-end não está aprovado: o container antigo do auth service
-  respondeu HTTP `404`. Isso não comprova o funcionamento da imagem/versão
-  nova e não deve ser reportado como smoke bem-sucedido.
-- Ainda é necessário validar diretamente e pelo Gateway cadastro, login,
-  `/auth/me`, refresh e logout, além de isolamento SAJ/SEST, em ambiente com
-  PostgreSQL e Redis Docker corretos.
-- A implantação deve confirmar que o Gateway encaminha
-  `/api/auth/external/*` preservando método, corpo, cookies e `Set-Cookie`.
+Em 2026-09-11, após backup lógico dos schemas `autenticacao` e `sobra_corte`,
+as migrations foram aplicadas no PostgreSQL Docker local. A unidade de ID `2`
+mudou de `STJ` para `SAJ`; o usuário local antigo foi removido e as contagens
+de configurações foram preservadas (`CategoryConfig`: 3, `OriginConfig`: 8 e
+`UnitConfig`: 11). O banco de teste não possuía materiais, saldos,
+movimentações, localizações ou auditorias para esse tenant.
+
+O auth service foi reconstruído com a branch atual. Cadastro, login,
+`/auth/me`, refresh e logout passaram diretamente e pelo Gateway, com `201` no
+cadastro e `200` nas demais operações. Um primeiro login adicional passou por
+`/auth/check-user` e criou a identidade local SAJ com papel `leitor`.
+
+Também passaram 60 testes backend, os testes frontend com o runner nativo do
+Node, os builds backend/frontend e `git diff --check`. Esses resultados são de
+ambiente local e não substituem a validação da implantação no ambiente de
+destino.
 
 ## 7. Implantação
 
