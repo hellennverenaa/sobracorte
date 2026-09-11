@@ -2,13 +2,19 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
-import { api } from '@/services/httpClient'
+import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus, X } from 'lucide-vue-next'
+import { api, authApi } from '@/services/httpClient'
 import {
   isLegacyUnit,
   selectInitialUnit,
   shouldDiscardStoredUnit,
 } from '@/services/auth/loginFlow'
+import {
+  externalRegistrationErrorMessage,
+  firstExternalRegistrationError,
+  registerExternalUser,
+  validateExternalRegistration,
+} from '@/services/auth/externalRegistration'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -22,10 +28,28 @@ const selectedUnit = ref('')
 const unitsLoading = ref(true)
 const lastUnitStorageKey = 'sobracorte:last-unit'
 const isSelectedUnitLegacy = computed(() => isLegacyUnit(selectedUnit.value))
+const isExternalUnitSelected = computed(() => Boolean(selectedUnit.value) && !isSelectedUnitLegacy.value)
 const usernameLabel = computed(() => isSelectedUnitLegacy.value ? 'Usuário Unix' : 'Usuário')
 const credentialsHint = computed(() => isSelectedUnitLegacy.value
   ? 'Informe suas credenciais Unix para acessar.'
   : 'Informe suas credenciais da unidade para acessar.')
+const selectedUnitLabel = computed(() => {
+  const unit = units.value.find((item) => item.code === selectedUnit.value)
+  return unit ? `${unit.code} — ${unit.name}` : selectedUnit.value
+})
+const registrationForm = ref({
+  matricula: '',
+  nome: '',
+  usuario: '',
+  senha: '',
+  confirmarSenha: '',
+  setor: '',
+  funcao: '',
+})
+const isRegistrationOpen = ref(false)
+const registrationLoading = ref(false)
+const registrationError = ref('')
+const registrationNotice = ref('')
 
 function loadLastUnit() {
   try {
@@ -68,6 +92,7 @@ onMounted(async () => {
 
 async function handleLogin() {
   error.value = ''
+  registrationNotice.value = ''
 
   if (!username.value.trim()) {
     error.value = `Por favor, informe seu ${usernameLabel.value}.`
@@ -92,6 +117,55 @@ async function handleLogin() {
     error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'
   } finally {
     isLoading.value = false
+  }
+}
+
+function clearRegistrationPasswords() {
+  registrationForm.value.senha = ''
+  registrationForm.value.confirmarSenha = ''
+}
+
+function openExternalRegistration() {
+  if (!isExternalUnitSelected.value) return
+  registrationError.value = ''
+  registrationNotice.value = ''
+  isRegistrationOpen.value = true
+}
+
+function closeExternalRegistration() {
+  if (registrationLoading.value) return
+  isRegistrationOpen.value = false
+  registrationError.value = ''
+  clearRegistrationPasswords()
+}
+
+async function handleExternalRegistration() {
+  registrationError.value = ''
+  const validation = validateExternalRegistration({
+    ...registrationForm.value,
+    unidade: selectedUnit.value,
+  })
+  if (!validation.valid) {
+    registrationError.value = firstExternalRegistrationError(validation)
+    return
+  }
+
+  registrationLoading.value = true
+  try {
+    await registerExternalUser(authApi, {
+      ...registrationForm.value,
+      unidade: selectedUnit.value,
+    })
+    username.value = registrationForm.value.usuario.trim()
+    isRegistrationOpen.value = false
+    clearRegistrationPasswords()
+    registrationNotice.value = 'Cadastro concluído. Agora entre normalmente com seu usuário e senha.'
+  } catch (registrationRequestError) {
+    registrationError.value = registrationRequestError.validation
+      ? firstExternalRegistrationError(registrationRequestError.validation)
+      : externalRegistrationErrorMessage(registrationRequestError)
+  } finally {
+    registrationLoading.value = false
   }
 }
 </script>
@@ -131,6 +205,10 @@ async function handleLogin() {
         <div class="max-w-md mx-auto w-full my-auto">
           <h2 class="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h2>
           <p class="text-gray-500 mb-6">{{ credentialsHint }}</p>
+
+          <div v-if="registrationNotice" class="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700" role="status">
+            {{ registrationNotice }}
+          </div>
 
           <form @submit.prevent="handleLogin" class="space-y-4">
             <div class="space-y-1">
@@ -192,6 +270,17 @@ async function handleLogin() {
             </button>
           </form>
 
+          <div v-if="isExternalUnitSelected" class="mt-5 text-center">
+            <button
+              type="button"
+              @click="openExternalRegistration"
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
+            >
+              <UserPlus class="h-4 w-4" />
+              Realizar cadastro
+            </button>
+          </div>
+
           <div v-if="isSelectedUnitLegacy" class="mt-6 border-t border-gray-100 pt-5 text-center">
             <p class="text-xs text-gray-500 mb-2">
               Esqueceu sua senha ou precisa de uma nova conta?
@@ -210,6 +299,159 @@ async function handleLogin() {
         </div>
       </div>
 
+    </div>
+
+    <div
+      v-if="isRegistrationOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="external-registration-title"
+      @click.self="closeExternalRegistration"
+      @keydown.esc="closeExternalRegistration"
+    >
+      <div class="my-8 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" @click.stop>
+        <div class="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+          <div>
+            <h2 id="external-registration-title" class="text-xl font-bold text-slate-900">Realizar cadastro</h2>
+            <p class="mt-1 text-sm text-slate-500">Crie seu acesso para a unidade selecionada.</p>
+          </div>
+          <button
+            type="button"
+            aria-label="Fechar cadastro"
+            :disabled="registrationLoading"
+            @click="closeExternalRegistration"
+            class="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+
+        <form class="space-y-4 px-6 py-6" @submit.prevent="handleExternalRegistration">
+          <div class="space-y-1">
+            <label for="registration-unit" class="text-xs font-bold uppercase tracking-wider text-gray-600">Unidade</label>
+            <input
+              id="registration-unit"
+              :value="selectedUnitLabel"
+              type="text"
+              readonly
+              disabled
+              class="w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 text-gray-600 outline-none disabled:cursor-not-allowed disabled:opacity-80"
+            />
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-1">
+              <label for="registration-matricula" class="text-xs font-bold uppercase tracking-wider text-gray-600">Matrícula</label>
+              <input
+                id="registration-matricula"
+                v-model="registrationForm.matricula"
+                type="text"
+                autocomplete="off"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+            <div class="space-y-1">
+              <label for="registration-name" class="text-xs font-bold uppercase tracking-wider text-gray-600">Nome</label>
+              <input
+                id="registration-name"
+                v-model="registrationForm.nome"
+                type="text"
+                autocomplete="name"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <label for="registration-username" class="text-xs font-bold uppercase tracking-wider text-gray-600">Usuário</label>
+            <input
+              id="registration-username"
+              v-model="registrationForm.usuario"
+              type="text"
+              autocomplete="username"
+              class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+              required
+            />
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-1">
+              <label for="registration-password" class="text-xs font-bold uppercase tracking-wider text-gray-600">Senha</label>
+              <input
+                id="registration-password"
+                v-model="registrationForm.senha"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+            <div class="space-y-1">
+              <label for="registration-password-confirmation" class="text-xs font-bold uppercase tracking-wider text-gray-600">Confirmar senha</label>
+              <input
+                id="registration-password-confirmation"
+                v-model="registrationForm.confirmarSenha"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-1">
+              <label for="registration-sector" class="text-xs font-bold uppercase tracking-wider text-gray-600">Setor <span class="font-normal normal-case text-gray-400">(opcional)</span></label>
+              <input
+                id="registration-sector"
+                v-model="registrationForm.setor"
+                type="text"
+                autocomplete="organization-title"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div class="space-y-1">
+              <label for="registration-function" class="text-xs font-bold uppercase tracking-wider text-gray-600">Função <span class="font-normal normal-case text-gray-400">(opcional)</span></label>
+              <input
+                id="registration-function"
+                v-model="registrationForm.funcao"
+                type="text"
+                autocomplete="organization-title"
+                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div v-if="registrationError" class="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-600" role="alert">
+            <AlertTriangle class="h-5 w-5 shrink-0" />
+            <span>{{ registrationError }}</span>
+          </div>
+
+          <div class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              :disabled="registrationLoading"
+              @click="closeExternalRegistration"
+              class="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              :disabled="registrationLoading"
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <span v-if="registrationLoading" class="animate-spin">⏳</span>
+              {{ registrationLoading ? 'Cadastrando...' : 'Concluir cadastro' }}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
