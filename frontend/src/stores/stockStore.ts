@@ -47,7 +47,7 @@ export interface StockState {
     distribuicao?: { total: number; data: any[] };
     montagem: { total: number; data: any[] };
   };
-  filterLocations: Array<{ id: number; name: string }>;
+  filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterOrigins: Array<{ id: number; name: string }>;
   filterCategories: Array<{ id: number; name: string }>;
   matchingPairs: MatchingPair[];

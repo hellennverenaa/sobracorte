@@ -21,6 +21,8 @@ export class StockMovementController {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
+        role: req.user?.role || null,
+        assignedSector: req.user?.assignedSector || null,
       };
 
       const result = await stockMovementService.createMovement(parsed, operatorContext);
@@ -33,6 +35,12 @@ export class StockMovementController {
         });
       }
       if (error instanceof Error) {
+        if (
+          error.message.includes('Acesso Negado') ||
+          error.message.includes('Administrador Master')
+        ) {
+          return res.status(403).json({ error: error.message });
+        }
         return res.status(400).json({ error: error.message });
       }
       console.error('Erro ao registrar movimentação de estoque:', error);

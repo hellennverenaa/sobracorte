@@ -369,7 +369,7 @@ export class StockItemService {
           })
         : [],
       prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }),
-      (targetSector === 'DISTRIBUICAO' || targetSector === 'EXPEDICAO')
+      (targetSector === 'DISTRIBUICAO' || (targetSector as string) === 'EXPEDICAO')
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('DISTRIBUICAO'),
             skip,
@@ -389,8 +389,21 @@ export class StockItemService {
           })
         : [],
       prisma.location.findMany({
-        where: { factoryUnitId },
-        select: { id: true, name: true },
+        where: {
+          factoryUnitId,
+          ...(context.role !== 'admin'
+            ? {
+                OR: [
+                  ...(targetSector === 'DISTRIBUICAO'
+                    ? [{ sector: 'DISTRIBUICAO' as SectorType }, { sector: 'EXPEDICAO' as SectorType }]
+                    : targetSector === 'CORTE'
+                    ? [{ sector: 'CORTE' as SectorType }, { sector: null }]
+                    : [{ sector: targetSector as SectorType }]),
+                ],
+              }
+            : {}),
+        },
+        select: { id: true, name: true, sector: true },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -411,7 +424,7 @@ export class StockItemService {
         : [];
       const locationStr =
         activeLocations.length > 0
-          ? activeLocations.map((l: any) => l.location.name).join(' | ')
+          ? activeLocations.map((l: any) => `${l.location.name} (${Number(l.quantity)} ${mat.unit || 'M²'})`).join(' | ')
           : (mat.locations && mat.locations.length > 0 ? mat.locations[0].location.name : 'Não definido');
       return {
         id: mat.id,
@@ -438,9 +451,10 @@ export class StockItemService {
         const activeLocations = item.locations
           ? item.locations.filter((l: any) => Number(l.quantity) > 0)
           : [];
+        const unit = item.unit || 'UND';
         const locationStr =
           activeLocations.length > 0
-            ? activeLocations.map((l: any) => l.location.name).join(' | ')
+            ? activeLocations.map((l: any) => `${l.location.name} (${Number(l.quantity)} ${unit})`).join(' | ')
             : 'Não definido';
         return {
           ...item,
@@ -448,7 +462,7 @@ export class StockItemService {
         };
       });
 
-    const isDistribuicao = targetSector === 'DISTRIBUICAO' || targetSector === 'EXPEDICAO';
+    const isDistribuicao = targetSector === 'DISTRIBUICAO' || (targetSector as string) === 'EXPEDICAO';
 
     const activeSectorCount =
       targetSector === 'CORTE'
@@ -501,7 +515,7 @@ export class StockItemService {
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
       },
       filterOptions: {
-        locations: locations.map((l) => ({ id: l.id, name: l.name })),
+        locations: locations.map((l) => ({ id: l.id, name: l.name, sector: l.sector })),
         origins: origins.map((o) => ({ id: o.id, name: o.name })),
         categories: categories.map((c) => ({ id: c.id, name: c.name })),
       },

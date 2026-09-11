@@ -66,7 +66,7 @@ export const PreFabricadoItemSchema = z.object({
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
   type: z.enum(['EVA', 'BORRACHA'], {
-    errorMap: () => ({ message: 'Material do solado (EVA ou BORRACHA) é obrigatório' }),
+    message: 'Material do solado (EVA ou BORRACHA) é obrigatório',
   }),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
@@ -83,7 +83,7 @@ export const DistribuicaoItemSchema = z.object({
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   type: z.enum(['CABEDAL', 'SOLA_PROCESSADA'], {
-    errorMap: () => ({ message: 'Tipo de material (CABEDAL ou SOLA_PROCESSADA) é obrigatório' }),
+    message: 'Tipo de material (CABEDAL ou SOLA_PROCESSADA) é obrigatório',
   }),
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),

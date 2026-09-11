@@ -9,7 +9,7 @@ import SectorFormInput from '@/components/SectorFormInput.vue';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
-  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle,
+  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle, Info,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search
 } from 'lucide-vue-next';
 
@@ -180,7 +180,41 @@ const itemAllocatedLocations = computed(() => {
 
 // Prateleiras de destino disponíveis para transferência (exclui a prateleira de origem)
 const availableDestinationLocations = computed(() => {
-  return stockStore.filterLocations.filter((loc) => loc.id !== selectedLocationId.value);
+  const currentItemSector = selectedItem.value?.sector || activeTab.value;
+  const isAdminMaster = authStore.user?.role === 'admin';
+
+  return stockStore.filterLocations.filter((loc) => {
+    // Exclui a prateleira de origem atual
+    if (loc.id === selectedLocationId.value) return false;
+
+    // Se for admin_master, exibe todas as prateleiras da fábrica
+    if (isAdminMaster) return true;
+
+    // Para líderes e operadores: exibe SOMENTE prateleiras do próprio setor
+    if (!loc.sector) {
+      return currentItemSector === 'CORTE';
+    }
+    const normLocSector = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
+    const normItemSector = currentItemSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : currentItemSector;
+    return normLocSector === normItemSector;
+  });
+});
+
+// Identifica se a prateleira de destino selecionada é de outro setor (exclusivo para Admin Master)
+const selectedDestinationLocation = computed(() => {
+  if (!destinationLocationId.value) return null;
+  return stockStore.filterLocations.find((l) => l.id === destinationLocationId.value) || null;
+});
+
+const isCrossSectorTransfer = computed(() => {
+  if (movementType.value !== 'TRANSFERENCIA') return false;
+  if (!selectedDestinationLocation.value) return false;
+  const currentItemSector = selectedItem.value?.sector || activeTab.value;
+  const destSec = selectedDestinationLocation.value.sector;
+  if (!destSec) return false;
+  const normLocSector = destSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : destSec;
+  const normItemSector = currentItemSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : currentItemSector;
+  return normLocSector !== normItemSector;
 });
 
 // Saldo disponível na prateleira de origem selecionada
@@ -209,6 +243,7 @@ const isFormInvalid = computed(() => {
   if (!qty || isNaN(qty) || qty <= 0) return true;
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
   if (movementType.value === 'TRANSFERENCIA' && (!destinationLocationId.value || destinationLocationId.value === selectedLocationId.value)) return true;
+  if (isCrossSectorTransfer.value && !movementObservation.value?.trim()) return true;
   if (!movementReason.value?.trim()) return true;
   return false;
 });
@@ -228,13 +263,17 @@ const formValidationHint = computed(() => {
 
   if (movementType.value === 'TRANSFERENCIA') {
     if (availableDestinationLocations.value.length === 0) {
-      return 'Não há outra prateleira cadastrada neste setor para transferir.';
+      const currentItemSector = selectedItem.value?.sector || activeTab.value;
+      return `Não há outra prateleira cadastrada no setor ${currentItemSector} para transferir.`;
     }
     if (!destinationLocationId.value) {
       return 'Selecione a prateleira de destino para transferir.';
     }
     if (destinationLocationId.value === selectedLocationId.value) {
       return 'A prateleira de destino deve ser diferente da origem.';
+    }
+    if (isCrossSectorTransfer.value && !movementObservation.value?.trim()) {
+      return 'Para transferência intersetorial, a justificativa nas observações é obrigatória.';
     }
   }
 
@@ -1074,6 +1113,12 @@ onMounted(() => {
                   <span class="text-xs font-semibold">TRANSFERÊNCIA</span>
                 </button>
               </div>
+
+              <!-- Nota explicativa da Transferência -->
+              <div v-if="movementType === 'TRANSFERENCIA'" class="p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 text-blue-800 text-xs mt-2">
+                <Info class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>A transferência física redistribui o saldo entre prateleiras sem alterar o saldo total em estoque na fábrica.</span>
+              </div>
             </div>
 
             <!-- Quantidade a Movimentar -->
@@ -1150,19 +1195,32 @@ onMounted(() => {
                 class="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-amber-800 text-xs"
               >
                 <AlertCircle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>Não há outras prateleiras cadastradas neste setor para transferir. Cadastre prateleiras adicionais no menu <strong>Configurações</strong>.</span>
+                <span>Não há outra prateleira cadastrada no setor <strong>{{ selectedItem?.sector || activeTab }}</strong> para transferir. Cadastre prateleiras adicionais no menu <strong>Configurações</strong>.</span>
               </div>
-              <select
-                v-else
-                v-model.number="destinationLocationId"
-                class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-bold text-blue-900 text-xs"
-                required
-              >
-                <option :value="null" disabled>Selecione a prateleira de destino...</option>
-                <option v-for="loc in availableDestinationLocations" :key="loc.id" :value="loc.id">
-                  {{ loc.name }}
-                </option>
-              </select>
+              <div v-else class="space-y-2">
+                <select
+                  v-model.number="destinationLocationId"
+                  class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-bold text-blue-900 text-xs"
+                  required
+                >
+                  <option :value="null" disabled>Selecione a prateleira de destino...</option>
+                  <option v-for="loc in availableDestinationLocations" :key="loc.id" :value="loc.id">
+                    {{ loc.name }} {{ loc.sector ? `[${loc.sector}]` : '' }}
+                  </option>
+                </select>
+
+                <!-- Alerta de Transferência Intersetorial (Autorização Admin Master) -->
+                <div
+                  v-if="isCrossSectorTransfer"
+                  class="p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2 text-amber-900 text-xs"
+                >
+                  <AlertCircle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span class="font-bold block">⚠️ Transferência Intersetorial (Autorização Admin Master)</span>
+                    <span>O item sairá do setor <strong>{{ selectedItem?.sector || activeTab }}</strong> para o setor <strong>{{ selectedDestinationLocation?.sector }}</strong>. A justificativa detalhada nas observações é obrigatória.</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Origem / Motivo da Movimentação (Configurações) -->

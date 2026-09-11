@@ -1,6 +1,6 @@
 import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
-import { Prisma } from '../generated/prisma';
+import { Prisma, SectorType } from '../generated/prisma';
 
 export class StockMovementService {
   /**
@@ -80,6 +80,19 @@ export class StockMovementService {
             throw new Error('A localização de destino é obrigatória para transferências.');
           }
 
+          const destLocation = await tx.location.findFirst({
+            where: { id: destinationLocationId, factoryUnitId },
+          });
+          if (!destLocation) {
+            throw new Error('A localização de destino não foi encontrada nesta unidade fabril.');
+          }
+
+          if (destLocation.sector && destLocation.sector !== 'CORTE') {
+            if (context.role !== 'admin') {
+              throw new Error('Acesso Negado: Transferência entre setores diferentes é permitida exclusivamente para o Administrador Master.');
+            }
+          }
+
           const sourceLocId = locationId || material.locations[0]?.locationId;
           if (!sourceLocId) {
             throw new Error('A localização de origem não foi identificada.');
@@ -128,14 +141,21 @@ export class StockMovementService {
         }
 
         // Auditoria em Movement (histórico oficial de matérias-primas do Corte)
+        const isCrossSectorMat = type === 'TRANSFERENCIA' && destinationLocationId ? await (async () => {
+          const dl = await tx.location.findFirst({ where: { id: destinationLocationId, factoryUnitId } });
+          return Boolean(dl?.sector && dl.sector !== 'CORTE');
+        })() : false;
+
         const movement = await tx.movement.create({
           data: {
             factoryUnitId,
             materialId: material.id,
             type: type.toLowerCase(),
             quantity,
-            origem: origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída'))),
-            reason: reason || '',
+            origem: isCrossSectorMat
+              ? `Transferência Intersetorial (CORTE) autorizada por Admin Master`
+              : (origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída')))),
+            reason: reason || (isCrossSectorMat ? 'Remanejamento intersetorial autorizado por Admin Master' : ''),
             operatorId: operatorId || null,
             operatorName: operatorName || 'Operador',
           },
@@ -221,9 +241,22 @@ export class StockMovementService {
             });
           }
         }
-      } else if (type === 'TRANSFERENCIA') {
+      }
+
+      let isCrossSector = false;
+      let targetSectorForMovement: SectorType = item.sector;
+      let effectiveStockItemId = item.id;
+
+      if (type === 'TRANSFERENCIA') {
         if (!destinationLocationId) {
           throw new Error('A localização de destino é obrigatória para transferências.');
+        }
+
+        const destLocation = await tx.location.findFirst({
+          where: { id: destinationLocationId, factoryUnitId },
+        });
+        if (!destLocation) {
+          throw new Error('A localização de destino não foi encontrada nesta unidade fabril.');
         }
 
         const sourceLocId = locationId || item.locations[0]?.locationId;
@@ -233,6 +266,17 @@ export class StockMovementService {
 
         if (sourceLocId === destinationLocationId) {
           throw new Error('A localização de origem e destino devem ser diferentes.');
+        }
+
+        const normDestSector = destLocation.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : destLocation.sector;
+        const normItemSector = item.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : item.sector;
+        isCrossSector = Boolean(destLocation.sector && normDestSector !== normItemSector);
+
+        if (isCrossSector) {
+          if (context.role !== 'admin') {
+            throw new Error('Acesso Negado: Transferência entre setores diferentes é permitida exclusivamente para o Administrador Master.');
+          }
+          targetSectorForMovement = destLocation.sector as SectorType;
         }
 
         const sourceLocLink = item.locations.find((l) => l.locationId === sourceLocId);
@@ -253,38 +297,112 @@ export class StockMovementService {
           },
         });
 
-        // Creditar no destino
-        await tx.stockItemLocation.upsert({
-          where: {
-            stockItemId_locationId: {
+        // Se for transferência intersetorial por Admin Master:
+        if (isCrossSector && destLocation.sector) {
+          if (quantity >= item.quantity) {
+            // Transferência total: atualiza o setor do próprio item
+            await tx.stockItem.update({
+              where: { id: item.id },
+              data: {
+                sector: destLocation.sector,
+                observation: `Transferido do setor ${item.sector} para ${destLocation.sector}. ${reason || ''}`.trim(),
+              },
+            });
+            await tx.stockItemLocation.upsert({
+              where: {
+                stockItemId_locationId: {
+                  stockItemId: item.id,
+                  locationId: destinationLocationId,
+                },
+              },
+              update: {
+                quantity: { increment: quantity },
+              },
+              create: {
+                stockItemId: item.id,
+                locationId: destinationLocationId,
+                factoryUnitId,
+                quantity,
+              },
+            });
+          } else {
+            // Transferência parcial: subtrai saldo do item de origem e cria novo StockItem no setor de destino
+            await tx.stockItem.update({
+              where: { id: item.id },
+              data: {
+                quantity: { decrement: quantity },
+              },
+            });
+
+            const newStockItem = await tx.stockItem.create({
+              data: {
+                factoryUnitId,
+                sector: destLocation.sector,
+                quantity,
+                code: item.code,
+                name: item.name,
+                unit: item.unit,
+                type: item.type,
+                pieceCode: item.pieceCode,
+                description: item.description,
+                materialColor: item.materialColor,
+                productName: item.productName,
+                sku: item.sku,
+                color: item.color,
+                sizeGrade: item.sizeGrade,
+                footSide: item.footSide,
+                componentType: item.componentType,
+                observation: `Transferido do setor ${item.sector}. ${reason || ''}`.trim(),
+              },
+            });
+
+            await tx.stockItemLocation.create({
+              data: {
+                stockItemId: newStockItem.id,
+                locationId: destinationLocationId,
+                factoryUnitId,
+                quantity,
+              },
+            });
+
+            effectiveStockItemId = newStockItem.id;
+          }
+        } else {
+          // Transferência intra-setor normal: credita no destino para o mesmo item
+          await tx.stockItemLocation.upsert({
+            where: {
+              stockItemId_locationId: {
+                stockItemId: item.id,
+                locationId: destinationLocationId,
+              },
+            },
+            update: {
+              quantity: { increment: quantity },
+            },
+            create: {
               stockItemId: item.id,
               locationId: destinationLocationId,
+              factoryUnitId,
+              quantity,
             },
-          },
-          update: {
-            quantity: { increment: quantity },
-          },
-          create: {
-            stockItemId: item.id,
-            locationId: destinationLocationId,
-            factoryUnitId,
-            quantity,
-          },
-        });
+          });
+        }
       }
 
       // Registrar auditoria atômica em StockMovement
       const movement = await tx.stockMovement.create({
         data: {
           factoryUnitId,
-          stockItemId: item.id,
-          sector: item.sector,
+          stockItemId: effectiveStockItemId,
+          sector: isCrossSector ? targetSectorForMovement : item.sector,
           type,
           quantity,
           sourceLocationId: locationId || null,
           destinationLocationId: destinationLocationId || null,
-          origem: origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída'))),
-          reason: reason || '',
+          origem: isCrossSector
+            ? `Transferência Intersetorial (${item.sector} ➔ ${targetSectorForMovement}) autorizada por Admin Master`
+            : (origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída')))),
+          reason: reason || (isCrossSector ? 'Remanejamento intersetorial autorizado por Admin Master' : ''),
           operatorId: operatorId || null,
           operatorName: operatorName || 'Operador',
         },

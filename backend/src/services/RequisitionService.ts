@@ -346,7 +346,7 @@ export class RequisitionService {
       const normalizedUserSector = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
         ? 'DISTRIBUICAO'
         : context.assignedSector;
-      effectiveSector = normalizedUserSector as SectorType;
+      effectiveSector = normalizedUserSector as any;
     }
 
     const where: Prisma.MaterialRequisitionWhereInput = {
@@ -431,7 +431,7 @@ export class RequisitionService {
         const userSec = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
           ? 'DISTRIBUICAO'
           : context.assignedSector;
-        const reqSec = (req.requestSector === 'CABEDAIS' || req.requestSector === 'EXPEDICAO')
+        const reqSec = ((req.requestSector as string) === 'CABEDAIS' || (req.requestSector as string) === 'EXPEDICAO')
           ? 'DISTRIBUICAO'
           : req.requestSector;
 

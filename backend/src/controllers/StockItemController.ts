@@ -66,6 +66,8 @@ export class StockItemController {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
+        role: req.user?.role || null,
+        assignedSector: req.user?.assignedSector || null,
       };
 
       const params = {
