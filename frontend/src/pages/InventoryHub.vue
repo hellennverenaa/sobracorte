@@ -213,6 +213,70 @@ const isFormInvalid = computed(() => {
   return false;
 });
 
+// Dica amigável e dinâmica de validação para o operador
+const formValidationHint = computed(() => {
+  const qty = Number(movementQuantity.value);
+  const unit = getItemUnitBadge(selectedItem.value);
+
+  if (!qty || isNaN(qty) || qty <= 0) {
+    return 'Digite a quantidade a movimentar.';
+  }
+
+  if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) {
+    return `Quantidade excede o saldo da prateleira (máx: ${formatNumber(maxAvailableBalance.value)} ${unit}).`;
+  }
+
+  if (movementType.value === 'TRANSFERENCIA') {
+    if (availableDestinationLocations.value.length === 0) {
+      return 'Não há outra prateleira cadastrada neste setor para transferir.';
+    }
+    if (!destinationLocationId.value) {
+      return 'Selecione a prateleira de destino para transferir.';
+    }
+    if (destinationLocationId.value === selectedLocationId.value) {
+      return 'A prateleira de destino deve ser diferente da origem.';
+    }
+  }
+
+  if (!movementReason.value?.trim()) {
+    return 'Selecione o motivo da movimentação.';
+  }
+
+  return '';
+});
+
+function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
+  movementType.value = type;
+
+  // Se a quantidade estiver vazia ou zero, sugere 1 ou o saldo disponível
+  const currentQty = Number(movementQuantity.value);
+  if (!currentQty || isNaN(currentQty) || currentQty <= 0) {
+    if (type === 'ENTRADA') {
+      movementQuantity.value = 1;
+    } else {
+      movementQuantity.value = maxAvailableBalance.value > 0 ? Math.min(1, maxAvailableBalance.value) : 1;
+    }
+  }
+
+  // Na transferência, se houver apenas uma prateleira de destino válida, pré-seleciona
+  if (type === 'TRANSFERENCIA') {
+    if (!destinationLocationId.value && availableDestinationLocations.value.length === 1) {
+      destinationLocationId.value = availableDestinationLocations.value[0].id;
+    }
+  }
+}
+
+watch(selectedLocationId, () => {
+  if (movementType.value === 'TRANSFERENCIA') {
+    if (destinationLocationId.value === selectedLocationId.value) {
+      destinationLocationId.value = null;
+    }
+    if (!destinationLocationId.value && availableDestinationLocations.value.length === 1) {
+      destinationLocationId.value = availableDestinationLocations.value[0].id;
+    }
+  }
+});
+
 const canOperateCurrentSector = computed(() => {
   if (!authStore.user) return false;
   if (authStore.user.role === 'admin') return true;
@@ -230,7 +294,6 @@ function openMovementModal(item: any) {
     ...item,
     sector: activeTab.value,
   };
-  movementQuantity.value = null;
   movementType.value = 'SAIDA';
   movementReason.value = stockStore.filterOrigins.length > 0 ? stockStore.filterOrigins[0].name : 'Consumo de Produção';
   movementObservation.value = '';
@@ -243,7 +306,15 @@ function openMovementModal(item: any) {
     selectedLocationId.value = null;
   }
 
-  destinationLocationId.value = null;
+  const initialMax = selectedLocationBalance.value;
+  movementQuantity.value = initialMax > 0 ? Math.min(1, initialMax) : 1;
+
+  if (availableDestinationLocations.value.length === 1) {
+    destinationLocationId.value = availableDestinationLocations.value[0].id;
+  } else {
+    destinationLocationId.value = null;
+  }
+
   showMovementModal.value = true;
 }
 
@@ -967,7 +1038,7 @@ onMounted(() => {
                 <!-- ENTRADA -->
                 <button
                   type="button"
-                  @click="movementType = 'ENTRADA'"
+                  @click="setMovementType('ENTRADA')"
                   :class="movementType === 'ENTRADA'
                     ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300 font-bold shadow-sm'
                     : 'bg-white text-gray-700 border-gray-200 hover:bg-emerald-50 hover:text-emerald-700'"
@@ -980,7 +1051,7 @@ onMounted(() => {
                 <!-- SAÍDA -->
                 <button
                   type="button"
-                  @click="movementType = 'SAIDA'"
+                  @click="setMovementType('SAIDA')"
                   :class="movementType === 'SAIDA'
                     ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-300 font-bold shadow-sm'
                     : 'bg-white text-gray-700 border-gray-200 hover:bg-amber-50 hover:text-amber-700'"
@@ -993,7 +1064,7 @@ onMounted(() => {
                 <!-- TRANSFERÊNCIA -->
                 <button
                   type="button"
-                  @click="movementType = 'TRANSFERENCIA'"
+                  @click="setMovementType('TRANSFERENCIA')"
                   :class="movementType === 'TRANSFERENCIA'
                     ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-300 font-bold shadow-sm'
                     : 'bg-white text-gray-700 border-gray-200 hover:bg-blue-50 hover:text-blue-700'"
@@ -1074,7 +1145,15 @@ onMounted(() => {
               <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
                 Prateleira de Destino *
               </label>
+              <div
+                v-if="availableDestinationLocations.length === 0"
+                class="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-amber-800 text-xs"
+              >
+                <AlertCircle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>Não há outras prateleiras cadastradas neste setor para transferir. Cadastre prateleiras adicionais no menu <strong>Configurações</strong>.</span>
+              </div>
               <select
+                v-else
                 v-model.number="destinationLocationId"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-bold text-blue-900 text-xs"
                 required
@@ -1137,23 +1216,31 @@ onMounted(() => {
           </div>
 
           <!-- Rodapé do Modal -->
-          <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-200 flex justify-end gap-3">
-            <button
-              type="button"
-              @click="showMovementModal = false"
-              class="bg-white hover:bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-xs border border-gray-300 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              :disabled="movementLoading || isFormInvalid"
-              @click="handleConfirmMovement"
-              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-xs shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
-            >
-              <RefreshCw v-if="movementLoading" class="w-3.5 h-3.5 animate-spin" />
-              <span>{{ movementLoading ? 'Registrando...' : `Confirmar ${movementType}` }}</span>
-            </button>
+          <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="text-xs text-amber-700 font-medium flex items-center gap-1.5 w-full sm:w-auto">
+              <span v-if="isFormInvalid && formValidationHint" class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1.5 rounded-lg font-medium text-[11px]">
+                <AlertCircle class="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                <span>{{ formValidationHint }}</span>
+              </span>
+            </div>
+            <div class="flex justify-end gap-3 w-full sm:w-auto shrink-0">
+              <button
+                type="button"
+                @click="showMovementModal = false"
+                class="bg-white hover:bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-xs border border-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                :disabled="movementLoading || isFormInvalid"
+                @click="handleConfirmMovement"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-xs shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw v-if="movementLoading" class="w-3.5 h-3.5 animate-spin" />
+                <span>{{ movementLoading ? 'Registrando...' : `Confirmar ${movementType}` }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
