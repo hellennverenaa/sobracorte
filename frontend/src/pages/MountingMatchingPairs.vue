@@ -14,7 +14,7 @@ const authStore = useAuthStore();
 const pairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
   { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Pés Órfãos', icon: Footprints },
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Solas', icon: Layers },
-  { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais Avulsos', icon: Box },
+  { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais e Solas', icon: Box },
 ];
 
 const activeSector = ref<SectorType>('MONTAGEM');
@@ -71,7 +71,7 @@ function selectSectorTab(sector: SectorType) {
 function openConfirmModal(pair: MatchingPair) {
   selectedPair.value = pair;
   matchQuantity.value = Math.min(1, pair.formablePairs);
-  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : (activeSector.value === 'DISTRIBUICAO' || activeSector.value === 'EXPEDICAO') ? 'Distribuição (Cabedais)' : 'Montagem';
+  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : (activeSector.value === 'DISTRIBUICAO' || activeSector.value === 'EXPEDICAO') ? 'Distribuição' : 'Montagem';
   matchReason.value = `Pares de ${sectorLabel} retirados fisicamente das prateleiras e encaminhados para a produção`;
   showConfirmModal.value = true;
 }
@@ -126,7 +126,7 @@ onMounted(() => {
       <div class="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between mx-4 my-4">
         <div>
           <h1 class="text-xl font-bold text-gray-800">Casamento de Pares Multi-Setor</h1>
-          <p class="text-xs text-gray-500">Localização física inteligente de lados esquerdo e direito (Solas, Cabedais e Montagem)</p>
+          <p class="text-xs text-gray-500">Localização física inteligente de lados esquerdo e direito (Solas, Distribuição e Montagem)</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -219,7 +219,19 @@ onMounted(() => {
             <!-- Topo do Card -->
             <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
               <div>
-                <span class="text-[11px] font-bold text-gray-400 uppercase">COD. PRODUTO / SKU</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] font-bold text-gray-400 uppercase">COD. PRODUTO / SKU</span>
+                  <span
+                    v-if="pair.type"
+                    class="px-1.5 py-0.2 text-[10px] font-bold rounded"
+                    :class="pair.type === 'EVA' ? 'bg-amber-100 text-amber-800' :
+                            pair.type === 'BORRACHA' ? 'bg-zinc-200 text-zinc-800' :
+                            pair.type === 'SOLA_PROCESSADA' ? 'bg-purple-100 text-purple-800' :
+                            'bg-blue-100 text-blue-800'"
+                  >
+                    {{ pair.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : pair.type === 'CABEDAL' ? 'Cabedal' : pair.type }}
+                  </span>
+                </div>
                 <h3 class="font-mono text-base font-bold text-blue-600">{{ pair.sku }}</h3>
                 <span v-if="pair.productName && pair.productName !== pair.sku" class="text-xs font-bold text-gray-800 block">
                   {{ pair.productName }}
@@ -296,7 +308,7 @@ onMounted(() => {
           v-else-if="!stockStore.loading"
           class="bg-white rounded shadow-sm border border-gray-200 p-12 text-center space-y-2"
         >
-          <component :is="activeSector === 'PRE_FABRICADO' ? Layers : activeSector === 'EXPEDICAO' ? Box : Footprints" class="w-10 h-10 text-gray-300 mx-auto" />
+          <component :is="activeSector === 'PRE_FABRICADO' ? Layers : (activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO') ? Box : Footprints" class="w-10 h-10 text-gray-300 mx-auto" />
           <h3 class="text-sm font-bold text-gray-700">Nenhum par casável no momento para o setor {{ activeSector }}</h3>
           <p class="text-xs text-gray-500 max-w-md mx-auto">
             Assim que itens de lados esquerdo e direito correspondentes (mesmo COD. PRODUTO / SKU e numeração) derem entrada no setor selecionado, eles aparecerão aqui para casamento.
@@ -319,6 +331,10 @@ onMounted(() => {
               <div class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">COD. PRODUTO / SKU:</span>
                 <span class="text-blue-600 font-mono">{{ selectedPair.sku }}</span>
+              </div>
+              <div v-if="selectedPair.type" class="flex justify-between font-bold">
+                <span class="text-gray-500 uppercase">Tipo / Material:</span>
+                <span class="text-blue-700 font-semibold">{{ selectedPair.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : selectedPair.type === 'CABEDAL' ? 'Cabedal' : selectedPair.type }}</span>
               </div>
               <div v-if="selectedPair.productName && selectedPair.productName !== selectedPair.sku" class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">Modelo / Linha:</span>

@@ -185,9 +185,9 @@ const currentFilteredVolume = computed(() => {
   if (selectedSector.value === 'DISTRIBUICAO' || selectedSector.value === 'EXPEDICAO') {
     return {
       isAllSectors: false,
-      label: 'Estoque de Distribuição (Cabedais)',
+      label: 'Estoque de Distribuição (Cabedais/Solas)',
       mainCount: Number(setoresData.value.distribuicao?.totalQuantity || setoresData.value.expedicao?.totalQuantity || 0),
-      mainUnit: 'cabedais',
+      mainUnit: 'unidades',
       itemsCount: setoresData.value.distribuicao?.itemsCount || setoresData.value.expedicao?.itemsCount || 0
     }
   }

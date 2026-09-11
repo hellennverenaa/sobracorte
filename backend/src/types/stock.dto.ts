@@ -75,11 +75,14 @@ export const PreFabricadoItemSchema = z.object({
   observation: z.string().trim().optional().default(''),
 });
 
-// 🔹 4. DISTRIBUIÇÃO: Cabedais e Componentes por SKU
+// 🔹 4. DISTRIBUIÇÃO: Cabedais e Solas Processadas por SKU
 export const DistribuicaoItemSchema = z.object({
   sector: z.literal('DISTRIBUICAO'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
+  type: z.enum(['CABEDAL', 'SOLA_PROCESSADA'], {
+    errorMap: () => ({ message: 'Tipo de material (CABEDAL ou SOLA_PROCESSADA) é obrigatório' }),
+  }),
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
@@ -93,6 +96,7 @@ export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
+  type: z.enum(['CABEDAL', 'SOLA_PROCESSADA']).optional().default('CABEDAL'),
   color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),

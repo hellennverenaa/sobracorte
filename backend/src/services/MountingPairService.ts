@@ -7,6 +7,7 @@ export interface MatchingPairRawResult {
   productName?: string | null;
   sizeGrade: string;
   color?: string | null;
+  type?: string | null;
   sector?: SectorType;
   leftFootStockItemId: number;
   leftQuantity: number;
@@ -37,6 +38,7 @@ export class MountingPairService {
         COALESCE(e."productName", e."description", '-') AS "productName",
         e."sizeGrade",
         e."color",
+        e."type",
         e.sector,
         e.id AS "leftFootStockItemId",
         e.quantity AS "leftQuantity",
@@ -62,6 +64,7 @@ export class MountingPairService {
         AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
         AND e."sizeGrade" = d."sizeGrade"
         AND COALESCE(e."color", '') = COALESCE(d."color", '')
+        AND COALESCE(e."type", '') = COALESCE(d."type", '')
       WHERE e."factoryUnitId" = ${factoryUnitId}
         AND (e.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND e.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
         AND (d.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND d.sector = 'EXPEDICAO'::sobra_corte."SectorType"))

@@ -48,7 +48,7 @@ const formData = reactive({
   code: '',
   name: '',
   unit: 'M2',
-  type: activeSector.value === 'PRE_FABRICADO' ? 'EVA' : '',
+  type: activeSector.value === 'PRE_FABRICADO' ? 'EVA' : (activeSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
   pieceCode: '',
   description: '',
   materialColor: '',
@@ -170,6 +170,22 @@ const availableLocations = computed(() => {
     });
   }
 
+  if ((currentSec === 'DISTRIBUICAO' || (currentSec as string) === 'EXPEDICAO') && formData.type) {
+    const materialSelected = formData.type.toUpperCase().trim();
+    return sectorLocs.filter(loc => {
+      const hasLinks = loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0;
+      if (!hasLinks && !loc.categoryId) {
+        return true;
+      }
+      const searchTarget = materialSelected === 'SOLA_PROCESSADA' ? 'SOLA' : 'CABEDAL';
+      const matchLink = loc.categoryLinks?.some((link: any) =>
+        link.category && String(link.category.name).toUpperCase().trim().includes(searchTarget)
+      );
+      const matchCat = loc.category && String(loc.category.name).toUpperCase().trim().includes(searchTarget);
+      return matchLink || matchCat;
+    });
+  }
+
   return sectorLocs;
 });
 
@@ -191,6 +207,8 @@ function selectSector(sector: SectorType) {
   activeSector.value = sector;
   if (sector === 'PRE_FABRICADO') {
     formData.type = 'EVA';
+  } else if (sector === 'DISTRIBUICAO') {
+    formData.type = 'CABEDAL';
   }
   errorMessage.value = '';
   successMessage.value = '';
@@ -208,7 +226,11 @@ function resetForm() {
   formData.code = '';
   formData.name = '';
   formData.unit = dbUnits.value.length > 0 ? dbUnits.value[0].symbol : 'M2';
-  formData.type = activeSector.value === 'PRE_FABRICADO' ? 'EVA' : (dbCategories.value.length > 0 ? dbCategories.value[0].name : '');
+  formData.type = activeSector.value === 'PRE_FABRICADO' 
+    ? 'EVA' 
+    : (activeSector.value === 'DISTRIBUICAO' 
+        ? 'CABEDAL' 
+        : (dbCategories.value.length > 0 ? dbCategories.value[0].name : ''));
   formData.pieceCode = '';
   formData.description = '';
   formData.materialColor = '';
@@ -292,13 +314,14 @@ async function handleSubmit() {
 
     case 'DISTRIBUICAO':
     case 'EXPEDICAO':
-      if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
-        errorMessage.value = 'COD. PRODUTO / SKU, Grade e Combinação do Cabedal são obrigatórios.';
+      if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !formData.type) {
+        errorMessage.value = 'COD. PRODUTO / SKU, Tipo de Material (Cabedal ou Sola Processada), Grade e Combinação/Cor são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
         sector: 'DISTRIBUICAO',
+        type: formData.type.trim().toUpperCase(),
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
@@ -596,8 +619,8 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 4. DISTRIBUIÇÃO (Cabedais) -->
-      <div v-if="activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <!-- 4. DISTRIBUIÇÃO (Cabedais e Solas Processadas) -->
+      <div v-if="activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-6 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -622,7 +645,19 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação do Cabedal *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo de Material *</label>
+          <select
+            v-model="formData.type"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
+            required
+          >
+            <option value="CABEDAL">Cabedal</option>
+            <option value="SOLA_PROCESSADA">Sola Processada</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
           <input
             v-model="formData.color"
             type="text"

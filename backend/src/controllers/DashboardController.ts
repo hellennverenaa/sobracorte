@@ -220,6 +220,15 @@ export class DashboardController {
           taxaReaproveitamento: expedicaoEntriesCount > 0 ? Math.min(100, Math.round((expedicaoExitsCount / expedicaoEntriesCount) * 100)) : 0,
           totalParadosSemGiro: expedicaoStagnantCount,
         },
+        distribuicao: {
+          itemsCount: expedicaoCount,
+          totalQuantity: Number(expedicaoQtyAgg._sum.quantity) || 0,
+          unit: 'PÇS/UN',
+          totalEntries: expedicaoEntriesCount,
+          totalExits: expedicaoExitsCount,
+          taxaReaproveitamento: expedicaoEntriesCount > 0 ? Math.min(100, Math.round((expedicaoExitsCount / expedicaoEntriesCount) * 100)) : 0,
+          totalParadosSemGiro: expedicaoStagnantCount,
+        },
         montagem: {
           itemsCount: montagemCount,
           totalQuantity: Number(montagemQtyAgg._sum.quantity) || 0,
@@ -239,7 +248,7 @@ export class DashboardController {
         { sector: 'CORTE', label: 'Corte (Matéria-Prima)', count: totalMaterialsCount, quantity: Number(corteQtyAgg._sum.quantity) || 0, color: '#047857' },
         { sector: 'APOIO', label: 'Apoio (Moldes/Peças)', count: apoioCount, quantity: Number(apoioQtyAgg._sum.quantity) || 0, color: '#0284c7' },
         { sector: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', count: preFabCount, quantity: Number(preFabQtyAgg._sum.quantity) || 0, color: '#f59e0b' },
-        { sector: 'EXPEDICAO', label: 'Expedição (Cabedais)', count: expedicaoCount, quantity: Number(expedicaoQtyAgg._sum.quantity) || 0, color: '#8b5cf6' },
+        { sector: 'DISTRIBUICAO', label: 'Distribuição (Cabedais/Solas)', count: expedicaoCount, quantity: Number(expedicaoQtyAgg._sum.quantity) || 0, color: '#8b5cf6' },
         { sector: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', count: montagemCount, quantity: Number(montagemQtyAgg._sum.quantity) || 0, color: '#ec4899' },
       ];
 
@@ -250,6 +259,7 @@ export class DashboardController {
         CORTE: new Map(),
         APOIO: new Map(),
         PRE_FABRICADO: new Map(),
+        DISTRIBUICAO: new Map(),
         EXPEDICAO: new Map(),
         MONTAGEM: new Map(),
       };

@@ -103,10 +103,15 @@ function formatItemDetails(item: any, mov?: any) {
       return `${item.code || ''} - ${item.name || ''}`;
     case 'APOIO':
       return `${item.pieceCode || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.description || ''}) - Gr. ${item.sizeGrade || ''}`;
-    case 'PRE_FABRICADO':
-      return `${item.sku || item.productName || ''}${item.productName && item.productName !== item.sku ? ' [' + item.productName + ']' : ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
-    case 'EXPEDICAO':
-      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
+    case 'PRE_FABRICADO': {
+      const mat = item.type ? ` [${item.type === 'EVA' ? 'EVA' : item.type === 'BORRACHA' ? 'Borracha' : item.type}]` : '';
+      return `${item.sku || item.productName || ''}${item.productName && item.productName !== item.sku ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
+    }
+    case 'DISTRIBUICAO':
+    case 'EXPEDICAO': {
+      const mat = item.type ? ` [${item.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal'}]` : '';
+      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
+    }
     case 'MONTAGEM':
       return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
     default:

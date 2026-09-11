@@ -533,9 +533,10 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
-              <!-- Headers EXPEDIÇÃO -->
-              <tr v-if="activeTab === 'EXPEDICAO'">
+              <!-- Headers DISTRIBUIÇÃO -->
+              <tr v-if="activeTab === 'DISTRIBUICAO' || activeTab === 'EXPEDICAO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Material</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
@@ -654,11 +655,25 @@ onMounted(() => {
                   </td>
                 </template>
 
-                <!-- Colunas EXPEDIÇÃO -->
-                <template v-if="activeTab === 'EXPEDICAO'">
+                <!-- Colunas DISTRIBUIÇÃO -->
+                <template v-if="activeTab === 'DISTRIBUICAO' || activeTab === 'EXPEDICAO'">
                   <td class="px-4 py-3">
                     <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku }}</span>
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span
+                      v-if="item.type === 'SOLA_PROCESSADA'"
+                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-teal-50 text-teal-700 border border-teal-200"
+                    >
+                      Sola Processada
+                    </span>
+                    <span
+                      v-else
+                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200"
+                    >
+                      Cabedal
+                    </span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
@@ -842,10 +857,17 @@ onMounted(() => {
               <div class="text-gray-900 font-medium">{{ viewingItem.name || viewingItem.description }}</div>
             </div>
 
-            <div v-if="viewingItem.sector === 'PRE_FABRICADO' || viewingItem.type">
-              <label class="block text-xs font-bold text-gray-500 uppercase">Material do Solado</label>
+            <div v-if="viewingItem.sector === 'PRE_FABRICADO' || viewingItem.sector === 'DISTRIBUICAO' || viewingItem.type">
+              <label class="block text-xs font-bold text-gray-500 uppercase">
+                {{ viewingItem.sector === 'DISTRIBUICAO' ? 'Tipo de Material' : 'Material do Solado' }}
+              </label>
               <div class="text-gray-900 font-bold">
-                {{ viewingItem.type === 'BORRACHA' ? 'Borracha' : (viewingItem.type === 'EVA' ? 'EVA (Sola Não Processada)' : (viewingItem.type || '-')) }}
+                <template v-if="viewingItem.sector === 'DISTRIBUICAO'">
+                  {{ viewingItem.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal' }}
+                </template>
+                <template v-else>
+                  {{ viewingItem.type === 'BORRACHA' ? 'Borracha' : (viewingItem.type === 'EVA' ? 'EVA (Sola Não Processada)' : (viewingItem.type || '-')) }}
+                </template>
               </div>
             </div>
 
@@ -917,6 +939,9 @@ onMounted(() => {
                 {{ getItemDescription(selectedItem) }}
                 <span v-if="selectedItem.sector === 'PRE_FABRICADO' && selectedItem.type" class="text-emerald-700 font-bold ml-1">
                   [{{ selectedItem.type === 'BORRACHA' ? 'Borracha' : 'EVA' }}]
+                </span>
+                <span v-if="(selectedItem.sector === 'DISTRIBUICAO' || selectedItem.sector === 'EXPEDICAO') && selectedItem.type" class="text-indigo-700 font-bold ml-1">
+                  [{{ selectedItem.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal' }}]
                 </span>
                 <span v-if="selectedItem.sizeGrade" class="text-gray-600 font-normal">
                   - Grade: <strong>{{ selectedItem.sizeGrade }}</strong>

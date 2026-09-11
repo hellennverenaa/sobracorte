@@ -8,6 +8,7 @@ export interface MatchingPair {
   productName?: string;
   sizeGrade: string;
   color?: string;
+  type?: string;
   sector?: SectorType;
   leftFootStockItemId: number;
   leftQuantity: number;

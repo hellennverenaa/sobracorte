@@ -153,8 +153,10 @@ export class StockItemService {
 
             case 'DISTRIBUICAO':
             case 'EXPEDICAO':
+              const distType = (item.type || 'CABEDAL').trim().toUpperCase();
               sectorSpecificData = {
-                componentType: 'CABEDAL' as ComponentType,
+                componentType: distType === 'SOLA_PROCESSADA' ? ('SOLADO' as ComponentType) : ('CABEDAL' as ComponentType),
+                type: distType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
                 color: item.color.trim().toUpperCase(),
@@ -292,6 +294,7 @@ export class StockItemService {
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
               { productName: { contains: term, mode: 'insensitive' } },
+              { type: { contains: term, mode: 'insensitive' } },
               { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
