@@ -170,6 +170,7 @@ export class StockItemService {
                 componentType: 'PE_PRONTO' as ComponentType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
+                color: item.color ? item.color.trim().toUpperCase() : null,
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide,
               };
@@ -305,6 +306,7 @@ export class StockItemService {
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
               { productName: { contains: term, mode: 'insensitive' } },
+              { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
           };
@@ -606,4 +608,46 @@ export class StockItemService {
       availableQuantity: g.availableQuantity,
     }));
   }
+
+  /**
+   * Consulta agregada de combinações / cores já cadastradas (Autocomplete)
+   */
+  async getCombinations(sector: SectorType, query: string, factoryUnitId: number): Promise<string[]> {
+    const rawQ = query ? query.trim() : '';
+
+    let sectorCondition: any = sector;
+    if (sector === 'DISTRIBUICAO' || sector === 'EXPEDICAO') {
+      sectorCondition = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+    }
+
+    const items = await prisma.stockItem.findMany({
+      where: {
+        factoryUnitId,
+        sector: sectorCondition,
+        color: {
+          not: null,
+          ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}),
+        },
+      },
+      select: {
+        color: true,
+      },
+      distinct: ['color'],
+      orderBy: {
+        color: 'asc',
+      },
+      take: 100,
+    });
+
+    const uniqueColors = new Set<string>();
+    for (const item of items) {
+      const clean = item.color?.trim();
+      if (clean && clean.length > 0) {
+        uniqueColors.add(clean.toUpperCase());
+      }
+    }
+
+    return Array.from(uniqueColors).sort();
+  }
 }
+

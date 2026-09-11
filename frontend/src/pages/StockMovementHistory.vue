@@ -113,7 +113,7 @@ function formatItemDetails(item: any, mov?: any) {
       return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
     }
     case 'MONTAGEM':
-      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
+      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''}${item.color ? ' (' + item.color + ')' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
     default:
       return item.id ? `Item #${item.id}` : '-';
   }

@@ -114,4 +114,29 @@ export class StockItemController {
       return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
     }
   }
+
+  /**
+   * GET /inventory/combinations - Sugestões de combinações/cores por setor
+   */
+  async combinations(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const { sector, q } = req.query;
+      let targetSector = (sector ? String(sector).toUpperCase() : 'PRE_FABRICADO') as SectorType;
+      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
+        targetSector = 'DISTRIBUICAO' as SectorType;
+      }
+
+      const query = q ? String(q) : '';
+
+      const result = await stockItemService.getCombinations(targetSector, query, req.tenant.id);
+      return res.json(result);
+    } catch (error) {
+      console.error('Erro ao buscar combinações de estoque:', error);
+      return res.status(500).json({ error: 'Erro interno ao buscar combinações.' });
+    }
+  }
 }

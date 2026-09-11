@@ -59,6 +59,7 @@ routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialCont
 routes.post('/inventory/batch', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
 routes.get('/inventory/search', requireAuth, stockItemController.search);
 routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
+routes.get('/inventory/combinations', requireAuth, stockItemController.combinations);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
 routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);

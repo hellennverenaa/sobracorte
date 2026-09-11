@@ -110,6 +110,7 @@ export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
+  color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),

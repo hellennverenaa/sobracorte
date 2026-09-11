@@ -39,6 +39,42 @@ const dbUnits = ref<any[]>([]);
 const dbLocations = ref<any[]>([]);
 const loadingSettings = ref(false);
 
+// Cache reativo de combinações / cores para autocomplete por setor
+const combinationsCache = ref<Record<string, string[]>>({});
+const availableCombinations = computed(() => {
+  return combinationsCache.value[activeSector.value] || [];
+});
+
+async function fetchCombinations(sector: SectorType) {
+  if (sector !== 'PRE_FABRICADO' && sector !== 'DISTRIBUICAO' && sector !== 'MONTAGEM') {
+    return;
+  }
+  if (combinationsCache.value[sector]) {
+    return;
+  }
+  try {
+    const res = await api.get('/inventory/combinations', {
+      params: { sector },
+    });
+    combinationsCache.value[sector] = Array.isArray(res.data) ? res.data : [];
+  } catch (err) {
+    console.error('Erro ao carregar combinações:', err);
+    combinationsCache.value[sector] = [];
+  }
+}
+
+function addCombinationLocally(color: string, sector: SectorType) {
+  const norm = color.trim().toUpperCase();
+  if (!norm) return;
+  if (!combinationsCache.value[sector]) {
+    combinationsCache.value[sector] = [];
+  }
+  if (!combinationsCache.value[sector].includes(norm)) {
+    combinationsCache.value[sector].push(norm);
+    combinationsCache.value[sector].sort();
+  }
+}
+
 const formData = reactive({
   location: '',
   quantity: 1,
@@ -210,6 +246,7 @@ function selectSector(sector: SectorType) {
   } else if (sector === 'DISTRIBUICAO') {
     formData.type = 'CABEDAL';
   }
+  fetchCombinations(sector);
   errorMessage.value = '';
   successMessage.value = '';
   nextTick(() => {
@@ -331,14 +368,15 @@ async function handleSubmit() {
       break;
 
     case 'MONTAGEM':
-      if (!formData.sku.trim() || !formData.sizeGrade.trim()) {
-        errorMessage.value = 'COD. PRODUTO / SKU e Grade são obrigatórios.';
+      if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim()) {
+        errorMessage.value = 'COD. PRODUTO / SKU, Combinação / Cor e Grade são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
+        color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
       };
@@ -349,6 +387,9 @@ async function handleSubmit() {
   try {
     await stockStore.createBatch([payloadItem]);
     successMessage.value = `Item cadastrado com sucesso no setor ${activeSector.value}!`;
+    if (payloadItem.color) {
+      addCombinationLocally(payloadItem.color, activeSector.value);
+    }
     resetForm();
     emit('saved');
     setTimeout(() => {
@@ -363,6 +404,7 @@ async function handleSubmit() {
 
 onMounted(async () => {
   await fetchDynamicSettings();
+  await fetchCombinations(activeSector.value);
   firstInputRef.value?.focus();
 });
 </script>
@@ -573,11 +615,19 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COMBINAÇÃO da sola *</label>
           <input
             v-model="formData.color"
+            :list="'combinations-list-' + activeSector"
             type="text"
             placeholder="Ex: BRANCO / GOMA"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
             required
+            autocomplete="off"
           />
+          <datalist :id="'combinations-list-' + activeSector">
+            <option v-for="comb in availableCombinations" :key="comb" :value="comb" />
+          </datalist>
+          <span v-if="availableCombinations.length > 0" class="text-[10px] text-gray-400 mt-0.5 block">
+            {{ availableCombinations.length }} sugestão(ões) salva(s)
+          </span>
         </div>
 
         <div>
@@ -660,11 +710,19 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
           <input
             v-model="formData.color"
+            :list="'combinations-list-' + activeSector"
             type="text"
             placeholder="Ex: PRETO / PRATA"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
             required
+            autocomplete="off"
           />
+          <datalist :id="'combinations-list-' + activeSector">
+            <option v-for="comb in availableCombinations" :key="comb" :value="comb" />
+          </datalist>
+          <span v-if="availableCombinations.length > 0" class="text-[10px] text-gray-400 mt-0.5 block">
+            {{ availableCombinations.length }} sugestão(ões) salva(s)
+          </span>
         </div>
 
         <div>
@@ -707,7 +765,7 @@ onMounted(async () => {
       </div>
 
       <!-- 5. MONTAGEM -->
-      <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -729,6 +787,25 @@ onMounted(async () => {
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
             required
           />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
+          <input
+            v-model="formData.color"
+            :list="'combinations-list-' + activeSector"
+            type="text"
+            placeholder="Ex: PRETO / BRANCO"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
+            required
+            autocomplete="off"
+          />
+          <datalist :id="'combinations-list-' + activeSector">
+            <option v-for="comb in availableCombinations" :key="comb" :value="comb" />
+          </datalist>
+          <span v-if="availableCombinations.length > 0" class="text-[10px] text-gray-400 mt-0.5 block">
+            {{ availableCombinations.length }} sugestão(ões) salva(s)
+          </span>
         </div>
 
         <div>

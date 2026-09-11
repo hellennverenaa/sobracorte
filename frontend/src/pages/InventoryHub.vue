@@ -709,6 +709,7 @@ onMounted(() => {
                   <td class="px-4 py-3">
                     <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku }}</span>
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                    <span v-if="item.color" class="text-xs text-gray-500 font-medium block">Cor: {{ item.color }}</span>
                   </td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
@@ -880,6 +881,11 @@ onMounted(() => {
                 <label class="block text-xs font-bold text-gray-500 uppercase">Prateleiras / Box</label>
                 <div class="text-gray-900 font-bold">{{ viewingItem.locationDisplay }}</div>
               </div>
+            </div>
+
+            <div v-if="viewingItem.color">
+              <label class="block text-xs font-bold text-gray-500 uppercase">Combinação / Cor</label>
+              <div class="text-gray-900 font-bold">{{ viewingItem.color }}</div>
             </div>
 
             <div v-if="viewingItem.sizeGrade" class="grid grid-cols-2 gap-4">
