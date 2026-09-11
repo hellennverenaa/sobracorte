@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { authApi, api } from '../services/httpClient'
+import { loginByUnit, normalizeUnitCode } from '../services/auth/loginFlow'
 
 function loadStoredUser() {
   try {
@@ -71,15 +72,13 @@ export const useAuthStore = defineStore('auth', {
 
     async login(user, password, unitCode) {
       try {
-        const response = await authApi.post("/auth/login", { 
-          usuario: user,
-          senha: password
-        })
+        const normalizedUnit = normalizeUnitCode(unitCode)
+        const response = await loginByUnit(authApi, normalizedUnit, user, password)
 
         const payload = response.data
 
         const checkResponse = await api.post('/auth/check-user', null, {
-          headers: { Authorization: `Bearer ${payload.data.token}`, 'X-Dass-Unit': unitCode }
+          headers: { Authorization: `Bearer ${payload.data.token}`, 'X-Dass-Unit': normalizedUnit }
         });
         const userSobraCorte = checkResponse.data.user;
 

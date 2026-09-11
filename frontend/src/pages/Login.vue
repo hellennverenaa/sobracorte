@@ -1,9 +1,14 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
 import { api } from '@/services/httpClient'
+import {
+  isLegacyUnit,
+  selectInitialUnit,
+  shouldDiscardStoredUnit,
+} from '@/services/auth/loginFlow'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -16,6 +21,11 @@ const units = ref([])
 const selectedUnit = ref('')
 const unitsLoading = ref(true)
 const lastUnitStorageKey = 'sobracorte:last-unit'
+const isSelectedUnitLegacy = computed(() => isLegacyUnit(selectedUnit.value))
+const usernameLabel = computed(() => isSelectedUnitLegacy.value ? 'Usuário Unix' : 'Usuário')
+const credentialsHint = computed(() => isSelectedUnitLegacy.value
+  ? 'Informe suas credenciais Unix para acessar.'
+  : 'Informe suas credenciais da unidade para acessar.')
 
 function loadLastUnit() {
   try {
@@ -33,14 +43,21 @@ function rememberLastUnit(unitCode) {
   }
 }
 
+function discardLastUnit() {
+  try {
+    localStorage.removeItem(lastUnitStorageKey)
+  } catch {
+    // A indisponibilidade do armazenamento local não deve impedir o login.
+  }
+}
+
 onMounted(async () => {
   try {
     const response = await api.get('/factory-units')
     units.value = Array.isArray(response.data?.data) ? response.data.data : []
     const lastUnit = loadLastUnit()
-    selectedUnit.value = units.value.some(unit => unit.code === lastUnit)
-      ? lastUnit
-      : units.value[0]?.code || ''
+    selectedUnit.value = selectInitialUnit(units.value, lastUnit)
+    if (shouldDiscardStoredUnit(units.value, lastUnit)) discardLastUnit()
     if (units.value.length === 0) error.value = 'Nenhuma unidade está disponível para acesso.'
   } catch {
     error.value = 'Não foi possível carregar as unidades. O login está indisponível.'
@@ -53,7 +70,7 @@ async function handleLogin() {
   error.value = ''
 
   if (!username.value.trim()) {
-    error.value = 'Por favor, informe seu Usuário Unix.'
+    error.value = `Por favor, informe seu ${usernameLabel.value}.`
     return
   }
 
@@ -99,7 +116,7 @@ async function handleLogin() {
              Gestão inteligente de resíduos e estoque para a indústria calçadista.
            </p>
 
-           <div class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3 py-1.5 rounded-full text-xs text-indigo-200">
+           <div v-if="isSelectedUnitLegacy" class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3 py-1.5 rounded-full text-xs text-indigo-200">
              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
              Integrado ao Portal Unix
            </div>
@@ -113,7 +130,7 @@ async function handleLogin() {
       <div class="md:w-1/2 p-10 md:p-12 flex flex-col justify-between bg-white relative">
         <div class="max-w-md mx-auto w-full my-auto">
           <h2 class="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h2>
-          <p class="text-gray-500 mb-6">Informe suas credenciais Unix para acessar.</p>
+          <p class="text-gray-500 mb-6">{{ credentialsHint }}</p>
 
           <form @submit.prevent="handleLogin" class="space-y-4">
             <div class="space-y-1">
@@ -132,7 +149,7 @@ async function handleLogin() {
             </div>
             
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">Usuário Unix</label>
+              <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">{{ usernameLabel }}</label>
               <div class="relative">
                 <User class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input 
@@ -175,7 +192,7 @@ async function handleLogin() {
             </button>
           </form>
 
-          <div class="mt-6 border-t border-gray-100 pt-5 text-center">
+          <div v-if="isSelectedUnitLegacy" class="mt-6 border-t border-gray-100 pt-5 text-center">
             <p class="text-xs text-gray-500 mb-2">
               Esqueceu sua senha ou precisa de uma nova conta?
             </p>
