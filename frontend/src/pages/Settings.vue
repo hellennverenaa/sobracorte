@@ -625,6 +625,91 @@
         </div>
       </div>
 
+      <!-- ABA 6: UNIDADE FABRIL (Exclusiva Admin Master) -->
+      <div v-if="activeTab === 'factory_unit'" class="space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <h2 class="font-bold text-gray-800 flex items-center gap-2">
+              <Building2 class="w-4 h-4 text-indigo-500" /> Configuração da Unidade Fabril
+            </h2>
+            <span class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full font-bold">
+              {{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}
+            </span>
+          </div>
+
+          <div class="p-6 space-y-6">
+            <!-- Card Informativo da Unidade -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+              <div>
+                <span class="text-gray-400 font-bold uppercase block text-[10px]">Código da Unidade</span>
+                <p class="font-mono font-black text-slate-800 text-sm mt-0.5">{{ unitSettings.code || authStore.user?.unit?.code }}</p>
+              </div>
+              <div>
+                <span class="text-gray-400 font-bold uppercase block text-[10px]">Nome da Fábrica</span>
+                <p class="font-bold text-slate-800 text-sm mt-0.5">{{ unitSettings.name || authStore.user?.unit?.name }}</p>
+              </div>
+              <div>
+                <span class="text-gray-400 font-bold uppercase block text-[10px]">Status Operacional</span>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 mt-1 border border-emerald-200">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Ativa
+                </span>
+              </div>
+            </div>
+
+            <!-- Seção de Módulos Opcionais -->
+            <div class="border-t border-gray-100 pt-6">
+              <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Sliders class="w-4 h-4 text-slate-500" /> Módulos Funcionais do Sistema
+              </h3>
+
+              <!-- Toggle Card: Módulo de Requisições -->
+              <div class="flex items-center justify-between p-4 rounded-2xl border transition-all"
+                :class="unitSettings.enableRequisitions 
+                  ? 'bg-indigo-50/40 border-indigo-200' 
+                  : 'bg-gray-50 border-gray-200'"
+              >
+                <div class="space-y-1 max-w-xl">
+                  <div class="flex items-center gap-2">
+                    <ClipboardList class="w-4 h-4" :class="unitSettings.enableRequisitions ? 'text-indigo-600' : 'text-gray-400'" />
+                    <span class="font-bold text-sm text-gray-900">Módulo de Requisições Digitais de Sobras</span>
+                    <span 
+                      class="px-2 py-0.5 text-[10px] font-black rounded-full uppercase"
+                      :class="unitSettings.enableRequisitions ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'"
+                    >
+                      {{ unitSettings.enableRequisitions ? 'Ativado' : 'Desativado' }}
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-600 leading-relaxed">
+                    Quando ativado, exibe a aba de <strong>Requisições</strong> no menu lateral, permite que líderes solicitem sobras com trava de saldo zero e habilita o fluxo de atendimento e baixa digital.
+                  </p>
+                  <p v-if="!unitSettings.enableRequisitions" class="text-[11px] text-amber-700 font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 inline-block">
+                    ⚠️ Ao desativar, o botão de Requisições e as notificações de pendências somem do menu de todos os usuários desta unidade.
+                  </p>
+                </div>
+
+                <!-- Switch Toggle -->
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    @click="toggleRequisitionsModule(!unitSettings.enableRequisitions)"
+                    :disabled="savingUnitSettings"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+                    :class="unitSettings.enableRequisitions ? 'bg-indigo-600' : 'bg-gray-300'"
+                    title="Alternar Módulo de Requisições"
+                  >
+                    <span
+                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                      :class="unitSettings.enableRequisitions ? 'translate-x-5' : 'translate-x-0'"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- MODAL DE EDIÇÃO DE LOCALIZAÇÃO (MULTI-CATEGORIA) -->
@@ -739,13 +824,14 @@ import { api } from '@/services/httpClient'
 import { useAuthStore } from '@/stores/auth'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
-  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2
+  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2, Building2, Sliders, ClipboardList
 } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 
 // --- PERMISSÕES ---
 const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor')
+const isMasterAdmin = computed(() => authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin))
 
 function formatSectorName(sec) {
   const map = {
@@ -774,11 +860,12 @@ const tabs = computed(() => {
 
   // 2. Admin Master e Admin de Setor: todas as abas
   return [
-    { key: 'categories', label: 'Categorias',             icon: Tag },
-    { key: 'units',      label: 'Unidades de Medida',     icon: Ruler },
-    { key: 'locations',  label: 'Localizações / Prateleiras', icon: MapPin },
-    { key: 'origins',    label: 'Origens / Motivos',      icon: GitBranch },
-    { key: 'import',     label: 'Importar CSV',           icon: FileSpreadsheet },
+    { key: 'categories',   label: 'Categorias',                 icon: Tag },
+    { key: 'units',        label: 'Unidades de Medida',         icon: Ruler },
+    { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
+    { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
+    { key: 'import',       label: 'Importar CSV',               icon: FileSpreadsheet },
+    ...(isMasterAdmin.value ? [{ key: 'factory_unit', label: 'Unidade Fabril', icon: Building2 }] : [])
   ]
 })
 const activeTab = ref(authStore.user?.assignedSector === 'CONSUMO' ? 'origins' : 'categories')
@@ -1384,9 +1471,59 @@ async function importCSV() {
   }
 }
 
+// CONFIGURAÇÃO DA UNIDADE FABRIL (ADMIN MASTER)
+const unitSettings = ref({
+  id: null,
+  code: '',
+  name: '',
+  active: true,
+  enableRequisitions: authStore.user?.unit?.enableRequisitions !== false,
+})
+const loadingUnitSettings = ref(false)
+const savingUnitSettings = ref(false)
+
+async function loadUnitSettings() {
+  loadingUnitSettings.value = true
+  try {
+    const res = await api.get('/factory-unit/current')
+    if (res.data?.data) {
+      unitSettings.value = { ...res.data.data }
+    }
+  } catch (err) {
+    console.error('Erro ao carregar dados da unidade:', err)
+  } finally {
+    loadingUnitSettings.value = false
+  }
+}
+
+async function toggleRequisitionsModule(enable) {
+  savingUnitSettings.value = true
+  try {
+    const res = await api.patch('/factory-unit/current/settings', {
+      enableRequisitions: enable,
+    })
+    unitSettings.value.enableRequisitions = enable
+    authStore.updateUnitSettings({ enableRequisitions: enable })
+    showNotification('success', enable 
+      ? 'Módulo de Requisições ATIVADO com sucesso para esta unidade.' 
+      : 'Módulo de Requisições DESATIVADO com sucesso para esta unidade.'
+    )
+  } catch (err) {
+    console.error('Erro ao salvar configuração da unidade:', err)
+    showNotification('error', err.response?.data?.error || 'Erro ao atualizar configurações da unidade.')
+    // reverte em caso de falha
+    unitSettings.value.enableRequisitions = !enable
+  } finally {
+    savingUnitSettings.value = false
+  }
+}
+
 // INICIALIZAÇÃO
 onMounted(async () => {
   await Promise.all([fetchCategories(), fetchUnits(), fetchLocations(), fetchOrigins()])
+  if (isMasterAdmin.value) {
+    await loadUnitSettings()
+  }
 })
 </script>
 

@@ -31,6 +31,7 @@ const authStore = useAuthStore()
 
 // --- TIPO DE RELATÓRIO ATIVO ---
 const reportType = ref('movements') // 'movements' | 'requisitions'
+const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisitions !== false)
 
 // --- ESTADOS REATIVOS ---
 const loading = ref(false)
@@ -508,6 +509,7 @@ function getStatusBadge(status) {
           <FileBarChart class="w-4 h-4" /> Movimentações & Estoque
         </button>
         <button
+          v-if="isRequisitionsEnabled"
           @click="switchReportType('requisitions')"
           class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2"
           :class="reportType === 'requisitions' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"

@@ -51,7 +51,7 @@ export async function resolveTenantRequestWithAdminCheck(
   return { requestedUnit, isGlobalAdmin, registration: validRegistration };
 }
 
-type ActiveTenant = { id: number; code: string; name: string };
+export type ActiveTenant = { id: number; code: string; name: string; enableRequisitions: boolean };
 
 export async function requireActiveTenant(
   code: string,

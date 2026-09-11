@@ -49,7 +49,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     // ignorado para ele, portanto esta query é segura fora do contexto.
     const tenant = await requireActiveTenant(requestedUnit, (code) => prisma.factoryUnit.findFirst({
         where: { code, active: true },
-        select: { id: true, code: true, name: true },
+        select: { id: true, code: true, name: true, enableRequisitions: true },
       }));
 
     req.user = user;
@@ -78,45 +78,61 @@ export const requireRole = (allowedRoles: string[]) => {
     const apiUser = req.user;
 
     if (!apiUser || !apiUser.usuario) {
-      return res.status(401).json({ error: 'Usuário não identificado no token' });
+      return res.status(401).json({
+        message: "Acesso negado! Usuário não autenticado!",
+      });
     }
 
+    if (req.isGlobalAdmin) {
+      return next();
+    }
+
+    if (!req.tenant) {
+      return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+    }
+
+    const usuario = String(apiUser.usuario).toUpperCase().trim();
+    const matricula = apiUser.matricula ? BigInt(apiUser.matricula) : null;
+
     try {
-      if (!req.tenant) return res.status(401).json({ error: 'Unidade não identificada.' });
-      if (req.isGlobalAdmin) {
-        req.user = { ...apiUser, role: 'admin' };
-        return next();
-      }
-      const user = await prisma.user.findUnique({
-        where: { factoryUnitId_usuario: {
+      const user = await prismaWithoutTenant.user.findFirst({
+        where: {
           factoryUnitId: req.tenant.id,
-          usuario: String(apiUser.usuario).toUpperCase().trim(),
-        } }
+          OR: [
+            ...(matricula ? [{ matriculaDass: matricula }] : []),
+            { usuario },
+          ],
+        },
       });
 
-      const userRole = user?.role;
+      if (!user) {
+        return res.status(401).json({
+          message: "Acesso negado! Usuário não encontrado no sistema.",
+        });
+      }
 
-      if (userRole === 'admin') {
-        req.user = { ...apiUser, role: userRole, assignedSector: user?.assignedSector || null };
+      if (user.role === 'admin') {
         return next();
       }
 
-      if (!userRole || !allowedRoles.includes(userRole)) {
-        return res.status(403).json({ error: 'Acesso negado: Seu nível não permite esta ação.' });
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({
+          message: "Acesso negado! Seu perfil de acesso não permite realizar esta operação.",
+        });
       }
 
-      req.user = { ...apiUser, role: user.role, assignedSector: user?.assignedSector || null };
       next();
-
     } catch (error) {
-      console.error("Erro no roleMiddleware:", error);
-      return res.status(500).json({ error: 'Erro interno ao validar permissões' });
+      console.error("Erro ao verificar papel do usuário:", error);
+      return res.status(500).json({
+        message: "Erro interno de autorização",
+      });
     }
   };
 };
 
 /**
- * Middleware para validar se o usuário tem permissão para operar no setor específico (RBAC Setorial)
+ * Middleware para validar se o setor da operação corresponde ao assignedSector do usuário
  */
 export const requireSectorMatch = (getSector: (req: Request) => string | undefined) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -142,4 +158,19 @@ export const requireSectorMatch = (getSector: (req: Request) => string | undefin
 
     next();
   };
+};
+
+/**
+ * Middleware para validar se o módulo de Requisições está ativo na unidade atual
+ */
+export const requireRequisitionsEnabled = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.tenant) {
+    return res.status(401).json({ error: 'Unidade fabril não identificada.' });
+  }
+
+  if (req.tenant.enableRequisitions === false) {
+    return res.status(403).json({ error: 'Módulo de Requisições desativado nesta unidade.' });
+  }
+
+  next();
 };

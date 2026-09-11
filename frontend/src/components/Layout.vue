@@ -28,7 +28,15 @@ async function logout() {
   window.location.href = '/sobra_corte/login'
 }
 
+const isRequisitionsEnabled = computed(() => {
+  return authStore.user?.unit?.enableRequisitions !== false
+})
+
 async function fetchPendingCount() {
+  if (!isRequisitionsEnabled.value) {
+    pendingCount.value = 0
+    return
+  }
   try {
     if (!authStore.isAuthenticated || !authStore.user) {
       if (notificationInterval) {
@@ -84,6 +92,15 @@ const menuItems = [
   { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
   { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'admin_setor'] }
 ]
+
+const visibleMenuItems = computed(() => {
+  const role = authStore.user?.role
+  return menuItems.filter(item => {
+    if (item.roles && !item.roles.includes(role)) return false
+    if (item.path === '/requisitions' && !isRequisitionsEnabled.value) return false
+    return true
+  })
+})
 </script>
 
 <template>
@@ -105,10 +122,9 @@ const menuItems = [
 
       <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
         <router-link 
-          v-for="item in menuItems" 
+          v-for="item in visibleMenuItems" 
           :key="item.path" 
           :to="item.path"
-          v-show="!item.roles || item.roles.includes(authStore.user?.role)"
           class="flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium text-sm"
           :class="route.path === item.path ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
           @click="isSidebarOpen = false"
@@ -138,10 +154,30 @@ const menuItems = [
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>
-        <router-link to="/profile" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 font-bold mb-3 hover:underline">
-          Editar Perfil
-        </router-link>
-        <button @click="logout" class="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-red-600/20 hover:text-red-400 text-slate-400 py-2.5 rounded-lg transition-all text-sm font-bold">
+
+        <!-- Seletor Corporativo de Unidade Fabril (Exclusivo Admin) -->
+        <div v-if="(authStore.user?.isGlobalAdmin || authStore.user?.role === 'admin') && authStore.availableUnits.length > 1" class="mb-3 px-1">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            Alternar Unidade Fabril
+          </label>
+          <div class="relative">
+            <select
+              :value="authStore.user?.unit?.code"
+              @change="handleUnitChange"
+              :disabled="isSwitchingUnit"
+              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-indigo-300 font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 transition-all"
+            >
+              <option v-for="unit in authStore.availableUnits" :key="unit.code" :value="unit.code">
+                {{ unit.code }} — {{ unit.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <button 
+          @click="logout" 
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-400 hover:bg-rose-950/40 hover:text-rose-400 transition-all text-xs font-bold"
+        >
           <LogOut class="w-4 h-4" /> Sair
         </button>
       </div>
@@ -157,6 +193,7 @@ const menuItems = [
         <div class="flex items-center gap-4">
           <!-- Central de Notificações / Requisições -->
           <router-link
+            v-if="isRequisitionsEnabled"
             to="/requisitions?status=PENDENTE"
             class="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"
             title="Requisições Pendentes"

@@ -55,10 +55,11 @@ enum MovementType {
 }
 
 model FactoryUnit {
-  id     Int     @id @default(autoincrement())
-  code   String  @unique
-  name   String
-  active Boolean @default(true)
+  id                 Int     @id @default(autoincrement())
+  code               String  @unique
+  name               String
+  active             Boolean @default(true)
+  enableRequisitions Boolean @default(true)
 
   materials          Material[]
   locations          Location[]

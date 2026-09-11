@@ -128,6 +128,13 @@ router.beforeEach((to, from, next) => {
     return next('/')
   }
 
+  if (to.path === '/requisitions') {
+    const isRequisitionsEnabled = authStore.user?.unit?.enableRequisitions !== false
+    if (!isRequisitionsEnabled) {
+      return next('/')
+    }
+  }
+
   if (to.meta.roles) {
     const isAllowed = authStore.user?.isGlobalAdmin ||
       userRole === 'admin' ||

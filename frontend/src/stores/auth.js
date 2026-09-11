@@ -56,6 +56,19 @@ export const useAuthStore = defineStore('auth', {
       sessionStorage.removeItem('expirationTime')
     },
 
+    updateUnitSettings(newSettings) {
+      if (this.user) {
+        this.user = {
+          ...this.user,
+          unit: {
+            ...(this.user.unit || {}),
+            ...newSettings,
+          }
+        };
+        localStorage.setItem('user', JSON.stringify(this.user));
+      }
+    },
+
     async fetchAvailableUnits() {
       try {
         const response = await api.get('/factory-units');

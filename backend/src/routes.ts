@@ -12,7 +12,7 @@ import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
 import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
-import { requireRole, requireAuth, requireSectorMatch } from './middlewares/roleMiddleware';
+import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
 
 const routes = Router();
@@ -38,11 +38,44 @@ routes.get('/factory-units', async (_req, res) => {
     const units = await prisma.factoryUnit.findMany({
       where: { active: true },
       orderBy: { code: 'asc' },
-      select: { code: true, name: true },
+      select: { id: true, code: true, name: true, active: true, enableRequisitions: true },
     });
     return res.json({ data: units });
   } catch {
     return res.status(500).json({ error: 'Erro ao carregar unidades.' });
+  }
+});
+
+// Configurações da Unidade Fabril Atual
+routes.get('/factory-unit/current', requireAuth, async (req, res) => {
+  try {
+    const unit = await prisma.factoryUnit.findUnique({
+      where: { id: req.tenant!.id },
+      select: { id: true, code: true, name: true, active: true, enableRequisitions: true },
+    });
+    if (!unit) return res.status(404).json({ error: 'Unidade fabril não encontrada.' });
+    return res.json({ data: unit });
+  } catch (err) {
+    console.error('Erro ao buscar unidade atual:', err);
+    return res.status(500).json({ error: 'Erro ao buscar dados da unidade fabril.' });
+  }
+});
+
+routes.patch('/factory-unit/current/settings', requireAuth, requireRole(['admin']), async (req, res) => {
+  try {
+    const { enableRequisitions } = req.body;
+    if (typeof enableRequisitions !== 'boolean') {
+      return res.status(400).json({ error: 'Parâmetro enableRequisitions inválido (deve ser booleano).' });
+    }
+    const updated = await prisma.factoryUnit.update({
+      where: { id: req.tenant!.id },
+      data: { enableRequisitions },
+      select: { id: true, code: true, name: true, active: true, enableRequisitions: true },
+    });
+    return res.json({ message: 'Configurações da unidade atualizadas com sucesso.', data: updated });
+  } catch (err) {
+    console.error('Erro ao atualizar configurações da unidade:', err);
+    return res.status(500).json({ error: 'Erro ao atualizar configurações da unidade fabril.' });
   }
 });
 
@@ -70,12 +103,12 @@ routes.post('/inventory/movements', requireAuth, requireRole(['admin_setor', 'li
 routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
-routes.post('/requisitions', requireAuth, requisitionController.create);
-routes.post('/requisitions/check-availability', requireAuth, requisitionController.checkAvailability);
-routes.get('/requisitions', requireAuth, requisitionController.index);
-routes.get('/requisitions/pending-count', requireAuth, requisitionController.pendingCount);
-routes.post('/requisitions/:id/fulfill', requireAuth, requireRole(['admin', 'admin_setor']), requisitionController.fulfill);
-routes.patch('/requisitions/:id/cancel', requireAuth, requisitionController.cancel);
+routes.post('/requisitions', requireAuth, requireRequisitionsEnabled, requisitionController.create);
+routes.post('/requisitions/check-availability', requireAuth, requireRequisitionsEnabled, requisitionController.checkAvailability);
+routes.get('/requisitions', requireAuth, requireRequisitionsEnabled, requisitionController.index);
+routes.get('/requisitions/pending-count', requireAuth, requireRequisitionsEnabled, requisitionController.pendingCount);
+routes.post('/requisitions/:id/fulfill', requireAuth, requireRequisitionsEnabled, requireRole(['admin', 'admin_setor']), requisitionController.fulfill);
+routes.patch('/requisitions/:id/cancel', requireAuth, requireRequisitionsEnabled, requisitionController.cancel);
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
 routes.get('/dashboard/summary', requireAuth, dashboardController.getSummary);
