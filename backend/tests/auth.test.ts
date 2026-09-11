@@ -117,6 +117,28 @@ test('sincronização preserva identidade por unidade e cria novo usuário como 
   assert.equal(user.role, 'leitor');
 });
 
+test('sincronização isola o mesmo usuário entre unidades', async () => {
+  const upserts: any[] = [];
+  const client = {
+    user: {
+      upsert: async (args: any) => {
+        upserts.push(args);
+        return args.create;
+      },
+    },
+  };
+  const identity = { usuario: 'MESMO.USUARIO', matricula: 'A001X' } as any;
+
+  await syncUser(identity, 1, client);
+  await syncUser(identity, 2, client);
+
+  assert.deepEqual(upserts.map(({ where }) => where), [
+    { factoryUnitId_usuario: { factoryUnitId: 1, usuario: 'MESMO.USUARIO' } },
+    { factoryUnitId_usuario: { factoryUnitId: 2, usuario: 'MESMO.USUARIO' } },
+  ]);
+  assert.deepEqual(upserts.map(({ create }) => create.role), ['leitor', 'leitor']);
+});
+
 test('sincronização não envia matrícula fora do BIGINT para o PostgreSQL', async () => {
   let upsertArgs: any;
   await syncUser({ usuario: 'USUARIO', matricula: '9223372036854775808' } as any, 42, {

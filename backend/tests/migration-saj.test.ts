@@ -29,6 +29,28 @@ test('migration remove somente usuários locais de STJ', () => {
   assert.doesNotMatch(migration, /autenticacao/i);
 });
 
+test('migration não remove dados operacionais, configurações ou auditorias', () => {
+  for (const table of [
+    'FactoryUnit',
+    'Material',
+    'MaterialLocation',
+    'Movement',
+    'MaterialDeletionAudit',
+    'RoleChangeAudit',
+    'UnitConfig',
+    'CategoryConfig',
+    'OriginConfig',
+    'Location',
+    'LocationCategory',
+  ]) {
+    assert.doesNotMatch(
+      migration,
+      new RegExp(`(?:DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+"sobra_corte"\\."${table}"`, 'i'),
+      `migration não deve remover ${table}`,
+    );
+  }
+});
+
 test('migration falha em conflito e é segura para uma segunda execução', () => {
   assert.match(migration, /IF stj_id IS NULL/);
   assert.match(migration, /IF saj_id IS NULL/);

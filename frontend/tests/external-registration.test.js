@@ -40,6 +40,25 @@ test('valida obrigatórios, senha mínima e confirmação', () => {
   assert.match(validation.errors.confirmarSenha, /não confere/)
 })
 
+test('cadastro inválido falha antes de chamar o serviço', async () => {
+  let called = false
+  const authClient = {
+    post: async () => {
+      called = true
+    },
+  }
+
+  await assert.rejects(
+    () => registerExternalUser(authClient, { ...validForm, senha: 'curta' }),
+    (error) => {
+      assert.match(error.message, /no mínimo 8/)
+      assert.ok(error.validation)
+      return true
+    },
+  )
+  assert.equal(called, false)
+})
+
 test('cadastro chama o endpoint externo com payload validado', async () => {
   const calls = []
   const authClient = { post: async (...args) => { calls.push(args); return { status: 201 } } }
