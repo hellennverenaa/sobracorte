@@ -50,7 +50,7 @@ const setoresData = ref({
   apoio:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
   preFabricado: { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
   expedicao:    { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-  montagem:     { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0 },
+  montagem:     { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
 })
 
 const volumePorSetor       = ref([])
@@ -344,7 +344,7 @@ async function loadData() {
       apoio:        setoresRaw.apoio || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
       preFabricado: setoresRaw.preFabricado || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
       expedicao:    setoresRaw.expedicao || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-      montagem:     setoresRaw.montagem || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0 },
+      montagem:     setoresRaw.montagem || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
     }
 
     // 3. Volume por Setor
@@ -564,14 +564,22 @@ onUnmounted(() => {
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-fuchsia-500 relative group overflow-hidden">
             <div class="flex justify-between items-start">
               <div>
-                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Montagem & Pares Órfãos</p>
-                <div class="flex items-baseline gap-2 mt-1">
-                  <h3 class="text-2xl font-black text-fuchsia-700 tracking-tight">
-                    {{ formatNumber(setoresData.montagem.paresCasados) }}
-                  </h3>
-                  <span class="text-xs font-bold text-fuchsia-600">pares casados</span>
+                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Montagem & Pares</p>
+                <div class="flex items-baseline gap-3 mt-1">
+                  <div>
+                    <span class="text-[10px] font-bold text-fuchsia-600 block uppercase">Casados</span>
+                    <h3 class="text-xl font-black text-fuchsia-700 tracking-tight leading-none">
+                      {{ formatNumber(setoresData.montagem.paresCasados) }} <span class="text-[11px] font-medium text-slate-400">prs</span>
+                    </h3>
+                  </div>
+                  <div class="border-l border-slate-200 pl-3">
+                    <span class="text-[10px] font-bold text-emerald-600 block uppercase">Formáveis</span>
+                    <h3 class="text-xl font-black text-emerald-700 tracking-tight leading-none">
+                      {{ formatNumber(setoresData.montagem.paresFormaveis) }} <span class="text-[11px] font-medium text-slate-400">prs</span>
+                    </h3>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2 mt-0.5 text-[11px] font-bold text-slate-500">
+                <div class="flex items-center gap-2 mt-2 text-[11px] font-bold text-slate-500">
                   <span class="text-indigo-600">Esq: {{ formatNumber(setoresData.montagem.peEsq) }}</span>
                   <span>·</span>
                   <span class="text-purple-600">Dir: {{ formatNumber(setoresData.montagem.peDir) }}</span>

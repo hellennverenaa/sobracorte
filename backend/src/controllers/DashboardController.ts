@@ -40,6 +40,8 @@ export class DashboardController {
         montagemEsqAgg,
         montagemDirAgg,
         paresCasadosCount,
+        paresRequisicaoCount,
+        paresFormaveisRaw,
         // Entradas / Saídas / Parados por setor
         apoioEntriesCount,
         preFabEntriesCount,
@@ -122,6 +124,24 @@ export class DashboardController {
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'E', quantity: { gt: 0 } }, _sum: { quantity: true } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'D', quantity: { gt: 0 } }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, type: 'CASAMENTO_PAR' }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'SAIDA_REQUISICAO', origem: { contains: 'Atendimento de Requisição (Pé' } }, _sum: { quantity: true } }),
+        prisma.$queryRaw<Array<{ totalFormable: number }>>`
+          SELECT COALESCE(SUM(LEAST(e.quantity, d.quantity)), 0) AS "totalFormable"
+          FROM sobra_corte."StockItem" e
+          INNER JOIN sobra_corte."StockItem" d
+            ON e."factoryUnitId" = d."factoryUnitId"
+            AND e.sector = d.sector
+            AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
+            AND e."sizeGrade" = d."sizeGrade"
+            AND COALESCE(e."color", '') = COALESCE(d."color", '')
+          WHERE e."factoryUnitId" = ${factoryUnitId}
+            AND e.sector = 'MONTAGEM'::sobra_corte."SectorType"
+            AND d.sector = 'MONTAGEM'::sobra_corte."SectorType"
+            AND e."footSide" = 'E'
+            AND d."footSide" = 'D'
+            AND e.quantity > 0
+            AND d.quantity > 0
+        `,
         // Entradas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
@@ -131,7 +151,7 @@ export class DashboardController {
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO'] } } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR'] } }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
         // Parados >30d por setor
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
@@ -176,7 +196,11 @@ export class DashboardController {
       const corteStockEntries = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } });
       const corteStockExits = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO'] } } });
 
-      const totalParesCasados = Math.floor((Number(paresCasadosCount._sum?.quantity) || 0) / 2);
+      const totalParesCasados = Math.floor(
+        ((Number(paresCasadosCount._sum?.quantity) || 0) +
+         (Number(paresRequisicaoCount._sum?.quantity) || 0)) / 2
+      );
+      const totalParesFormaveis = Number(paresFormaveisRaw?.[0]?.totalFormable) || 0;
 
       const corteTotalEntries = legacyEntriesCount + corteStockEntries;
       const corteTotalExits = legacyExitsCount + corteStockExits;
@@ -240,6 +264,7 @@ export class DashboardController {
           peEsq: Number(montagemEsqAgg._sum.quantity) || 0,
           peDir: Number(montagemDirAgg._sum.quantity) || 0,
           paresCasados: totalParesCasados,
+          paresFormaveis: totalParesFormaveis,
         },
       };
 
