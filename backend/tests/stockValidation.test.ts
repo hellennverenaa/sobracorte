@@ -175,3 +175,28 @@ test('Unidade de medida padroniza como UND por padrão nos setores discretos', (
   assert.equal(mont.unit, 'UND');
 });
 
+test('Combinação de cor aceita formatos padronizados (com barra e hífen)', () => {
+  const preFab = PreFabricadoItemSchema.parse({
+    sector: 'PRE_FABRICADO',
+    productName: 'Pegasus 40',
+    type: 'EVA',
+    color: 'BRANCO/GOMA',
+    sizeGrade: '38',
+    quantity: 10,
+    location: 'PRAT-B',
+  });
+  assert.equal(preFab.color, 'BRANCO/GOMA');
+
+  const dist = DistribuicaoItemSchema.parse({
+    sector: 'DISTRIBUICAO',
+    sku: 'CAB-01',
+    type: 'CABEDAL',
+    color: 'PRETO-VERMELHO',
+    sizeGrade: '39',
+    quantity: 8,
+    location: 'PRAT-C',
+  });
+  assert.equal(dist.color, 'PRETO-VERMELHO');
+});
+
+

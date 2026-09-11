@@ -288,6 +288,25 @@ function handleQuantityInput(event: Event) {
   }
 }
 
+function handleColorKeydown(event: KeyboardEvent) {
+  // Impede digitação de espaço em branco no campo de combinação
+  if (event.key === ' ' || event.code === 'Space') {
+    event.preventDefault();
+  }
+}
+
+function handleColorInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (!input) return;
+  // Remove espaços, aceita unicamente caracteres alfanuméricos, barra (/) e hífen (-), e converte para maiúsculo
+  const clean = input.value
+    .replace(/\s+/g, '')
+    .replace(/[^A-Za-z0-9\/\-]/g, '')
+    .toUpperCase();
+  formData.color = clean;
+  input.value = clean;
+}
+
 function selectSector(sector: SectorType) {
   if (isSectorLocked.value && userSector.value && sector !== userSector.value) {
     return;
@@ -681,10 +700,12 @@ onMounted(async () => {
             v-model="formData.color"
             :list="'combinations-list-' + activeSector"
             type="text"
-            placeholder="Ex: BRANCO / GOMA"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
+            placeholder="Ex: BRANCO/GOMA ou PRETO-VERMELHO"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
             autocomplete="off"
+            @keydown="handleColorKeydown"
+            @input="handleColorInput"
           />
           <datalist :id="'combinations-list-' + activeSector">
             <option v-for="comb in availableCombinations" :key="comb" :value="comb" />
@@ -734,27 +755,26 @@ onMounted(async () => {
       </div>
 
       <!-- 4. DISTRIBUIÇÃO (Cabedais e Solas Processadas) -->
-      <div v-if="activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO'" class="grid grid-cols-1 md:grid-cols-6 gap-4">
+      <div v-if="activeSector === 'DISTRIBUICAO'" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
             ref="firstInputRef"
             v-model="formData.sku"
             type="text"
-            placeholder="Ex: NKE-PEG-CAB-01"
+            placeholder="Ex: NKE-PEG40-01"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
             required
           />
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha</label>
           <input
             v-model="formData.productName"
             type="text"
             placeholder="Ex: PEGASUS 40"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
-            required
           />
         </div>
 
@@ -776,10 +796,12 @@ onMounted(async () => {
             v-model="formData.color"
             :list="'combinations-list-' + activeSector"
             type="text"
-            placeholder="Ex: PRETO / PRATA"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
+            placeholder="Ex: PRETO-VERMELHO ou BRANCO/GOMA"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
             autocomplete="off"
+            @keydown="handleColorKeydown"
+            @input="handleColorInput"
           />
           <datalist :id="'combinations-list-' + activeSector">
             <option v-for="comb in availableCombinations" :key="comb" :value="comb" />
@@ -859,10 +881,12 @@ onMounted(async () => {
             v-model="formData.color"
             :list="'combinations-list-' + activeSector"
             type="text"
-            placeholder="Ex: PRETO / BRANCO"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
+            placeholder="Ex: BRANCO/PRETO ou PRETO-GOMA"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
             required
             autocomplete="off"
+            @keydown="handleColorKeydown"
+            @input="handleColorInput"
           />
           <datalist :id="'combinations-list-' + activeSector">
             <option v-for="comb in availableCombinations" :key="comb" :value="comb" />

@@ -145,7 +145,7 @@ export class StockItemService {
                 type: (item.type || 'EVA').trim().toUpperCase(),
                 sku: (item.sku || item.productName).trim().toUpperCase(),
                 productName: item.productName.trim().toUpperCase(),
-                color: item.color.trim().toUpperCase(),
+                color: item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide || null,
               };
@@ -159,7 +159,7 @@ export class StockItemService {
                 type: distType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
-                color: item.color.trim().toUpperCase(),
+                color: item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide || null,
               };
@@ -170,7 +170,7 @@ export class StockItemService {
                 componentType: 'PE_PRONTO' as ComponentType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
-                color: item.color ? item.color.trim().toUpperCase() : null,
+                color: item.color ? item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase() : null,
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide,
               };
@@ -641,9 +641,11 @@ export class StockItemService {
 
     const uniqueColors = new Set<string>();
     for (const item of items) {
-      const clean = item.color?.trim();
+      const clean = item.color
+        ? item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()
+        : '';
       if (clean && clean.length > 0) {
-        uniqueColors.add(clean.toUpperCase());
+        uniqueColors.add(clean);
       }
     }
 
