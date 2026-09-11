@@ -32,7 +32,9 @@ const realStats = ref({
   totalEntries: 0,
   totalExits: 0,
   taxaReaproveitamento: 0,
-  totalParadosSemGiro: 0
+  totalParadosSemGiro: 0,
+  totalParesFormaveis: 0,
+  totalParesCasados: 0,
 })
 
 const displayStats = ref({
@@ -46,10 +48,11 @@ const displayStats = ref({
 })
 
 const setoresData = ref({
-  corte:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-  apoio:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-  preFabricado: { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-  expedicao:    { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+  corte:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalExitsVolume: 0, totalParadosSemGiro: 0 },
+  apoio:        { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalExitsVolume: 0, totalParadosSemGiro: 0 },
+  preFabricado: { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
+  expedicao:    { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
+  distribuicao: { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
   montagem:     { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
 })
 
@@ -245,7 +248,136 @@ const currentFilteredStagnant = computed(() => {
   return secMap[selectedSector.value] || 0
 })
 
-// 4. Top 5 Entradas de Sobras Filtradas pelo Setor Selecionado
+// 4. Card 4 Dinâmico: Pares Casados e Formáveis por Setor / Métricas Específicas
+const currentFilteredPairsCard = computed(() => {
+  if (selectedSector.value === 'TODOS') {
+    const totalFormaveis = Number(realStats.value.totalParesFormaveis) || (
+      (Number(setoresData.value.montagem?.paresFormaveis) || 0) +
+      (Number(setoresData.value.preFabricado?.paresFormaveis) || 0) +
+      (Number(setoresData.value.distribuicao?.paresFormaveis) || Number(setoresData.value.expedicao?.paresFormaveis) || 0)
+    );
+    const montagemForm = Number(setoresData.value.montagem?.paresFormaveis) || 0;
+    const preFabForm = Number(setoresData.value.preFabricado?.paresFormaveis) || 0;
+    const distrForm = Number(setoresData.value.distribuicao?.paresFormaveis) || Number(setoresData.value.expedicao?.paresFormaveis) || 0;
+
+    return {
+      type: 'PARES_GLOBAL',
+      title: 'Pares Formáveis Fabris',
+      badge: 'Multi-Setor',
+      badgeColor: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+      mainCount: totalFormaveis,
+      mainUnit: 'prs',
+      subtext: 'Pares completos disponíveis para montagem',
+      icon: Footprints,
+      iconBg: 'bg-fuchsia-50 text-fuchsia-600',
+      borderClass: 'border-b-fuchsia-500',
+      breakdown: [
+        { label: 'Montagem', value: montagemForm, color: 'text-fuchsia-600' },
+        { label: 'Solas (Pré-Fab)', value: preFabForm, color: 'text-amber-600' },
+        { label: 'Distribuição', value: distrForm, color: 'text-indigo-600' },
+      ],
+    };
+  }
+
+  if (selectedSector.value === 'MONTAGEM') {
+    const formaveis = Number(setoresData.value.montagem?.paresFormaveis) || 0;
+    const casados = Number(setoresData.value.montagem?.paresCasados) || 0;
+    const peEsq = Number(setoresData.value.montagem?.peEsq) || 0;
+    const peDir = Number(setoresData.value.montagem?.peDir) || 0;
+
+    return {
+      type: 'MONTAGEM',
+      title: 'Pares Formáveis (Montagem)',
+      badge: 'Pés Órfãos',
+      badgeColor: 'bg-pink-50 text-pink-700 border-pink-200',
+      mainCount: formaveis,
+      mainUnit: 'prs',
+      icon: Footprints,
+      iconBg: 'bg-pink-50 text-pink-600',
+      borderClass: 'border-b-pink-500',
+      primaryStat: { label: 'Casados', value: casados, color: 'text-fuchsia-700' },
+      secondaryStat: { label: 'Formáveis', value: formaveis, color: 'text-emerald-700' },
+      feet: { esq: peEsq, dir: peDir },
+    };
+  }
+
+  if (selectedSector.value === 'PRE_FABRICADO') {
+    const formaveis = Number(setoresData.value.preFabricado?.paresFormaveis) || 0;
+    const peEsq = Number(setoresData.value.preFabricado?.peEsq) || 0;
+    const peDir = Number(setoresData.value.preFabricado?.peDir) || 0;
+
+    return {
+      type: 'PRE_FABRICADO',
+      title: 'Pares de Solas (Pré-Fabricado)',
+      badge: 'Borracha & EVA',
+      badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+      mainCount: formaveis,
+      mainUnit: 'prs',
+      icon: Package,
+      iconBg: 'bg-amber-50 text-amber-600',
+      borderClass: 'border-b-amber-500',
+      primaryStat: { label: 'Pares Formáveis', value: formaveis, color: 'text-amber-700' },
+      feet: { esq: peEsq, dir: peDir, labelEsq: 'Sola Esq', labelDir: 'Sola Dir' },
+    };
+  }
+
+  if (selectedSector.value === 'DISTRIBUICAO' || selectedSector.value === 'EXPEDICAO') {
+    const d = setoresData.value.distribuicao || setoresData.value.expedicao;
+    const formaveis = Number(d?.paresFormaveis) || 0;
+    const peEsq = Number(d?.peEsq) || 0;
+    const peDir = Number(d?.peDir) || 0;
+
+    return {
+      type: 'DISTRIBUICAO',
+      title: 'Pares de Componentes (Distribuição)',
+      badge: 'Cabedais & Solas Processadas',
+      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      mainCount: formaveis,
+      mainUnit: 'prs',
+      icon: Layers,
+      iconBg: 'bg-indigo-50 text-indigo-600',
+      borderClass: 'border-b-indigo-500',
+      primaryStat: { label: 'Pares Formáveis', value: formaveis, color: 'text-indigo-700' },
+      feet: { esq: peEsq, dir: peDir, labelEsq: 'Comp. Esq', labelDir: 'Comp. Dir' },
+    };
+  }
+
+  if (selectedSector.value === 'CORTE') {
+    const totalExitsVolume = Number(setoresData.value.corte?.totalExitsVolume) || 0;
+    const totalExits = Number(setoresData.value.corte?.totalExits) || 0;
+
+    return {
+      type: 'CORTE',
+      title: 'Sobras Reaproveitadas (Corte)',
+      badge: 'Eliminação de Sobras',
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      mainCount: totalExitsVolume,
+      mainUnit: 'm² eliminados',
+      icon: Scissors,
+      iconBg: 'bg-emerald-50 text-emerald-600',
+      borderClass: 'border-b-emerald-600',
+      corteInfo: { totalExitsVolume, totalExits },
+    };
+  }
+
+  // APOIO
+  const totalExitsVolume = Number(setoresData.value.apoio?.totalExitsVolume) || 0;
+  const totalExits = Number(setoresData.value.apoio?.totalExits) || 0;
+  return {
+    type: 'APOIO',
+    title: 'Peças Reaproveitadas (Apoio)',
+    badge: 'Eliminação de Sobras',
+    badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
+    mainCount: totalExitsVolume,
+    mainUnit: 'un reaproveitadas',
+    icon: Box,
+    iconBg: 'bg-sky-50 text-sky-600',
+    borderClass: 'border-b-sky-500',
+    apoioInfo: { totalExitsVolume, totalExits },
+  };
+});
+
+// 5. Top 5 Entradas de Sobras Filtradas pelo Setor Selecionado
 const filteredTopSobras = computed(() => {
   if (selectedSector.value === 'TODOS') {
     return topSobrasEntrada.value.slice(0, 5)
@@ -254,7 +386,7 @@ const filteredTopSobras = computed(() => {
   return filtered.length > 0 ? filtered.slice(0, 5) : []
 })
 
-// 5. Origem das Entradas Reativa ao Setor Selecionado
+// 6. Origem das Entradas Reativa ao Setor Selecionado
 const filteredOrigemChartData = computed(() => {
   let list = []
   if (selectedSector.value === 'TODOS') {
@@ -335,15 +467,18 @@ async function loadData() {
       totalEntries:         statsData.totalEntries || 0,
       totalExits:           statsData.totalExits || 0,
       taxaReaproveitamento: statsData.taxaReaproveitamento || 0,
-      totalParadosSemGiro:  statsData.totalParadosSemGiro || 0
+      totalParadosSemGiro:  statsData.totalParadosSemGiro || 0,
+      totalParesFormaveis:  statsData.totalParesFormaveis || 0,
+      totalParesCasados:    statsData.totalParesCasados || 0
     }
 
     // 2. Dados Setorizados
     setoresData.value = {
-      corte:        setoresRaw.corte || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-      apoio:        setoresRaw.apoio || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-      preFabricado: setoresRaw.preFabricado || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
-      expedicao:    setoresRaw.expedicao || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0 },
+      corte:        setoresRaw.corte || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalExitsVolume: 0, totalParadosSemGiro: 0 },
+      apoio:        setoresRaw.apoio || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalExitsVolume: 0, totalParadosSemGiro: 0 },
+      preFabricado: setoresRaw.preFabricado || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
+      expedicao:    setoresRaw.expedicao || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
+      distribuicao: setoresRaw.distribuicao || setoresRaw.expedicao || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
       montagem:     setoresRaw.montagem || { itemsCount: 0, totalQuantity: 0, totalEntries: 0, totalExits: 0, totalParadosSemGiro: 0, peEsq: 0, peDir: 0, paresCasados: 0, paresFormaveis: 0 },
     }
 
@@ -410,85 +545,89 @@ onUnmounted(() => {
 
 <template>
   <Layout>
-    <div class="min-h-screen bg-slate-100 p-4 md:p-6 transition-colors duration-500">
-      <div class="max-w-7xl mx-auto space-y-5">
+    <div class="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-6 transition-colors duration-500">
+      <div class="max-w-7xl mx-auto space-y-4 sm:space-y-5">
 
         <!-- CABEÇALHO DO PAINEL ANALÍTICO -->
-        <div class="flex flex-col md:flex-row justify-between items-center bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 gap-4">
-          <div class="flex items-center gap-3.5 w-full md:w-auto">
-            <div class="w-11 h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 gap-3 sm:gap-4">
+          <div class="flex items-center gap-3 sm:gap-3.5 min-w-0">
+            <div class="w-10 h-10 sm:w-11 sm:h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
               <Activity class="w-5 h-5 animate-pulse" />
             </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h1 class="text-xl font-black text-slate-800 tracking-tight uppercase">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h1 class="text-base sm:text-lg md:text-xl font-black text-slate-800 tracking-tight uppercase leading-snug">
                   Painel de Controle Multi-Setor
                 </h1>
-                <span class="bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-indigo-100 uppercase">
+                <span class="bg-indigo-50 text-indigo-700 text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-bold border border-indigo-100 uppercase whitespace-nowrap inline-flex items-center shrink-0">
                   5 Setores Fabris
                 </span>
               </div>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Rastreabilidade em Tempo Real</span>
-                <RefreshCw v-if="isUpdating" class="w-3 h-3 text-indigo-600 animate-spin ml-1" />
+              <div class="flex items-center gap-2 mt-1">
+                <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0"></span>
+                <span class="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  Rastreabilidade em Tempo Real
+                </span>
+                <RefreshCw v-if="isUpdating" class="w-3 h-3 text-indigo-600 animate-spin shrink-0 ml-1" />
               </div>
             </div>
           </div>
 
-          <div class="bg-slate-50 px-4 py-2 rounded-xl border border-slate-200 flex items-center gap-3 shadow-inner w-full md:w-auto justify-between md:justify-end">
-            <div class="text-right">
-              <div class="text-xl font-black text-slate-700 leading-none tabular-nums">
+          <div class="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-3 shadow-inner w-full sm:w-auto self-stretch sm:self-auto justify-between sm:justify-end shrink-0">
+            <div class="text-left sm:text-right">
+              <div class="text-lg sm:text-xl font-black text-slate-700 leading-none tabular-nums">
                 {{ currentTime.toLocaleTimeString('pt-BR') }}
               </div>
               <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
                 {{ currentTime.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) }}
               </div>
             </div>
-            <Clock class="w-6 h-6 text-slate-300" />
+            <Clock class="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 shrink-0" />
           </div>
         </div>
 
         <!-- SELETOR / FILTRO RÁPIDO POR SETOR -->
-        <div class="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-1.5 overflow-x-auto">
-          <button
-            v-for="sec in sectorFilterOptions"
-            :key="sec.id"
-            @click="selectedSector = sec.id"
-            class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0"
-            :class="selectedSector === sec.id
-              ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
-          >
-            <component :is="sec.icon" class="w-3.5 h-3.5" />
-            <span>{{ sec.label }}</span>
-          </button>
+        <div class="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto scroll-smooth overscroll-x-contain">
+          <div class="flex items-center gap-1.5 sm:gap-2 min-w-max">
+            <button
+              v-for="sec in sectorFilterOptions"
+              :key="sec.id"
+              @click="selectedSector = sec.id"
+              class="px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0"
+              :class="selectedSector === sec.id
+                ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'"
+            >
+              <component :is="sec.icon" class="w-3.5 h-3.5 shrink-0" />
+              <span>{{ sec.label }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- CARDS PRINCIPAIS DE KPIS OPERACIONAIS (4 INDICADORES CENTRAIS) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-stretch">
 
           <!-- 1. Volume de Sobras (Dinâmico conforme setor filtrado) -->
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-indigo-600 relative group overflow-hidden flex flex-col justify-between">
-            <div class="flex justify-between items-start">
-              <div class="w-full">
-                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+          <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 border-b-4 border-b-indigo-600 relative group overflow-hidden h-full flex flex-col justify-between">
+            <div class="flex justify-between items-start gap-2">
+              <div class="w-full min-w-0">
+                <p class="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">
                   {{ currentFilteredVolume.label }}
                 </p>
 
                 <!-- Visão "Todos os Setores": Destaque no total de cadastros e desmembramento de grandezas -->
                 <template v-if="currentFilteredVolume.isAllSectors">
-                  <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+                  <h3 class="text-2xl sm:text-3xl font-black text-slate-800 mt-1 tracking-tight leading-none">
                     {{ formatNumber(currentFilteredVolume.mainCount) }}
                     <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
                   </h3>
-                  <div class="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-100">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-100">
-                      <Scissors class="w-3 h-3 text-emerald-600" />
+                  <div class="flex items-center gap-1.5 flex-wrap mt-2.5 pt-2 border-t border-slate-100">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] sm:text-[11px] font-bold border border-emerald-100 whitespace-nowrap">
+                      <Scissors class="w-3 h-3 text-emerald-600 shrink-0" />
                       Tecido/Couro: {{ formatNumber(currentFilteredVolume.corteVolume) }} m²
                     </span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[11px] font-bold border border-blue-100">
-                      <Package class="w-3 h-3 text-blue-600" />
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[10px] sm:text-[11px] font-bold border border-blue-100 whitespace-nowrap">
+                      <Package class="w-3 h-3 text-blue-600 shrink-0" />
                       Peças/Calçados: {{ formatNumber(currentFilteredVolume.componentesVolume) }} un
                     </span>
                   </div>
@@ -496,97 +635,173 @@ onUnmounted(() => {
 
                 <!-- Visão Setorial: Saldo numérico na unidade estrita do setor ativo -->
                 <template v-else>
-                  <h3 class="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+                  <h3 class="text-2xl sm:text-3xl font-black text-slate-800 mt-1 tracking-tight leading-none">
                     {{ formatNumber(currentFilteredVolume.mainCount) }}
                     <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
                   </h3>
-                  <p class="text-[11px] text-indigo-600 font-bold mt-1">
+                  <p class="text-[11px] sm:text-xs text-indigo-600 font-bold mt-2 pt-1 border-t border-slate-100">
                     {{ formatNumber(currentFilteredVolume.itemsCount) }} cadastros ativos no setor
                   </p>
                 </template>
               </div>
 
-              <div class="bg-indigo-50 p-2.5 rounded-xl text-indigo-600 shadow-inner shrink-0 ml-2">
+              <div class="bg-indigo-50 p-2 sm:p-2.5 rounded-xl text-indigo-600 shadow-inner shrink-0 ml-1">
                 <Box class="w-5 h-5" />
               </div>
             </div>
           </div>
 
           <!-- 2. Taxa de Reaproveitamento Fabril (%) Adaptável -->
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-emerald-500 relative group overflow-hidden">
-            <div class="flex justify-between items-start">
-              <div>
+          <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 border-b-4 border-b-emerald-500 relative group overflow-hidden h-full flex flex-col justify-between">
+            <div class="flex justify-between items-start gap-2">
+              <div class="min-w-0">
                 <div class="flex items-center gap-1">
-                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                  <p class="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">
                     {{ currentFilteredEfficiency.label }}
                   </p>
-                  <Sparkles class="w-3 h-3 text-emerald-500" />
+                  <Sparkles class="w-3 h-3 text-emerald-500 shrink-0" />
                 </div>
-                <h3 class="text-2xl font-black text-emerald-600 mt-1 tracking-tight">
+                <h3 class="text-2xl sm:text-3xl font-black text-emerald-600 mt-1 tracking-tight leading-none">
                   {{ currentFilteredEfficiency.taxa }}%
                 </h3>
-                <div class="flex items-center gap-1 mt-0.5 text-[11px] font-bold text-emerald-700">
-                  <ArrowUpRight class="w-3.5 h-3.5" />
-                  <span>{{ formatNumber(currentFilteredEfficiency.exits) }} saídas realizadas</span>
+                <div class="flex items-center gap-1 mt-1.5 text-[11px] sm:text-xs font-bold text-emerald-700">
+                  <ArrowUpRight class="w-3.5 h-3.5 shrink-0" />
+                  <span class="truncate">{{ formatNumber(currentFilteredEfficiency.exits) }} saídas realizadas</span>
                 </div>
               </div>
-              <div class="bg-emerald-50 p-2.5 rounded-xl text-emerald-600 shadow-inner">
+              <div class="bg-emerald-50 p-2 sm:p-2.5 rounded-xl text-emerald-600 shadow-inner shrink-0 ml-1">
                 <CheckCircle2 class="w-5 h-5" />
               </div>
             </div>
-            <div class="w-full bg-slate-100 h-1.5 mt-2.5 rounded-full overflow-hidden">
+            <div class="w-full bg-slate-100 h-1.5 mt-3 rounded-full overflow-hidden">
               <div class="bg-emerald-500 h-full transition-all duration-700" :style="{ width: `${Math.min(100, currentFilteredEfficiency.taxa)}%` }"></div>
             </div>
           </div>
 
           <!-- 3. Itens Parados Sem Giro (>30 Dias) Adaptável -->
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-amber-500 relative group overflow-hidden">
-            <div class="flex justify-between items-start">
-              <div>
+          <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 border-b-4 border-b-amber-500 relative group overflow-hidden h-full flex flex-col justify-between">
+            <div class="flex justify-between items-start gap-2">
+              <div class="min-w-0">
                 <div class="flex items-center gap-1">
-                  <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Parados Sem Giro (>30d)</p>
-                  <AlertTriangle class="w-3 h-3 text-amber-500" />
+                  <p class="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">Parados Sem Giro (>30d)</p>
+                  <AlertTriangle class="w-3 h-3 text-amber-500 shrink-0" />
                 </div>
-                <h3 class="text-2xl font-black text-amber-600 mt-1 tracking-tight">
+                <h3 class="text-2xl sm:text-3xl font-black text-amber-600 mt-1 tracking-tight leading-none">
                   {{ formatNumber(currentFilteredStagnant) }}
                 </h3>
-                <p class="text-[10px] text-amber-700 font-bold mt-0.5 bg-amber-50 inline-block px-1.5 py-0.5 rounded">
+                <p class="text-[10px] sm:text-[11px] text-amber-700 font-bold mt-1.5 bg-amber-50 inline-block px-1.5 py-0.5 rounded">
                   Atenção Operacional
                 </p>
               </div>
-              <div class="bg-amber-50 p-2.5 rounded-xl text-amber-600 shadow-inner">
+              <div class="bg-amber-50 p-2 sm:p-2.5 rounded-xl text-amber-600 shadow-inner shrink-0 ml-1">
                 <Clock class="w-5 h-5" />
               </div>
             </div>
           </div>
 
-          <!-- 4. Casamento de Pares & Montagem / Detalhes de Giro -->
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 border-b-4 border-b-fuchsia-500 relative group overflow-hidden">
-            <div class="flex justify-between items-start">
-              <div>
-                <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest">Montagem & Pares</p>
-                <div class="flex items-baseline gap-3 mt-1">
-                  <div>
-                    <span class="text-[10px] font-bold text-fuchsia-600 block uppercase">Casados</span>
-                    <h3 class="text-xl font-black text-fuchsia-700 tracking-tight leading-none">
-                      {{ formatNumber(setoresData.montagem.paresCasados) }} <span class="text-[11px] font-medium text-slate-400">prs</span>
-                    </h3>
-                  </div>
-                  <div class="border-l border-slate-200 pl-3">
-                    <span class="text-[10px] font-bold text-emerald-600 block uppercase">Formáveis</span>
-                    <h3 class="text-xl font-black text-emerald-700 tracking-tight leading-none">
-                      {{ formatNumber(setoresData.montagem.paresFormaveis) }} <span class="text-[11px] font-medium text-slate-400">prs</span>
-                    </h3>
-                  </div>
+          <!-- 4. Casamento de Pares & Montagem / Detalhes de Giro (Dinâmico por Setor) -->
+          <div
+            :class="currentFilteredPairsCard.borderClass"
+            class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 border-b-4 relative group overflow-hidden h-full flex flex-col justify-between"
+          >
+            <div class="flex justify-between items-start gap-2">
+              <div class="w-full min-w-0">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <p class="text-slate-500 text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">
+                    {{ currentFilteredPairsCard.title }}
+                  </p>
+                  <span
+                    class="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase shrink-0 whitespace-nowrap"
+                    :class="currentFilteredPairsCard.badgeColor"
+                  >
+                    {{ currentFilteredPairsCard.badge }}
+                  </span>
                 </div>
-                <div class="flex items-center gap-2 mt-2 text-[11px] font-bold text-slate-500">
-                  <span class="text-indigo-600">Esq: {{ formatNumber(setoresData.montagem.peEsq) }}</span>
-                  <span>·</span>
-                  <span class="text-purple-600">Dir: {{ formatNumber(setoresData.montagem.peDir) }}</span>
-                </div>
+
+                <!-- Caso 1: Visão Geral TODOS (Soma de Pares Formáveis Fabris com Breakdown) -->
+                <template v-if="currentFilteredPairsCard.type === 'PARES_GLOBAL'">
+                  <h3 class="text-2xl sm:text-3xl font-black text-fuchsia-700 tracking-tight leading-none mt-1">
+                    {{ formatNumber(currentFilteredPairsCard.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">pares formáveis</span>
+                  </h3>
+                  <div class="flex items-center gap-2 flex-wrap mt-2.5 pt-2 border-t border-slate-100 text-[10px] sm:text-[11px] font-bold">
+                    <span
+                      v-for="b in currentFilteredPairsCard.breakdown"
+                      :key="b.label"
+                      class="inline-flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <span class="text-slate-500">{{ b.label }}:</span>
+                      <strong :class="b.color">{{ formatNumber(b.value) }}</strong>
+                    </span>
+                  </div>
+                </template>
+
+                <!-- Caso 2: Montagem (Casados + Formáveis + Pés E/D) -->
+                <template v-else-if="currentFilteredPairsCard.type === 'MONTAGEM'">
+                  <div class="flex items-baseline gap-3 mt-1">
+                    <div>
+                      <span class="text-[10px] font-bold text-fuchsia-600 block uppercase">Casados</span>
+                      <h3 class="text-xl sm:text-2xl font-black text-fuchsia-700 tracking-tight leading-none">
+                        {{ formatNumber(currentFilteredPairsCard.primaryStat.value) }} <span class="text-[10px] sm:text-[11px] font-medium text-slate-400">prs</span>
+                      </h3>
+                    </div>
+                    <div class="border-l border-slate-200 pl-3">
+                      <span class="text-[10px] font-bold text-emerald-600 block uppercase">Formáveis</span>
+                      <h3 class="text-xl sm:text-2xl font-black text-emerald-700 tracking-tight leading-none">
+                        {{ formatNumber(currentFilteredPairsCard.secondaryStat.value) }} <span class="text-[10px] sm:text-[11px] font-medium text-slate-400">prs</span>
+                      </h3>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 mt-2 pt-1 border-t border-slate-100 text-[10px] sm:text-[11px] font-bold text-slate-500 flex-wrap">
+                    <span class="text-indigo-600">Pé Esq: {{ formatNumber(currentFilteredPairsCard.feet.esq) }}</span>
+                    <span>·</span>
+                    <span class="text-purple-600">Pé Dir: {{ formatNumber(currentFilteredPairsCard.feet.dir) }}</span>
+                  </div>
+                </template>
+
+                <!-- Caso 3: Pré-Fabricado / Distribuição (Pares Formáveis + Pés E/D) -->
+                <template v-else-if="currentFilteredPairsCard.type === 'PRE_FABRICADO' || currentFilteredPairsCard.type === 'DISTRIBUICAO'">
+                  <h3 class="text-2xl sm:text-3xl font-black tracking-tight leading-none mt-1" :class="currentFilteredPairsCard.type === 'PRE_FABRICADO' ? 'text-amber-700' : 'text-indigo-700'">
+                    {{ formatNumber(currentFilteredPairsCard.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">pares formáveis</span>
+                  </h3>
+                  <div class="flex items-center gap-2 mt-2 pt-1 border-t border-slate-100 text-[10px] sm:text-[11px] font-bold text-slate-500 flex-wrap">
+                    <span class="text-indigo-600">{{ currentFilteredPairsCard.feet.labelEsq || 'Esq' }}: {{ formatNumber(currentFilteredPairsCard.feet.esq) }}</span>
+                    <span>·</span>
+                    <span class="text-purple-600">{{ currentFilteredPairsCard.feet.labelDir || 'Dir' }}: {{ formatNumber(currentFilteredPairsCard.feet.dir) }}</span>
+                  </div>
+                </template>
+
+                <!-- Caso 4: Corte (Sobras Reaproveitadas na Produção) -->
+                <template v-else-if="currentFilteredPairsCard.type === 'CORTE'">
+                  <h3 class="text-2xl sm:text-3xl font-black text-emerald-700 tracking-tight leading-none mt-1">
+                    {{ formatNumber(currentFilteredPairsCard.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredPairsCard.mainUnit }}</span>
+                  </h3>
+                  <div class="flex items-center gap-1.5 mt-2 pt-1 border-t border-slate-100 text-[11px] sm:text-xs font-bold text-emerald-700">
+                    <TrendingUp class="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span class="truncate">{{ formatNumber(currentFilteredPairsCard.corteInfo.totalExits) }} saídas para a produção</span>
+                  </div>
+                </template>
+
+                <!-- Caso 5: Apoio (Peças Reaproveitadas na Produção) -->
+                <template v-else-if="currentFilteredPairsCard.type === 'APOIO'">
+                  <h3 class="text-2xl sm:text-3xl font-black text-sky-700 tracking-tight leading-none mt-1">
+                    {{ formatNumber(currentFilteredPairsCard.mainCount) }}
+                    <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredPairsCard.mainUnit }}</span>
+                  </h3>
+                  <div class="flex items-center gap-1.5 mt-2 pt-1 border-t border-slate-100 text-[11px] sm:text-xs font-bold text-sky-700">
+                    <TrendingUp class="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                    <span class="truncate">{{ formatNumber(currentFilteredPairsCard.apoioInfo.totalExits) }} baixas para a produção</span>
+                  </div>
+                </template>
               </div>
-              <div class="bg-fuchsia-50 p-2.5 rounded-xl text-fuchsia-600 shadow-inner">
-                <Footprints class="w-5 h-5" />
+
+              <div
+                class="p-2 sm:p-2.5 rounded-xl shadow-inner shrink-0 ml-1"
+                :class="currentFilteredPairsCard.iconBg"
+              >
+                <component :is="currentFilteredPairsCard.icon" class="w-5 h-5" />
               </div>
             </div>
           </div>
@@ -594,19 +809,19 @@ onUnmounted(() => {
         </div>
 
         <!-- GRÁFICOS ANALÍTICOS & TOP SOBRAS (3 COLUNAS ENXUTAS) -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
 
           <!-- 1. Distribuição de Volume por Setor -->
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col items-center relative overflow-hidden">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-between relative overflow-hidden h-full">
             <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
               <PieChart class="w-4 h-4 text-indigo-500" /> Distribuição de Volume
             </h3>
 
-            <div class="relative w-32 h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105"
+            <div class="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105 shrink-0"
               :style="sectorChartStyle">
-              <div class="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
+              <div class="absolute inset-0 m-auto w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
                 <div v-if="hoveredSector" class="flex flex-col items-center justify-center w-full h-full text-center px-0.5">
-                  <span class="text-sm font-black leading-none" :style="{ color: hoveredSector.color }">
+                  <span class="text-xs sm:text-sm font-black leading-none" :style="{ color: hoveredSector.color }">
                     {{ hoveredSector.percent.toFixed(0) }}%
                   </span>
                   <span class="text-[7px] font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[50px]">
@@ -620,7 +835,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="w-full space-y-1 mt-3 text-xs">
+            <div class="w-full space-y-1 mt-3 text-xs flex-1 flex flex-col justify-end">
               <div
                 v-for="sec in volumePorSetor"
                 :key="sec.sector"
@@ -628,11 +843,11 @@ onUnmounted(() => {
                 @mouseleave="hoveredSector = null"
                 class="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors"
               >
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-sm" :style="{ backgroundColor: sec.color }"></span>
-                  <span class="font-bold text-slate-700 uppercase text-[10px]">{{ sec.label }}</span>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-2 h-2 rounded-sm shrink-0" :style="{ backgroundColor: sec.color }"></span>
+                  <span class="font-bold text-slate-700 uppercase text-[10px] truncate">{{ sec.label }}</span>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0 ml-2">
                   <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ sec.percent.toFixed(1) }}%</span>
                   <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(sec.quantity) }}</span>
                 </div>
@@ -641,16 +856,16 @@ onUnmounted(() => {
           </div>
 
           <!-- 2. Origem das Entradas de Sobra Reativa ao Setor -->
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col items-center relative overflow-hidden">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-between relative overflow-hidden h-full">
             <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
               <MapPin class="w-4 h-4 text-violet-500" /> Origem das Entradas
             </h3>
 
-            <div class="relative w-32 h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105"
+            <div class="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105 shrink-0"
               :style="origemChartStyle">
-              <div class="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
+              <div class="absolute inset-0 m-auto w-14 h-14 sm:w-16 sm:h-16 bg-white rounded-full flex flex-col items-center justify-center shadow-inner overflow-hidden">
                 <div v-if="hoveredOrigem" class="flex flex-col items-center justify-center w-full h-full text-center px-0.5">
-                  <span class="text-sm font-black leading-none" :style="{ color: hoveredOrigem.color }">
+                  <span class="text-xs sm:text-sm font-black leading-none" :style="{ color: hoveredOrigem.color }">
                     {{ hoveredOrigem.percent.toFixed(0) }}%
                   </span>
                   <span class="text-[7px] font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[50px]">
@@ -664,7 +879,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="w-full space-y-1 mt-3 text-xs">
+            <div class="w-full space-y-1 mt-3 text-xs flex-1 flex flex-col justify-end">
               <div v-if="filteredOrigemChartData.length === 0" class="p-3 text-center text-slate-400 text-xs italic">
                 Nenhuma entrada registrada neste setor.
               </div>
@@ -676,11 +891,11 @@ onUnmounted(() => {
                 @mouseleave="hoveredOrigem = null"
                 class="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors"
               >
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-sm" :style="{ backgroundColor: slice.color }"></span>
-                  <span class="font-bold text-slate-700 uppercase text-[10px] truncate max-w-[130px]">{{ slice.label }}</span>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-2 h-2 rounded-sm shrink-0" :style="{ backgroundColor: slice.color }"></span>
+                  <span class="font-bold text-slate-700 uppercase text-[10px] truncate">{{ slice.label }}</span>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0 ml-2">
                   <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ slice.percent.toFixed(1) }}%</span>
                   <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(slice.value) }}</span>
                 </div>
@@ -689,7 +904,7 @@ onUnmounted(() => {
           </div>
 
           <!-- 3. TOP 5 MATERIAIS COM MAIS SOBRAS (CAUSA RAIZ / ACÚMULO) -->
-          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col relative overflow-hidden">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col justify-between relative overflow-hidden h-full md:col-span-2 lg:col-span-1">
             <div class="w-full flex justify-between items-center mb-3">
               <h3 class="font-bold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wider">
                 <AlertOctagon class="w-4 h-4 text-red-500" /> Top 5 com Mais Sobras

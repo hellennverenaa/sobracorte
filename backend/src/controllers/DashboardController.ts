@@ -37,11 +37,10 @@ export class DashboardController {
         expedicaoQtyAgg,
         montagemCount,
         montagemQtyAgg,
-        montagemEsqAgg,
-        montagemDirAgg,
         paresCasadosCount,
         paresRequisicaoCount,
         paresFormaveisRaw,
+        feetSidesRaw,
         // Entradas / Saídas / Parados por setor
         apoioEntriesCount,
         preFabEntriesCount,
@@ -67,7 +66,7 @@ export class DashboardController {
         prisma.movement.count({ where: { factoryUnitId } }),
         prisma.stockMovement.count({ where: { factoryUnitId, type: 'ENTRADA' } }),
         prisma.movement.count({ where: { factoryUnitId, type: 'entrada' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
         prisma.movement.count({ where: { factoryUnitId, type: 'saida' } }),
         prisma.material.groupBy({
           by: ['type'],
@@ -121,36 +120,47 @@ export class DashboardController {
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } }, _sum: { quantity: true } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } } }),
         prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } }, _sum: { quantity: true } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'E', quantity: { gt: 0 } }, _sum: { quantity: true } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', footSide: 'D', quantity: { gt: 0 } }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, type: 'CASAMENTO_PAR' }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'SAIDA_REQUISICAO', origem: { contains: 'Atendimento de Requisição (Pé' } }, _sum: { quantity: true } }),
-        prisma.$queryRaw<Array<{ totalFormable: number }>>`
-          SELECT COALESCE(SUM(LEAST(e.quantity, d.quantity)), 0) AS "totalFormable"
+        // Consulta Otimizada de Pares Formáveis Agrupados por Setor (Montagem, Pré-Fabricado, Distribuição)
+        prisma.$queryRaw<Array<{ sector: string; totalFormable: number }>>`
+          SELECT 
+            e.sector::text AS sector,
+            COALESCE(SUM(LEAST(e.quantity, d.quantity)), 0) AS "totalFormable"
           FROM sobra_corte."StockItem" e
           INNER JOIN sobra_corte."StockItem" d
             ON e."factoryUnitId" = d."factoryUnitId"
             AND e.sector = d.sector
-            AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
+            AND COALESCE(e."sku", e."pieceCode", e."productName", '') = COALESCE(d."sku", d."pieceCode", d."productName", '')
             AND e."sizeGrade" = d."sizeGrade"
             AND COALESCE(e."color", '') = COALESCE(d."color", '')
+            AND COALESCE(e."type", '') = COALESCE(d."type", '')
           WHERE e."factoryUnitId" = ${factoryUnitId}
-            AND e.sector = 'MONTAGEM'::sobra_corte."SectorType"
-            AND d.sector = 'MONTAGEM'::sobra_corte."SectorType"
             AND e."footSide" = 'E'
             AND d."footSide" = 'D'
             AND e.quantity > 0
             AND d.quantity > 0
+          GROUP BY e.sector
         `,
+        // Consulta Agrupada de Pés Esquerdos e Direitos por Setor
+        prisma.stockItem.groupBy({
+          by: ['sector', 'footSide'],
+          where: {
+            factoryUnitId,
+            footSide: { in: ['E', 'D'] },
+            quantity: { gt: 0 },
+          },
+          _sum: { quantity: true },
+        }),
         // Entradas por setor
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: 'ENTRADA' } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'ENTRADA' }, _sum: { quantity: true } }),
         // Saídas por setor
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
         // Parados >30d por setor
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
@@ -179,6 +189,41 @@ export class DashboardController {
       const taxaReaproveitamento = totalEntries > 0 ? Math.min(100, Math.round((totalExits / totalEntries) * 100)) : 0;
       const totalParadosSemGiro = stagnantMaterialsCount + stagnantStockItemsCount;
 
+      // 1. Mapeamento de Pares Formáveis e Pés E / D por Setor
+      const formableMap = new Map<string, number>();
+      for (const row of paresFormaveisRaw || []) {
+        formableMap.set(String(row.sector), Number(row.totalFormable) || 0);
+      }
+
+      const feetMap = new Map<string, { E: number; D: number }>();
+      for (const row of feetSidesRaw || []) {
+        if (!row.sector) continue;
+        const s = String(row.sector);
+        const side = row.footSide === 'E' ? 'E' : (row.footSide === 'D' ? 'D' : null);
+        if (!side) continue;
+        const prev = feetMap.get(s) || { E: 0, D: 0 };
+        prev[side] += Number(row._sum?.quantity) || 0;
+        feetMap.set(s, prev);
+      }
+
+      const preFabFormable = formableMap.get('PRE_FABRICADO') || 0;
+      const preFabFeet = feetMap.get('PRE_FABRICADO') || { E: 0, D: 0 };
+
+      const expedicaoFormable = (formableMap.get('DISTRIBUICAO') || 0) + (formableMap.get('EXPEDICAO') || 0);
+      const expedicaoFeet = {
+        E: (feetMap.get('DISTRIBUICAO')?.E || 0) + (feetMap.get('EXPEDICAO')?.E || 0),
+        D: (feetMap.get('DISTRIBUICAO')?.D || 0) + (feetMap.get('EXPEDICAO')?.D || 0),
+      };
+
+      const montagemFormable = formableMap.get('MONTAGEM') || 0;
+      const montagemFeet = feetMap.get('MONTAGEM') || { E: 0, D: 0 };
+
+      const totalParesFormaveisGlobal = montagemFormable + preFabFormable + expedicaoFormable;
+      const totalParesCasados = Math.floor(
+        ((Number(paresCasadosCount._sum?.quantity) || 0) +
+         (Number(paresRequisicaoCount._sum?.quantity) || 0)) / 2
+      );
+
       // 1. Métricas / KPIs consolidados globais
       const stats = {
         totalMaterials: totalMaterialsCount,
@@ -190,20 +235,29 @@ export class DashboardController {
         totalExits,
         taxaReaproveitamento,
         totalParadosSemGiro,
+        totalParesFormaveis: totalParesFormaveisGlobal,
+        totalParesCasados,
       };
 
       // 2. Métricas Setorizadas (Cards de Detalhes dos 5 Setores)
-      const corteStockEntries = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } });
-      const corteStockExits = await prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO'] } } });
-
-      const totalParesCasados = Math.floor(
-        ((Number(paresCasadosCount._sum?.quantity) || 0) +
-         (Number(paresRequisicaoCount._sum?.quantity) || 0)) / 2
-      );
-      const totalParesFormaveis = Number(paresFormaveisRaw?.[0]?.totalFormable) || 0;
+      const [
+        corteStockEntries,
+        corteStockExits,
+        corteLegacyExitsAgg,
+        corteStockExitsAgg,
+        apoioStockExitsAgg,
+      ] = await Promise.all([
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.movement.aggregate({ where: { factoryUnitId, type: 'saida' }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
+      ]);
 
       const corteTotalEntries = legacyEntriesCount + corteStockEntries;
       const corteTotalExits = legacyExitsCount + corteStockExits;
+      const corteTotalExitsVolume = (Number(corteLegacyExitsAgg._sum?.quantity) || 0) + (Number(corteStockExitsAgg._sum?.quantity) || 0);
+      const apoioTotalExitsVolume = Number(apoioStockExitsAgg._sum?.quantity) || 0;
       const montagemTotalEntries = Number(montagemEntriesCount._sum?.quantity) || 0;
       const montagemTotalExits = Number(montagemExitsCount._sum?.quantity) || 0;
 
@@ -214,6 +268,7 @@ export class DashboardController {
           unit: 'M²',
           totalEntries: corteTotalEntries,
           totalExits: corteTotalExits,
+          totalExitsVolume: corteTotalExitsVolume,
           taxaReaproveitamento: corteTotalEntries > 0 ? Math.min(100, Math.round((corteTotalExits / corteTotalEntries) * 100)) : 0,
           totalParadosSemGiro: stagnantMaterialsCount,
         },
@@ -223,6 +278,7 @@ export class DashboardController {
           unit: 'PÇS',
           totalEntries: apoioEntriesCount,
           totalExits: apoioExitsCount,
+          totalExitsVolume: apoioTotalExitsVolume,
           taxaReaproveitamento: apoioEntriesCount > 0 ? Math.min(100, Math.round((apoioExitsCount / apoioEntriesCount) * 100)) : 0,
           totalParadosSemGiro: apoioStagnantCount,
         },
@@ -234,6 +290,10 @@ export class DashboardController {
           totalExits: preFabExitsCount,
           taxaReaproveitamento: preFabEntriesCount > 0 ? Math.min(100, Math.round((preFabExitsCount / preFabEntriesCount) * 100)) : 0,
           totalParadosSemGiro: preFabStagnantCount,
+          peEsq: preFabFeet.E,
+          peDir: preFabFeet.D,
+          paresFormaveis: preFabFormable,
+          paresCasados: 0,
         },
         expedicao: {
           itemsCount: expedicaoCount,
@@ -243,6 +303,10 @@ export class DashboardController {
           totalExits: expedicaoExitsCount,
           taxaReaproveitamento: expedicaoEntriesCount > 0 ? Math.min(100, Math.round((expedicaoExitsCount / expedicaoEntriesCount) * 100)) : 0,
           totalParadosSemGiro: expedicaoStagnantCount,
+          peEsq: expedicaoFeet.E,
+          peDir: expedicaoFeet.D,
+          paresFormaveis: expedicaoFormable,
+          paresCasados: 0,
         },
         distribuicao: {
           itemsCount: expedicaoCount,
@@ -252,6 +316,10 @@ export class DashboardController {
           totalExits: expedicaoExitsCount,
           taxaReaproveitamento: expedicaoEntriesCount > 0 ? Math.min(100, Math.round((expedicaoExitsCount / expedicaoEntriesCount) * 100)) : 0,
           totalParadosSemGiro: expedicaoStagnantCount,
+          peEsq: expedicaoFeet.E,
+          peDir: expedicaoFeet.D,
+          paresFormaveis: expedicaoFormable,
+          paresCasados: 0,
         },
         montagem: {
           itemsCount: montagemCount,
@@ -261,10 +329,10 @@ export class DashboardController {
           totalExits: montagemTotalExits,
           taxaReaproveitamento: montagemTotalEntries > 0 ? Math.min(100, Math.round((montagemTotalExits / montagemTotalEntries) * 100)) : 0,
           totalParadosSemGiro: montagemStagnantCount,
-          peEsq: Number(montagemEsqAgg._sum.quantity) || 0,
-          peDir: Number(montagemDirAgg._sum.quantity) || 0,
+          peEsq: montagemFeet.E,
+          peDir: montagemFeet.D,
           paresCasados: totalParesCasados,
-          paresFormaveis: totalParesFormaveis,
+          paresFormaveis: montagemFormable,
         },
       };
 
