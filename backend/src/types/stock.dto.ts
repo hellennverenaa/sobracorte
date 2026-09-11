@@ -54,7 +54,7 @@ export const ApoioItemSchema = z.object({
   description: z.string().trim().min(1, 'Descrição da peça é obrigatória'),
   materialColor: z.string().trim().min(1, 'Material e Cor são obrigatórios'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -70,7 +70,7 @@ export const PreFabricadoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -86,7 +86,7 @@ export const DistribuicaoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -100,7 +100,7 @@ export const ExpedicaoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -113,7 +113,7 @@ export const MontagemItemSchema = z.object({
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });

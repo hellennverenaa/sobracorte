@@ -162,6 +162,10 @@ export class StockMovementService {
         throw new Error('Item de estoque ou matéria-prima não encontrado.');
       }
 
+      if (item.sector !== 'CORTE' && !Number.isInteger(quantity)) {
+        throw new Error(`A quantidade para o setor ${item.sector} deve ser um número inteiro (sem decimais).`);
+      }
+
       if ((type === 'SAIDA' || type === 'REFUGO') && item.quantity < quantity) {
         throw new Error(`Saldo insuficiente. Saldo disponível: ${item.quantity}`);
       }

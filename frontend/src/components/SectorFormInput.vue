@@ -236,6 +236,58 @@ function handleSizeGradeInput(event: Event) {
   formData.sizeGrade = val;
 }
 
+const isIntegerQuantitySector = computed(() => {
+  return activeSector.value !== 'CORTE';
+});
+
+function handleQuantityKeypress(event: KeyboardEvent) {
+  const key = event.key;
+  // Permite teclas de controle e navegação (Ctrl+C, Ctrl+V, Backspace, Tab, Enter, etc.)
+  if (event.ctrlKey || event.metaKey || key.length > 1) {
+    return;
+  }
+
+  if (isIntegerQuantitySector.value) {
+    // Setores discretos (Apoio, Pré-Fabricado, Distribuição, Montagem): estritamente dígitos [0-9]
+    if (!/^\d$/.test(key)) {
+      event.preventDefault();
+    }
+  } else {
+    // Setor de Corte: aceita estritamente dígitos [0-9] e no máximo 1 separador decimal (. ou ,)
+    const input = event.target as HTMLInputElement;
+    if (key === '.' || key === ',') {
+      const currentVal = String(input.value || '');
+      if (currentVal.includes('.') || currentVal.includes(',')) {
+        event.preventDefault();
+      }
+    } else if (!/^\d$/.test(key)) {
+      // Bloqueia qualquer letra ou símbolo (ex: s, d, a, f, e, E, +, -, etc.)
+      event.preventDefault();
+    }
+  }
+}
+
+function handleQuantityInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const raw = String(input.value || '');
+
+  if (isIntegerQuantitySector.value) {
+    // Remove qualquer caractere não numérico
+    const clean = raw.replace(/\D/g, '');
+    formData.quantity = clean ? parseInt(clean, 10) : ('' as any);
+    input.value = clean;
+  } else {
+    // Setor Corte: aceita dígitos e no máximo um ponto decimal
+    let clean = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
+    const parts = clean.split('.');
+    if (parts.length > 2) {
+      clean = parts[0] + '.' + parts.slice(1).join('');
+    }
+    formData.quantity = clean;
+    input.value = clean;
+  }
+}
+
 function selectSector(sector: SectorType) {
   if (isSectorLocked.value && userSector.value && sector !== userSector.value) {
     return;
@@ -245,6 +297,9 @@ function selectSector(sector: SectorType) {
     formData.type = 'EVA';
   } else if (sector === 'DISTRIBUICAO') {
     formData.type = 'CABEDAL';
+  }
+  if (sector !== 'CORTE' && !Number.isInteger(Number(formData.quantity))) {
+    formData.quantity = Math.max(1, Math.floor(Number(formData.quantity) || 1));
   }
   fetchCombinations(sector);
   errorMessage.value = '';
@@ -292,7 +347,12 @@ async function handleSubmit() {
   }
 
   if (Number(formData.quantity) <= 0) {
-    errorMessage.value = 'A quantidade deve ser maior que zero.';
+    errorMessage.value = 'A quantidade inicial deve ser maior que zero.';
+    return;
+  }
+
+  if (isIntegerQuantitySector.value && !Number.isInteger(Number(formData.quantity))) {
+    errorMessage.value = `A quantidade inicial para o setor ${activeSector.value} deve ser um número inteiro (sem decimais).`;
     return;
   }
 
@@ -850,15 +910,24 @@ onMounted(async () => {
       <!-- Campos Comuns -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-gray-100">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Quantidade *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Quantidade Inicial *</label>
           <input
-            v-model.number="formData.quantity"
-            type="number"
-            min="0.01"
-            step="any"
+            v-model="formData.quantity"
+            type="text"
+            :inputmode="isIntegerQuantitySector ? 'numeric' : 'decimal'"
+            @keypress="handleQuantityKeypress"
+            @input="handleQuantityInput"
+            placeholder="Ex: 10"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-sm text-gray-800"
             required
+            autocomplete="off"
           />
+          <span v-if="isIntegerQuantitySector" class="text-[10px] text-gray-400 mt-0.5 block">
+            Estoque inicial do item (apenas números inteiros)
+          </span>
+          <span v-else class="text-[10px] text-gray-400 mt-0.5 block">
+            Estoque inicial do item (permite decimais ex: 12.5 m²)
+          </span>
         </div>
 
         <div>
