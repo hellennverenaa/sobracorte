@@ -648,6 +648,7 @@ onMounted(() => {
               <!-- Headers MONTAGEM -->
               <tr v-if="activeTab === 'MONTAGEM'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Combinação</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
@@ -809,7 +810,12 @@ onMounted(() => {
                   <td class="px-4 py-3">
                     <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.sku }}</span>
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
-                    <span v-if="item.color" class="text-xs text-gray-500 font-medium block">Cor: {{ item.color }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span v-if="item.color" class="px-2 py-0.5 text-xs bg-slate-100 text-slate-800 font-semibold font-mono rounded border border-slate-200">
+                      {{ item.color }}
+                    </span>
+                    <span v-else class="text-xs text-gray-400 font-mono">-</span>
                   </td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">

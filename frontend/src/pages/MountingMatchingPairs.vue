@@ -236,9 +236,11 @@ onMounted(() => {
                 <span v-if="pair.productName && pair.productName !== pair.sku" class="text-xs font-bold text-gray-800 block">
                   {{ pair.productName }}
                 </span>
-                <span v-if="pair.color" class="text-xs text-gray-500 font-medium block">
-                  Cor: {{ pair.color }}
-                </span>
+                <div v-if="pair.color" class="mt-0.5">
+                  <span class="text-[10.5px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono inline-block">
+                    Combinação: {{ pair.color }}
+                  </span>
+                </div>
               </div>
               <div class="text-right">
                 <span class="text-[11px] font-bold text-gray-400 uppercase">Grade</span>
@@ -341,8 +343,8 @@ onMounted(() => {
                 <span class="text-gray-800 font-semibold">{{ selectedPair.productName }}</span>
               </div>
               <div v-if="selectedPair.color" class="flex justify-between font-bold">
-                <span class="text-gray-500 uppercase">Cor:</span>
-                <span class="text-gray-800">{{ selectedPair.color }}</span>
+                <span class="text-gray-500 uppercase">Combinação / Cor:</span>
+                <span class="text-blue-700 font-mono">{{ selectedPair.color }}</span>
               </div>
               <div class="flex justify-between font-bold">
                 <span class="text-gray-500 uppercase">Grade:</span>

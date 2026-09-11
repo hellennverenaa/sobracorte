@@ -54,6 +54,7 @@ export class RequisitionService {
       sku?: string | null;
       modelName?: string | null;
       description: string;
+      color?: string | null;
       sizeGrade?: string | null;
       footSide?: string | null;
     },
@@ -160,6 +161,7 @@ export class RequisitionService {
         quantity: { gt: 0 },
         ...(orConditions.length > 0 ? { OR: orConditions } : {}),
         ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+        ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
       };
 
       const [leftItems, rightItems] = await Promise.all([
@@ -220,6 +222,7 @@ export class RequisitionService {
         quantity: { gt: 0 },
         ...(orConditions.length > 0 ? { OR: orConditions } : {}),
         ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+        ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
         ...(req.footSide ? { footSide: req.footSide as any } : {}),
       },
       include: {
@@ -269,6 +272,7 @@ export class RequisitionService {
           modelName: item.modelName || null,
           description: item.description,
           sizeGrade: item.sizeGrade || null,
+          color: item.color || null,
           footSide: item.footSide || null,
         },
         factoryUnitId
@@ -299,6 +303,7 @@ export class RequisitionService {
             modelName: item.modelName || null,
             description: item.description,
             sizeGrade: item.sizeGrade || null,
+            color: item.color || null,
             footSide: item.footSide || null,
             quantityRequested: item.quantityRequested,
             reason: item.reason,
@@ -521,6 +526,7 @@ export class RequisitionService {
             { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
           ],
           ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+          ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
         };
 
         const leftItem = await tx.stockItem.findFirst({
@@ -621,6 +627,7 @@ export class RequisitionService {
               { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
             ],
             ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
+            ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
             ...(req.footSide ? { footSide: req.footSide as any } : {}),
           },
           include: { locations: true },

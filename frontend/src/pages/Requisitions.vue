@@ -22,6 +22,7 @@ interface RequisitionItem {
   modelName?: string;
   description: string;
   sizeGrade?: string;
+  color?: string;
   footSide?: 'E' | 'D' | 'PAR' | null;
   quantityRequested: number;
   quantityFulfilled: number;
@@ -51,6 +52,7 @@ interface StagedRequisitionItem {
   modelName?: string;
   description: string;
   sizeGrade?: string;
+  color?: string;
   footSide?: 'E' | 'D' | 'PAR' | null;
   quantityRequested: number;
   reason: string;
@@ -220,6 +222,7 @@ async function checkCurrentItemAvailability() {
       modelName: formItem.value.modelName?.trim().toUpperCase() || undefined,
       description: desc ? desc.toUpperCase() : (sku ? sku.toUpperCase() : 'CALÇADO COMPLETO'),
       sizeGrade: formItem.value.sizeGrade?.trim().toUpperCase() || undefined,
+      color: formItem.value.color?.trim().toUpperCase() || undefined,
       footSide: formItem.value.footSide || undefined,
     });
 
@@ -276,6 +279,9 @@ function selectSuggestion(sug: SkuSuggestion) {
   formItem.value.modelName = sug.modelName;
   if (currentSector.value === 'APOIO' || currentSector.value === 'CORTE') {
     formItem.value.description = sug.description;
+  }
+  if (sug.color) {
+    formItem.value.color = sug.color;
   }
   availableGrades.value = sug.sizeGrades || [];
   if (availableGrades.value.length === 1) {
@@ -378,6 +384,7 @@ function addCurrentItem() {
     modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
     description: (finalDesc || 'CALÇADO COMPLETO').toUpperCase(),
     sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
+    color: formItem.value.color?.trim().toUpperCase() || undefined,
     footSide: formItem.value.footSide || null,
     quantityRequested: formItem.value.quantityRequested,
     reason: formItem.value.reason.trim().toUpperCase(),
@@ -434,6 +441,7 @@ async function submitRequisition() {
         modelName: item.modelName,
         description: item.description,
         sizeGrade: item.sizeGrade,
+        color: item.color,
         footSide: item.footSide,
         quantityRequested: item.quantityRequested,
         reason: item.reason,
@@ -813,6 +821,9 @@ onMounted(() => {
                 <td class="px-4 py-3">
                   <div v-if="item.sku" class="font-bold text-slate-900 font-mono text-[11.5px]">{{ item.sku }}</div>
                   <div v-if="item.modelName" class="text-[11px] text-slate-700 font-medium">{{ item.modelName }}</div>
+                  <div v-if="item.color" class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block my-0.5 border border-indigo-100 font-mono">
+                    {{ item.color }}
+                  </div>
                   <div class="text-[10.5px] text-slate-500 italic truncate max-w-[180px]">{{ item.description }}</div>
                 </td>
 
@@ -1434,7 +1445,18 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Combinação / Cor</label>
+                  <input
+                    v-model="formItem.color"
+                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(); triggerAvailabilityCheck()"
+                    type="text"
+                    placeholder="Ex: BRANCO/PRETO"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+
                 <div>
                   <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
                   <input
@@ -1452,7 +1474,7 @@ onMounted(() => {
                     <button
                       type="button"
                       @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'E'
                         ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
@@ -1462,7 +1484,7 @@ onMounted(() => {
                     <button
                       type="button"
                       @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'D'
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
@@ -1472,7 +1494,7 @@ onMounted(() => {
                     <button
                       type="button"
                       @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'PAR'
                         ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
@@ -1593,6 +1615,7 @@ onMounted(() => {
                     </div>
                     <div class="text-[11px] text-slate-600">
                       {{ staged.description }}
+                      <span v-if="staged.color" class="font-bold text-indigo-600"> | Cor: {{ staged.color }}</span>
                       <span v-if="staged.sizeGrade" class="font-bold"> | Grade {{ staged.sizeGrade }}</span>
                       <span v-if="staged.footSide" class="font-bold"> ({{ staged.footSide === 'E' ? 'Pé Esq.' : staged.footSide === 'D' ? 'Pé Dir.' : 'Par' }})</span>
                     </div>
@@ -1761,6 +1784,12 @@ onMounted(() => {
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">Peça / Material</span>
               <p class="font-medium text-slate-800">{{ viewingItem.description }}</p>
+            </div>
+            <div v-if="viewingItem.color">
+              <span class="text-slate-400 font-bold uppercase block text-[10px]">Cor / Combinação</span>
+              <p class="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg inline-block border border-indigo-100 text-xs mt-0.5">
+                {{ viewingItem.color }}
+              </p>
             </div>
             <div class="grid grid-cols-2 gap-2">
               <div>

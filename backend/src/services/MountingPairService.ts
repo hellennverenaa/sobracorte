@@ -137,6 +137,18 @@ export class MountingPairService {
         throw new Error('Os itens devem possuir o mesmo COD. PRODUTO / SKU e mesma Grade de numeração.');
       }
 
+      const leftColor = (leftItem.color || '').trim().toUpperCase();
+      const rightColor = (rightItem.color || '').trim().toUpperCase();
+      if (leftColor !== rightColor) {
+        throw new Error(`Os itens devem possuir a mesma Combinação/Cor (${leftColor || 'N/A'} != ${rightColor || 'N/A'}).`);
+      }
+
+      const leftType = (leftItem.type || '').trim().toUpperCase();
+      const rightType = (rightItem.type || '').trim().toUpperCase();
+      if (leftType !== rightType) {
+        throw new Error(`Os itens devem possuir o mesmo tipo de material (${leftType || 'N/A'} != ${rightType || 'N/A'}).`);
+      }
+
       if (leftItem.quantity < quantity || rightItem.quantity < quantity) {
         throw new Error(`Saldo insuficiente para efetuar o casamento de ${quantity} par(es).`);
       }

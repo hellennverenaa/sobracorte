@@ -306,7 +306,7 @@ model StockItem {
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, sector, productName, sizeGrade])
   @@index([factoryUnitId, sector, sku, sizeGrade])
-  @@index([factoryUnitId, sector, sku, sizeGrade, footSide])
+  @@index([factoryUnitId, sector, sku, sizeGrade, color, footSide])
   @@index([factoryUnitId, sector, pieceCode])
   @@schema("sobra_corte")
 }
@@ -375,6 +375,7 @@ model MaterialRequisition {
   sku               String?           // COD. PRODUTO / SKU (caixa alta)
   modelName         String?           // NOME DO MODELO / LINHA (caixa alta)
   description       String            // Peça / Material solicitado
+  color             String?           // Cor / Combinação do item
   sizeGrade         String?           // Grade / Tamanho (ex: 39/40)
   footSide          FootSide?         // E / D ou null
   quantityRequested Float             // Quantidade solicitada
@@ -394,5 +395,6 @@ model MaterialRequisition {
   @@index([factoryUnitId, status, createdAt(sort: Desc)])
   @@index([factoryUnitId, requestSector, status])
   @@index([factoryUnitId, sku])
+  @@index([factoryUnitId, sku, color])
   @@schema("sobra_corte")
 }
