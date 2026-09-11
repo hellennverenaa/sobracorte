@@ -134,6 +134,14 @@ npx prisma generate
 > Em produção e no ambiente de testes, aplique somente as migrations versionadas com `npx prisma migrate deploy`.
 > A migration `20260903170000_integrity_snapshots` altera colunas e chaves estrangeiras e pode obter locks. Faça backup, teste sobre uma cópia recente e programe janela de manutenção. Ela aborta se encontrar saldos negativos, mais de três casas decimais, domínios não resolvidos ou divergência entre o saldo total e as localizações.
 
+### Autenticação por unidade
+
+O login `SEST` continua usando o fluxo Unix legado. `SAJ` e qualquer outra
+unidade diferente de `SEST` usam o `dass_auth_service` para login e
+autocadastro; o primeiro login sincroniza o usuário local como `leitor`.
+Consulte o [planejamento e runbook de autenticação externa](docs/PLANEJAMENTO-AUTENTICACAO-EXTERNA.md)
+antes de aplicar as migrations ou publicar backend e frontend.
+
 ## Contratos e integridade
 
 - Quantidades são decimais com até três casas e são enviadas pela API como strings.
