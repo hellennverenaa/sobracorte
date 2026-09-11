@@ -142,18 +142,23 @@ export class RequisitionService {
     // 3. SETORES DE CALÇADOS (PRE_FABRICADO, EXPEDICAO, MONTAGEM)
     // Se o operador solicitou PAR COMPLETO ('PAR'), calcular min(Saldo E, Saldo D)
     if (req.footSide === 'PAR') {
+      const orConditions: any[] = [];
+      if (req.sku) {
+        orConditions.push({ sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
+        orConditions.push({ pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
+      }
+      if (req.modelName) {
+        orConditions.push({ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } });
+      }
+      if (req.description && req.description !== 'CALÇADO COMPLETO') {
+        orConditions.push({ description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } });
+      }
+
       const baseFilter = {
         factoryUnitId,
         sector: sectorFilter as any,
         quantity: { gt: 0 },
-        OR: [
-          ...(req.sku ? [
-            { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-            { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-          ] : []),
-          ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-          { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-        ],
+        ...(orConditions.length > 0 ? { OR: orConditions } : {}),
         ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
       };
 
@@ -196,19 +201,24 @@ export class RequisitionService {
     }
 
     // Requisição de Pé Individual ('E' ou 'D') ou sem especificação
+    const orConditions: any[] = [];
+    if (req.sku) {
+      orConditions.push({ sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
+      orConditions.push({ pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
+    }
+    if (req.modelName) {
+      orConditions.push({ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } });
+    }
+    if (req.description && req.description !== 'CALÇADO COMPLETO') {
+      orConditions.push({ description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } });
+    }
+
     const stockItems = await prisma.stockItem.findMany({
       where: {
         factoryUnitId,
         sector: sectorFilter as any,
         quantity: { gt: 0 },
-        OR: [
-          ...(req.sku ? [
-            { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-            { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-          ] : []),
-          ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-          { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-        ],
+        ...(orConditions.length > 0 ? { OR: orConditions } : {}),
         ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
         ...(req.footSide ? { footSide: req.footSide as any } : {}),
       },

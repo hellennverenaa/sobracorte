@@ -6,6 +6,7 @@ import {
   PreFabricadoItemSchema,
   DistribuicaoItemSchema,
   MontagemItemSchema,
+  RequisitionItemInputSchema,
 } from '../src/types/stock.dto';
 
 test('Corte permite quantidades com casas decimais', () => {
@@ -197,6 +198,21 @@ test('Combinação de cor aceita formatos padronizados (com barra e hífen)', ()
     location: 'PRAT-C',
   });
   assert.equal(dist.color, 'PRETO-VERMELHO');
+});
+
+test('RequisitionItemInputSchema preenche CALÇADO COMPLETO por padrão quando description não informada', () => {
+  const req = RequisitionItemInputSchema.parse({
+    requestSector: 'MONTAGEM',
+    sku: 'NKE-PEG-38',
+    modelName: 'PEGASUS 40',
+    sizeGrade: '38',
+    footSide: 'PAR',
+    quantityRequested: 2,
+    reason: 'SOLA DESCOLADA NA MONTAGEM',
+  });
+  assert.equal(req.description, 'CALÇADO COMPLETO');
+  assert.equal(req.sku, 'NKE-PEG-38');
+  assert.equal(req.quantityRequested, 2);
 });
 
 

@@ -60,6 +60,7 @@ interface StagedRequisitionItem {
 }
 
 const requisitions = ref<RequisitionItem[]>([]);
+const loading = ref(false);
 const totalCount = ref(0);
 const currentPage = ref(1);
 const totalPages = ref(1);
@@ -91,12 +92,14 @@ const isSubmitting = ref(false);
 const stagedItems = ref<StagedRequisitionItem[]>([]);
 
 // Formulário do item corrente
-const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
+const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
 const formItem = ref({
   sku: '',
   modelName: '',
   description: '',
-  unit: 'UN',
+  type: '',
+  color: '',
+  unit: 'UND',
   sizeGrade: '',
   footSide: null as 'E' | 'D' | 'PAR' | null,
   quantityRequested: 1,
@@ -192,8 +195,17 @@ function clearSearch() {
 
 // Consulta de Disponibilidade em Tempo Real com Trava de Saldo Zero
 async function checkCurrentItemAvailability() {
-  const desc = formItem.value.description.trim();
-  const sku = formItem.value.sku.trim();
+  let desc = formItem.value.description?.trim();
+  const sku = formItem.value.sku?.trim();
+
+  if (currentSector.value === 'MONTAGEM') {
+    desc = 'CALÇADO COMPLETO';
+  } else if (currentSector.value === 'PRE_FABRICADO') {
+    desc = (formItem.value.type || 'SOLA') + (formItem.value.modelName ? ` - ${formItem.value.modelName}` : '');
+  } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
+    const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
+    desc = `${insumoType}${formItem.value.modelName ? ` - ${formItem.value.modelName}` : ''}`;
+  }
 
   if (!desc && !sku) {
     availabilityResult.value = { checked: false, quantity: 0, locations: [] };
@@ -204,10 +216,10 @@ async function checkCurrentItemAvailability() {
   try {
     const res = await api.post('/requisitions/check-availability', {
       requestSector: currentSector.value,
-      sku: sku.toUpperCase() || undefined,
-      modelName: formItem.value.modelName.trim().toUpperCase() || undefined,
-      description: (desc || sku).toUpperCase(),
-      sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
+      sku: sku ? sku.toUpperCase() : undefined,
+      modelName: formItem.value.modelName?.trim().toUpperCase() || undefined,
+      description: desc ? desc.toUpperCase() : (sku ? sku.toUpperCase() : 'CALÇADO COMPLETO'),
+      sizeGrade: formItem.value.sizeGrade?.trim().toUpperCase() || undefined,
       footSide: formItem.value.footSide || undefined,
     });
 
@@ -262,7 +274,9 @@ function onSkuInput() {
 function selectSuggestion(sug: SkuSuggestion) {
   formItem.value.sku = sug.sku;
   formItem.value.modelName = sug.modelName;
-  formItem.value.description = sug.description;
+  if (currentSector.value === 'APOIO' || currentSector.value === 'CORTE') {
+    formItem.value.description = sug.description;
+  }
   availableGrades.value = sug.sizeGrades || [];
   if (availableGrades.value.length === 1) {
     formItem.value.sizeGrade = availableGrades.value[0];
@@ -276,7 +290,9 @@ function onSectorChange() {
     sku: '',
     modelName: '',
     description: '',
-    unit: 'UN',
+    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
+    color: '',
+    unit: currentSector.value === 'CORTE' ? 'M²' : 'UND',
     sizeGrade: '',
     footSide: null,
     quantityRequested: 1,
@@ -297,15 +313,42 @@ function openCreate() {
 
 // Adicionar item à lista da requisição
 function addCurrentItem() {
-  const desc = formItem.value.description.trim() || formItem.value.sku.trim();
-  if (!desc) {
-    showToast('A identificação do item/material é obrigatória.', 'error');
-    return;
-  }
+  let finalDesc = formItem.value.description?.trim();
 
-  if (currentSector.value !== 'CORTE' && !formItem.value.sku.trim()) {
-    showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
-    return;
+  if (currentSector.value === 'MONTAGEM') {
+    finalDesc = 'CALÇADO COMPLETO';
+    if (!formItem.value.sku.trim()) {
+      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+      return;
+    }
+  } else if (currentSector.value === 'PRE_FABRICADO') {
+    const solaType = formItem.value.type || 'SOLA';
+    finalDesc = `${solaType} - ${formItem.value.modelName || formItem.value.sku || 'SOLA'}`.trim();
+    if (!formItem.value.sku.trim()) {
+      showToast('O COD. PRODUTO / SKU / Modelo é obrigatório.', 'error');
+      return;
+    }
+  } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
+    const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
+    finalDesc = `${insumoType} - ${formItem.value.modelName || formItem.value.sku || 'INSUMO'}`.trim();
+    if (!formItem.value.sku.trim()) {
+      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+      return;
+    }
+  } else if (currentSector.value === 'APOIO') {
+    if (!formItem.value.sku.trim()) {
+      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+      return;
+    }
+    if (!finalDesc) {
+      showToast('A Peça / Molde Solicitado é obrigatório.', 'error');
+      return;
+    }
+  } else if (currentSector.value === 'CORTE') {
+    if (!finalDesc && !formItem.value.sku.trim()) {
+      showToast('A Descrição / Tipo do material é obrigatória.', 'error');
+      return;
+    }
   }
 
   if (formItem.value.quantityRequested <= 0) {
@@ -332,8 +375,8 @@ function addCurrentItem() {
   stagedItems.value.push({
     requestSector: currentSector.value,
     sku: formItem.value.sku.trim().toUpperCase() || undefined,
-    modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : 'GERAL'),
-    description: formItem.value.description.trim().toUpperCase() || formItem.value.sku.trim().toUpperCase(),
+    modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
+    description: (finalDesc || 'CALÇADO COMPLETO').toUpperCase(),
     sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
     footSide: formItem.value.footSide || null,
     quantityRequested: formItem.value.quantityRequested,
@@ -349,7 +392,9 @@ function addCurrentItem() {
     sku: '',
     modelName: '',
     description: '',
-    unit: 'UN',
+    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
+    color: '',
+    unit: currentSector.value === 'CORTE' ? 'M²' : 'UND',
     sizeGrade: '',
     footSide: null,
     quantityRequested: 1,
@@ -1103,16 +1148,29 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- CAMPOS PARA PRÉ-FABRICADO / CABEDAIS / MONTAGEM -->
-            <div v-else class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+            <!-- CAMPOS PARA PRÉ-FABRICADO (SOLAS) -->
+            <div v-else-if="currentSector === 'PRE_FABRICADO'" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Sola *</label>
+                  <select
+                    v-model="formItem.type"
+                    @change="triggerAvailabilityCheck"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="EVA">EVA</option>
+                    <option value="BORRACHA">Borracha</option>
+                    <option value="TPU">TPU</option>
+                    <option value="PU">PU</option>
+                  </select>
+                </div>
+                <div class="relative sm:col-span-2">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / Modelo Solado *</label>
                   <input
                     v-model="formItem.sku"
                     @input="onSkuInput"
                     type="text"
-                    placeholder="Digite para buscar..."
+                    placeholder="Ex: SOLA-PEGASUS, PEG-40..."
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
 
@@ -1129,7 +1187,233 @@ onMounted(() => {
                     >
                       <div>
                         <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.modelName }} - {{ sug.description }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
+                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {{ sug.availableQuantity }} un.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
+                  <input
+                    v-model="formItem.sizeGrade"
+                    @input="triggerAvailabilityCheck"
+                    type="text"
+                    placeholder="Ex: 39/40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <div class="flex gap-1">
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'E'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Esq.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'D'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Dir.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === 'PAR'
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Par
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <input
+                    v-model.number="formItem.quantityRequested"
+                    type="number"
+                    min="1"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CAMPOS PARA DISTRIBUIÇÃO (CABEDAIS & SOLAS PROCESSADAS) -->
+            <div v-else-if="currentSector === 'DISTRIBUICAO' || currentSector === 'EXPEDICAO'" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Insumo *</label>
+                  <select
+                    v-model="formItem.type"
+                    @change="triggerAvailabilityCheck"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="CABEDAL">Cabedal</option>
+                    <option value="SOLA_PROCESSADA">Sola Processada</option>
+                  </select>
+                </div>
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+                  <input
+                    v-model="formItem.sku"
+                    @input="onSkuInput"
+                    type="text"
+                    placeholder="Ex: CAB-PEG-01..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+
+                  <div
+                    v-if="showSuggestions && suggestions.length > 0"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.sku"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
+                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
+                      </div>
+                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {{ sug.availableQuantity }} un.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha</label>
+                  <input
+                    v-model="formItem.modelName"
+                    type="text"
+                    placeholder="Ex: PEGASUS 40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
+                  <input
+                    v-model="formItem.sizeGrade"
+                    @input="triggerAvailabilityCheck"
+                    type="text"
+                    placeholder="Ex: 39/40"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Cor / Combinação</label>
+                  <input
+                    v-model="formItem.color"
+                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(); triggerAvailabilityCheck()"
+                    type="text"
+                    placeholder="Ex: BRANCO/GOMA"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <div class="flex gap-1">
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
+                      :class="formItem.footSide === 'E'
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Esq.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
+                      :class="formItem.footSide === 'D'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Pé Dir.
+                    </button>
+                    <button
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
+                      :class="formItem.footSide === 'PAR'
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >
+                      Par
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <input
+                    v-model.number="formItem.quantityRequested"
+                    type="number"
+                    min="1"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- CAMPOS PARA MONTAGEM (PÉS PRONTOS / CALÇADOS MONTADOS) -->
+            <div v-else-if="currentSector === 'MONTAGEM'" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+                  <input
+                    v-model="formItem.sku"
+                    @input="onSkuInput"
+                    type="text"
+                    placeholder="Ex: NKE-PEG-38-BLK..."
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+
+                  <div
+                    v-if="showSuggestions && suggestions.length > 0"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.sku"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    >
+                      <div>
+                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
                         <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
                       </div>
                       <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
@@ -1148,17 +1432,6 @@ onMounted(() => {
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Componente Solicitado *</label>
-                <input
-                  v-model="formItem.description"
-                  @input="triggerAvailabilityCheck"
-                  type="text"
-                  placeholder="Ex: Sola Borracha, Cabedal Completo, Pé Montado..."
-                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                />
               </div>
 
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
