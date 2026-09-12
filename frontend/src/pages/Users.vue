@@ -83,13 +83,44 @@ const fetchUsers = async () => {
   }
 };
 
+const showAuditModal = ref(false);
+const auditLogs = ref([]);
+const loadingAudit = ref(false);
+
+const openAuditModal = async () => {
+  showAuditModal.value = true;
+  loadingAudit.value = true;
+  try {
+    const res = await api.get('/users/audit');
+    auditLogs.value = res.data;
+  } catch (err) {
+    console.error('Erro ao carregar auditoria:', err);
+    showNotification('error', 'Erro ao carregar histórico de auditoria.');
+  } finally {
+    loadingAudit.value = false;
+  }
+};
+
+function formatDate(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 const saveUserRole = async () => {
   if (!editingUser.value) return;
 
   try {
     const payload = {
       role: editingUser.value.role,
-      assignedSector: editingUser.value.role === 'admin' ? null : (editingUser.value.assignedSector || null)
+      assignedSector: editingUser.value.role === 'admin' ? null : (editingUser.value.assignedSector || null),
+      expectedRole: editingUser.value._originalRole,
     };
 
     const res = await api.put(`/users/${editingUser.value.id}`, payload);
@@ -106,6 +137,9 @@ const saveUserRole = async () => {
     console.error("Erro ao atualizar usuário:", error);
     const errorMsg = error.response?.data?.error || "Erro de conexão ao atualizar usuário.";
     showNotification("error", errorMsg);
+    if (error.response?.status === 409) {
+      fetchUsers();
+    }
   }
 };
 
@@ -113,6 +147,7 @@ const openEditModal = (user) => {
   editingUser.value = {
     ...user,
     assignedSector: user.assignedSector || null,
+    _originalRole: user.role,
   };
   showEditModal.value = true;
 };
@@ -199,10 +234,18 @@ onMounted(() => {
           <p class="text-gray-600 mt-1">Gerencie os níveis de acesso e vincule setores de operação para Líderes e Movimentadores</p>
         </div>
 
-        <div class="relative">
-          <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input v-model="searchTerm" type="text" placeholder="Buscar por nome, setor ou matrícula..."
-            class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64 text-xs" />
+        <div class="flex items-center gap-3">
+          <button @click="openAuditModal"
+            class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-200 shadow-sm cursor-pointer">
+            <ShieldCheck class="w-4 h-4 text-indigo-600" />
+            Auditoria de Permissões
+          </button>
+
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input v-model="searchTerm" type="text" placeholder="Buscar por nome, setor ou matrícula..."
+              class="pl-9 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none w-64 text-xs bg-white" />
+          </div>
         </div>
       </div>
 
@@ -368,6 +411,83 @@ onMounted(() => {
           <button @click="saveUserRole"
             class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors shadow-sm text-xs">
             Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Auditoria de Permissões RBAC (LGPD / Segurança Dass) -->
+    <div v-if="showAuditModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]">
+        <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
+          <div class="flex items-center gap-2">
+            <ShieldCheck class="w-5 h-5 text-indigo-400" />
+            <div>
+              <h3 class="font-bold text-sm leading-tight">Auditoria de Alteração de Permissões RBAC</h3>
+              <p class="text-[11px] text-slate-400">Rastreabilidade formal de promoções, trocas de papéis e vínculos de setores</p>
+            </div>
+          </div>
+          <button @click="showAuditModal = false" class="text-slate-400 hover:text-white font-bold text-xl cursor-pointer">&times;</button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1">
+          <div v-if="loadingAudit" class="p-8 text-center text-gray-400">
+            Carregando histórico de auditoria...
+          </div>
+          <div v-else-if="auditLogs.length === 0" class="p-8 text-center text-gray-400 italic text-xs">
+            Nenhuma alteração de permissão registrada até o momento.
+          </div>
+          <div v-else class="rounded-xl border border-gray-100 overflow-hidden">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider border-b border-gray-100">
+                <tr>
+                  <th class="px-4 py-3">Data / Hora</th>
+                  <th class="px-4 py-3">Usuário Afetado</th>
+                  <th class="px-4 py-3 text-center">Papel Anterior ➔ Novo</th>
+                  <th class="px-4 py-3 text-center">Setor RBAC</th>
+                  <th class="px-4 py-3 text-right">Alterado Por</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 font-medium">
+                <tr v-for="log in auditLogs" :key="log.id" class="hover:bg-slate-50/50">
+                  <td class="px-4 py-3 font-mono text-[11px] text-gray-500 whitespace-nowrap">
+                    {{ formatDate(log.changedAt) }}
+                  </td>
+                  <td class="px-4 py-3">
+                    <p class="font-bold text-gray-900">{{ log.nome || log.usuario }}</p>
+                    <p class="text-[10px] text-gray-400 font-mono">{{ log.usuario }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5 font-bold">
+                      <span class="px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">
+                        {{ getRoleInfo(log.previousRole).label }}
+                      </span>
+                      <span class="text-indigo-500">➔</span>
+                      <span :class="`px-2 py-0.5 rounded text-[10px] ${getRoleInfo(log.newRole).color}`">
+                        {{ getRoleInfo(log.newRole).label }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-center text-[11px] font-bold text-slate-700">
+                    <span v-if="log.newSector" class="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-100">
+                      {{ formatSectorName(log.newSector) }}
+                    </span>
+                    <span v-else class="text-gray-400 italic">Livre / Master</span>
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <p class="font-bold text-gray-800">{{ log.changedByName }}</p>
+                    <p v-if="log.changedById" class="text-[10px] text-gray-400 font-mono">Matrícula: {{ log.changedById }}</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="px-6 py-3.5 bg-gray-50 border-t flex justify-end shrink-0">
+          <button @click="showAuditModal = false"
+            class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer">
+            Fechar
           </button>
         </div>
       </div>

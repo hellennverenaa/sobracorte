@@ -75,6 +75,7 @@ model FactoryUnit {
   stockMovements     StockMovement[]
   requisitions       MaterialRequisition[]
   materialDeletionAudits MaterialDeletionAudit[]
+  roleChangeAudits   RoleChangeAudit[]
 
   @@schema("sobra_corte")
 }
@@ -215,6 +216,27 @@ model User {
   @@unique([factoryUnitId, usuario])
   @@unique([factoryUnitId, email])
   @@unique([factoryUnitId, matriculaDass])
+  @@schema("sobra_corte")
+}
+
+// 🛡️ TABELA DE AUDITORIA DE ALTERAÇÃO DE PERMISSÕES RBAC (LGPD / SEGURANÇA DASS)
+model RoleChangeAudit {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  usuario        String
+  nome           String
+  previousRole   String
+  newRole        String
+  previousSector SectorType?
+  newSector      SectorType?
+  changedById    String?      // Matrícula DASS do operador que executou a alteração
+  changedByName  String       // Nome do operador
+  factoryUnitId  Int
+  factoryUnit    FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
+  changedAt      DateTime     @default(now())
+
+  @@index([factoryUnitId, userId])
+  @@index([factoryUnitId, changedAt(sort: Desc)])
   @@schema("sobra_corte")
 }
 

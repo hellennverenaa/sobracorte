@@ -14,6 +14,12 @@ import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
 import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
+import {
+  userService,
+  UserNotFoundError,
+  UserConcurrencyConflictError,
+  UnauthorizedRoleAssignmentError,
+} from './services/UserService';
 
 const routes = Router();
 
@@ -146,43 +152,67 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   }
 });
 
+routes.get('/users/audit', requireAuth, requireRole(['admin']), async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const logs = await userService.getRoleAuditHistory(prisma, req.tenant!.id, limit);
+    return res.json(logs);
+  } catch (error) {
+    console.error("Erro ao buscar auditoria de usuários:", error);
+    return res.status(500).json({ error: 'Erro interno ao buscar histórico de auditoria.' });
+  }
+});
+
 routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { role, assignedSector } = req.body;
+    const { role, assignedSector, expectedRole } = req.body;
 
     if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ error: 'Usuário inválido' });
+      return res.status(400).json({ error: 'Usuário inválido.' });
     }
-    if (role && !isUserRole(role)) {
-      return res.status(400).json({ error: 'Nível de acesso inválido' });
-    }
-
-    const updateData: any = {};
-    if (role) updateData.role = role;
-    if (assignedSector !== undefined) {
-      let sec = assignedSector ? String(assignedSector).toUpperCase().trim() : null;
-      if (sec === 'CABEDAIS' || sec === 'EXPEDICAO') sec = 'DISTRIBUICAO';
-      updateData.assignedSector = sec as any;
+    if (!role || !isUserRole(role)) {
+      return res.status(400).json({ error: 'Nível de acesso inválido.' });
     }
 
-    const result = await prisma.user.updateMany({
-      where: { id, factoryUnitId: req.tenant!.id },
-      data: updateData
-    });
-    if (result.count === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
-    const updatedUser = await prisma.user.findFirstOrThrow({ where: { id, factoryUnitId: req.tenant!.id } });
+    let sec = assignedSector !== undefined ? (assignedSector ? String(assignedSector).toUpperCase().trim() : null) : null;
+    if (sec === 'CABEDAIS' || sec === 'EXPEDICAO') sec = 'DISTRIBUICAO';
 
-    const safeUser = {
-      ...updatedUser,
-      matriculaDass: updatedUser.matriculaDass ? Number(updatedUser.matriculaDass) : null,
-      assignedSector: updatedUser.assignedSector || null,
+    const actor = {
+      matricula: req.user?.matricula ? String(req.user.matricula) : null,
+      nome: req.user?.nome || req.user?.usuario || 'Administrador',
+      usuario: req.user?.usuario || 'admin',
+      isGlobalAdmin: Boolean(req.isGlobalAdmin),
     };
 
-    res.json(safeUser);
-  } catch (error) {
+    const result = await userService.updateUserRole(prisma, {
+      targetUserId: id,
+      factoryUnitId: req.tenant!.id,
+      newRole: role,
+      newSector: sec as any,
+      expectedRole,
+      actor,
+    });
+
+    const safeUser = {
+      ...result.user,
+      matriculaDass: result.user.matriculaDass ? Number(result.user.matriculaDass) : null,
+      assignedSector: result.user.assignedSector || null,
+    };
+
+    return res.json(safeUser);
+  } catch (error: any) {
+    if (error instanceof UserNotFoundError) {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error instanceof UserConcurrencyConflictError) {
+      return res.status(409).json({ error: error.message });
+    }
+    if (error instanceof UnauthorizedRoleAssignmentError) {
+      return res.status(403).json({ error: error.message });
+    }
     console.error("Erro ao atualizar usuário:", error);
-    res.status(500).json({ error: 'Erro interno ao atualizar usuário' });
+    return res.status(500).json({ error: 'Erro interno ao atualizar usuário.' });
   }
 });
 

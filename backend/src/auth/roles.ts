@@ -13,3 +13,14 @@ export function deriveInitialRole(_user?: { usuario?: string; funcao?: string })
 export function isUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && USER_ROLES.includes(value as UserRole);
 }
+
+/**
+ * Valida se o administrador atual possui prerrogativa para conceder o papel solicitado.
+ * A concessão do perfil de Administrador Master ('admin') exige privilégios de Administrador Global (isGlobalAdmin === true).
+ */
+export function canAssignRole(newRole: UserRole, isGlobalAdmin: boolean): boolean {
+  if (newRole === 'admin') {
+    return isGlobalAdmin;
+  }
+  return true;
+}
