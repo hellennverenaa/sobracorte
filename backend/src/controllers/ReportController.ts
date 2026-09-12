@@ -152,16 +152,20 @@ export class ReportController {
       }
 
       if (rawSearch) {
-        stockWhere.stockItem = {
-          OR: [
-            { code: { contains: rawSearch, mode: 'insensitive' } },
-            { description: { contains: rawSearch, mode: 'insensitive' } },
-            { name: { contains: rawSearch, mode: 'insensitive' } },
-            { sku: { contains: rawSearch, mode: 'insensitive' } },
-            { productName: { contains: rawSearch, mode: 'insensitive' } },
-            { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
-          ],
-        };
+        stockWhere.OR = [
+          { itemCode: { contains: rawSearch, mode: 'insensitive' } },
+          { itemName: { contains: rawSearch, mode: 'insensitive' } },
+          { stockItem: {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { description: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { sku: { contains: rawSearch, mode: 'insensitive' } },
+              { productName: { contains: rawSearch, mode: 'insensitive' } },
+              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          } },
+        ];
       }
 
       // --- FILTROS PRISMA PARA MOVEMENT (CORTE) & STOCKMOVEMENT (OUTROS SETORES) ---
@@ -197,12 +201,16 @@ export class ReportController {
       }
 
       if (rawSearch) {
-        legacyWhere.material = {
-          OR: [
-            { code: { contains: rawSearch, mode: 'insensitive' } },
-            { name: { contains: rawSearch, mode: 'insensitive' } },
-          ],
-        };
+        legacyWhere.OR = [
+          { materialCode: { contains: rawSearch, mode: 'insensitive' } },
+          { materialName: { contains: rawSearch, mode: 'insensitive' } },
+          { material: {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          } },
+        ];
       }
 
       const [stockMovements, legacyMovements, locationsList] = await Promise.all([
@@ -242,12 +250,12 @@ export class ReportController {
 
       const formattedStock = stockMovements.map((m) => {
         const item = m.stockItem;
-        const code = item?.sku || item?.pieceCode || item?.code || item?.productName || '-';
+        const code = item?.sku || item?.pieceCode || item?.code || item?.productName || m.itemCode || '-';
         const modelName = item?.productName || '';
-        const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || 'Componente Multi-Setor';
+        const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || m.itemName || 'Componente Multi-Setor';
 
-        const srcLoc = m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null;
-        const dstLoc = m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null;
+        const srcLoc = (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null) || m.sourceLocationName;
+        const dstLoc = (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null) || m.destinationLocationName;
         const locFormatted = srcLoc && dstLoc ? `${srcLoc} ➔ ${dstLoc}` : (dstLoc || srcLoc || '-');
 
         return {
@@ -260,11 +268,11 @@ export class ReportController {
           codigo: code,
           nomeModelo: modelName,
           descricao: desc,
-          tipoMaterial: item?.type || item?.sector || m.sector,
+          tipoMaterial: item?.type || item?.sector || m.itemCategory || m.sector,
           gradeTamanho: item?.sizeGrade || '-',
           ladoPe: item?.footSide || '-',
           quantidade: m.quantity,
-          unidade: item?.unit || 'UND',
+          unidade: item?.unit || m.itemUnit || 'UND',
           prateleira: locFormatted,
           origem: m.origem || 'Geração no Setor',
           motivo: m.reason || m.origem || '-',
@@ -274,15 +282,15 @@ export class ReportController {
           material: {
             codigo: code,
             descricao: desc,
-            tipo: item?.type || item?.sector || m.sector,
-            unidade: item?.unit || 'UND',
+            tipo: item?.type || item?.sector || m.itemCategory || m.sector,
+            unidade: item?.unit || m.itemUnit || 'UND',
           },
           nomeMaterial: desc,
         };
       });
 
       const formattedLegacy = legacyMovements.map((m) => {
-        const primaryLoc = m.material?.locations?.[0]?.location?.name || 'Almoxarifado';
+        const primaryLoc = m.locationName || m.material?.locations?.[0]?.location?.name || 'Almoxarifado';
         return {
           id: `leg_${m.id}`,
           data: m.createdAt,
@@ -290,13 +298,13 @@ export class ReportController {
           sector: 'CORTE',
           setor: 'CORTE',
           tipo: m.type.toUpperCase(),
-          codigo: m.material?.code || '-',
-          descricao: m.material?.name || '-',
-          tipoMaterial: m.material?.type || 'CORTE',
+          codigo: m.material?.code || m.materialCode || '-',
+          descricao: m.material?.name || m.materialName || '-',
+          tipoMaterial: m.material?.type || m.materialCategory || 'CORTE',
           gradeTamanho: '-',
           ladoPe: '-',
           quantidade: m.quantity,
-          unidade: m.material?.unit || 'UN',
+          unidade: m.material?.unit || m.materialUnit || 'UN',
           prateleira: primaryLoc,
           origem: m.origem || 'Corte / Produção',
           motivo: m.reason || m.origem || '-',
@@ -304,12 +312,12 @@ export class ReportController {
           matricula: m.operatorId || null,
           responsavel: m.operatorName || 'Operador DASS',
           material: {
-            codigo: m.material?.code || '-',
-            descricao: m.material?.name || '-',
-            tipo: m.material?.type || 'CORTE',
-            unidade: m.material?.unit || 'UN',
+            codigo: m.material?.code || m.materialCode || '-',
+            descricao: m.material?.name || m.materialName || '-',
+            tipo: m.material?.type || m.materialCategory || 'CORTE',
+            unidade: m.material?.unit || m.materialUnit || 'UN',
           },
-          nomeMaterial: m.material?.name || '-',
+          nomeMaterial: m.material?.name || m.materialName || '-',
         };
       });
 

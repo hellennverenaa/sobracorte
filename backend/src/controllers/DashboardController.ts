@@ -419,7 +419,7 @@ export class DashboardController {
       }
 
       // 5. Hidratação dos Top 5 Entradas de Sobras (Corte + Multi-Setor)
-      const materialIds = topLegacyEntradas.map(e => e.materialId);
+      const materialIds = topLegacyEntradas.map(e => e.materialId).filter((id): id is number => id !== null);
       const stockItemIds = topStockEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
 
       const [materialsList, stockItemsList] = await Promise.all([
@@ -451,7 +451,7 @@ export class DashboardController {
       }> = [];
 
       for (const leg of topLegacyEntradas) {
-        const mat = materialMap.get(leg.materialId);
+        const mat = leg.materialId ? materialMap.get(leg.materialId) : null;
         if (mat) {
           topSobrasEntrada.push({
             id: `mat_${mat.id}`,

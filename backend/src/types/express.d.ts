@@ -18,6 +18,7 @@ export interface TenantContext {
     id: number;
     code: string;
     name: string;
+    enableRequisitions?: boolean;
 }
 
 declare global {

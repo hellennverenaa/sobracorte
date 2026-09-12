@@ -110,11 +110,11 @@ export class MountingPairService {
       const [leftItem, rightItem] = await Promise.all([
         tx.stockItem.findFirst({
           where: { id: leftStockItemId, factoryUnitId },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         }),
         tx.stockItem.findFirst({
           where: { id: rightStockItemId, factoryUnitId },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         }),
       ]);
 
@@ -213,6 +213,11 @@ export class MountingPairService {
           type: 'CASAMENTO_PAR',
           quantity,
           sourceLocationId: leftItem.locations[0]?.locationId || null,
+          sourceLocationName: leftItem.locations[0]?.location?.name || null,
+          itemCode: leftItem.sku || leftItem.code || null,
+          itemName: leftItem.description || leftItem.productName || null,
+          itemCategory: leftItem.componentType || leftItem.type || null,
+          itemUnit: leftItem.unit || 'PAR',
           origem: `Casamento de Pares no setor ${sectorLabel}`,
           reason: `Casamento de Par - Pé E casado com Pé D (ID ${rightItem.id}). Obs: ${reason}`,
           operatorId: operatorId || null,
@@ -229,6 +234,11 @@ export class MountingPairService {
           type: 'CASAMENTO_PAR',
           quantity,
           sourceLocationId: rightItem.locations[0]?.locationId || null,
+          sourceLocationName: rightItem.locations[0]?.location?.name || null,
+          itemCode: rightItem.sku || rightItem.code || null,
+          itemName: rightItem.description || rightItem.productName || null,
+          itemCategory: rightItem.componentType || rightItem.type || null,
+          itemUnit: rightItem.unit || 'PAR',
           origem: `Casamento de Pares no setor ${sectorLabel}`,
           reason: `Casamento de Par - Pé D casado com Pé E (ID ${leftItem.id}). Obs: ${reason}`,
           operatorId: operatorId || null,

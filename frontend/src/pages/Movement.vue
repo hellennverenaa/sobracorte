@@ -211,9 +211,9 @@
                       <div class="flex flex-col">
                         <span class="font-bold text-gray-700 text-sm group-hover:text-blue-700 transition-colors">{{
                           item.nomeMaterial || (item.material ? (item.material.descricao || item.material.name) :
-                          'Excluído') }}</span>
-                        <span class="text-[10px] text-gray-400 font-mono" v-if="item.material">Cód: {{
-                          item.material.codigo || item.material.code }}</span>
+                          'Material Histórico') }}</span>
+                        <span class="text-[10px] text-gray-400 font-mono" v-if="item.codigoMaterial || (item.material && (item.material.codigo || item.material.code))">Cód: {{
+                          item.codigoMaterial || (item.material && (item.material.codigo || item.material.code)) }}</span>
                         <span v-if="item.origem" class="text-[9px] font-bold text-blue-500 uppercase mt-0.5">Origem: {{
                           item.origem }}</span>
                       </div>

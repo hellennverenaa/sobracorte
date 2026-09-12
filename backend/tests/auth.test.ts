@@ -52,8 +52,8 @@ test('resolveTenantRequest rejeita JWT sem unidade ou matrícula', () => {
 test('requireActiveTenant rejeita unidade inexistente ou inativa', async () => {
   await assert.rejects(() => requireActiveTenant('INVALIDA', async () => null), { status: 403 });
   assert.deepEqual(
-    await requireActiveTenant('SEST', async (code) => ({ id: 1, code, name: 'Santo Estêvão' })),
-    { id: 1, code: 'SEST', name: 'Santo Estêvão' },
+    await requireActiveTenant('SEST', async (code) => ({ id: 1, code, name: 'Santo Estêvão', enableRequisitions: true })),
+    { id: 1, code: 'SEST', name: 'Santo Estêvão', enableRequisitions: true },
   );
 });
 

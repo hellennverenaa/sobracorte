@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { prisma } from '../prisma';
 import { StockItemService } from '../services/StockItemService';
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
@@ -190,9 +191,9 @@ export class StockItemController {
           }
 
           const totalQty = Number(item.quantity || 0);
-          const hasLocationBalance = item.locations.some((l: any) => Number(l.quantity || 0) > 0);
+          const hasLocationBalance = item.locations.some((l: any) => Number(l.quantity || 0) > 0.0001);
 
-          if (totalQty > 0 || hasLocationBalance) {
+          if (totalQty > 0.0001 || hasLocationBalance) {
             const err: any = new Error('STOCK_ITEM_HAS_BALANCE');
             err.status = 409;
             throw err;
@@ -220,6 +221,12 @@ export class StockItemController {
               deletedById: operatorId,
               deletedByName: operatorName,
             },
+          });
+
+          // Desvincular stockItemId das movimentações passadas mantendo o histórico de auditoria intacto
+          await tx.stockMovement.updateMany({
+            where: { stockItemId: item.id, factoryUnitId },
+            data: { stockItemId: null },
           });
 
           await tx.stockItemLocation.deleteMany({

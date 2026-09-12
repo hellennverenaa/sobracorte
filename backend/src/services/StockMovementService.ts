@@ -104,7 +104,8 @@ export class StockMovementService {
           }
 
           const sourceLocLink = material.locations.find((l) => l.locationId === sourceLocId);
-          if (!sourceLocLink || (sourceLocLink.quantity || 0) < quantity) {
+          const sourceQty = Number(sourceLocLink?.quantity || 0);
+          if (!sourceLocLink || sourceQty < quantity - 0.0001) {
             throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
           }
 
@@ -117,7 +118,7 @@ export class StockMovementService {
               },
             },
             data: {
-              quantity: (sourceLocLink.quantity || 0) - quantity,
+              quantity: Math.max(0, sourceQty - quantity),
             },
           });
 
@@ -147,12 +148,20 @@ export class StockMovementService {
           return Boolean(dl?.sector && dl.sector !== 'CORTE');
         })() : false;
 
+        const locForSnapId = destinationLocationId || locationId || material.locations[0]?.locationId;
+        const locForSnap = locForSnapId ? await tx.location.findFirst({ where: { id: locForSnapId, factoryUnitId }, select: { name: true } }) : null;
+
         const movement = await tx.movement.create({
           data: {
             factoryUnitId,
             materialId: material.id,
             type: type.toLowerCase(),
             quantity,
+            materialCode: material.code,
+            materialName: material.name,
+            materialCategory: material.type,
+            materialUnit: material.unit,
+            locationName: locForSnap?.name || null,
             origem: isCrossSectorMat
               ? `Transferência Intersetorial (CORTE) autorizada por Admin Master`
               : (origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída')))),
@@ -392,6 +401,27 @@ export class StockMovementService {
         }
       }
 
+      // Buscar nomes das localizações para snapshot imutável
+      let sourceLocationName: string | null = null;
+      let destinationLocationName: string | null = null;
+
+      const sourceLocId = locationId || (type === 'TRANSFERENCIA' ? (item.locations[0]?.locationId) : null);
+      if (sourceLocId) {
+        const srcLoc = await tx.location.findFirst({
+          where: { id: sourceLocId, factoryUnitId },
+          select: { name: true },
+        });
+        sourceLocationName = srcLoc?.name || null;
+      }
+
+      if (destinationLocationId) {
+        const dstLoc = await tx.location.findFirst({
+          where: { id: destinationLocationId, factoryUnitId },
+          select: { name: true },
+        });
+        destinationLocationName = dstLoc?.name || null;
+      }
+
       // Registrar auditoria atômica em StockMovement
       const movement = await tx.stockMovement.create({
         data: {
@@ -402,6 +432,12 @@ export class StockMovementService {
           quantity,
           sourceLocationId: locationId || null,
           destinationLocationId: destinationLocationId || null,
+          sourceLocationName,
+          destinationLocationName,
+          itemCode: item.sku || item.code || item.pieceCode || null,
+          itemName: item.description || item.name || item.productName || null,
+          itemCategory: item.type || item.componentType || null,
+          itemUnit: item.unit || null,
           origem: isCrossSector
             ? `Transferência Intersetorial (${item.sector} ➔ ${targetSectorForMovement}) autorizada por Admin Master`
             : (origem || (type === 'ENTRADA' ? 'Entrada Adicional' : (type === 'REFUGO' ? 'Baixa por Refugo' : (type === 'TRANSFERENCIA' ? 'Transferência de Localização' : 'Consumo / Saída')))),
@@ -422,36 +458,261 @@ export class StockMovementService {
   }
 
   /**
-   * Consulta paginada do histórico completo de auditoria
+   * Consulta paginada do histórico completo de auditoria unificada (Corte + Multi-Setores)
    */
   async getHistory(filters: MovementHistoryFilterDTO, context: OperatorContext) {
     const { factoryUnitId } = context;
     const { sector, stockItemId, operatorId, type, page, limit } = filters;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.StockMovementWhereInput = {
+    const isCorteOnly = sector === 'CORTE';
+    const isAllSectors = !sector || sector === ('TODOS' as any);
+
+    const typeMapToLegacy: Record<string, string[]> = {
+      ENTRADA: ['entrada'],
+      SAIDA: ['saida', 'refugo'],
+      REFUGO: ['refugo'],
+      TRANSFERENCIA: ['transferencia'],
+      CASAMENTO_PAR: ['never_match'],
+      CRIACAO_CONFIGURACAO: ['never_match'],
+      EDICAO_CONFIGURACAO: ['never_match'],
+      EXCLUSAO_CONFIGURACAO: ['never_match'],
+    };
+
+    const typeMapToUnified: Record<string, string> = {
+      entrada: 'ENTRADA',
+      saida: 'SAIDA',
+      refugo: 'REFUGO',
+      transferencia: 'TRANSFERENCIA',
+    };
+
+    const formatLegacyMovement = (m: any) => {
+      const primaryLoc = m.locationName || m.material?.locations?.[0]?.location?.name || null;
+      return {
+        id: `corte_${m.id}`,
+        factoryUnitId: m.factoryUnitId,
+        stockItemId: m.materialId,
+        sector: 'CORTE' as SectorType,
+        type: (typeMapToUnified[m.type?.toLowerCase()] || m.type?.toUpperCase() || 'ENTRADA') as any,
+        quantity: m.quantity,
+        sourceLocationId: null,
+        destinationLocationId: null,
+        sourceLocationName: null,
+        destinationLocationName: primaryLoc,
+        itemCode: m.material?.code || m.materialCode || null,
+        itemName: m.material?.name || m.materialName || null,
+        itemCategory: m.material?.type || m.materialCategory || 'CORTE',
+        itemUnit: m.material?.unit || m.materialUnit || 'M²',
+        origem: m.origem || 'Corte / Produção',
+        reason: m.reason || m.origem || '',
+        operatorId: m.operatorId,
+        operatorName: m.operatorName || 'Operador Corte',
+        createdAt: m.createdAt,
+        updatedAt: m.createdAt,
+        stockItem: m.material ? {
+          id: m.material.id,
+          sector: 'CORTE' as SectorType,
+          code: m.material.code,
+          name: m.material.name,
+          pieceCode: null,
+          productName: m.material.name,
+          sku: m.material.code,
+          sizeGrade: null,
+          color: null,
+          footSide: null,
+          type: m.material.type,
+        } : (m.materialCode || m.materialName ? {
+          id: m.materialId || 0,
+          sector: 'CORTE' as SectorType,
+          code: m.materialCode || null,
+          name: m.materialName || null,
+          pieceCode: null,
+          productName: m.materialName || null,
+          sku: m.materialCode || null,
+          sizeGrade: null,
+          color: null,
+          footSide: null,
+          type: m.materialCategory || 'CORTE',
+        } : null),
+      };
+    };
+
+    if (isCorteOnly) {
+      const legacyWhere: Prisma.MovementWhereInput = {
+        factoryUnitId,
+        ...(stockItemId ? { materialId: stockItemId } : {}),
+        ...(operatorId ? {
+          OR: [
+            { operatorId: { contains: operatorId, mode: 'insensitive' } },
+            { operatorName: { contains: operatorId, mode: 'insensitive' } },
+          ],
+        } : {}),
+      };
+
+      if (type) {
+        const mappedTypes = typeMapToLegacy[type];
+        if (mappedTypes) {
+          legacyWhere.type = mappedTypes.length === 1 ? mappedTypes[0] : { in: mappedTypes };
+        } else {
+          legacyWhere.type = type.toLowerCase();
+        }
+      }
+
+      const [total, movements] = await Promise.all([
+        prisma.movement.count({ where: legacyWhere }),
+        prisma.movement.findMany({
+          where: legacyWhere,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            material: {
+              include: {
+                locations: {
+                  include: { location: true },
+                },
+              },
+            },
+          },
+        }),
+      ]);
+
+      return {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+        data: movements.map(formatLegacyMovement),
+      };
+    }
+
+    if (isAllSectors) {
+      const stockWhere: Prisma.StockMovementWhereInput = {
+        factoryUnitId,
+        ...(stockItemId ? { stockItemId } : {}),
+        ...(operatorId ? {
+          OR: [
+            { operatorId: { contains: operatorId, mode: 'insensitive' } },
+            { operatorName: { contains: operatorId, mode: 'insensitive' } },
+          ],
+        } : {}),
+      };
+
+      const legacyWhere: Prisma.MovementWhereInput = {
+        factoryUnitId,
+        ...(stockItemId ? { materialId: stockItemId } : {}),
+        ...(operatorId ? {
+          OR: [
+            { operatorId: { contains: operatorId, mode: 'insensitive' } },
+            { operatorName: { contains: operatorId, mode: 'insensitive' } },
+          ],
+        } : {}),
+      };
+
+      if (type) {
+        if (type === 'SAIDA') {
+          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
+        } else {
+          stockWhere.type = type;
+        }
+
+        const mappedTypes = typeMapToLegacy[type];
+        if (mappedTypes) {
+          legacyWhere.type = mappedTypes.length === 1 ? mappedTypes[0] : { in: mappedTypes };
+        } else {
+          legacyWhere.type = type.toLowerCase();
+        }
+      }
+
+      const fetchWindow = skip + limit;
+
+      const [stockCount, legacyCount, stockMovements, legacyMovements] = await Promise.all([
+        prisma.stockMovement.count({ where: stockWhere }),
+        prisma.movement.count({ where: legacyWhere }),
+        prisma.stockMovement.findMany({
+          where: stockWhere,
+          take: fetchWindow,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            stockItem: {
+              select: {
+                id: true,
+                sector: true,
+                code: true,
+                name: true,
+                pieceCode: true,
+                productName: true,
+                sku: true,
+                sizeGrade: true,
+                color: true,
+                footSide: true,
+                type: true,
+              },
+            },
+          },
+        }),
+        prisma.movement.findMany({
+          where: legacyWhere,
+          take: fetchWindow,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            material: {
+              include: {
+                locations: {
+                  include: { location: true },
+                },
+              },
+            },
+          },
+        }),
+      ]);
+
+      const total = stockCount + legacyCount;
+      const combined = [
+        ...stockMovements.map((s) => ({ ...s, id: s.id })),
+        ...legacyMovements.map(formatLegacyMovement),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const paginatedData = combined.slice(skip, skip + limit);
+
+      return {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+        data: paginatedData,
+      };
+    }
+
+    // Setores individuais não-Corte (Apoio, Pré-Fabricado, Distribuição, Montagem, Configurações)
+    const stockWhere: Prisma.StockMovementWhereInput = {
       factoryUnitId,
       ...(sector ? {
         sector: (sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO')
           ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
-          : sector
+          : sector,
       } : {}),
       ...(stockItemId ? { stockItemId } : {}),
-      ...(operatorId ? { operatorId } : {}),
+      ...(operatorId ? {
+        OR: [
+          { operatorId: { contains: operatorId, mode: 'insensitive' } },
+          { operatorName: { contains: operatorId, mode: 'insensitive' } },
+        ],
+      } : {}),
     };
 
     if (type) {
       if (type === 'SAIDA') {
-        where.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
+        stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
       } else {
-        where.type = type;
+        stockWhere.type = type;
       }
     }
 
     const [total, movements] = await Promise.all([
-      prisma.stockMovement.count({ where }),
+      prisma.stockMovement.count({ where: stockWhere }),
       prisma.stockMovement.findMany({
-        where,
+        where: stockWhere,
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -479,7 +740,7 @@ export class StockMovementService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
       data: movements,
     };
   }

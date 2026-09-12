@@ -465,7 +465,7 @@ export class RequisitionService {
             ],
             quantity: { gte: dto.quantity },
           },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         });
 
         if (!material) {
@@ -478,21 +478,19 @@ export class RequisitionService {
         });
 
         const targetLocId = sourceLocationId || material.locations[0]?.locationId;
-        if (targetLocId) {
-          const locLink = material.locations.find((l) => l.locationId === targetLocId);
-          if (locLink) {
-            await tx.materialLocation.update({
-              where: {
-                materialId_locationId: {
-                  materialId: material.id,
-                  locationId: targetLocId,
-                },
+        const targetLocLink = material.locations.find((l) => l.locationId === targetLocId);
+        if (targetLocId && targetLocLink) {
+          await tx.materialLocation.update({
+            where: {
+              materialId_locationId: {
+                materialId: material.id,
+                locationId: targetLocId,
               },
-              data: {
-                quantity: Math.max(0, Number(locLink.quantity || 0) - dto.quantity),
-              },
-            });
-          }
+            },
+            data: {
+              quantity: Math.max(0, Number(targetLocLink.quantity || 0) - dto.quantity),
+            },
+          });
         }
 
         await tx.stockMovement.create({
@@ -502,6 +500,11 @@ export class RequisitionService {
             type: 'SAIDA_REQUISICAO',
             quantity: dto.quantity,
             sourceLocationId: targetLocId || null,
+            sourceLocationName: targetLocLink?.location?.name || null,
+            itemCode: material.code,
+            itemName: material.name,
+            itemCategory: material.type,
+            itemUnit: material.unit,
             origem: 'Atendimento de Requisição',
             reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
             operatorId: operatorId || null,
@@ -531,12 +534,12 @@ export class RequisitionService {
 
         const leftItem = await tx.stockItem.findFirst({
           where: { ...baseFilter, footSide: 'E' },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         });
 
         const rightItem = await tx.stockItem.findFirst({
           where: { ...baseFilter, footSide: 'D' },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         });
 
         if (!leftItem || !rightItem) {
@@ -569,6 +572,11 @@ export class RequisitionService {
             type: 'SAIDA_REQUISICAO',
             quantity: dto.quantity,
             sourceLocationId: leftItem.locations[0]?.locationId || null,
+            sourceLocationName: leftItem.locations[0]?.location?.name || null,
+            itemCode: leftItem.sku || leftItem.code || null,
+            itemName: leftItem.description || leftItem.productName || null,
+            itemCategory: leftItem.componentType || leftItem.type || null,
+            itemUnit: leftItem.unit || 'UND',
             origem: 'Atendimento de Requisição (Pé Esquerdo)',
             reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
             operatorId: operatorId || null,
@@ -602,6 +610,11 @@ export class RequisitionService {
             type: 'SAIDA_REQUISICAO',
             quantity: dto.quantity,
             sourceLocationId: rightItem.locations[0]?.locationId || null,
+            sourceLocationName: rightItem.locations[0]?.location?.name || null,
+            itemCode: rightItem.sku || rightItem.code || null,
+            itemName: rightItem.description || rightItem.productName || null,
+            itemCategory: rightItem.componentType || rightItem.type || null,
+            itemUnit: rightItem.unit || 'UND',
             origem: 'Atendimento de Requisição (Pé Direito)',
             reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
             operatorId: operatorId || null,
@@ -630,7 +643,7 @@ export class RequisitionService {
             ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
             ...(req.footSide ? { footSide: req.footSide as any } : {}),
           },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         });
 
         if (!stockItem) {
@@ -643,21 +656,19 @@ export class RequisitionService {
         });
 
         const targetLocId = sourceLocationId || stockItem.locations[0]?.locationId;
-        if (targetLocId) {
-          const locLink = stockItem.locations.find((l) => l.locationId === targetLocId);
-          if (locLink) {
-            await tx.stockItemLocation.update({
-              where: {
-                stockItemId_locationId: {
-                  stockItemId: stockItem.id,
-                  locationId: targetLocId,
-                },
+        const targetLocLink = stockItem.locations.find((l) => l.locationId === targetLocId);
+        if (targetLocId && targetLocLink) {
+          await tx.stockItemLocation.update({
+            where: {
+              stockItemId_locationId: {
+                stockItemId: stockItem.id,
+                locationId: targetLocId,
               },
-              data: {
-                quantity: Math.max(0, Number(locLink.quantity || 0) - dto.quantity),
-              },
-            });
-          }
+            },
+            data: {
+              quantity: Math.max(0, Number(targetLocLink.quantity || 0) - dto.quantity),
+            },
+          });
         }
 
         await tx.stockMovement.create({
@@ -668,6 +679,11 @@ export class RequisitionService {
             type: 'SAIDA_REQUISICAO',
             quantity: dto.quantity,
             sourceLocationId: targetLocId || null,
+            sourceLocationName: targetLocLink?.location?.name || null,
+            itemCode: stockItem.sku || stockItem.pieceCode || null,
+            itemName: stockItem.description || stockItem.productName || null,
+            itemCategory: stockItem.componentType || stockItem.type || null,
+            itemUnit: stockItem.unit || 'UND',
             origem: 'Atendimento de Requisição',
             reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
             operatorId: operatorId || null,

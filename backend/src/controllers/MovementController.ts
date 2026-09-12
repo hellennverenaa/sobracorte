@@ -21,7 +21,11 @@ export class MovementController {
         observacao: movement.reason,
         usuario: movement.operatorName,
         operador: movement.operatorName,
-        nomeMaterial: movement.material?.name || movement.material?.code,
+        nomeMaterial: movement.material?.name || movement.materialName || movement.material?.code || movement.materialCode || 'Material Removido',
+        codigoMaterial: movement.material?.code || movement.materialCode || '-',
+        unidade: movement.material?.unit || movement.materialUnit || 'UN',
+        categoria: movement.material?.type || movement.materialCategory || 'CORTE',
+        localizacao: movement.locationName || '-',
       })));
     } catch {
       res.status(500).json({ error: 'Erro ao buscar movimentações.' });
@@ -40,10 +44,13 @@ export class MovementController {
 
       const result = await prisma.$transaction(async (tx) => {
         const [material, location] = await Promise.all([
-          tx.material.findFirst({ where: { id: input.materialId, factoryUnitId: req.tenant!.id }, select: { id: true } }),
+          tx.material.findFirst({
+            where: { id: input.materialId, factoryUnitId: req.tenant!.id },
+            select: { id: true, code: true, name: true, type: true, unit: true },
+          }),
           tx.location.findUnique({
             where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: input.location } },
-            select: { id: true },
+            select: { id: true, name: true },
           }),
         ]);
 
@@ -91,6 +98,11 @@ export class MovementController {
             quantity: input.quantity,
             origem: input.origin,
             reason: input.reason,
+            materialCode: material.code,
+            materialName: material.name,
+            materialCategory: material.type,
+            materialUnit: material.unit,
+            locationName: location.name,
             operatorId,
             operatorName,
           },

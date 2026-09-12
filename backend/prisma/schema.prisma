@@ -166,15 +166,22 @@ model Movement {
   type     String
   quantity Decimal @db.Decimal(18, 3)
 
-  origem String? // Opcional para não quebrar os registros antigos
+  origem   String? // Opcional para não quebrar os registros antigos
+  reason   String?
 
-  reason    String?
+  // Snapshots Imutáveis de Material e Localização
+  materialCode     String?
+  materialName     String?
+  materialCategory String?
+  materialUnit     String?
+  locationName     String?
+
   createdAt DateTime @default(now())
 
-  materialId    Int
+  materialId    Int?
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
-  material      Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  material      Material?   @relation(fields: [materialId], references: [id], onDelete: SetNull)
 
   // DADOS DA API DA DASS (Gravamos apenas o histórico, sem Foreign Key)
   operatorId   String? // Matrícula vinda da DASS
@@ -342,6 +349,14 @@ model StockMovement {
   // Localizações de origem/destino
   sourceLocationId      Int?
   destinationLocationId Int?
+  sourceLocationName    String?
+  destinationLocationName String?
+
+  // Snapshots Imutáveis de StockItem
+  itemCode              String?
+  itemName              String?
+  itemCategory          String?
+  itemUnit              String?
   
   origem                String?      // Motivo cadastrado (Consumo, Refugo, Casamento, Transferência)
   reason                String?      // Observação detalhada da ação
@@ -352,7 +367,7 @@ model StockMovement {
   operatorName          String?      // Nome do usuário
 
   factoryUnit           FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
-  stockItem             StockItem?   @relation(fields: [stockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  stockItem             StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
 
   @@index([factoryUnitId, stockItemId])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])

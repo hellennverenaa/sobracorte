@@ -95,12 +95,23 @@ export class MaterialController {
         return res.status(400).json({ error: 'O saldo inicial deve ser um número maior ou igual a zero.' });
       }
 
+      const code = String(req.body.codigo || req.body.code).trim().toUpperCase();
+      const name = String(req.body.descricao || req.body.name).trim().toUpperCase();
+      const unit = String(req.body.unidade || req.body.unit || 'UN').trim().toUpperCase();
+      const type = String(req.body.tipo || req.body.type || 'outros').trim().toUpperCase();
+
       const movimentos = qtdInicial > 0 ? {
         create: {
           factoryUnitId: req.tenant!.id,
           type: 'entrada',
           quantity: qtdInicial,
+          origem: 'Saldo Inicial / Implantação',
           reason: 'Saldo Inicial de Implantação',
+          materialCode: code,
+          materialName: name,
+          materialCategory: type,
+          materialUnit: unit,
+          locationName,
           operatorId: req.user?.matricula ? String(req.user.matricula) : null,
           operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação'
         }
@@ -114,11 +125,11 @@ export class MaterialController {
 
         return tx.material.create({
           data: {
-            code: String(req.body.codigo || req.body.code),
-            name: String(req.body.descricao || req.body.name),
+            code,
+            name,
             quantity: qtdInicial,
-            unit: String(req.body.unidade || req.body.unit || 'UN'),
-            type: String(req.body.tipo || req.body.type || 'outros'),
+            unit,
+            type,
             observation: String(req.body.observacoes || req.body.observation || ''),
             factoryUnitId: req.tenant!.id,
             locations: { create: { locationId: loc.id, quantity: qtdInicial } },
@@ -221,9 +232,9 @@ export class MaterialController {
           }
 
           const totalQty = Number(material.quantity || 0);
-          const hasLocationBalance = material.locations.some((l) => Number(l.quantity || 0) > 0);
+          const hasLocationBalance = material.locations.some((l) => Number(l.quantity || 0) > 0.0001);
 
-          if (totalQty > 0 || hasLocationBalance) {
+          if (totalQty > 0.0001 || hasLocationBalance) {
             const err: any = new Error('MATERIAL_HAS_BALANCE');
             err.status = 409;
             throw err;
@@ -248,6 +259,12 @@ export class MaterialController {
               deletedById: operatorId,
               deletedByName: operatorName,
             },
+          });
+
+          // Desvincular materialId das movimentações passadas mantendo o histórico de auditoria intacto
+          await tx.movement.updateMany({
+            where: { materialId: material.id, factoryUnitId },
+            data: { materialId: null },
           });
 
           await tx.materialLocation.deleteMany({

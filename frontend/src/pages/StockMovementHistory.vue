@@ -97,25 +97,30 @@ function formatItemDetails(item: any, mov?: any) {
   if (mov && mov.sector === 'CONFIGURACOES') {
     return mov.origem || 'Configurações de Domínio';
   }
-  if (!item) return '-';
+  if (!item) {
+    if (mov && (mov.itemName || mov.itemCode)) {
+      return `${mov.itemCode ? mov.itemCode + ' - ' : ''}${mov.itemName || 'Item Histórico'}${mov.itemCategory ? ' [' + mov.itemCategory + ']' : ''}`;
+    }
+    return '-';
+  }
   switch (item.sector) {
     case 'CORTE':
-      return `${item.code || ''} - ${item.name || ''}`;
+      return `${item.code || mov?.itemCode || ''} - ${item.name || mov?.itemName || ''}`;
     case 'APOIO':
-      return `${item.pieceCode || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.description || ''}) - Gr. ${item.sizeGrade || ''}`;
+      return `${item.pieceCode || mov?.itemCode || ''}${item.productName ? ' [' + item.productName + ']' : ''} (${item.description || mov?.itemName || ''}) - Gr. ${item.sizeGrade || ''}`;
     case 'PRE_FABRICADO': {
       const mat = item.type ? ` [${item.type === 'EVA' ? 'EVA' : item.type === 'BORRACHA' ? 'Borracha' : item.type}]` : '';
-      return `${item.sku || item.productName || ''}${item.productName && item.productName !== item.sku ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
+      return `${item.sku || item.productName || mov?.itemCode || ''}${item.productName && item.productName !== item.sku ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
     }
     case 'DISTRIBUICAO':
     case 'EXPEDICAO': {
       const mat = item.type ? ` [${item.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal'}]` : '';
-      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
+      return `${item.sku || mov?.itemCode || ''}${item.productName ? ' [' + item.productName + ']' : ''}${mat} (${item.color || ''}) - Gr. ${item.sizeGrade || ''}${item.footSide ? ' (' + (item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.') + ')' : ''}`;
     }
     case 'MONTAGEM':
-      return `${item.sku || ''}${item.productName ? ' [' + item.productName + ']' : ''}${item.color ? ' (' + item.color + ')' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
+      return `${item.sku || mov?.itemCode || ''}${item.productName ? ' [' + item.productName + ']' : ''}${item.color ? ' (' + item.color + ')' : ''} - Gr. ${item.sizeGrade || ''} (${item.footSide === 'E' ? 'Pé Esq.' : 'Pé Dir.'})`;
     default:
-      return item.id ? `Item #${item.id}` : '-';
+      return item.id ? `Item #${item.id}` : (mov?.itemName || '-');
   }
 }
 
@@ -267,7 +272,7 @@ onMounted(() => {
                   <template v-else>
                     {{ mov.quantity }}
                     <span class="text-xs bg-blue-50 text-blue-800 px-1 rounded ml-1 border border-blue-100 font-mono font-semibold">
-                      UN
+                      {{ mov.itemUnit || 'UN' }}
                     </span>
                   </template>
                 </td>
