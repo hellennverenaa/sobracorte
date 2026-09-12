@@ -4,9 +4,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
-  ClipboardList, Bell, Building2, Factory
+  ClipboardList, Bell
 } from 'lucide-vue-next'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
@@ -14,7 +14,6 @@ const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
 const pendingCount = ref(0)
-const isSwitchingUnit = ref(false)
 let notificationInterval = null
 
 async function logout() {
@@ -52,26 +51,8 @@ async function fetchPendingCount() {
   }
 }
 
-async function handleUnitChange(event) {
-  const newUnitCode = event.target.value
-  if (!newUnitCode || newUnitCode === authStore.user?.unit?.code) return
-  isSwitchingUnit.value = true
-  try {
-    await authStore.switchUnit(newUnitCode)
-    // Recarregar a rota atual para atualizar todas as stores reativamente
-    window.location.reload()
-  } catch (error) {
-    console.error('Erro ao alternar unidade fabril:', error)
-  } finally {
-    isSwitchingUnit.value = false
-  }
-}
-
 onMounted(() => {
   fetchPendingCount()
-  if (authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin) {
-    authStore.fetchAvailableUnits()
-  }
   notificationInterval = setInterval(fetchPendingCount, 45000)
 })
 
@@ -155,24 +136,6 @@ const visibleMenuItems = computed(() => {
           </div>
         </div>
 
-        <!-- Seletor Corporativo de Unidade Fabril (Exclusivo Admin) -->
-        <div v-if="(authStore.user?.isGlobalAdmin || authStore.user?.role === 'admin') && authStore.availableUnits.length > 1" class="mb-3 px-1">
-          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            Alternar Unidade Fabril
-          </label>
-          <div class="relative">
-            <select
-              :value="authStore.user?.unit?.code"
-              @change="handleUnitChange"
-              :disabled="isSwitchingUnit"
-              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-indigo-300 font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 transition-all"
-            >
-              <option v-for="unit in authStore.availableUnits" :key="unit.code" :value="unit.code">
-                {{ unit.code }} — {{ unit.name }}
-              </option>
-            </select>
-          </div>
-        </div>
 
         <button 
           @click="logout" 
