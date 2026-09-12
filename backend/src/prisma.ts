@@ -1,17 +1,29 @@
 import { PrismaClient } from "./generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { vars } from "./config/dotenv";
 import { tenantStorage } from "./context/tenantContext";
 
-// ─── Configuração do Driver de Conexão ───────────────────────────────────────
+// ─── Configuração do Pool de Conexões PostgreSQL ──────────────────────────────
 const dbUrl = new URL(vars.DB_URL!);
 const schema = dbUrl.searchParams.get("schema") ?? "public";
 dbUrl.searchParams.delete("schema");
 
-const adapter = new PrismaPg(
-  { connectionString: dbUrl.toString() },
-  { schema }
-);
+export const pool = new Pool({
+  connectionString: dbUrl.toString(),
+  max: vars.DB_POOL_MAX,
+  idleTimeoutMillis: vars.DB_POOL_IDLE_TIMEOUT_MS,
+  connectionTimeoutMillis: vars.DB_POOL_CONN_TIMEOUT_MS,
+});
+
+pool.on("error", (err) => {
+  console.error("[PgPool] Erro inesperado em cliente ocioso no pool:", err);
+});
+
+const adapter = new PrismaPg(pool, {
+  schema,
+  disposeExternalPool: true,
+});
 
 // ─── Modelos Globais (Sem Isolamento por Tenant) ──────────────────────────────
 //

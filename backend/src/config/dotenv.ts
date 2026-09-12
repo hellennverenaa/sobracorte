@@ -12,6 +12,9 @@ export interface ServerConfig {
   privateKey: string;
   corsOrigins: string[];
   globalAdminRegistrations: Set<number>;
+  dbPoolMax: number;
+  dbPoolIdleTimeoutMs: number;
+  dbPoolConnectionTimeoutMs: number;
 }
 
 export function parseGlobalAdminRegistrations(value: string | undefined): Set<number> {
@@ -30,6 +33,15 @@ export function parseGlobalAdminRegistrations(value: string | undefined): Set<nu
     registrations.add(registration);
   }
   return registrations;
+}
+
+export function parseOptionalPositiveInt(value: string | undefined, defaultValue: number, paramName: string): number {
+  if (!value || value.trim() === '') return defaultValue;
+  const parsed = Number(value.trim());
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${paramName} deve ser um número inteiro positivo.`);
+  }
+  return parsed;
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
@@ -72,6 +84,9 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     privateKey: required(env, "PRIVATE_KEY"),
     corsOrigins: parseCorsOrigins(required(env, "CORS_ORIGINS")),
     globalAdminRegistrations: parseGlobalAdminRegistrations(env.GLOBAL_ADMIN_REGISTRATIONS),
+    dbPoolMax: parseOptionalPositiveInt(env.DB_POOL_MAX, 20, 'DB_POOL_MAX'),
+    dbPoolIdleTimeoutMs: parseOptionalPositiveInt(env.DB_POOL_IDLE_TIMEOUT_MS, 30000, 'DB_POOL_IDLE_TIMEOUT_MS'),
+    dbPoolConnectionTimeoutMs: parseOptionalPositiveInt(env.DB_POOL_CONN_TIMEOUT_MS, 5000, 'DB_POOL_CONN_TIMEOUT_MS'),
   };
 }
 
@@ -79,4 +94,7 @@ export const vars = {
   DB_URL: process.env.DATABASE_URL?.trim() ?? "",
   PRIVATE_KEY: process.env.PRIVATE_KEY?.trim(),
   GLOBAL_ADMIN_REGISTRATIONS: parseGlobalAdminRegistrations(process.env.GLOBAL_ADMIN_REGISTRATIONS),
+  DB_POOL_MAX: parseOptionalPositiveInt(process.env.DB_POOL_MAX, 20, 'DB_POOL_MAX'),
+  DB_POOL_IDLE_TIMEOUT_MS: parseOptionalPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30000, 'DB_POOL_IDLE_TIMEOUT_MS'),
+  DB_POOL_CONN_TIMEOUT_MS: parseOptionalPositiveInt(process.env.DB_POOL_CONN_TIMEOUT_MS, 5000, 'DB_POOL_CONN_TIMEOUT_MS'),
 };
