@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { AuthController } from './controllers/AuthController';
 import { MaterialController } from './controllers/MaterialController';
 import { MovementController } from './controllers/MovementController';
@@ -23,7 +24,39 @@ import {
 
 const routes = Router();
 
-const upload = multer({ storage: multer.memoryStorage() });
+export const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
+});
+
+export const authenticatedLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.tenant?.id || 'public'}:${String(req.user?.usuario || 'anon').toUpperCase()}`,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Limite de requisições atingido. Tente novamente em alguns minutos.' },
+});
+
+export const mutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.tenant?.id || 'public'}:${String(req.user?.usuario || 'anon').toUpperCase()}`,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Limite de alterações atingido. Tente novamente em alguns minutos.' },
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 const reportController = new ReportController();
 const authController = new AuthController();
@@ -39,7 +72,7 @@ const requisitionController = new RequisitionController();
 
 routes.get('/health', (_req, res) => res.json({ status: 'ok' }));
 routes.get('/auth/health', (_req, res) => res.json({ status: 'ok' }));
-routes.get('/factory-units', async (_req, res) => {
+routes.get('/factory-units', publicLimiter, async (_req, res) => {
   try {
     const units = await prisma.factoryUnit.findMany({
       where: { active: true },
@@ -53,7 +86,7 @@ routes.get('/factory-units', async (_req, res) => {
 });
 
 // Configurações da Unidade Fabril Atual
-routes.get('/factory-unit/current', requireAuth, async (req, res) => {
+routes.get('/factory-unit/current', requireAuth, authenticatedLimiter, async (req, res) => {
   try {
     const unit = await prisma.factoryUnit.findUnique({
       where: { id: req.tenant!.id },
@@ -67,7 +100,7 @@ routes.get('/factory-unit/current', requireAuth, async (req, res) => {
   }
 });
 
-routes.patch('/factory-unit/current/settings', requireAuth, requireRole(['admin']), async (req, res) => {
+routes.patch('/factory-unit/current/settings', requireAuth, mutationLimiter, requireRole(['admin']), async (req, res) => {
   try {
     const { enableRequisitions } = req.body;
     if (typeof enableRequisitions !== 'boolean') {
@@ -85,54 +118,54 @@ routes.patch('/factory-unit/current/settings', requireAuth, requireRole(['admin'
   }
 });
 
-routes.post('/auth/login', authController.login);
-routes.post('/auth/check-user', requireAuth, authController.checkUser);
+routes.post('/auth/login', publicLimiter, authController.login);
+routes.post('/auth/check-user', requireAuth, mutationLimiter, authController.checkUser);
 
-routes.get('/materials', requireAuth, materialController.index);
-routes.post('/materials', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
-routes.put('/materials/:id', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
-routes.delete('/materials/:id', requireAuth, requireRole(['admin_setor']), requireSectorMatch(() => 'CORTE'), materialController.delete);
-routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
+routes.get('/materials', requireAuth, authenticatedLimiter, materialController.index);
+routes.post('/materials', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
+routes.put('/materials/:id', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
+routes.delete('/materials/:id', requireAuth, mutationLimiter, requireRole(['admin_setor']), requireSectorMatch(() => 'CORTE'), materialController.delete);
+routes.post('/materials/bulk', requireAuth, mutationLimiter, requireRole(['admin']), materialController.importBatch);
 
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
-routes.post('/inventory/batch', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
-routes.get('/inventory/search', requireAuth, stockItemController.search);
-routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
-routes.get('/inventory/combinations', requireAuth, stockItemController.combinations);
-routes.delete('/inventory/stock-items/:id', requireAuth, requireRole(['admin_setor']), stockItemController.delete);
+routes.post('/inventory/batch', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
+routes.get('/inventory/search', requireAuth, authenticatedLimiter, stockItemController.search);
+routes.get('/inventory/search-suggestions', requireAuth, authenticatedLimiter, stockItemController.suggestions);
+routes.get('/inventory/combinations', requireAuth, authenticatedLimiter, stockItemController.combinations);
+routes.delete('/inventory/stock-items/:id', requireAuth, mutationLimiter, requireRole(['admin_setor']), stockItemController.delete);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
-routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);
-routes.post('/inventory/mounting/execute-match', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector || 'MONTAGEM'), mountingPairController.executeMatch);
+routes.get('/inventory/mounting/matching-pairs', requireAuth, authenticatedLimiter, mountingPairController.getMatchingPairs);
+routes.post('/inventory/mounting/execute-match', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector || 'MONTAGEM'), mountingPairController.executeMatch);
 
 // 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
-routes.post('/inventory/movements', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
-routes.get('/inventory/movements/history', requireAuth, stockMovementController.history);
+routes.post('/inventory/movements', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
+routes.get('/inventory/movements/history', requireAuth, authenticatedLimiter, stockMovementController.history);
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
-routes.post('/requisitions', requireAuth, requireRequisitionsEnabled, requisitionController.create);
-routes.post('/requisitions/check-availability', requireAuth, requireRequisitionsEnabled, requisitionController.checkAvailability);
-routes.get('/requisitions', requireAuth, requireRequisitionsEnabled, requisitionController.index);
-routes.get('/requisitions/pending-count', requireAuth, requireRequisitionsEnabled, requisitionController.pendingCount);
-routes.post('/requisitions/:id/fulfill', requireAuth, requireRequisitionsEnabled, requireRole(['admin', 'admin_setor']), requisitionController.fulfill);
-routes.patch('/requisitions/:id/cancel', requireAuth, requireRequisitionsEnabled, requisitionController.cancel);
+routes.post('/requisitions', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.create);
+routes.post('/requisitions/check-availability', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.checkAvailability);
+routes.get('/requisitions', requireAuth, authenticatedLimiter, requireRequisitionsEnabled, requisitionController.index);
+routes.get('/requisitions/pending-count', requireAuth, authenticatedLimiter, requireRequisitionsEnabled, requisitionController.pendingCount);
+routes.post('/requisitions/:id/fulfill', requireAuth, mutationLimiter, requireRequisitionsEnabled, requireRole(['admin', 'admin_setor']), requisitionController.fulfill);
+routes.patch('/requisitions/:id/cancel', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.cancel);
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
-routes.get('/dashboard/summary', requireAuth, dashboardController.getSummary);
-routes.get('/stats', requireAuth, materialController.stats);
-routes.get('/dashboard/origem-sobras', requireAuth, dashboardController.getOrigemSobras);
-routes.get('/dashboard/distribuicao', requireAuth, dashboardController.getDistribuicao);
-routes.get('/dashboard/top-materiais', requireAuth, dashboardController.getTopMateriais);
+routes.get('/dashboard/summary', requireAuth, authenticatedLimiter, dashboardController.getSummary);
+routes.get('/stats', requireAuth, authenticatedLimiter, materialController.stats);
+routes.get('/dashboard/origem-sobras', requireAuth, authenticatedLimiter, dashboardController.getOrigemSobras);
+routes.get('/dashboard/distribuicao', requireAuth, authenticatedLimiter, dashboardController.getDistribuicao);
+routes.get('/dashboard/top-materiais', requireAuth, authenticatedLimiter, dashboardController.getTopMateriais);
 
-routes.get('/movements', requireAuth, movementController.index);
-routes.post('/movements', requireAuth, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
+routes.get('/movements', requireAuth, authenticatedLimiter, movementController.index);
+routes.post('/movements', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
 
-routes.get('/reports/inventory', requireAuth, reportController.inventory);
-routes.get('/reports/movements', requireAuth, reportController.movements);
-routes.get('/reports/data', requireAuth, reportController.movements);
-routes.get('/reports/requisitions', requireAuth, reportController.requisitions);
+routes.get('/reports/inventory', requireAuth, authenticatedLimiter, reportController.inventory);
+routes.get('/reports/movements', requireAuth, authenticatedLimiter, reportController.movements);
+routes.get('/reports/data', requireAuth, authenticatedLimiter, reportController.movements);
+routes.get('/reports/requisitions', requireAuth, authenticatedLimiter, reportController.requisitions);
 
-routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
+routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       where: { factoryUnitId: req.tenant!.id },
@@ -152,7 +185,7 @@ routes.get('/users', requireAuth, requireRole(['admin']), async (req, res) => {
   }
 });
 
-routes.get('/users/audit', requireAuth, requireRole(['admin']), async (req, res) => {
+routes.get('/users/audit', requireAuth, authenticatedLimiter, requireRole(['admin']), async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 50;
     const logs = await userService.getRoleAuditHistory(prisma, req.tenant!.id, limit);
@@ -163,7 +196,7 @@ routes.get('/users/audit', requireAuth, requireRole(['admin']), async (req, res)
   }
 });
 
-routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+routes.put('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), async (req, res) => {
   try {
     const id = Number(req.params.id);
     const { role, assignedSector, expectedRole } = req.body;
@@ -216,7 +249,7 @@ routes.put('/users/:id', requireAuth, requireRole(['admin']), async (req, res) =
   }
 });
 
-routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+routes.delete('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'Usuário inválido' });
@@ -236,24 +269,24 @@ routes.delete('/users/:id', requireAuth, requireRole(['admin']), async (req, res
   }
 });
 
-routes.get('/settings/categories',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getCategories);
-routes.post('/settings/categories',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createCategory);
-routes.put('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
-routes.delete('/settings/categories/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
+routes.get('/settings/categories',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getCategories);
+routes.post('/settings/categories',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createCategory);
+routes.put('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
+routes.delete('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
 
-routes.get('/settings/units', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getUnits);
-routes.post('/settings/units', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createUnit);
-routes.delete('/settings/units/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteUnit);
+routes.get('/settings/units', requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getUnits);
+routes.post('/settings/units', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createUnit);
+routes.delete('/settings/units/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteUnit);
 
-routes.get('/settings/locations',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getLocations);
-routes.post('/settings/locations',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createLocation);
-routes.put('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.updateLocation);
-routes.delete('/settings/locations/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteLocation);
+routes.get('/settings/locations',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getLocations);
+routes.post('/settings/locations',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createLocation);
+routes.put('/settings/locations/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateLocation);
+routes.delete('/settings/locations/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteLocation);
 
-routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'admin_setor']), settingsController.getOrigins);
-routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
-routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
+routes.get('/settings/origins',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getOrigins);
+routes.post('/settings/origins',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
+routes.delete('/settings/origins/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
 
-routes.post('/import/csv', requireAuth, requireRole(['admin', 'admin_setor']), upload.single('arquivo'), importController.importCSV);
+routes.post('/import/csv', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), upload.single('arquivo'), importController.importCSV);
 
 export { routes };
