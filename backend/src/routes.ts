@@ -224,6 +224,6 @@ routes.get('/settings/origins',    requireAuth, requireRole(['admin', 'admin_set
 routes.post('/settings/origins',   requireAuth, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
 
-routes.post('/import/csv', requireAuth, requireRole(['admin']), upload.single('arquivo'), importController.importCSV);
+routes.post('/import/csv', requireAuth, requireRole(['admin', 'admin_setor']), upload.single('arquivo'), importController.importCSV);
 
 export { routes };

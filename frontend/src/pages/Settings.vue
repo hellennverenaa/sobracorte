@@ -605,18 +605,53 @@
                 <XCircle v-if="importResult.error" class="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
                 <CheckCircle v-else class="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
                 
-                <div class="space-y-1">
+                <div class="space-y-2 w-full">
                   <p class="font-bold text-sm leading-snug">
-                    {{ importResult.error ? 'Falha na Validação da Planilha' : importResult.message }}
+                    {{ importResult.error ? 'Falha na Validação da Planilha (Nenhum item foi importado)' : importResult.message }}
                   </p>
                   
                   <p v-if="importResult.error" class="text-xs text-red-700 leading-relaxed">
                     {{ importResult.error }}
                   </p>
                   
-                  <p v-else class="text-xs text-emerald-800">
-                    <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
-                  </p>
+                  <div v-else class="text-xs text-emerald-800 space-y-1">
+                    <p>
+                      <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.processados }}</strong> processados no total.
+                    </p>
+                    <p class="text-[11px] text-emerald-700">
+                      ✓ Prateleiras e Localizações vinculadas: <strong>{{ importResult.prateleirasCriadas || 0 }}</strong> · Movimentações de Saldo Inicial geradas: <strong>{{ importResult.movimentacoesCriadas || 0 }}</strong>
+                    </p>
+                  </div>
+
+                  <!-- Tabela Detalhada de Erros Linha a Linha (HTTP 422 Pre-flight) -->
+                  <div v-if="importResult.errors && importResult.errors.length > 0" class="mt-3 pt-3 border-t border-red-200">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-xs font-bold uppercase tracking-wider text-red-900">
+                        Inconsistências Encontradas ({{ importResult.errors.length }} {{ importResult.errors.length === 1 ? 'erro' : 'erros' }}):
+                      </span>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto rounded-lg border border-red-200 bg-white">
+                      <table class="w-full text-left text-xs">
+                        <thead class="bg-red-100/70 text-red-900 font-bold uppercase sticky top-0">
+                          <tr>
+                            <th class="px-3 py-2 w-16 text-center">Linha</th>
+                            <th class="px-3 py-2 w-28">Coluna</th>
+                            <th class="px-3 py-2 w-32">Valor</th>
+                            <th class="px-3 py-2">Motivo da Rejeição</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-red-100 text-gray-800 font-medium font-sans">
+                          <tr v-for="(err, idx) in importResult.errors" :key="idx" class="hover:bg-red-50/50">
+                            <td class="px-3 py-1.5 text-center font-bold text-red-700 font-mono">{{ err.row }}</td>
+                            <td class="px-3 py-1.5 font-bold font-mono text-indigo-700">{{ err.column }}</td>
+                            <td class="px-3 py-1.5 font-mono text-gray-600 truncate max-w-[120px]">{{ err.value || '(vazio)' }}</td>
+                            <td class="px-3 py-1.5 text-red-800">{{ err.message }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             </div>
@@ -1464,7 +1499,8 @@ async function importCSV() {
     selectedFile.value = null
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
-    importResult.value = { error: msg }
+    const errors = e.response?.data?.errors || []
+    importResult.value = { error: msg, errors }
     showNotification('error', msg)
   } finally {
     importing.value = false
