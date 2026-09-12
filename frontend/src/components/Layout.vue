@@ -67,6 +67,7 @@ const menuItems = [
           <div class="overflow-hidden">
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
             <p class="text-xs text-slate-500 truncate capitalize">{{ authStore.user?.role }}</p>
+            <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>
         <router-link to="/profile" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 font-bold mb-3 hover:underline">

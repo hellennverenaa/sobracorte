@@ -24,6 +24,9 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
         if (user.token && !config.headers.Authorization) {
           config.headers.Authorization = `Bearer ${user.token}`;
         }
+        if (user.unit?.code && !config.headers['X-Dass-Unit']) {
+          config.headers['X-Dass-Unit'] = user.unit.code;
+        }
       } catch {
         localStorage.removeItem('user');
       }
@@ -47,6 +50,13 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
 
     if (isRefreshing) {
       await enqueue();
+      // A request can already have a stale Authorization header when it is
+      // resumed from the queue. Always overwrite it with the refreshed token.
+      const refreshedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (refreshedUser.token) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedUser.token}`;
+      }
       return instance(originalRequest);
     }
 
@@ -60,7 +70,24 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       if (!newToken || !userStr) throw new Error('Não foi possível renovar a sessão.');
 
       const user = JSON.parse(userStr);
-      localStorage.setItem('user', JSON.stringify({ ...user, token: newToken }));
+      const synced = await instance.post('/auth/check-user', null, {
+        headers: { Authorization: `Bearer ${newToken}`, 'X-Dass-Unit': user.unit?.code },
+        _retry: true,
+      } as RetryableRequestConfig);
+      const tokenPayload = JSON.parse(atob(newToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(newToken.split('.')[1].length / 4) * 4, '=')));
+      localStorage.setItem('user', JSON.stringify({
+        ...user,
+        token: newToken,
+        id: synced.data.user.id,
+        nome: tokenPayload.nome || tokenPayload.usuario,
+        usuario: tokenPayload.usuario,
+        email: tokenPayload.email || `${tokenPayload.usuario.toLowerCase()}@grupodass.com.br`,
+        setor: tokenPayload.setor || 'NÃO DEFINIDO',
+        funcao: tokenPayload.funcao || 'NÃO DEFINIDO',
+        role: synced.data.user.role,
+        unit: synced.data.unit,
+        isGlobalAdmin: synced.data.isGlobalAdmin,
+      }));
       sessionStorage.setItem(
         "expirationTime",
         response.data.tokenExpirationTime
@@ -69,6 +96,8 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       queue.forEach((p) => p.resolve());
       queue = [];
 
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
       return instance(originalRequest);
     } catch (refreshError) {
 

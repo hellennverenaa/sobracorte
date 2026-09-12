@@ -13,18 +13,6 @@
         </div>
       </div>
 
-      <!-- Notificação Toast -->
-      <transition name="fade-down">
-        <div v-if="notification.show"
-          class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-          :class="notification.type === 'success'
-            ? 'bg-emerald-500 text-white'
-            : 'bg-red-500 text-white'">
-          <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-          <XCircle v-else class="w-4 h-4" />
-          {{ notification.message }}
-        </div>
-      </transition>
 
       <!-- Tabs -->
       <div class="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
@@ -209,23 +197,25 @@
             <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">vinculadas à Categoria</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-emerald-50/30">
-            <form @submit.prevent="addLocation" class="flex gap-3 items-end flex-wrap">
+            <form @submit.prevent="addLocation" class="space-y-4">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Localização</label>
                 <input v-model="newLocation.name" required placeholder="Ex: Rua 03 - Caixote 58 - Nível 01"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white" />
               </div>
-              <div class="w-64 min-w-[180px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria Vinculada</label>
-                <select v-model="newLocation.categoryId" required
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
-                  <option value="" disabled selected>Selecione a Categoria...</option>
-                  <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Categorias permitidas nesta localização (selecione uma ou mais)</label>
+                <div class="flex flex-wrap gap-2">
+                  <button v-for="cat in categories" :key="cat.id" type="button" @click="toggleLocationCategory(cat.id)"
+                    class="px-3 py-1.5 rounded-full border text-xs font-bold transition-colors"
+                    :class="newLocation.categoryIds.includes(cat.id)
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'">
                     {{ cat.name }}
-                  </option>
-                </select>
+                  </button>
+                </div>
               </div>
-              <button type="submit" :disabled="loadingLocation"
+              <button type="submit" :disabled="loadingLocation || newLocation.categoryIds.length === 0"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50">
                 <Plus class="w-4 h-4" /> Adicionar
               </button>
@@ -236,7 +226,7 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome da Localização</th>
-                <th class="px-6 py-3 text-center">Categoria Vinculada</th>
+                <th class="px-6 py-3 text-center">Categorias Permitidas</th>
                 <th class="px-6 py-3 text-center">Ação</th>
               </tr>
             </thead>
@@ -244,10 +234,13 @@
               <tr v-for="loc in locations" :key="loc.id" class="hover:bg-gray-50/50 transition-colors">
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
                 <td class="px-6 py-3 text-center">
-                  <span class="px-2.5 py-1 rounded-full text-xs font-bold border"
-                    :class="loc.category ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-100 text-gray-400 border-gray-200'">
-                    {{ loc.category ? loc.category.name : 'Não vinculada' }}
-                  </span>
+                  <div class="flex flex-wrap justify-center gap-1.5">
+                    <span v-for="cat in loc.categories" :key="cat.id"
+                      class="px-2.5 py-1 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-100">
+                      {{ cat.name }}
+                    </span>
+                    <span v-if="!loc.categories?.length" class="text-xs text-gray-400 italic">Nenhuma</span>
+                  </div>
                 </td>
                 <td class="px-6 py-3 text-center">
                   <button @click="deleteLocation(loc)"
@@ -271,7 +264,7 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <GitBranch class="w-4 h-4 text-amber-500" /> Origens de Sobra
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Movement.origem</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">origens permitidas nas entradas</span>
           </div>
           <div class="px-6 py-4 border-b border-gray-100 bg-amber-50/30">
             <form @submit.prevent="addOrigin" class="flex gap-3 items-end">
@@ -370,18 +363,23 @@
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">categoria</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Nome da Categoria cadastrada. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">TECIDO</code> (Padrão: GERAL)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Nome exato de uma categoria cadastrada.</td>
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">unidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Sigla da unidade de medida. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">m²</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">kg</code>, <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">un</code> (Padrão: UN)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Sigla de uma unidade ativa e permitida para a categoria.</td>
                     </tr>
                     <tr>
                       <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">quantidade</td>
-                      <td class="px-4 py-2.5"><span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">Opcional</span></td>
-                      <td class="px-4 py-2.5">Saldo inicial numérico. Ex: <code class="bg-gray-100 px-1 py-0.5 rounded font-mono">150.0</code> (Padrão: 0)</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Saldo inicial não negativo, com até três casas decimais.</td>
+                    </tr>
+                    <tr>
+                      <td class="px-4 py-2.5 font-mono font-bold text-indigo-600">localizacao</td>
+                      <td class="px-4 py-2.5"><span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">Obrigatório</span></td>
+                      <td class="px-4 py-2.5">Nome exato de uma localização permitida para a categoria.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -390,13 +388,12 @@
               <!-- Bloco de Exemplo Visual -->
               <div class="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono overflow-x-auto shadow-inner">
                 <div class="text-slate-400 text-[10px] mb-2 font-sans font-bold uppercase tracking-wider flex items-center justify-between">
-                  <span>Exemplo de Arquivo CSV Válido</span>
+                  <span>Estrutura do arquivo</span>
                   <span>Codificação: UTF-8</span>
                 </div>
-                <code>codigo;descricao;categoria;unidade;quantidade</code><br />
-                <code class="text-emerald-400">1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0</code><br />
-                <code class="text-emerald-400">1002;FORRO TESPONTADO AZUL;FORRO;m;80.0</code><br />
-                <code class="text-emerald-400">1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5</code>
+                <code>codigo;descricao;categoria;unidade;quantidade;localizacao</code><br />
+                <code class="text-emerald-400">CODIGO;DESCRICAO;CATEGORIA_CADASTRADA;UNIDADE_PERMITIDA;0.000;LOCALIZACAO_COMPATIVEL</code><br />
+                <span class="text-slate-400 font-sans">O modelo baixado é preenchido com os domínios reais desta fábrica.</span>
               </div>
             </div>
 
@@ -452,9 +449,14 @@
                   <p v-if="importResult.error" class="text-xs text-red-700 leading-relaxed">
                     {{ importResult.error }}
                   </p>
+                  <ul v-if="importResult.errors?.length" class="mt-2 space-y-1 text-xs text-red-700 list-disc pl-4">
+                    <li v-for="detail in importResult.errors" :key="`${detail.line}-${detail.message}`">
+                      Linha {{ detail.line }}: {{ detail.message }}
+                    </li>
+                  </ul>
                   
                   <p v-else class="text-xs text-emerald-700 leading-relaxed opacity-90">
-                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.ignorados }}</strong> ignorados (já existiam no banco) · <strong>{{ importResult.processados }}</strong> processados no total.
+                    🎉 <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.processados }}</strong> processados no total.
                   </p>
                 </div>
               </div>
@@ -466,7 +468,6 @@
 
     </div>
 
-    <!-- MODAL DE CONFIRMAÇÃO CORPORATIVO -->
     <ConfirmModal
       :show="confirmState.show"
       :title="confirmState.title"
@@ -489,6 +490,8 @@ import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
   Plus, Trash2, Upload, CheckCircle, XCircle
 } from 'lucide-vue-next'
+import { useToast } from '@/composables/useToast'
+import { useConfirmModal } from '@/composables/useConfirmModal'
 
 // --- TABS ---
 const tabs = [
@@ -500,47 +503,8 @@ const tabs = [
 ]
 const activeTab = ref('categories')
 
-// --- NOTIFICAÇÕES ---
-const notification = ref({ show: false, type: 'success', message: '' })
-function showNotification(type, message) {
-  notification.value = { show: true, type, message }
-  setTimeout(() => { notification.value.show = false }, 3500)
-}
-
-// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-})
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  }
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true
-    try {
-      await confirmState.value.action()
-    } finally {
-      confirmState.value.loading = false
-      confirmState.value.show = false
-    }
-  }
-}
+const { notification, showNotification } = useToast()
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal()
 
 // CATEGORIAS
 const categories = ref([])
@@ -650,7 +614,14 @@ async function deleteUnit(unit) {
 // LOCALIZAÇÕES
 const locations = ref([])
 const loadingLocation = ref(false)
-const newLocation = ref({ name: '', categoryId: '' })
+const newLocation = ref({ name: '', categoryIds: [] })
+
+function toggleLocationCategory(categoryId) {
+  const selected = newLocation.value.categoryIds
+  const index = selected.indexOf(categoryId)
+  if (index === -1) selected.push(categoryId)
+  else selected.splice(index, 1)
+}
 
 async function fetchLocations() {
   loadingLocation.value = true
@@ -666,16 +637,16 @@ async function fetchLocations() {
 
 async function addLocation() {
   if (!newLocation.value.name.trim()) return
-  if (!newLocation.value.categoryId) {
-    return showNotification('error', 'Selecione a Categoria Vinculada.')
+  if (newLocation.value.categoryIds.length === 0) {
+    return showNotification('error', 'Selecione ao menos uma categoria permitida.')
   }
   try {
     await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
-      categoryId: Number(newLocation.value.categoryId)
+      categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
-    newLocation.value = { name: '', categoryId: '' }
+    newLocation.value = { name: '', categoryIds: [] }
     await fetchLocations()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar localização.'
@@ -757,11 +728,33 @@ const importing = ref(false)
 const importResult = ref(null)
 
 function downloadCSVTemplate() {
-  const content = "codigo;descricao;categoria;unidade;quantidade\n" +
-                  "1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0\n" +
-                  "1002;FORRO TESPONTADO AZUL;FORRO;m;80.0\n" +
-                  "1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5\n" +
-                  "1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0\n";
+  const activeUnits = new Map(units.value.map(unit => [unit.id, unit]))
+  const examples = categories.value.flatMap(category => {
+    const location = locations.value.find(loc =>
+      (loc.categories || []).some(allowedCategory => allowedCategory.id === category.id)
+    )
+    const unit = category.unitLocked
+      ? activeUnits.get(category.defaultUnitId)
+      : activeUnits.get(category.defaultUnitId) || units.value[0]
+    return location && unit ? [{ category, unit, location }] : []
+  }).slice(0, 4)
+
+  if (examples.length === 0) {
+    showNotification('error', 'Cadastre ao menos uma categoria com unidade ativa e localização compatível antes de baixar o modelo.')
+    return
+  }
+
+  const downloadId = globalThis.crypto?.randomUUID?.().slice(0, 8) || String(Date.now())
+  const csvCell = value => `"${String(value).replace(/"/g, '""').replace(/[\r\n]+/g, ' ')}"`
+  const rows = examples.map(({ category, unit, location }, index) => [
+    `EXEMPLO-${downloadId}-${index + 1}`,
+    `MATERIAL DE EXEMPLO ${index + 1}`,
+    category.name,
+    unit.symbol,
+    '0.000',
+    location.name,
+  ].map(csvCell).join(';'))
+  const content = `codigo;descricao;categoria;unidade;quantidade;localizacao\n${rows.join('\n')}\n`
   
   // Adiciona BOM UTF-8 (\uFEFF) para garantir abertura sem caracteres estranhos no Excel
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
@@ -772,7 +765,7 @@ function downloadCSVTemplate() {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 0)
   showNotification('success', 'Modelo de exemplo baixado com sucesso!')
 }
 
@@ -811,8 +804,12 @@ async function importCSV() {
     showNotification('success', `${res.data.inseridos} materiais importados com sucesso!`)
     selectedFile.value = null
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
-    importResult.value = { error: msg }
+    const responseData = e.response?.data
+    const msg = responseData?.error || 'Erro ao importar a planilha.'
+    importResult.value = {
+      error: msg,
+      errors: Array.isArray(responseData?.errors) ? responseData.errors : [],
+    }
     showNotification('error', msg)
   } finally {
     importing.value = false

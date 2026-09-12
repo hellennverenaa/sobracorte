@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { User, Mail, Shield, CheckCircle, AlertTriangle } from 'lucide-vue-next'
+import { useToast } from '@/composables/useToast'
 
 const authStore = useAuthStore()
 const user = ref({ ...authStore.user }) // Clona os dados para editar
@@ -10,7 +11,8 @@ const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 const isSubmitting = ref(false)
-const message = ref({ type: '', text: '' })
+
+const { notification, showNotification } = useToast()
 
 // Mapeia o nome do cargo para ficar bonito
 const roleMap = {
@@ -21,16 +23,12 @@ const roleMap = {
 
 
 async function handleUpdateProfile() {
-  message.value = { type: '', text: '' }
   isSubmitting.value = true
 
   // Simula um delay de salvamento para UX (já que não podemos alterar a senha de rede da DASS)
   setTimeout(() => {
     isSubmitting.value = false
-    message.value = { 
-      type: 'warning', 
-      text: 'Seus dados pessoais (Setor/Nome/Senha) são espelhados da Rede DASS e não podem ser alterados por aqui.' 
-    }
+    showNotification('warning', 'Seus dados pessoais (Setor/Nome/Senha) são espelhados da Rede DASS e não podem ser alterados por aqui.')
     // Limpa os campos de senha se o usuário tentou digitar algo
     currentPassword.value = ''
     newPassword.value = ''
@@ -85,12 +83,6 @@ async function handleUpdateProfile() {
 
           
 
-          <div v-if="message.text" class="p-4 rounded-xl flex items-center gap-3 text-sm font-bold"
-               :class="message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'">
-            <AlertTriangle v-if="message.type === 'error'" class="w-5 h-5" />
-            <CheckCircle v-else class="w-5 h-5" />
-            {{ message.text }}
-          </div>
 
         
 

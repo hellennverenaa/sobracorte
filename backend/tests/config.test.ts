@@ -15,6 +15,7 @@ test("carrega e normaliza a configuração obrigatória", () => {
     databaseUrl: validEnv.DATABASE_URL,
     privateKey: validEnv.PRIVATE_KEY,
     corsOrigins: ["http://localhost:3000", "https://sobracorte.example.com"],
+    globalAdminRegistrations: new Set(),
   });
 });
 
@@ -33,4 +34,14 @@ test("rejeita origens CORS com caminho", () => {
     () => loadServerConfig({ ...validEnv, CORS_ORIGINS: "https://example.com/app" }),
     /CORS_ORIGINS/,
   );
+});
+
+test("valida matrículas de administradores globais", () => {
+  assert.deepEqual(
+    loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345, 67890" }).globalAdminRegistrations,
+    new Set([12345, 67890]),
+  );
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345,12345" }), /duplicada/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "0" }), /inteiras positivas/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12A" }), /inteiras positivas/);
 });

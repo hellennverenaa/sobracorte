@@ -2,9 +2,11 @@
 import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
-import { Trash2, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle } from "lucide-vue-next";
+import { RotateCcw, Edit, Search, UserCheck, Shield, Users as UsersIcon, Activity, Eye } from "lucide-vue-next";
 import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import { useToast } from '@/composables/useToast';
+import { useConfirmModal } from '@/composables/useConfirmModal';
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -13,52 +15,18 @@ const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
 
-const notification = ref({ show: false, type: 'success', message: '' });
-function showNotification(type, message) {
-  notification.value = { show: true, type, message };
-  setTimeout(() => { notification.value.show = false; }, 3500);
-}
+const { notification, showNotification } = useToast();
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-});
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
-
-const roleOptions = [
+const allRoleOptions = [
   { value: "admin", label: "Admin Master", icon: Shield, color: "text-purple-600 bg-purple-100" },
   { value: "lider", label: "Líder", icon: UserCheck, color: "text-blue-600 bg-blue-100" },
   { value: "movimentador", label: "Movimentador", icon: Activity, color: "text-orange-600 bg-orange-100" },
   { value: "leitor", label: "Leitor", icon: Eye, color: "text-gray-600 bg-gray-100" },
 ];
+const roleOptions = computed(() => allRoleOptions.filter(
+  (option) => option.value !== 'admin' || auth.user?.isGlobalAdmin,
+));
 
 const fetchUsers = async () => {
   loading.value = true;
@@ -78,11 +46,11 @@ const saveUserRole = async () => {
   if (!editingUser.value) return;
 
   try {
-    await api.put(`/users/${editingUser.value.id}`, editingUser.value);
+    const response = await api.put(`/users/${editingUser.value.id}`, { role: editingUser.value.role });
 
     const index = users.value.findIndex((u) => u.id === editingUser.value.id);
     if (index !== -1) {
-      users.value[index].role = editingUser.value.role;
+      users.value[index] = response.data;
     }
 
     showNotification("success", "Permissão atualizada com sucesso!");
@@ -101,23 +69,20 @@ const openEditModal = (user) => {
 };
 
 
-const deleteUser = (userTarget) => {
-  const userId = typeof userTarget === 'object' ? userTarget.id : userTarget;
-  const userName = typeof userTarget === 'object' ? (userTarget.nome || userTarget.usuario) : 'este usuário';
-
+const resetUserRole = (userTarget) => {
   openConfirmModal({
-    title: 'Remover Usuário',
-    message: `Tem certeza que deseja remover o usuário "${userName}" do sistema local?`,
-    confirmText: 'Sim, Remover',
-    variant: 'danger',
+    title: 'Reverter Permissão',
+    message: `Deseja reverter "${userTarget.nome || userTarget.usuario}" para o nível Leitor?`,
+    confirmText: 'Reverter para Leitor',
+    variant: 'warning',
     action: async () => {
       try {
-        await api.delete(`/users/${userId}`);
-        showNotification('success', 'Usuário removido com sucesso!');
-        fetchUsers();
+        await api.put(`/users/${userTarget.id}`, { role: 'leitor' });
+        showNotification('success', 'Permissão revertida para Leitor.');
+        await fetchUsers();
       } catch (error) {
-        console.error("Erro ao excluir usuário:", error);
-        const errorMsg = error.response?.data?.error || "Erro de conexão ao tentar excluir usuário.";
+        console.error("Erro ao reverter permissão:", error);
+        const errorMsg = error.response?.data?.error || "Erro de conexão ao reverter permissão.";
         showNotification('error', errorMsg);
       }
     }
@@ -135,7 +100,7 @@ const filteredUsers = computed(() => {
 });
 
 const getRoleInfo = (role) => {
-  return roleOptions.find((r) => r.value === role) || roleOptions[3];
+  return allRoleOptions.find((r) => r.value === role) || allRoleOptions[3];
 };
 
 onMounted(() => {
@@ -145,18 +110,6 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <transition name="fade-down">
-      <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-        :class="notification.type === 'success'
-          ? 'bg-emerald-500 text-white'
-          : 'bg-red-500 text-white'">
-        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-        <XCircle v-else class="w-4 h-4" />
-        {{ notification.message }}
-      </div>
-    </transition>
 
     <div class="p-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-center mb-8">
@@ -231,11 +184,11 @@ onMounted(() => {
                       <Edit class="w-5 h-5" />
                     </button>
 
-                    <button @click="deleteUser(user.id)"
-                      class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover Usuário"
-                      :disabled="user.usuario === auth.user.usuario"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario }">
-                      <Trash2 class="w-5 h-5" />
+                    <button @click="resetUserRole(user)"
+                      class="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Reverter para Leitor"
+                      :disabled="user.usuario === auth.user.usuario || user.role === 'leitor'"
+                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === auth.user.usuario || user.role === 'leitor' }">
+                      <RotateCcw class="w-5 h-5" />
                     </button>
                   </div>
                 </td>
@@ -290,7 +243,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal de Confirmação Corporativo -->
     <ConfirmModal
       :show="confirmState.show"
       :title="confirmState.title"
@@ -301,6 +253,7 @@ onMounted(() => {
       @confirm="handleConfirmedAction"
       @cancel="confirmState.show = false"
     />
+
   </Layout>
 </template>
 

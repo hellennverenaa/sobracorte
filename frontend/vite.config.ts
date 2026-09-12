@@ -36,6 +36,16 @@ export default defineConfig(({ mode }) => {
       port: devPort,
       host: true,
       open: true,
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:2399",
+          changeOrigin: true,
+        },
+        "/unix": {
+          target: "http://10.100.1.43",
+          changeOrigin: true,
+        },
+      },
     },
     build: {
       target: "esnext",

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { DEFAULT_MEASUREMENT_UNITS, DEFAULT_ORIGINS } from '../settings/defaults';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -11,6 +12,7 @@ export class SettingsController {
   async getCategories(req: Request, res: Response) {
     try {
       const categories = await prisma.categoryConfig.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' },
         include: { defaultUnit: true }
       });
@@ -23,16 +25,25 @@ export class SettingsController {
 
   async createCategory(req: Request, res: Response) {
     try {
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, defaultUnitId, unitLocked } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
+      if (defaultUnitId !== undefined && defaultUnitId !== null) {
+        if (!Number.isInteger(Number(defaultUnitId)) || Number(defaultUnitId) <= 0) return res.status(400).json({ error: 'Unidade de medida inválida.' });
+        const unit = await prisma.unitConfig.findFirst({
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id, active: true }, select: { id: true },
+        });
+        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+      const locked = Boolean(unitLocked);
+      if (locked && !defaultUnitId) return res.status(400).json({ error: 'Categoria com unidade fixa exige unidade padrão.' });
       const category = await prisma.categoryConfig.create({
         data: {
           name: String(name).trim().toUpperCase(),
-          unitLock: unitLock || 'livre',
           defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
-          unitLocked: Boolean(unitLocked)
+          unitLocked: locked,
+          factoryUnitId: req.tenant!.id
         },
         include: { defaultUnit: true }
       });
@@ -49,13 +60,32 @@ export class SettingsController {
   async updateCategory(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const { name, unitLock, defaultUnitId, unitLocked } = req.body;
+      const { name, defaultUnitId, unitLocked } = req.body;
 
+      const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
+      if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
+      if (defaultUnitId !== undefined && defaultUnitId !== null) {
+        if (!Number.isInteger(Number(defaultUnitId)) || Number(defaultUnitId) <= 0) return res.status(400).json({ error: 'Unidade de medida inválida.' });
+        const unit = await prisma.unitConfig.findFirst({
+          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id, active: true }, select: { id: true },
+        });
+        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+      const nextDefault = defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : existing.defaultUnitId;
+      const nextLocked = unitLocked !== undefined ? Boolean(unitLocked) : existing.unitLocked;
+      if (nextLocked && !nextDefault) return res.status(400).json({ error: 'Categoria com unidade fixa exige unidade padrão.' });
+      if (nextLocked) {
+        const incompatibleMaterials = await prisma.material.count({
+          where: { factoryUnitId: req.tenant!.id, categoryId: id, unitId: { not: nextDefault! } },
+        });
+        if (incompatibleMaterials > 0) {
+          return res.status(409).json({ error: `Não é possível fixar esta unidade: ${incompatibleMaterials} material(is) usa(m) outra unidade.` });
+        }
+      }
       const category = await prisma.categoryConfig.update({
         where: { id },
         data: {
           name: name ? String(name).trim().toUpperCase() : undefined,
-          unitLock: unitLock !== undefined ? unitLock : undefined,
           defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
           unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
         },
@@ -71,12 +101,12 @@ export class SettingsController {
   async deleteCategory(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const category = await prisma.categoryConfig.findUnique({ where: { id } });
+      const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
       const materiaisVinculados = await prisma.material.count({
-        where: { type: category.name }
+        where: { factoryUnitId: req.tenant!.id, categoryId: category.id }
       });
       if (materiaisVinculados > 0) {
         return res.status(409).json({
@@ -97,29 +127,17 @@ export class SettingsController {
   async getUnits(req: Request, res: Response) {
     try {
       let units = await prisma.unitConfig.findMany({
-        where: { active: true },
+        where: { factoryUnitId: req.tenant!.id, active: true },
         orderBy: { symbol: 'asc' }
       });
 
       if (units.length === 0) {
-        const initialUnits = [
-          { name: 'Metro', symbol: 'm' },
-          { name: 'Metro Quadrado', symbol: 'm²' },
-          { name: 'Quilograma', symbol: 'kg' },
-          { name: 'Grama', symbol: 'g' },
-          { name: 'Unidade', symbol: 'un' },
-          { name: 'Par', symbol: 'par' },
-          { name: 'Rolo', symbol: 'rolo' },
-          { name: 'Centímetro', symbol: 'cm' },
-          { name: 'Litro', symbol: 'l' },
-          { name: 'Caixa', symbol: 'cx' }
-        ];
         await prisma.unitConfig.createMany({
-          data: initialUnits,
+          data: DEFAULT_MEASUREMENT_UNITS.map((unit) => ({ ...unit, factoryUnitId: req.tenant!.id })),
           skipDuplicates: true
         });
         units = await prisma.unitConfig.findMany({
-          where: { active: true },
+          where: { factoryUnitId: req.tenant!.id, active: true },
           orderBy: { symbol: 'asc' }
         });
       }
@@ -141,10 +159,12 @@ export class SettingsController {
         return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
       }
 
-      const cleanSymbol = String(symbol).trim();
+      const cleanSymbol = String(symbol).trim().toLowerCase().replace(/^m2$|^mt2$/, 'm²');
       const cleanName = String(name).trim();
 
-      const existing = await prisma.unitConfig.findUnique({ where: { symbol: cleanSymbol } });
+      const existing = await prisma.unitConfig.findUnique({
+        where: { factoryUnitId_symbol: { factoryUnitId: req.tenant!.id, symbol: cleanSymbol } },
+      });
       if (existing) {
         if (!existing.active) {
           const reactivated = await prisma.unitConfig.update({
@@ -160,7 +180,8 @@ export class SettingsController {
         data: {
           name: cleanName,
           symbol: cleanSymbol,
-          active: true
+          active: true,
+          factoryUnitId: req.tenant!.id
         }
       });
       res.status(201).json(unit);
@@ -176,9 +197,18 @@ export class SettingsController {
   async deleteUnit(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      const unit = await prisma.unitConfig.findUnique({ where: { id } });
+      const unit = await prisma.unitConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
       if (!unit) {
         return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
+      }
+
+      const materiaisVinculados = await prisma.material.count({ where: { factoryUnitId: req.tenant!.id, unitId: id } });
+      if (materiaisVinculados > 0) {
+        return res.status(409).json({ error: `Não é possível desativar: ${materiaisVinculados} material(is) usa(m) esta unidade.` });
+      }
+      const categoriasVinculadas = await prisma.categoryConfig.count({ where: { factoryUnitId: req.tenant!.id, defaultUnitId: id } });
+      if (categoriasVinculadas > 0) {
+        return res.status(409).json({ error: `Não é possível desativar: ${categoriasVinculadas} categoria(s) usa(m) esta unidade como padrão.` });
       }
 
       await prisma.unitConfig.update({
@@ -195,10 +225,14 @@ export class SettingsController {
   async getLocations(req: Request, res: Response) {
     try {
       const locations = await prisma.location.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' },
-        include: { category: true }
+        include: { categories: { include: { category: true } } }
       });
-      res.json(locations);
+      res.json(locations.map(({ categories, ...location }) => ({
+        ...location,
+        categories: categories.map((link) => link.category),
+      })));
     } catch (error) {
       console.error('Erro ao buscar localizações:', error);
       res.status(500).json({ error: 'Erro ao buscar localizações' });
@@ -207,21 +241,41 @@ export class SettingsController {
 
   async createLocation(req: Request, res: Response) {
     try {
-      const { name, categoryId } = req.body;
+      const { name, categoryIds } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
-      if (!categoryId) {
-        return res.status(400).json({ error: 'A categoria vinculada é obrigatória.' });
+      if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos uma categoria permitida.' });
+      }
+      const normalizedCategoryIds = [...new Set(categoryIds.map(Number))];
+      if (normalizedCategoryIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+        return res.status(400).json({ error: 'Categoria inválida.' });
+      }
+      const categories = await prisma.categoryConfig.findMany({
+        where: { id: { in: normalizedCategoryIds }, factoryUnitId: req.tenant!.id }, select: { id: true },
+      });
+      if (categories.length !== normalizedCategoryIds.length) {
+        return res.status(404).json({ error: 'Uma ou mais categorias não foram encontradas.' });
       }
       const location = await prisma.location.create({
         data: {
           name: String(name).trim(),
-          categoryId: Number(categoryId)
+          factoryUnitId: req.tenant!.id,
+          categories: {
+            create: normalizedCategoryIds.map((categoryId) => ({
+              category: {
+                connect: {
+                  id_factoryUnitId: { id: categoryId, factoryUnitId: req.tenant!.id },
+                },
+              },
+            })),
+          },
         },
-        include: { category: true }
+        include: { categories: { include: { category: true } } }
       });
-      res.status(201).json(location);
+      const { categories: links, ...createdLocation } = location;
+      res.status(201).json({ ...createdLocation, categories: links.map((link) => link.category) });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa localização já existe.' });
@@ -235,14 +289,18 @@ export class SettingsController {
     try {
       const id = Number(req.params.id);
       const materiaisVinculados = await prisma.materialLocation.count({
-        where: { locationId: id, quantity: { gt: 0 } }
+        where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
       });
       if (materiaisVinculados > 0) {
         return res.status(409).json({
           error: `Não é possível excluir: ${materiaisVinculados} material(is) tem saldo nesta localização.`
         });
       }
-      await prisma.location.delete({ where: { id } });
+      const deleted = await prisma.$transaction(async (tx) => {
+        await tx.materialLocation.deleteMany({ where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: 0 } });
+        return tx.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      });
+      if (deleted.count === 0) return res.status(404).json({ error: 'Localização não encontrada.' });
       res.json({ message: 'Localização excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {
@@ -255,9 +313,20 @@ export class SettingsController {
 
   async getOrigins(req: Request, res: Response) {
     try {
-      const origins = await prisma.originConfig.findMany({
+      let origins = await prisma.originConfig.findMany({
+        where: { factoryUnitId: req.tenant!.id },
         orderBy: { name: 'asc' }
       });
+      if (origins.length === 0) {
+        await prisma.originConfig.createMany({
+          data: DEFAULT_ORIGINS.map((name) => ({ name, factoryUnitId: req.tenant!.id })),
+          skipDuplicates: true,
+        });
+        origins = await prisma.originConfig.findMany({
+          where: { factoryUnitId: req.tenant!.id },
+          orderBy: { name: 'asc' },
+        });
+      }
       res.json(origins);
     } catch (error) {
       console.error('Erro ao buscar origens:', error);
@@ -272,7 +341,7 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
       }
       const origin = await prisma.originConfig.create({
-        data: { name: String(name).trim() }
+        data: { name: String(name).trim(), factoryUnitId: req.tenant!.id }
       });
       res.status(201).json(origin);
     } catch (error: unknown) {
@@ -287,7 +356,8 @@ export class SettingsController {
   async deleteOrigin(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
-      await prisma.originConfig.delete({ where: { id } });
+      const deleted = await prisma.originConfig.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+      if (deleted.count === 0) return res.status(404).json({ error: 'Origem não encontrada.' });
       res.json({ message: 'Origem excluída com sucesso.' });
     } catch (error: unknown) {
       if (hasPrismaCode(error, 'P2003')) {

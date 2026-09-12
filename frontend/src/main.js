@@ -10,9 +10,8 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Initialize auth on app start
 import { useAuthStore } from './stores/auth'
 const authStore = useAuthStore()
-authStore.checkAuth()
+await authStore.restoreSession()
 
 app.mount('#app')
