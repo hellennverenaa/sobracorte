@@ -85,12 +85,12 @@ export class RequisitionService {
         },
       });
 
-      const totalQty = materials.reduce((acc, m) => acc + (m.quantity || 0), 0);
+      const totalQty = materials.reduce((acc, m) => acc + Number(m.quantity || 0), 0);
       const locSet = new Set<string>();
       for (const m of materials) {
         for (const locLink of m.locations) {
-          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (${locLink.quantity})`);
+          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
           }
         }
       }
@@ -124,12 +124,12 @@ export class RequisitionService {
         },
       });
 
-      const totalQty = stockItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
+      const totalQty = stockItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
       const locSet = new Set<string>();
       for (const item of stockItems) {
         for (const locLink of item.locations) {
-          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (${locLink.quantity})`);
+          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
           }
         }
       }
@@ -175,22 +175,22 @@ export class RequisitionService {
         }),
       ]);
 
-      const totalE = leftItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
-      const totalD = rightItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+      const totalE = leftItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
+      const totalD = rightItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
       const fullPairs = Math.min(totalE, totalD);
 
       const locSet = new Set<string>();
       for (const item of leftItems) {
         for (const locLink of item.locations) {
-          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (E: ${locLink.quantity})`);
+          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (E: ${Number(locLink.quantity)})`);
           }
         }
       }
       for (const item of rightItems) {
         for (const locLink of item.locations) {
-          if (locLink.location?.name && (locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (D: ${locLink.quantity})`);
+          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
+            locSet.add(`${locLink.location.name} (D: ${Number(locLink.quantity)})`);
           }
         }
       }
@@ -232,12 +232,12 @@ export class RequisitionService {
       },
     });
 
-    const totalQty = stockItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
+    const totalQty = stockItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
     const locSet = new Set<string>();
     for (const item of stockItems) {
       for (const locLink of item.locations) {
-        if (locLink.location?.name && (locLink.quantity || 0) > 0) {
-          locSet.add(`${locLink.location.name} (${locLink.quantity})`);
+        if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
+          locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
         }
       }
     }
@@ -447,8 +447,8 @@ export class RequisitionService {
         }
       }
 
-      const pendingQty = req.quantityRequested - req.quantityFulfilled;
-      if (dto.quantity > pendingQty) {
+      const pendingQty = Number(req.quantityRequested) - Number(req.quantityFulfilled);
+      if (dto.quantity > pendingQty + 0.0001) {
         throw new Error(`A quantidade informada (${dto.quantity}) excede a pendência da requisição (${pendingQty}).`);
       }
 
@@ -489,7 +489,7 @@ export class RequisitionService {
                 },
               },
               data: {
-                quantity: Math.max(0, (locLink.quantity || 0) - dto.quantity),
+                quantity: Math.max(0, Number(locLink.quantity || 0) - dto.quantity),
               },
             });
           }
@@ -557,7 +557,7 @@ export class RequisitionService {
               },
             },
             data: {
-              quantity: Math.max(0, (leftItem.locations[0].quantity || 0) - dto.quantity),
+              quantity: Math.max(0, Number(leftItem.locations[0].quantity || 0) - dto.quantity),
             },
           });
         }
@@ -590,7 +590,7 @@ export class RequisitionService {
               },
             },
             data: {
-              quantity: Math.max(0, (rightItem.locations[0].quantity || 0) - dto.quantity),
+              quantity: Math.max(0, Number(rightItem.locations[0].quantity || 0) - dto.quantity),
             },
           });
         }
@@ -654,7 +654,7 @@ export class RequisitionService {
                 },
               },
               data: {
-                quantity: Math.max(0, (locLink.quantity || 0) - dto.quantity),
+                quantity: Math.max(0, Number(locLink.quantity || 0) - dto.quantity),
               },
             });
           }
@@ -676,8 +676,8 @@ export class RequisitionService {
         });
       }
 
-      const newFulfilled = req.quantityFulfilled + dto.quantity;
-      const newStatus = newFulfilled >= req.quantityRequested ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL';
+      const newFulfilled = Number(req.quantityFulfilled) + dto.quantity;
+      const newStatus = newFulfilled >= Number(req.quantityRequested) - 0.0001 ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL';
 
       const updatedRequisition = await tx.materialRequisition.update({
         where: { id: req.id },

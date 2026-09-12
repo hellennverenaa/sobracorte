@@ -22,8 +22,9 @@ export class StockMovementService {
           throw new Error('Matéria-prima do Corte não encontrada.');
         }
 
-        if ((type === 'SAIDA' || type === 'REFUGO') && material.quantity < quantity) {
-          throw new Error(`Saldo insuficiente. Saldo disponível: ${material.quantity}`);
+        const matQty = Number(material.quantity);
+        if ((type === 'SAIDA' || type === 'REFUGO') && matQty < quantity - 0.0001) {
+          throw new Error(`Saldo insuficiente. Saldo disponível: ${matQty}`);
         }
 
         if (type === 'ENTRADA') {
@@ -70,7 +71,7 @@ export class StockMovementService {
                   },
                 },
                 data: {
-                  quantity: Math.max(0, (locLink.quantity || 0) - quantity),
+                  quantity: Math.max(0, Number(locLink.quantity || 0) - quantity),
                 },
               });
             }
@@ -184,13 +185,14 @@ export class StockMovementService {
         throw new Error(`A quantidade para o setor ${item.sector} deve ser um número inteiro (sem decimais).`);
       }
 
-      if ((type === 'SAIDA' || type === 'REFUGO') && item.quantity < quantity) {
-        throw new Error(`Saldo insuficiente. Saldo disponível: ${item.quantity}`);
+      const itemQty = Number(item.quantity);
+      if ((type === 'SAIDA' || type === 'REFUGO') && itemQty < quantity - 0.0001) {
+        throw new Error(`Saldo insuficiente. Saldo disponível: ${itemQty}`);
       }
 
       // Atualizar saldo do StockItem
       if (type === 'ENTRADA') {
-        const newQty = item.quantity + quantity;
+        const newQty = Number(item.quantity) + quantity;
         await tx.stockItem.update({
           where: { id: item.id },
           data: { quantity: newQty },
@@ -217,7 +219,7 @@ export class StockMovementService {
           });
         }
       } else if (type === 'SAIDA' || type === 'REFUGO') {
-        const newQty = item.quantity - quantity;
+        const newQty = Math.max(0, Number(item.quantity) - quantity);
         await tx.stockItem.update({
           where: { id: item.id },
           data: { quantity: newQty },
@@ -236,7 +238,7 @@ export class StockMovementService {
                 },
               },
               data: {
-                quantity: Math.max(0, (locLink.quantity || 0) - quantity),
+                quantity: Math.max(0, Number(locLink.quantity || 0) - quantity),
               },
             });
           }
@@ -280,7 +282,8 @@ export class StockMovementService {
         }
 
         const sourceLocLink = item.locations.find((l) => l.locationId === sourceLocId);
-        if (!sourceLocLink || (sourceLocLink.quantity || 0) < quantity) {
+        const sourceLocQty = Number(sourceLocLink?.quantity || 0);
+        if (!sourceLocLink || sourceLocQty < quantity - 0.0001) {
           throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
         }
 
@@ -293,13 +296,13 @@ export class StockMovementService {
             },
           },
           data: {
-            quantity: (sourceLocLink.quantity || 0) - quantity,
+            quantity: Math.max(0, sourceLocQty - quantity),
           },
         });
 
         // Se for transferência intersetorial por Admin Master:
         if (isCrossSector && destLocation.sector) {
-          if (quantity >= item.quantity) {
+          if (quantity >= Number(item.quantity) - 0.0001) {
             // Transferência total: atualiza o setor do próprio item
             await tx.stockItem.update({
               where: { id: item.id },

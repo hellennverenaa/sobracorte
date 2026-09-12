@@ -82,11 +82,11 @@ model Material {
   id            Int         @id @default(autoincrement())
   code          String
   name          String
-  quantity      Float // Saldo Total na fábrica
+  quantity      Decimal     @default(0) @db.Decimal(18, 3) // Saldo Total na fábrica
   unit          String
   type          String
   observation   String?     @default("")
-  minStock      Float       @default(0)
+  minStock      Decimal     @default(0) @db.Decimal(18, 3)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   factoryUnitId Int
@@ -149,7 +149,7 @@ model MaterialLocation {
 
   // Se no futuro você quiser saber QUANTOS kg tem em CADA prateleira separadamente, 
   // nós já deixamos o campo de quantidade aqui pronto para uso!
-  quantity Float? @default(0)
+  quantity Decimal? @default(0) @db.Decimal(18, 3)
 
   factoryUnit FactoryUnit @relation(fields: [factoryUnitId], references: [id])
   material    Material    @relation(fields: [materialId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
@@ -161,9 +161,9 @@ model MaterialLocation {
 }
 
 model Movement {
-  id       Int    @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   type     String
-  quantity Float
+  quantity Decimal @db.Decimal(18, 3)
 
   origem String? // Opcional para não quebrar os registros antigos
 
@@ -269,7 +269,7 @@ model StockItem {
   factoryUnitId Int
   sector        SectorType     @default(CORTE)
   componentType ComponentType?
-  quantity      Float          @default(0)
+  quantity      Decimal        @default(0) @db.Decimal(18, 3)
   observation   String?        @default("")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -279,7 +279,7 @@ model StockItem {
   name          String?     // Descrição do material (ex: Couro Bovino Preto)
   unit          String?     // m², kg, m, UN
   type          String?     // Categoria (Couro, Tecido, Sintético)
-  minStock      Float?      @default(0)
+  minStock      Decimal?    @default(0) @db.Decimal(18, 3)
 
   // 🔹 APOIO (Peças Cortadas / Moldes)
   pieceCode     String?     // Código do Molde / Peça avulsa
@@ -317,7 +317,7 @@ model StockItemLocation {
   stockItemId   Int
   locationId    Int
   factoryUnitId Int
-  quantity      Float       @default(0)
+  quantity      Decimal     @default(0) @db.Decimal(18, 3)
 
   stockItem     StockItem   @relation(fields: [stockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
   location      Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
@@ -336,7 +336,7 @@ model StockMovement {
   stockItemId           Int?
   sector                SectorType
   type                  MovementType
-  quantity              Float
+  quantity              Decimal      @db.Decimal(18, 3)
   
   // Localizações de origem/destino
   sourceLocationId      Int?
@@ -379,8 +379,8 @@ model MaterialRequisition {
   color             String?           // Cor / Combinação do item
   sizeGrade         String?           // Grade / Tamanho (ex: 39/40)
   footSide          FootSide?         // E / D ou null
-  quantityRequested Float             // Quantidade solicitada
-  quantityFulfilled Float             @default(0) // Quantidade atendida
+  quantityRequested Decimal           @db.Decimal(18, 3) // Quantidade solicitada
+  quantityFulfilled Decimal           @default(0) @db.Decimal(18, 3) // Quantidade atendida
   reason            String            // Motivo da avaria / defeito
   status            RequisitionStatus @default(PENDENTE)
 

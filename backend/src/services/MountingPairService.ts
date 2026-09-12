@@ -149,12 +149,12 @@ export class MountingPairService {
         throw new Error(`Os itens devem possuir o mesmo tipo de material (${leftType || 'N/A'} != ${rightType || 'N/A'}).`);
       }
 
-      if (leftItem.quantity < quantity || rightItem.quantity < quantity) {
+      if (Number(leftItem.quantity) < quantity || Number(rightItem.quantity) < quantity) {
         throw new Error(`Saldo insuficiente para efetuar o casamento de ${quantity} par(es).`);
       }
 
       // 2. Debitar saldo do Pé Esquerdo
-      const newLeftQty = leftItem.quantity - quantity;
+      const newLeftQty = Math.max(0, Number(leftItem.quantity) - quantity);
       await tx.stockItem.update({
         where: { id: leftItem.id },
         data: { quantity: newLeftQty },
@@ -163,7 +163,7 @@ export class MountingPairService {
       // Atualizar localização do Pé Esquerdo
       if (leftItem.locations.length > 0) {
         const leftLoc = leftItem.locations[0];
-        const newLeftLocQty = Math.max(0, (leftLoc.quantity || 0) - quantity);
+        const newLeftLocQty = Math.max(0, Number(leftLoc.quantity || 0) - quantity);
         await tx.stockItemLocation.update({
           where: {
             stockItemId_locationId: {
@@ -176,7 +176,7 @@ export class MountingPairService {
       }
 
       // 3. Debitar saldo do Pé Direito
-      const newRightQty = rightItem.quantity - quantity;
+      const newRightQty = Math.max(0, Number(rightItem.quantity) - quantity);
       await tx.stockItem.update({
         where: { id: rightItem.id },
         data: { quantity: newRightQty },
@@ -185,7 +185,7 @@ export class MountingPairService {
       // Atualizar localização do Pé Direito
       if (rightItem.locations.length > 0) {
         const rightLoc = rightItem.locations[0];
-        const newRightLocQty = Math.max(0, (rightLoc.quantity || 0) - quantity);
+        const newRightLocQty = Math.max(0, Number(rightLoc.quantity || 0) - quantity);
         await tx.stockItemLocation.update({
           where: {
             stockItemId_locationId: {

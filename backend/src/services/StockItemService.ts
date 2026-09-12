@@ -553,7 +553,7 @@ export class StockItemService {
         sizeGrades: [] as string[],
         color: '',
         footSide: null,
-        availableQuantity: m.quantity,
+        availableQuantity: Number(m.quantity || 0),
       }));
     }
 
@@ -603,12 +603,12 @@ export class StockItemService {
           sizeGrades: new Set(item.sizeGrade ? [item.sizeGrade] : []),
           color: item.color || item.materialColor || '',
           footSides: new Set(item.footSide ? [item.footSide] : []),
-          availableQuantity: item.quantity,
+          availableQuantity: Number(item.quantity || 0),
         });
       } else {
         if (item.sizeGrade) existing.sizeGrades.add(item.sizeGrade);
         if (item.footSide) existing.footSides.add(item.footSide);
-        existing.availableQuantity += item.quantity;
+        existing.availableQuantity += Number(item.quantity || 0);
       }
     }
 
