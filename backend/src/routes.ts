@@ -85,7 +85,7 @@ routes.post('/auth/check-user', requireAuth, authController.checkUser);
 routes.get('/materials', requireAuth, materialController.index);
 routes.post('/materials', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
 routes.put('/materials/:id', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
-routes.delete('/materials/:id', requireAuth, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.delete);
+routes.delete('/materials/:id', requireAuth, requireRole(['admin_setor']), requireSectorMatch(() => 'CORTE'), materialController.delete);
 routes.post('/materials/bulk', requireAuth, requireRole(['admin']), materialController.importBatch);
 
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
@@ -93,6 +93,7 @@ routes.post('/inventory/batch', requireAuth, requireRole(['admin_setor', 'lider'
 routes.get('/inventory/search', requireAuth, stockItemController.search);
 routes.get('/inventory/search-suggestions', requireAuth, stockItemController.suggestions);
 routes.get('/inventory/combinations', requireAuth, stockItemController.combinations);
+routes.delete('/inventory/stock-items/:id', requireAuth, requireRole(['admin_setor']), stockItemController.delete);
 
 // 👞 CASAMENTO DE PARES NA MONTAGEM
 routes.get('/inventory/mounting/matching-pairs', requireAuth, mountingPairController.getMatchingPairs);

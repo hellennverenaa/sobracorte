@@ -6,6 +6,7 @@ import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
@@ -79,6 +80,89 @@ const movementLoading = ref(false);
 
 // Modal de Detalhes
 const viewingItem = ref<any>(null);
+
+// Permissão para Excluir (apenas admin_master e admin_setor no respectivo setor)
+const canDelete = computed(() => {
+  const role = authStore.user?.role;
+  if (role === 'admin' || authStore.isAdmin) return true;
+  if (role === 'admin_setor') {
+    const userSec = authStore.user?.assignedSector;
+    if (!userSec || userSec === 'TODOS') return true;
+    const normUserSec = userSec === 'EXPEDICAO' || userSec === 'CABEDAIS' ? 'DISTRIBUICAO' : userSec;
+    const normActiveTab = activeTab.value === 'EXPEDICAO' || (activeTab.value as string) === 'CABEDAIS' ? 'DISTRIBUICAO' : activeTab.value;
+    return normUserSec === normActiveTab;
+  }
+  return false;
+});
+
+// Modal de Confirmação Corporativo
+const confirmState = ref({
+  show: false,
+  title: '',
+  message: '',
+  confirmText: 'Sim, Excluir',
+  variant: 'danger' as 'danger' | 'warning' | 'primary',
+  loading: false,
+  action: null as (() => Promise<void>) | null,
+});
+
+function openConfirmModal(config: {
+  title: string;
+  message: string;
+  confirmText?: string;
+  variant?: 'danger' | 'warning' | 'primary';
+  action: () => Promise<void>;
+}) {
+  confirmState.value = {
+    show: true,
+    title: config.title,
+    message: config.message,
+    confirmText: config.confirmText || 'Sim, Excluir',
+    variant: config.variant || 'danger',
+    loading: false,
+    action: config.action,
+  };
+}
+
+async function handleConfirmedAction() {
+  if (typeof confirmState.value.action === 'function') {
+    confirmState.value.loading = true;
+    try {
+      await confirmState.value.action();
+    } finally {
+      confirmState.value.loading = false;
+      confirmState.value.show = false;
+    }
+  }
+}
+
+function confirmDelete(item: any) {
+  const isCorte = activeTab.value === 'CORTE' || item.sector === 'CORTE';
+  const itemName = isCorte ? item.name : (item.description || item.productName || item.sku || `Item #${item.id}`);
+  const itemCode = isCorte ? item.code : (item.sku || item.pieceCode || item.code || '-');
+
+  openConfirmModal({
+    title: 'Excluir Item do Estoque',
+    message: `Tem certeza que deseja excluir "${itemName}" (${itemCode})? Esta ação é irreversível e só é permitida quando todo o estoque estiver zerado.`,
+    confirmText: 'Sim, Excluir Item',
+    variant: 'danger',
+    action: async () => {
+      try {
+        if (isCorte) {
+          await api.delete(`/materials/${item.id}`);
+        } else {
+          await api.delete(`/inventory/stock-items/${item.id}`);
+        }
+        showToast('Item excluído com sucesso!');
+        await loadData(currentPage.value);
+      } catch (error: any) {
+        console.error('Erro ao excluir item:', error);
+        const errorMsg = error.response?.data?.error || error.message || 'Erro ao tentar excluir item.';
+        showToast(errorMsg, 'error');
+      }
+    },
+  });
+}
 
 const allTabs = [
   { id: 'CORTE' as SectorType, label: 'Corte', countKey: 'totalCorte', icon: Scissors },
@@ -862,6 +946,16 @@ onMounted(() => {
                       <ArrowLeftRight class="w-3.5 h-3.5" />
                       <span>Movimentar</span>
                     </button>
+
+                    <button
+                      v-if="canDelete"
+                      @click="confirmDelete(item)"
+                      class="text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors"
+                      title="Excluir Item do Estoque (Apenas Saldo Zerado)"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                      <span class="hidden xl:inline">Excluir</span>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -1309,5 +1403,17 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Modal de Confirmação Corporativo -->
+    <ConfirmModal
+      :show="confirmState.show"
+      :title="confirmState.title"
+      :message="confirmState.message"
+      :confirm-text="confirmState.confirmText"
+      :variant="confirmState.variant"
+      :loading="confirmState.loading"
+      @confirm="handleConfirmedAction"
+      @cancel="confirmState.show = false"
+    />
   </Layout>
 </template>

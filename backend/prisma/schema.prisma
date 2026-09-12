@@ -74,6 +74,7 @@ model FactoryUnit {
   stockItemLocations StockItemLocation[]
   stockMovements     StockMovement[]
   requisitions       MaterialRequisition[]
+  materialDeletionAudits MaterialDeletionAudit[]
 
   @@schema("sobra_corte")
 }
@@ -397,5 +398,27 @@ model MaterialRequisition {
   @@index([factoryUnitId, requestSector, status])
   @@index([factoryUnitId, sku])
   @@index([factoryUnitId, sku, color])
+  @@schema("sobra_corte")
+}
+
+// 🗑️ AUDITORIA DE MATERIAIS EXCLUÍDOS (SNAPSHOT COMPLETO & SEGURANÇA OPERACIONAL)
+model MaterialDeletionAudit {
+  id            Int         @id @default(autoincrement())
+  factoryUnitId Int
+  materialId    Int
+  code          String
+  name          String
+  categoryName  String?
+  unitSymbol    String
+  quantity      Decimal     @db.Decimal(18, 3)
+  locations     Json?
+  deletedById   String?
+  deletedByName String
+  deletedAt     DateTime    @default(now())
+
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
+
+  @@index([factoryUnitId, deletedAt])
+  @@index([factoryUnitId, code])
   @@schema("sobra_corte")
 }

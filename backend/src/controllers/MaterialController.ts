@@ -196,13 +196,85 @@ export class MaterialController {
 
   async delete(req: Request, res: Response) {
     try {
-      const result = await prisma.material.deleteMany({
-        where: { id: Number(req.params.id), factoryUnitId: req.tenant!.id },
-      });
-      if (result.count === 0) return res.status(404).json({ error: 'Material não encontrado.' });
-      res.json({ message: 'Deletado com sucesso' });
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao deletar material' });
+      const materialId = Number(req.params.id);
+      if (!Number.isInteger(materialId) || materialId <= 0) {
+        return res.status(400).json({ error: 'Material inválido.' });
+      }
+
+      const factoryUnitId = req.tenant!.id;
+      const operatorId = req.user?.matricula ? String(req.user.matricula) : null;
+      const operatorName = req.user?.nome || req.user?.usuario || 'Administrador';
+
+      await prisma.$transaction(
+        async (tx) => {
+          const material = await tx.material.findFirst({
+            where: { id: materialId, factoryUnitId },
+            include: {
+              locations: {
+                include: { location: true },
+              },
+            },
+          });
+
+          if (!material) {
+            throw new Error('MATERIAL_NOT_FOUND');
+          }
+
+          const totalQty = Number(material.quantity || 0);
+          const hasLocationBalance = material.locations.some((l) => Number(l.quantity || 0) > 0);
+
+          if (totalQty > 0 || hasLocationBalance) {
+            const err: any = new Error('MATERIAL_HAS_BALANCE');
+            err.status = 409;
+            throw err;
+          }
+
+          const snapshotLocations = material.locations.map((l) => ({
+            locationId: l.locationId,
+            locationName: l.location?.name || 'Não informada',
+            quantity: Number(l.quantity || 0),
+          }));
+
+          await tx.materialDeletionAudit.create({
+            data: {
+              factoryUnitId,
+              materialId: material.id,
+              code: material.code,
+              name: material.name,
+              categoryName: material.type || null,
+              unitSymbol: material.unit || 'UN',
+              quantity: 0,
+              locations: snapshotLocations,
+              deletedById: operatorId,
+              deletedByName: operatorName,
+            },
+          });
+
+          await tx.materialLocation.deleteMany({
+            where: { materialId: material.id, factoryUnitId },
+          });
+
+          await tx.material.delete({
+            where: { id: material.id },
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        }
+      );
+
+      return res.json({ message: 'Material excluído com sucesso e registrado em auditoria.' });
+    } catch (error: any) {
+      if (error?.message === 'MATERIAL_NOT_FOUND') {
+        return res.status(404).json({ error: 'Material não encontrado.' });
+      }
+      if (error?.message === 'MATERIAL_HAS_BALANCE' || error?.status === 409) {
+        return res.status(409).json({
+          error: 'O material só pode ser excluído quando todo o estoque estiver zerado.',
+        });
+      }
+      console.error('Erro ao deletar material:', error);
+      return res.status(500).json({ error: 'Erro ao deletar material.' });
     }
   }
 

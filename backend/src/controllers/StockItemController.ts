@@ -141,4 +141,115 @@ export class StockItemController {
       return res.status(500).json({ error: 'Erro interno ao buscar combinações.' });
     }
   }
+
+  /**
+   * DELETE /inventory/stock-items/:id - Exclusão de item de estoque com trava de saldo e auditoria
+   */
+  async delete(req: Request, res: Response) {
+    try {
+      const itemId = Number(req.params.id);
+      if (!Number.isInteger(itemId) || itemId <= 0) {
+        return res.status(400).json({ error: 'Item inválido.' });
+      }
+
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const factoryUnitId = req.tenant.id;
+      const operatorId = req.user?.matricula ? String(req.user.matricula) : null;
+      const operatorName = req.user?.nome || req.user?.usuario || 'Administrador';
+
+      await (prisma as any).$transaction(
+        async (tx: any) => {
+          const item = await tx.stockItem.findFirst({
+            where: { id: itemId, factoryUnitId },
+            include: {
+              locations: {
+                include: { location: true },
+              },
+            },
+          });
+
+          if (!item) {
+            throw new Error('STOCK_ITEM_NOT_FOUND');
+          }
+
+          // Validação de permissão setorial para admin_setor
+          if (req.user?.role === 'admin_setor') {
+            const userSec = req.user?.assignedSector;
+            if (userSec && userSec !== 'TODOS') {
+              const normUserSec = userSec === 'EXPEDICAO' || userSec === 'CABEDAIS' ? 'DISTRIBUICAO' : userSec;
+              const normItemSec = item.sector === 'EXPEDICAO' || item.sector === 'CABEDAIS' ? 'DISTRIBUICAO' : item.sector;
+              if (normUserSec !== normItemSec) {
+                const err: any = new Error('FORBIDDEN_SECTOR');
+                err.status = 403;
+                throw err;
+              }
+            }
+          }
+
+          const totalQty = Number(item.quantity || 0);
+          const hasLocationBalance = item.locations.some((l: any) => Number(l.quantity || 0) > 0);
+
+          if (totalQty > 0 || hasLocationBalance) {
+            const err: any = new Error('STOCK_ITEM_HAS_BALANCE');
+            err.status = 409;
+            throw err;
+          }
+
+          const snapshotLocations = item.locations.map((l: any) => ({
+            locationId: l.locationId,
+            locationName: l.location?.name || 'Não informada',
+            quantity: Number(l.quantity || 0),
+          }));
+
+          const itemCode = item.sku || item.pieceCode || item.code || '-';
+          const itemName = item.description || item.name || item.productName || item.sku || 'Item de Estoque';
+
+          await tx.materialDeletionAudit.create({
+            data: {
+              factoryUnitId,
+              materialId: item.id,
+              code: itemCode,
+              name: itemName,
+              categoryName: item.sector,
+              unitSymbol: item.unit || 'UND',
+              quantity: 0,
+              locations: snapshotLocations,
+              deletedById: operatorId,
+              deletedByName: operatorName,
+            },
+          });
+
+          await tx.stockItemLocation.deleteMany({
+            where: { stockItemId: item.id, factoryUnitId },
+          });
+
+          await tx.stockItem.delete({
+            where: { id: item.id },
+          });
+        },
+        {
+          isolationLevel: 'Serializable',
+        }
+      );
+
+      return res.json({ message: 'Item excluído com sucesso e registrado em auditoria.' });
+    } catch (error: any) {
+      if (error?.message === 'STOCK_ITEM_NOT_FOUND') {
+        return res.status(404).json({ error: 'Item não encontrado.' });
+      }
+      if (error?.message === 'FORBIDDEN_SECTOR' || error?.status === 403) {
+        return res.status(403).json({ error: 'Acesso negado: Você não tem permissão para excluir itens deste setor.' });
+      }
+      if (error?.message === 'STOCK_ITEM_HAS_BALANCE' || error?.status === 409) {
+        return res.status(409).json({
+          error: 'O material só pode ser excluído quando todo o estoque estiver zerado.',
+        });
+      }
+      console.error('Erro ao deletar item de estoque:', error);
+      return res.status(500).json({ error: 'Erro ao deletar item de estoque.' });
+    }
+  }
 }
