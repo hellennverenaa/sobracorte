@@ -38,17 +38,42 @@ const loading = ref(false)
 const reportData = ref([])
 const reportTotals = ref({
   totalRegistros: 0,
+  qtdOperacoesEntrada: 0,
+  qtdOperacoesSaida: 0,
+  qtdOperacoesRefugo: 0,
+  volumeTotalEntrada: 0,
+  volumeTotalSaida: 0,
   volumeEntradas: 0,
   volumeSaidas: 0,
   totalRefugos: 0,
   totalCasamentosPares: 0,
   totalTransferencias: 0,
+  volumeEntradaCorte: 0,
+  volumeEntradaOutros: 0,
+  volumeSaidaCorte: 0,
+  volumeSaidaOutros: 0,
   totalAtendidas: 0,
   totalPendentes: 0,
   totalCanceladas: 0,
   taxaAtendimento: 0,
 })
 const hasSearched = ref(false)
+
+// --- HELPERS DE VOLUME & UNIDADES ---
+const currentUnitSuffix = computed(() => {
+  const sec = filters.value.sector
+  if (sec === 'CORTE') return 'm²'
+  if (sec === 'MONTAGEM' || sec === 'PRE_FABRICADO') return 'pares/pés'
+  if (sec === 'APOIO' || sec === 'DISTRIBUICAO' || sec === 'CONSUMO') return 'un'
+  return 'un'
+})
+
+function formatVolume(val) {
+  if (val === null || val === undefined) return '0'
+  const num = Number(val)
+  if (isNaN(num)) return '0'
+  return num.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
 
 // --- PERMISSÕES RBAC ---
 const canExport = computed(() => {
@@ -236,14 +261,24 @@ async function generateReport() {
 
       const res = await api.get(`/reports/movements?${params.toString()}`)
       reportData.value = res.data.items || []
+      const t = res.data.totals || res.data
       reportTotals.value = {
         ...reportTotals.value,
-        totalRegistros: res.data.totalRegistros || 0,
-        volumeEntradas: res.data.volumeEntradas || 0,
-        volumeSaidas: res.data.volumeSaidas || 0,
-        totalRefugos: res.data.totalRefugos || 0,
-        totalCasamentosPares: res.data.totalCasamentosPares || 0,
-        totalTransferencias: res.data.totals?.totalTransferencias || 0,
+        totalRegistros: t.totalRegistros || 0,
+        qtdOperacoesEntrada: t.qtdOperacoesEntrada || 0,
+        qtdOperacoesSaida: t.qtdOperacoesSaida || 0,
+        qtdOperacoesRefugo: t.qtdOperacoesRefugo || 0,
+        volumeTotalEntrada: t.volumeTotalEntrada ?? t.volumeEntradas ?? 0,
+        volumeTotalSaida: t.volumeTotalSaida ?? t.volumeSaidas ?? 0,
+        volumeEntradas: t.volumeTotalEntrada ?? t.volumeEntradas ?? 0,
+        volumeSaidas: t.volumeTotalSaida ?? t.volumeSaidas ?? 0,
+        totalRefugos: t.totalRefugos || 0,
+        totalCasamentosPares: t.totalCasamentosPares || 0,
+        totalTransferencias: t.totalTransferencias || 0,
+        volumeEntradaCorte: t.volumeEntradaCorte || 0,
+        volumeEntradaOutros: t.volumeEntradaOutros || 0,
+        volumeSaidaCorte: t.volumeSaidaCorte || 0,
+        volumeSaidaOutros: t.volumeSaidaOutros || 0,
       }
     }
 
@@ -469,6 +504,26 @@ function getStatusBadge(status) {
           <div><span class="font-bold text-slate-900">Período:</span> {{ getPeriodLabel() }}</div>
           <div><span class="font-bold text-slate-900">Filtro:</span> {{ filters.search || 'Geral' }}</div>
         </div>
+
+        <!-- Síntese Executiva de Movimentações (Visão Dupla: Operações vs Volume Físico) -->
+        <div v-if="reportType === 'movements' && reportData.length > 0" class="mt-1.5 pt-1.5 border-t border-slate-300 grid grid-cols-4 gap-2 text-[9px] bg-slate-50 p-1.5 rounded">
+          <div>
+            <strong>Entradas Realizadas:</strong> {{ reportTotals.qtdOperacoesEntrada }} op
+            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.volumeTotalEntrada) }} {{ currentUnitSuffix }}</span>
+          </div>
+          <div>
+            <strong>Saídas Realizadas:</strong> {{ reportTotals.qtdOperacoesSaida }} op
+            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.volumeTotalSaida) }} {{ currentUnitSuffix }}</span>
+          </div>
+          <div>
+            <strong>Casamento Pares:</strong> {{ reportTotals.totalCasamentosPares }} pares
+            <span class="text-slate-600 block">({{ reportTotals.totalCasamentosPares * 2 }} pés baixados)</span>
+          </div>
+          <div>
+            <strong>Refugos / Perdas:</strong> {{ reportTotals.qtdOperacoesRefugo || 0 }} op
+            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.totalRefugos) }} {{ currentUnitSuffix }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- CABEÇALHO PRINCIPAL EM TELA -->
@@ -639,28 +694,111 @@ function getStatusBadge(status) {
         </div>
       </div>
 
-      <!-- KPI METRIC CARDS (RELATÓRIO DE MOVIMENTAÇÕES) -->
-      <div v-if="reportType === 'movements' && reportData.length > 0" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 print:hidden">
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <p class="text-[11px] font-bold text-slate-500 uppercase">Total Registros</p>
-          <p class="text-2xl font-black text-slate-900 mt-1">{{ reportTotals.totalRegistros.toLocaleString('pt-BR') }}</p>
+      <!-- KPI METRIC CARDS INTEGRADOS (RELATÓRIO DE MOVIMENTAÇÕES) -->
+      <div v-if="reportType === 'movements' && reportData.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 print:hidden">
+        
+        <!-- 1. Total Registros / Auditoria -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Histórico</span>
+              <span class="p-1 bg-slate-100 rounded-lg text-slate-500"><Layers class="w-3.5 h-3.5" /></span>
+            </div>
+            <p class="text-[11px] font-bold text-slate-600 uppercase mt-0.5">Total Registros</p>
+            <p class="text-2xl font-black text-slate-900 mt-1">{{ reportTotals.totalRegistros.toLocaleString('pt-BR') }}</p>
+          </div>
+          <p class="text-[10px] font-semibold text-slate-400 mt-2 border-t border-slate-100 pt-1.5 truncate">
+            Auditoria de Linha
+          </p>
         </div>
-        <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs">
-          <p class="text-[11px] font-bold text-emerald-600 uppercase">Volume Entradas</p>
-          <p class="text-2xl font-black text-emerald-700 mt-1">{{ reportTotals.volumeEntradas.toLocaleString('pt-BR') }}</p>
+
+        <!-- 2. Card Duplo: Entradas de Sobras -->
+        <div class="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs flex flex-col justify-between bg-gradient-to-br from-white to-emerald-50/30">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-emerald-600 uppercase tracking-wider">Lançamentos</span>
+              <span class="p-1 bg-emerald-100 rounded-lg text-emerald-600"><ArrowDownRight class="w-3.5 h-3.5" /></span>
+            </div>
+            <p class="text-[11px] font-bold text-emerald-700 uppercase mt-0.5">Entradas Realizadas</p>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl font-black text-emerald-800">{{ reportTotals.qtdOperacoesEntrada.toLocaleString('pt-BR') }}</span>
+              <span class="text-xs font-bold text-emerald-600 uppercase">operações</span>
+            </div>
+          </div>
+          <div class="mt-2 border-t border-emerald-100 pt-1.5">
+            <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
+            <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-emerald-700 leading-tight">
+              {{ formatVolume(reportTotals.volumeEntradaCorte) }} m² <span class="font-normal text-slate-400">|</span> {{ formatVolume(reportTotals.volumeEntradaOutros) }} un
+            </span>
+            <span v-else class="block text-xs font-black text-emerald-700 leading-tight">
+              {{ formatVolume(reportTotals.volumeTotalEntrada) }} <span class="text-[10px] font-bold text-emerald-600 uppercase">{{ currentUnitSuffix }}</span>
+            </span>
+          </div>
         </div>
-        <div class="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs">
-          <p class="text-[11px] font-bold text-blue-600 uppercase">Volume Saídas</p>
-          <p class="text-2xl font-black text-blue-700 mt-1">{{ reportTotals.volumeSaidas.toLocaleString('pt-BR') }}</p>
+
+        <!-- 3. Card Duplo: Saídas / Baixas -->
+        <div class="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs flex flex-col justify-between bg-gradient-to-br from-white to-blue-50/30">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-blue-600 uppercase tracking-wider">Baixas</span>
+              <span class="p-1 bg-blue-100 rounded-lg text-blue-600"><ArrowUpRight class="w-3.5 h-3.5" /></span>
+            </div>
+            <p class="text-[11px] font-bold text-blue-700 uppercase mt-0.5">Saídas / Utilizações</p>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl font-black text-blue-800">{{ reportTotals.qtdOperacoesSaida.toLocaleString('pt-BR') }}</span>
+              <span class="text-xs font-bold text-blue-600 uppercase">operações</span>
+            </div>
+          </div>
+          <div class="mt-2 border-t border-blue-100 pt-1.5">
+            <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
+            <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-blue-700 leading-tight">
+              {{ formatVolume(reportTotals.volumeSaidaCorte) }} m² <span class="font-normal text-slate-400">|</span> {{ formatVolume(reportTotals.volumeSaidaOutros) }} un
+            </span>
+            <span v-else class="block text-xs font-black text-blue-700 leading-tight">
+              {{ formatVolume(reportTotals.volumeTotalSaida) }} <span class="text-[10px] font-bold text-blue-600 uppercase">{{ currentUnitSuffix }}</span>
+            </span>
+          </div>
         </div>
-        <div class="bg-white p-4 rounded-2xl border border-fuchsia-200 shadow-xs">
-          <p class="text-[11px] font-bold text-fuchsia-600 uppercase">Pares Casados</p>
-          <p class="text-2xl font-black text-fuchsia-700 mt-1">{{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</p>
+
+        <!-- 4. Pares Casados (Multi-Setor) -->
+        <div class="bg-white p-4 rounded-2xl border border-fuchsia-200 shadow-xs flex flex-col justify-between bg-gradient-to-br from-white to-fuchsia-50/30">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-fuchsia-600 uppercase tracking-wider">Montagem & Solas</span>
+              <span class="p-1 bg-fuchsia-100 rounded-lg text-fuchsia-600"><Footprints class="w-3.5 h-3.5" /></span>
+            </div>
+            <p class="text-[11px] font-bold text-fuchsia-700 uppercase mt-0.5">Pares Formados</p>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl font-black text-fuchsia-800">{{ reportTotals.totalCasamentosPares.toLocaleString('pt-BR') }}</span>
+              <span class="text-xs font-bold text-fuchsia-600 uppercase">pares</span>
+            </div>
+          </div>
+          <p class="text-[10px] font-bold text-fuchsia-600 mt-2 border-t border-fuchsia-100 pt-1.5 truncate">
+            {{ (reportTotals.totalCasamentosPares * 2).toLocaleString('pt-BR') }} pés baixados
+          </p>
         </div>
-        <div class="bg-white p-4 rounded-2xl border border-red-200 shadow-xs">
-          <p class="text-[11px] font-bold text-red-600 uppercase">Refugos / Perdas</p>
-          <p class="text-2xl font-black text-red-700 mt-1">{{ reportTotals.totalRefugos.toLocaleString('pt-BR') }}</p>
+
+        <!-- 5. Refugos / Perdas -->
+        <div class="bg-white p-4 rounded-2xl border border-red-200 shadow-xs flex flex-col justify-between bg-gradient-to-br from-white to-red-50/30">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black text-red-600 uppercase tracking-wider">Descartes</span>
+              <span class="p-1 bg-red-100 rounded-lg text-red-600"><Trash2 class="w-3.5 h-3.5" /></span>
+            </div>
+            <p class="text-[11px] font-bold text-red-700 uppercase mt-0.5">Refugos / Perdas</p>
+            <div class="flex items-baseline gap-1 mt-1">
+              <span class="text-2xl font-black text-red-800">{{ reportTotals.qtdOperacoesRefugo ? reportTotals.qtdOperacoesRefugo.toLocaleString('pt-BR') : reportTotals.totalRefugos.toLocaleString('pt-BR') }}</span>
+              <span class="text-xs font-bold text-red-600 uppercase">{{ reportTotals.qtdOperacoesRefugo ? 'lançamentos' : currentUnitSuffix }}</span>
+            </div>
+          </div>
+          <div class="mt-2 border-t border-red-100 pt-1.5">
+            <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Físico:</span>
+            <span class="block text-xs font-black text-red-700 leading-tight">
+              {{ formatVolume(reportTotals.totalRefugos) }} <span class="text-[10px] font-bold text-red-600 uppercase">{{ currentUnitSuffix }}</span>
+            </span>
+          </div>
         </div>
+
       </div>
 
       <!-- KPI METRIC CARDS (RELATÓRIO DE REQUISIÇÕES) -->

@@ -68,7 +68,7 @@ const menuItems = [
   { label: 'Estoque Multi-Setor',   path: '/inventory',       icon: Layers,          roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
   { label: 'Casamento de Pares',    path: '/mounting-pairs',  icon: Footprints,      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
   { label: 'Requisições',           path: '/requisitions',    icon: ClipboardList,   roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'], badgeKey: 'requisitions' },
-  { label: 'Histórico & Auditoria', path: '/stock-history',   icon: History,         roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
+  { label: 'Histórico',             path: '/stock-history',   icon: History,         roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] },
   { label: 'Relatórios',            path: '/reports',         icon: FileBarChart,    roles: ['admin', 'admin_setor', 'lider'] },
   { label: 'Usuários',              path: '/users',           icon: Users,           roles: ['admin'] },
   { label: 'Configurações',         path: '/settings',        icon: Settings,        roles: ['admin', 'admin_setor'] }

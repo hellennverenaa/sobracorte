@@ -972,7 +972,7 @@ async function deleteCategory(cat) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
   const title = isAdmin ? '⚠️ Atenção Admin: Excluir Categoria' : 'Excluir Categoria de Material'
   const message = isAdmin
-    ? `Atenção Admin: A categoria "${cat.name}" possui ou pode possuir materiais vinculados. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    ? `Atenção Admin: A categoria "${cat.name}" possui ou pode possuir materiais vinculados. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
     : `Deseja excluir a categoria "${cat.name}"?`
 
   openConfirmModal({
@@ -1031,7 +1031,7 @@ async function deleteUnit(unit) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
   const title = isAdmin ? '⚠️ Atenção Admin: Desativar Unidade' : 'Desativar Unidade de Medida'
   const message = isAdmin
-    ? `Atenção Admin: A unidade "${unit.name} (${unit.symbol})" possui ou pode possuir materiais vinculados. A desativação forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    ? `Atenção Admin: A unidade "${unit.name} (${unit.symbol})" possui ou pode possuir materiais vinculados. A desativação forçada será registrada no Histórico. Deseja prosseguir?`
     : `Deseja desativar a unidade "${unit.name} (${unit.symbol})"?`
 
   openConfirmModal({
@@ -1228,7 +1228,7 @@ async function deleteLocation(loc) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
   const title = isAdmin ? '⚠️ Atenção Admin: Excluir Localização' : 'Excluir Localização'
   const message = isAdmin
-    ? `Atenção Admin: A localização "${loc.name}" possui materiais vinculados. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    ? `Atenção Admin: A localização "${loc.name}" possui materiais vinculados. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
     : `Deseja excluir a localização "${loc.name}"?`
 
   openConfirmModal({
@@ -1289,7 +1289,7 @@ async function deleteOrigin(orig) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
   const title = isAdmin ? '⚠️ Atenção Admin: Excluir Origem' : 'Excluir Origem de Sobra'
   const message = isAdmin
-    ? `Atenção Admin: A origem "${orig.name}" possui movimentações vinculadas. A exclusão forçada será registrada no Histórico & Auditoria. Deseja prosseguir?`
+    ? `Atenção Admin: A origem "${orig.name}" possui movimentações vinculadas. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
     : `Deseja excluir a origem "${orig.name}"?`
 
   openConfirmModal({

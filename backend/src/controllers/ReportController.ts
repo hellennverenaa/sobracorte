@@ -119,19 +119,25 @@ export class ReportController {
         const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+        } else if (sec === 'CONFIGURACOES') {
+          stockWhere.sector = 'NEVER_MATCH';
         } else {
           stockWhere.sector = sec;
         }
       } else {
-        stockWhere.sector = { not: 'CORTE' };
+        stockWhere.sector = { notIn: ['CORTE', 'CONFIGURACOES'] };
       }
 
       if (rawType !== 'TODOS') {
         if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
           stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
-        } else {
+        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'].includes(rawType)) {
           stockWhere.type = rawType;
+        } else {
+          stockWhere.type = 'NEVER_MATCH';
         }
+      } else {
+        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'] };
       }
 
       if (rawOrigin && rawOrigin !== 'TODOS') {
@@ -311,19 +317,57 @@ export class ReportController {
         (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
       );
 
+      const entradas = allItems.filter((m) => m.tipo === 'ENTRADA');
+      const saidas = allItems.filter((m) => m.tipo === 'SAIDA' || m.tipo === 'CASAMENTO_PAR');
+      const refugos = allItems.filter((m) => m.tipo === 'REFUGO');
+      const transferencias = allItems.filter((m) => m.tipo === 'TRANSFERENCIA');
+      const casamentos = allItems.filter((m) => m.tipo === 'CASAMENTO_PAR');
+
+      const volumeTotalEntrada = entradas.reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeTotalSaida = saidas.reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeTotalRefugo = refugos.reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeTotalTransferencia = transferencias.reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeTotalCasamentos = casamentos.reduce((a, c) => a + Number(c.quantidade), 0);
+
+      // Segmentação para visão de Todos os Setores (Corte m² vs Outros un/pares)
+      const volumeEntradaCorte = entradas.filter((m) => m.setor === 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeEntradaOutros = entradas.filter((m) => m.setor !== 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeSaidaCorte = saidas.filter((m) => m.setor === 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
+      const volumeSaidaOutros = saidas.filter((m) => m.setor !== 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
+
       const totals = {
         totalRegistros: allItems.length,
-        volumeEntradas: allItems.filter((m) => m.tipo === 'ENTRADA').reduce((a, c) => a + Number(c.quantidade), 0),
-        volumeSaidas: allItems.filter((m) => m.tipo === 'SAIDA' || m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalRefugos: allItems.filter((m) => m.tipo === 'REFUGO').reduce((a, c) => a + Number(c.quantidade), 0),
-        totalCasamentosPares: Math.floor(allItems.filter((m) => m.tipo === 'CASAMENTO_PAR').reduce((a, c) => a + Number(c.quantidade), 0) / 2),
-        totalTransferencias: allItems.filter((m) => m.tipo === 'TRANSFERENCIA').reduce((a, c) => a + Number(c.quantidade), 0),
+        // 1. Quantidade de Operações (Lançamentos / Frequência de Linha)
+        qtdOperacoesEntrada: entradas.length,
+        qtdOperacoesSaida: saidas.length,
+        qtdOperacoesRefugo: refugos.length,
+        qtdOperacoesTransferencia: transferencias.length,
+        qtdOperacoesCasamento: casamentos.length,
+        // 2. Volume Físico Total (Soma real de peças / metros nos lotes)
+        volumeTotalEntrada,
+        volumeTotalSaida,
+        totalRefugos: volumeTotalRefugo,
+        totalTransferencias: volumeTotalTransferencia,
+        totalCasamentosPares: Math.floor(volumeTotalCasamentos / 2),
+        // Quebra segmentada para relatórios gerais
+        volumeEntradaCorte,
+        volumeEntradaOutros,
+        volumeSaidaCorte,
+        volumeSaidaOutros,
+        // Retrocompatibilidade provisória com código legado:
+        volumeEntradas: volumeTotalEntrada,
+        volumeSaidas: volumeTotalSaida,
       };
 
       return res.json({
         totals,
         items: allItems,
         totalRegistros: totals.totalRegistros,
+        qtdOperacoesEntrada: totals.qtdOperacoesEntrada,
+        qtdOperacoesSaida: totals.qtdOperacoesSaida,
+        qtdOperacoesRefugo: totals.qtdOperacoesRefugo,
+        volumeTotalEntrada: totals.volumeTotalEntrada,
+        volumeTotalSaida: totals.volumeTotalSaida,
         volumeEntradas: totals.volumeEntradas,
         volumeSaidas: totals.volumeSaidas,
         totalRefugos: totals.totalRefugos,

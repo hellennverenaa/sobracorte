@@ -130,7 +130,7 @@ onMounted(() => {
       <!-- Top Bar -->
       <div class="flex flex-col sm:flex-row gap-3 items-center justify-between mx-4 my-4">
         <div>
-          <h1 class="text-xl font-bold text-gray-800">Histórico & Auditoria de Movimentações</h1>
+          <h1 class="text-xl font-bold text-gray-800">Histórico de Movimentações</h1>
           <p class="text-xs text-gray-500">Rastreabilidade completa de todas as entradas, saídas, transferências, casamentos de pares e configurações</p>
         </div>
 
