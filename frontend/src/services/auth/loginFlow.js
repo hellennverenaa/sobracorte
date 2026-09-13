@@ -42,8 +42,19 @@ export function shouldDiscardStoredUnit(units, lastUnit) {
 
 export async function loginByUnit(authClient, unitCode, usuario, senha) {
   const normalizedUnit = normalizeUnitCode(unitCode)
-  return authClient.post(
-    getLoginEndpoint(normalizedUnit),
-    buildLoginPayload(normalizedUnit, usuario, senha),
-  )
+  if (isLegacyUnit(normalizedUnit)) {
+    return authClient.post('/auth/login', { usuario, senha })
+  }
+
+  try {
+    return await authClient.post(
+      '/auth/external/login',
+      { unidade: normalizedUnit, usuario, senha },
+    )
+  } catch (error) {
+    // Administradores globais mantêm sua identidade no cadastro legado. O
+    // backend SobraCorte decide se o JWT legado pode acessar a unidade pedida.
+    if (error?.response?.status !== 401) throw error
+    return authClient.post('/auth/login', { usuario, senha })
+  }
 }

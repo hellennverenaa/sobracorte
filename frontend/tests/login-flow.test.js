@@ -46,6 +46,41 @@ test('loginByUnit centraliza endpoint e payload', async () => {
   ]])
 })
 
+test('unidade externa tenta login legado após credencial externa não encontrada', async () => {
+  const calls = []
+  const authClient = {
+    post: async (...args) => {
+      calls.push(args)
+      if (args[0] === '/auth/external/login') {
+        throw { response: { status: 401 } }
+      }
+      return { data: { data: { token: 'token-legado' } } }
+    },
+  }
+
+  const response = await loginByUnit(authClient, 'SAJ', 'ADMIN.SEST', 'senha')
+
+  assert.equal(response.data.data.token, 'token-legado')
+  assert.deepEqual(calls, [
+    ['/auth/external/login', { unidade: 'SAJ', usuario: 'ADMIN.SEST', senha: 'senha' }],
+    ['/auth/login', { usuario: 'ADMIN.SEST', senha: 'senha' }],
+  ])
+})
+
+test('unidade externa não mascara falhas operacionais com fallback legado', async () => {
+  const expected = { response: { status: 500 } }
+  const calls = []
+  const authClient = {
+    post: async (...args) => {
+      calls.push(args)
+      throw expected
+    },
+  }
+
+  await assert.rejects(() => loginByUnit(authClient, 'SAJ', 'USUARIO', 'senha'), expected)
+  assert.equal(calls.length, 1)
+})
+
 test('unidade salva continua selecionada somente quando está disponível', () => {
   const units = [{ code: 'SAJ', name: 'Santo Antônio de Jesus' }, { code: 'SEST', name: 'SEST' }]
 

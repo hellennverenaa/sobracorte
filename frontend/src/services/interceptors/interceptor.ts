@@ -39,7 +39,8 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
 
     if (
       originalRequest.url?.includes("/auth/login") ||
-      originalRequest?.url?.includes("/auth/me")
+      originalRequest?.url?.includes("/auth/me") ||
+      originalRequest?.url?.includes("/auth/check-user")
     ) {
       return Promise.reject(error);
     }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus, X } from 'lucide-vue-next'
@@ -11,7 +11,10 @@ import {
 } from '@/services/auth/loginFlow'
 import {
   externalRegistrationErrorMessage,
+  externalRegistrationFieldErrors,
+  externalRegistrationRequirements,
   firstExternalRegistrationError,
+  getExternalRegistrationPolicy,
   registerExternalUser,
   validateExternalRegistration,
 } from '@/services/auth/externalRegistration'
@@ -50,6 +53,33 @@ const isRegistrationOpen = ref(false)
 const registrationLoading = ref(false)
 const registrationError = ref('')
 const registrationNotice = ref('')
+const registrationPolicy = ref(null)
+const registrationPolicyLoading = ref(false)
+const registrationPolicyError = ref('')
+const registrationFieldErrors = ref({})
+const registrationAvailable = computed(() => Boolean(registrationPolicy.value?.autocadastro_disponivel))
+const registrationRequirements = computed(() => externalRegistrationRequirements(registrationPolicy.value))
+const registrationRule = computed(() => registrationPolicy.value?.politica?.matricula)
+const usernameRule = computed(() => registrationPolicy.value?.politica?.usuario)
+const registrationMaxLength = computed(() => registrationRule.value?.comprimento || 32)
+const usernameMaxLength = computed(() => usernameRule.value
+  ? (usernameRule.value.partes * usernameRule.value.maximo_por_parte) + ((usernameRule.value.partes - 1) * usernameRule.value.separador.length)
+  : 31)
+const registrationPlaceholder = computed(() => {
+  const rule = registrationRule.value
+  if (!rule) return 'Informe sua matrícula'
+  const prefix = rule.prefixo || ''
+  const suffix = rule.sufixo || ''
+  const middleLength = Math.max(0, rule.comprimento - prefix.length - suffix.length)
+  return `${prefix}${'0'.repeat(middleLength)}${suffix}`
+})
+const usernamePlaceholder = computed(() => {
+  const rule = usernameRule.value
+  if (!rule) return 'NOME.SOBRENOME'
+  if (rule.partes === 2 && rule.separador === '.') return 'NOME.SOBRENOME'
+  return Array.from({ length: rule.partes }, (_, index) => `PARTE${index + 1}`).join(rule.separador)
+})
+let registrationPolicyRequest = 0
 
 function loadLastUnit() {
   try {
@@ -125,12 +155,47 @@ function clearRegistrationPasswords() {
   registrationForm.value.confirmarSenha = ''
 }
 
+function clearRegistrationFieldError(field) {
+  if (!registrationFieldErrors.value[field]) return
+  const nextErrors = { ...registrationFieldErrors.value }
+  delete nextErrors[field]
+  registrationFieldErrors.value = nextErrors
+}
+
 function openExternalRegistration() {
-  if (!isExternalUnitSelected.value) return
+  if (!isExternalUnitSelected.value || !registrationAvailable.value) return
   registrationError.value = ''
+  registrationFieldErrors.value = {}
   registrationNotice.value = ''
   isRegistrationOpen.value = true
 }
+
+watch(selectedUnit, async (unitCode) => {
+  const request = ++registrationPolicyRequest
+  registrationPolicy.value = null
+  registrationPolicyError.value = ''
+  registrationFieldErrors.value = {}
+  if (!unitCode || isLegacyUnit(unitCode)) {
+    registrationPolicyLoading.value = false
+    return
+  }
+
+  registrationPolicyLoading.value = true
+  try {
+    const policy = await getExternalRegistrationPolicy(authApi, unitCode)
+    if (request === registrationPolicyRequest) {
+      registrationPolicy.value = policy
+      if (!policy.autocadastro_disponivel) registrationPolicyError.value = 'O cadastro não está disponível para esta unidade.'
+    }
+  } catch {
+    if (request === registrationPolicyRequest) {
+      registrationPolicy.value = null
+      registrationPolicyError.value = 'Não foi possível consultar a disponibilidade do cadastro.'
+    }
+  } finally {
+    if (request === registrationPolicyRequest) registrationPolicyLoading.value = false
+  }
+})
 
 function closeExternalRegistration() {
   if (registrationLoading.value) return
@@ -141,12 +206,14 @@ function closeExternalRegistration() {
 
 async function handleExternalRegistration() {
   registrationError.value = ''
+  registrationFieldErrors.value = {}
   const validation = validateExternalRegistration({
     ...registrationForm.value,
     unidade: selectedUnit.value,
-  })
+  }, registrationPolicy.value)
   if (!validation.valid) {
-    registrationError.value = firstExternalRegistrationError(validation)
+    registrationFieldErrors.value = validation.errors
+    registrationError.value = ''
     return
   }
 
@@ -155,13 +222,16 @@ async function handleExternalRegistration() {
     await registerExternalUser(authApi, {
       ...registrationForm.value,
       unidade: selectedUnit.value,
-    })
+    }, registrationPolicy.value)
     username.value = registrationForm.value.usuario.trim()
     isRegistrationOpen.value = false
     clearRegistrationPasswords()
     registrationNotice.value = 'Cadastro concluído. Agora entre normalmente com seu usuário e senha.'
   } catch (registrationRequestError) {
-    registrationError.value = registrationRequestError.validation
+    registrationFieldErrors.value = externalRegistrationFieldErrors(registrationRequestError)
+    registrationError.value = Object.keys(registrationFieldErrors.value).length
+      ? ''
+      : registrationRequestError.validation
       ? firstExternalRegistrationError(registrationRequestError.validation)
       : externalRegistrationErrorMessage(registrationRequestError)
   } finally {
@@ -272,6 +342,7 @@ async function handleExternalRegistration() {
 
           <div v-if="isExternalUnitSelected" class="mt-5 text-center">
             <button
+              v-if="registrationAvailable"
               type="button"
               @click="openExternalRegistration"
               class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
@@ -279,6 +350,8 @@ async function handleExternalRegistration() {
               <UserPlus class="h-4 w-4" />
               Realizar cadastro
             </button>
+            <p v-else-if="registrationPolicyLoading" class="text-xs text-gray-500">Verificando disponibilidade do cadastro...</p>
+            <p v-else-if="registrationPolicyError" class="text-xs text-gray-500">{{ registrationPolicyError }}</p>
           </div>
 
           <div v-if="isSelectedUnitLegacy" class="mt-6 border-t border-gray-100 pt-5 text-center">
@@ -314,7 +387,7 @@ async function handleExternalRegistration() {
         <div class="flex items-start justify-between border-b border-slate-100 px-6 py-5">
           <div>
             <h2 id="external-registration-title" class="text-xl font-bold text-slate-900">Realizar cadastro</h2>
-            <p class="mt-1 text-sm text-slate-500">Crie seu acesso para a unidade selecionada.</p>
+            <p class="mt-1 text-sm text-slate-500">{{ registrationPolicy?.politica?.descricao || 'Crie seu acesso para a unidade selecionada.' }}</p>
           </div>
           <button
             type="button"
@@ -347,10 +420,16 @@ async function handleExternalRegistration() {
                 id="registration-matricula"
                 v-model="registrationForm.matricula"
                 type="text"
+                :placeholder="registrationPlaceholder"
+                :inputmode="registrationRule?.tipo === 'NUMERICA' ? 'numeric' : 'text'"
+                :maxlength="registrationMaxLength"
                 autocomplete="off"
+                :aria-invalid="Boolean(registrationFieldErrors.matricula)"
+                @input="clearRegistrationFieldError('matricula')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
+              <p v-if="registrationFieldErrors.matricula" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.matricula }}</p>
             </div>
             <div class="space-y-1">
               <label for="registration-name" class="text-xs font-bold uppercase tracking-wider text-gray-600">Nome</label>
@@ -358,10 +437,14 @@ async function handleExternalRegistration() {
                 id="registration-name"
                 v-model="registrationForm.nome"
                 type="text"
+                maxlength="150"
                 autocomplete="name"
+                :aria-invalid="Boolean(registrationFieldErrors.nome)"
+                @input="clearRegistrationFieldError('nome')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
+              <p v-if="registrationFieldErrors.nome" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.nome }}</p>
             </div>
           </div>
 
@@ -371,10 +454,17 @@ async function handleExternalRegistration() {
               id="registration-username"
               v-model="registrationForm.usuario"
               type="text"
+              :placeholder="usernamePlaceholder"
+              :maxlength="usernameMaxLength"
               autocomplete="username"
+              autocapitalize="characters"
+              :aria-invalid="Boolean(registrationFieldErrors.usuario)"
+              @input="clearRegistrationFieldError('usuario')"
               class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
               required
             />
+            <p v-if="registrationFieldErrors.usuario" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.usuario }}</p>
+            <p v-else class="text-xs text-gray-500">{{ registrationRequirements.usuario }}</p>
           </div>
 
           <div class="grid gap-4 sm:grid-cols-2">
@@ -384,11 +474,17 @@ async function handleExternalRegistration() {
                 id="registration-password"
                 v-model="registrationForm.senha"
                 type="password"
+                placeholder="Mínimo de 8 caracteres"
                 autocomplete="new-password"
                 minlength="8"
+                maxlength="72"
+                :aria-invalid="Boolean(registrationFieldErrors.senha)"
+                @input="clearRegistrationFieldError('senha')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
+              <p v-if="registrationFieldErrors.senha" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.senha }}</p>
+              <p v-else class="text-xs text-gray-500">{{ registrationRequirements.senha }}</p>
             </div>
             <div class="space-y-1">
               <label for="registration-password-confirmation" class="text-xs font-bold uppercase tracking-wider text-gray-600">Confirmar senha</label>
@@ -396,11 +492,16 @@ async function handleExternalRegistration() {
                 id="registration-password-confirmation"
                 v-model="registrationForm.confirmarSenha"
                 type="password"
+                placeholder="Repita a senha"
                 autocomplete="new-password"
                 minlength="8"
+                maxlength="72"
+                :aria-invalid="Boolean(registrationFieldErrors.confirmarSenha)"
+                @input="clearRegistrationFieldError('confirmarSenha')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
+              <p v-if="registrationFieldErrors.confirmarSenha" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.confirmarSenha }}</p>
             </div>
           </div>
 
@@ -411,9 +512,13 @@ async function handleExternalRegistration() {
                 id="registration-sector"
                 v-model="registrationForm.setor"
                 type="text"
+                maxlength="150"
                 autocomplete="organization-title"
+                :aria-invalid="Boolean(registrationFieldErrors.setor)"
+                @input="clearRegistrationFieldError('setor')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <p v-if="registrationFieldErrors.setor" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.setor }}</p>
             </div>
             <div class="space-y-1">
               <label for="registration-function" class="text-xs font-bold uppercase tracking-wider text-gray-600">Função <span class="font-normal normal-case text-gray-400">(opcional)</span></label>
@@ -421,9 +526,13 @@ async function handleExternalRegistration() {
                 id="registration-function"
                 v-model="registrationForm.funcao"
                 type="text"
+                maxlength="150"
                 autocomplete="organization-title"
+                :aria-invalid="Boolean(registrationFieldErrors.funcao)"
+                @input="clearRegistrationFieldError('funcao')"
                 class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <p v-if="registrationFieldErrors.funcao" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.funcao }}</p>
             </div>
           </div>
 
