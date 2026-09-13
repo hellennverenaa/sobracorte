@@ -219,14 +219,13 @@ async function handleExternalRegistration() {
 
   registrationLoading.value = true
   try {
-    await registerExternalUser(authApi, {
+    const response = await registerExternalUser(authApi, {
       ...registrationForm.value,
       unidade: selectedUnit.value,
     }, registrationPolicy.value)
-    username.value = registrationForm.value.usuario.trim()
     isRegistrationOpen.value = false
     clearRegistrationPasswords()
-    registrationNotice.value = 'Cadastro concluído. Agora entre normalmente com seu usuário e senha.'
+    registrationNotice.value = response.data?.message || 'Solicitação enviada. Aguarde a aprovação do responsável da unidade.'
   } catch (registrationRequestError) {
     registrationFieldErrors.value = externalRegistrationFieldErrors(registrationRequestError)
     registrationError.value = Object.keys(registrationFieldErrors.value).length

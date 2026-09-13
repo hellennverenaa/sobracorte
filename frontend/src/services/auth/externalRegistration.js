@@ -128,7 +128,10 @@ export function externalRegistrationErrorMessage(error) {
   if (status === 400) return Object.values(externalRegistrationFieldErrors(error))[0] || 'Os dados informados são inválidos. Confira os campos e tente novamente.'
   if (status === 403) return 'O cadastro externo não está disponível para esta unidade.'
   if (status === 409) return 'A matrícula ou o usuário já estão cadastrados.'
-  if (status === 503) return 'A configuração de cadastro está temporariamente indisponível.'
+  if (status === 429) return 'Há muitas solicitações no momento. Aguarde e tente novamente.'
+  if (status === 503) return error?.response?.data?.code === 'REGISTRATION_PROTECTION_UNAVAILABLE'
+    ? 'A proteção de cadastro está temporariamente indisponível.'
+    : 'A configuração de cadastro está temporariamente indisponível.'
   if (status >= 500) return 'Não foi possível concluir o cadastro. Tente novamente mais tarde.'
   if (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
     return 'O serviço de autenticação está temporariamente indisponível.'

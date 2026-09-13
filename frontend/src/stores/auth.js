@@ -99,6 +99,12 @@ export const useAuthStore = defineStore('auth', {
         if (error.response?.status === 403) {
           try { await authApi.post('/auth/logout') } catch {}
           this.clearSession()
+          if (error.response.data?.code === 'REGISTRATION_PENDING') {
+            throw new Error('Sua solicitação de cadastro ainda aguarda aprovação.')
+          }
+          if (error.response.data?.code === 'REGISTRATION_REJECTED') {
+            throw new Error('Sua solicitação de cadastro foi rejeitada. Procure o responsável da unidade.')
+          }
         }
         if (error.response && error.response.status === 401) {
           const msgBackend = error.response.data?.message || error.response.data?.error || "Usuário ou senha incorretos.";
