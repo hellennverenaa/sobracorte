@@ -11,25 +11,22 @@ export interface ServerConfig {
   databaseUrl: string;
   privateKey: string;
   corsOrigins: string[];
-  globalAdminRegistrations: Set<number>;
+  globalAdminIdentities: Set<string>;
 }
 
-export function parseGlobalAdminRegistrations(value: string | undefined): Set<number> {
-  const registrations = new Set<number>();
+export function parseGlobalAdminIdentities(value: string | undefined): Set<string> {
+  const identities = new Set<string>();
   for (const item of (value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean)) {
-    if (!/^\d+$/.test(item)) {
-      throw new Error('GLOBAL_ADMIN_REGISTRATIONS deve conter apenas matrículas inteiras positivas separadas por vírgula.');
+    const identity = item.toUpperCase();
+    if (!/^[A-Z0-9_-]+:[A-Z0-9]+$/.test(identity)) {
+      throw new Error('GLOBAL_ADMIN_IDENTITIES deve usar o formato UNIDADE:MATRICULA, separado por vírgulas.');
     }
-    const registration = Number(item);
-    if (!Number.isSafeInteger(registration) || registration <= 0) {
-      throw new Error('GLOBAL_ADMIN_REGISTRATIONS deve conter apenas matrículas inteiras positivas separadas por vírgula.');
+    if (identities.has(identity)) {
+      throw new Error(`GLOBAL_ADMIN_IDENTITIES contém identidade duplicada: ${identity}.`);
     }
-    if (registrations.has(registration)) {
-      throw new Error(`GLOBAL_ADMIN_REGISTRATIONS contém matrícula duplicada: ${item}.`);
-    }
-    registrations.add(registration);
+    identities.add(identity);
   }
-  return registrations;
+  return identities;
 }
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
@@ -71,12 +68,12 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     databaseUrl: required(env, "DATABASE_URL"),
     privateKey: required(env, "PRIVATE_KEY"),
     corsOrigins: parseCorsOrigins(required(env, "CORS_ORIGINS")),
-    globalAdminRegistrations: parseGlobalAdminRegistrations(env.GLOBAL_ADMIN_REGISTRATIONS),
+    globalAdminIdentities: parseGlobalAdminIdentities(env.GLOBAL_ADMIN_IDENTITIES),
   };
 }
 
 export const vars = {
   DB_URL: process.env.DATABASE_URL?.trim() ?? "",
   PRIVATE_KEY: process.env.PRIVATE_KEY?.trim(),
-  GLOBAL_ADMIN_REGISTRATIONS: parseGlobalAdminRegistrations(process.env.GLOBAL_ADMIN_REGISTRATIONS),
+  GLOBAL_ADMIN_IDENTITIES: parseGlobalAdminIdentities(process.env.GLOBAL_ADMIN_IDENTITIES),
 };

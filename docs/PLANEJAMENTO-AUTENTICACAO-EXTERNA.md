@@ -96,7 +96,7 @@ Unix e o Portal Unix fica visível somente para esta unidade.
    local `(factoryUnitId, usuario)` e cria um novo usuário como `leitor`.
 4. Matrículas alfanuméricas nunca são administradores globais. Matrículas
    numéricas só têm esse privilégio quando são positivas, seguras, configuradas
-   em `GLOBAL_ADMIN_REGISTRATIONS` e reconhecidas pelo backend.
+   em `GLOBAL_ADMIN_IDENTITIES`, no formato `UNIDADE:MATRICULA`, e reconhecidas pelo backend.
 5. Matrículas numéricas dentro do `BIGINT` positivo são persistidas em
    `matriculaDass`; demais matrículas usam `NULL` nessa coluna.
 6. Refresh, logout e isolamento de tenants continuam passando pelo mesmo

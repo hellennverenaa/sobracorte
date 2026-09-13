@@ -132,6 +132,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    async switchUnit(unitCode) {
+      if (!this.user?.isGlobalAdmin || !this.user?.token) {
+        throw new Error('A troca de unidade exige um administrador global.')
+      }
+      const normalizedUnit = normalizeUnitCode(unitCode)
+      const response = await api.post('/auth/check-user', null, {
+        headers: {
+          Authorization: `Bearer ${this.user.token}`,
+          'X-Dass-Unit': normalizedUnit,
+        },
+      })
+      this.user = buildSessionUser(
+        this.user.token,
+        response.data.user,
+        response.data.unit,
+        response.data.isGlobalAdmin,
+      )
+      this.isAuthenticated = true
+      localStorage.setItem('user', JSON.stringify(this.user))
+      return this.user
+    },
+
     can(action) {
       const role = this.user?.role;
 

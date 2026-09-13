@@ -6,11 +6,40 @@ import {
   LogOut, Menu, X, FileBarChart, Settings
 } from 'lucide-vue-next'
 import { ref } from 'vue'
+import { onMounted } from 'vue'
+import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
+const availableUnits = ref([])
+const switchingUnit = ref(false)
+
+onMounted(async () => {
+  if (!authStore.user?.isGlobalAdmin) return
+  try {
+    const response = await api.get('/factory-units')
+    availableUnits.value = response.data?.data || []
+  } catch {
+    availableUnits.value = []
+  }
+})
+
+async function switchUnit(event) {
+  const unitCode = event.target.value
+  if (!unitCode || unitCode === authStore.user?.unit?.code) return
+  switchingUnit.value = true
+  try {
+    await authStore.switchUnit(unitCode)
+    await router.replace('/')
+    window.location.reload()
+  } catch (error) {
+    event.target.value = authStore.user?.unit?.code || ''
+  } finally {
+    switchingUnit.value = false
+  }
+}
 
 async function logout() {
   await authStore.logout()
@@ -70,6 +99,19 @@ const menuItems = [
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>
+        <label v-if="authStore.user?.isGlobalAdmin" class="block px-2 mb-4 text-xs font-bold text-slate-400">
+          Unidade operacional
+          <select
+            class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-2 text-sm text-white"
+            :value="authStore.user?.unit?.code"
+            :disabled="switchingUnit"
+            @change="switchUnit"
+          >
+            <option v-for="unit in availableUnits" :key="unit.code" :value="unit.code">
+              {{ unit.code }} — {{ unit.name }}
+            </option>
+          </select>
+        </label>
         <router-link to="/profile" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 font-bold mb-3 hover:underline">
           Editar Perfil
         </router-link>

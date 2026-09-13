@@ -27,7 +27,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const { requestedUnit, isGlobalAdmin } = resolveTenantRequest(
       user,
       req.get('X-Dass-Unit'),
-      vars.GLOBAL_ADMIN_REGISTRATIONS,
+      vars.GLOBAL_ADMIN_IDENTITIES,
     );
 
     const tenant = await requireActiveTenant(requestedUnit, (code) => prisma.factoryUnit.findFirst({

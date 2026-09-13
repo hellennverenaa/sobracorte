@@ -6,7 +6,6 @@ import { syncUser } from '../src/controllers/AuthController';
 import { verifyAccessToken } from '../src/auth/verifyToken';
 import {
   normalizeRegistration,
-  parseSafeNumericRegistration,
   registrationToBigInt,
   requireActiveTenant,
   resolveTenantRequest,
@@ -49,7 +48,7 @@ test('resolveTenantRequest mantém usuários comuns em sua unidade', () => {
 });
 
 test('resolveTenantRequest permite ao administrador global escolher uma unidade', () => {
-  assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, 'STJ', new Set([100])), {
+  assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, 'STJ', new Set(['SEST:100'])), {
     requestedUnit: 'STJ', isGlobalAdmin: true, registration: '100',
   });
 });
@@ -62,22 +61,19 @@ test('resolveTenantRequest rejeita JWT sem unidade ou matrícula', () => {
 
 test('resolveTenantRequest normaliza e aceita matrículas alfanuméricas sem privilégio global', () => {
   assert.equal(normalizeRegistration('  a001x  '), 'A001X');
-  assert.deepEqual(resolveTenantRequest({ unidade: ' saj ', matricula: ' a001x ' }, undefined, new Set([1])), {
+  assert.deepEqual(resolveTenantRequest({ unidade: ' saj ', matricula: ' a001x ' }, undefined, new Set(['SEST:1'])), {
     requestedUnit: 'SAJ', isGlobalAdmin: false, registration: 'A001X',
   });
   assert.throws(
-    () => resolveTenantRequest({ unidade: 'SAJ', matricula: 'A001X' }, 'SEST', new Set([1])),
+    () => resolveTenantRequest({ unidade: 'SAJ', matricula: 'A001X' }, 'SEST', new Set(['SEST:1'])),
     { status: 403 },
   );
 });
 
-test('somente matrículas numéricas positivas e seguras podem ser administradores globais', () => {
-  assert.equal(parseSafeNumericRegistration('00100'), 100);
-  assert.equal(parseSafeNumericRegistration('0'), null);
-  assert.equal(parseSafeNumericRegistration('9007199254740992'), null);
-  assert.equal(parseSafeNumericRegistration('A100'), null);
-  assert.equal(resolveTenantRequest({ unidade: 'SAJ', matricula: '00100' }, 'SEST', new Set([100])).isGlobalAdmin, true);
-  assert.equal(resolveTenantRequest({ unidade: 'SAJ', matricula: '9007199254740992' }, 'SAJ', new Set([9007199254740992 as any])).isGlobalAdmin, false);
+test('administrador global exige correspondência exata de unidade e matrícula', () => {
+  assert.equal(resolveTenantRequest({ unidade: 'SEST', matricula: '3023093' }, 'SAJ', new Set(['SEST:3023093'])).isGlobalAdmin, true);
+  assert.equal(resolveTenantRequest({ unidade: 'SAJ', matricula: '3023093' }, 'SAJ', new Set(['SEST:3023093'])).isGlobalAdmin, false);
+  assert.equal(resolveTenantRequest({ unidade: 'SEST', matricula: 'OUTRO' }, 'SEST', new Set(['SEST:3023093'])).isGlobalAdmin, false);
 });
 
 test('matriculaDass só usa o intervalo BIGINT positivo do PostgreSQL', () => {

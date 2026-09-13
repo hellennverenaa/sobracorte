@@ -70,10 +70,15 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=sobr
 PORT=3333
 PRIVATE_KEY="mesmo JWT_SECRET configurado no dass_auth_service"
 CORS_ORIGINS="http://localhost:3000"
-GLOBAL_ADMIN_REGISTRATIONS="12345,67890"
+GLOBAL_ADMIN_IDENTITIES="SEST:3023093"
 ```
 
-`GLOBAL_ADMIN_REGISTRATIONS` aceita matrículas inteiras positivas sem duplicatas. Use uma string vazia quando não houver administradores globais.
+`GLOBAL_ADMIN_IDENTITIES` aceita pares `UNIDADE:MATRICULA`, separados por vírgula e sem duplicatas. Use o mesmo identificador configurado no serviço de autenticação e uma string vazia quando não houver administradores globais.
+
+O administrador global autentica pela sua unidade de origem e pode selecionar no
+menu do Sobrecorte qualquer unidade operacional ativa. O backend valida a
+identidade original do token antes de aceitar `X-Dass-Unit`; trocar o contexto
+não exige uma segunda conta na unidade de destino.
 
 Crie também `frontend/.env`:
 

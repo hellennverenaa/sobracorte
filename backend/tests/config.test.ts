@@ -15,7 +15,7 @@ test("carrega e normaliza a configuração obrigatória", () => {
     databaseUrl: validEnv.DATABASE_URL,
     privateKey: validEnv.PRIVATE_KEY,
     corsOrigins: ["http://localhost:3000", "https://sobracorte.example.com"],
-    globalAdminRegistrations: new Set(),
+    globalAdminIdentities: new Set(),
   });
 });
 
@@ -36,12 +36,12 @@ test("rejeita origens CORS com caminho", () => {
   );
 });
 
-test("valida matrículas de administradores globais", () => {
+test("valida identidades de administradores globais", () => {
   assert.deepEqual(
-    loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345, 67890" }).globalAdminRegistrations,
-    new Set([12345, 67890]),
+    loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "sest:3023093, SAJ:15000001" }).globalAdminIdentities,
+    new Set(["SEST:3023093", "SAJ:15000001"]),
   );
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345,12345" }), /duplicada/);
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "0" }), /inteiras positivas/);
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12A" }), /inteiras positivas/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "SEST:3023093,sest:3023093" }), /duplicada/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "3023093" }), /UNIDADE:MATRICULA/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "SEST:" }), /UNIDADE:MATRICULA/);
 });

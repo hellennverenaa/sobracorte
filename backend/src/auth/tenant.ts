@@ -17,13 +17,6 @@ export function normalizeRegistration(value: unknown): string {
   return '';
 }
 
-export function parseSafeNumericRegistration(value: string): number | null {
-  if (!/^\d+$/u.test(value)) return null;
-  const registration = Number(value);
-  if (!Number.isSafeInteger(registration) || registration <= 0) return null;
-  return registration;
-}
-
 const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
 const REGISTRATION_PATTERN = /^[A-Z0-9]+$/u;
 
@@ -38,7 +31,7 @@ export function registrationToBigInt(value: string): bigint | null {
 export function resolveTenantRequest(
   claims: { unidade?: unknown; matricula?: unknown },
   header: string | undefined,
-  globalAdminRegistrations: ReadonlySet<number>,
+  globalAdminIdentities: ReadonlySet<string>,
 ) {
   const jwtUnit = typeof claims.unidade === 'string' ? claims.unidade.trim().toUpperCase() : '';
   const registration = normalizeRegistration(claims.matricula);
@@ -47,8 +40,7 @@ export function resolveTenantRequest(
   }
 
   const requestedUnit = header?.trim().toUpperCase() || jwtUnit;
-  const numericRegistration = parseSafeNumericRegistration(registration);
-  const isGlobalAdmin = numericRegistration !== null && globalAdminRegistrations.has(numericRegistration);
+  const isGlobalAdmin = globalAdminIdentities.has(`${jwtUnit}:${registration}`);
   if (requestedUnit !== jwtUnit && !isGlobalAdmin) {
     throw new TenantAuthorizationError('Acesso negado para a unidade selecionada.', 403);
   }
