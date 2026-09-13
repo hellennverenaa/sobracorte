@@ -30,6 +30,10 @@ CORS_ORIGINS="http://localhost:3000"
 PORT=3333
 ```
 
+O JWT externo deve conter `origem` e `id`. O Sobracorte persiste essa identidade
+como `authOrigin` e `authUserId` por unidade operacional. Matrícula, usuário,
+nome, setor e função são dados sincronizados, não chaves permanentes.
+
 3. Aplique apenas as migrations versionadas e inicie o servidor:
 ```bash
 npx prisma migrate deploy

@@ -86,6 +86,7 @@ Crie também `frontend/.env`:
 VITE_AUTH_API_URL="/api"
 VITE_SOBRACORTE_API_URL="/api/sobracorte"
 VITE_PORTAL_UNIX_URL="/unix/"
+VITE_DASS_IDENTITIES_URL="http://localhost:5173/identities"
 VITE_DEV_PORT=3000
 ```
 
@@ -142,10 +143,12 @@ npx prisma generate
 ### Autenticação por unidade
 
 O login `SEST` continua usando o fluxo Unix legado. `SAJ` e qualquer outra
-unidade diferente de `SEST` usam o `dass_auth_service` para login e
-autocadastro; o primeiro login sincroniza o usuário local como `leitor`.
-Consulte o [planejamento e runbook de autenticação externa](docs/PLANEJAMENTO-AUTENTICACAO-EXTERNA.md)
-antes de aplicar as migrations ou publicar backend e frontend.
+unidade diferente de `SEST` usam exclusivamente `/auth/external/login`. O botão
+**Solicitar conta** abre o DASS Identidades em
+`${VITE_DASS_IDENTITIES_URL}/register?unidade=<UNIDADE>`; o Sobracorte não coleta
+dados cadastrais nem senhas de cadastro. No primeiro login, o backend cria ou
+vincula o perfil operacional como `leitor` usando `origem + id` do JWT.
+Consulte [Autenticação e DASS Identidades](docs/AUTENTICACAO-DASS-IDENTIDADES.md).
 
 ## Contratos e integridade
 

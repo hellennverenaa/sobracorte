@@ -177,10 +177,12 @@ model User {
 
   // Identificador externo vindo da DASS; sem FK entre domínios.
   matriculaDass BigInt?
+  authOrigin    String?
+  authUserId    String?
 
   @@unique([factoryUnitId, usuario])
   @@unique([factoryUnitId, email])
-  @@unique([factoryUnitId, matriculaDass])
+  @@unique([factoryUnitId, authOrigin, authUserId])
   @@schema("sobra_corte")
 }
 

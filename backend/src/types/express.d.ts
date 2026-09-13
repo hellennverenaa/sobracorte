@@ -11,6 +11,7 @@ export interface DecodedToken {
     nome?: string;
     email?: string;
     role?: string;
+    origem?: string;
 }
 
 export interface TenantContext {

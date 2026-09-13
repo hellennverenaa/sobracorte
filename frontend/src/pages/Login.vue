@@ -1,27 +1,19 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus, X } from 'lucide-vue-next'
-import { api, authApi } from '@/services/httpClient'
+import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus } from 'lucide-vue-next'
+import { api } from '@/services/httpClient'
 import {
   isLegacyUnit,
   selectInitialUnit,
   shouldDiscardStoredUnit,
 } from '@/services/auth/loginFlow'
-import {
-  externalRegistrationErrorMessage,
-  externalRegistrationFieldErrors,
-  externalRegistrationRequirements,
-  firstExternalRegistrationError,
-  getExternalRegistrationPolicy,
-  registerExternalUser,
-  validateExternalRegistration,
-} from '@/services/auth/externalRegistration'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const portalUnixUrl = import.meta.env.VITE_PORTAL_UNIX_URL
+const identitiesUrl = import.meta.env.VITE_DASS_IDENTITIES_URL.replace(/\/$/, '')
 const username = ref('')
 const password = ref('')
 const error = ref('')
@@ -36,50 +28,6 @@ const usernameLabel = computed(() => isSelectedUnitLegacy.value ? 'Usuário Unix
 const credentialsHint = computed(() => isSelectedUnitLegacy.value
   ? 'Informe suas credenciais Unix para acessar.'
   : 'Informe suas credenciais da unidade para acessar.')
-const selectedUnitLabel = computed(() => {
-  const unit = units.value.find((item) => item.code === selectedUnit.value)
-  return unit ? `${unit.code} — ${unit.name}` : selectedUnit.value
-})
-const registrationForm = ref({
-  matricula: '',
-  nome: '',
-  usuario: '',
-  senha: '',
-  confirmarSenha: '',
-  setor: '',
-  funcao: '',
-})
-const isRegistrationOpen = ref(false)
-const registrationLoading = ref(false)
-const registrationError = ref('')
-const registrationNotice = ref('')
-const registrationPolicy = ref(null)
-const registrationPolicyLoading = ref(false)
-const registrationPolicyError = ref('')
-const registrationFieldErrors = ref({})
-const registrationAvailable = computed(() => Boolean(registrationPolicy.value?.autocadastro_disponivel))
-const registrationRequirements = computed(() => externalRegistrationRequirements(registrationPolicy.value))
-const registrationRule = computed(() => registrationPolicy.value?.politica?.matricula)
-const usernameRule = computed(() => registrationPolicy.value?.politica?.usuario)
-const registrationMaxLength = computed(() => registrationRule.value?.comprimento || 32)
-const usernameMaxLength = computed(() => usernameRule.value
-  ? (usernameRule.value.partes * usernameRule.value.maximo_por_parte) + ((usernameRule.value.partes - 1) * usernameRule.value.separador.length)
-  : 31)
-const registrationPlaceholder = computed(() => {
-  const rule = registrationRule.value
-  if (!rule) return 'Informe sua matrícula'
-  const prefix = rule.prefixo || ''
-  const suffix = rule.sufixo || ''
-  const middleLength = Math.max(0, rule.comprimento - prefix.length - suffix.length)
-  return `${prefix}${'0'.repeat(middleLength)}${suffix}`
-})
-const usernamePlaceholder = computed(() => {
-  const rule = usernameRule.value
-  if (!rule) return 'NOME.SOBRENOME'
-  if (rule.partes === 2 && rule.separador === '.') return 'NOME.SOBRENOME'
-  return Array.from({ length: rule.partes }, (_, index) => `PARTE${index + 1}`).join(rule.separador)
-})
-let registrationPolicyRequest = 0
 
 function loadLastUnit() {
   try {
@@ -122,8 +70,6 @@ onMounted(async () => {
 
 async function handleLogin() {
   error.value = ''
-  registrationNotice.value = ''
-
   if (!username.value.trim()) {
     error.value = `Por favor, informe seu ${usernameLabel.value}.`
     return
@@ -150,93 +96,11 @@ async function handleLogin() {
   }
 }
 
-function clearRegistrationPasswords() {
-  registrationForm.value.senha = ''
-  registrationForm.value.confirmarSenha = ''
-}
-
-function clearRegistrationFieldError(field) {
-  if (!registrationFieldErrors.value[field]) return
-  const nextErrors = { ...registrationFieldErrors.value }
-  delete nextErrors[field]
-  registrationFieldErrors.value = nextErrors
-}
-
 function openExternalRegistration() {
-  if (!isExternalUnitSelected.value || !registrationAvailable.value) return
-  registrationError.value = ''
-  registrationFieldErrors.value = {}
-  registrationNotice.value = ''
-  isRegistrationOpen.value = true
+  if (!isExternalUnitSelected.value) return
+  window.open(`${identitiesUrl}/register?unidade=${encodeURIComponent(selectedUnit.value)}`, '_blank', 'noopener,noreferrer')
 }
 
-watch(selectedUnit, async (unitCode) => {
-  const request = ++registrationPolicyRequest
-  registrationPolicy.value = null
-  registrationPolicyError.value = ''
-  registrationFieldErrors.value = {}
-  if (!unitCode || isLegacyUnit(unitCode)) {
-    registrationPolicyLoading.value = false
-    return
-  }
-
-  registrationPolicyLoading.value = true
-  try {
-    const policy = await getExternalRegistrationPolicy(authApi, unitCode)
-    if (request === registrationPolicyRequest) {
-      registrationPolicy.value = policy
-      if (!policy.autocadastro_disponivel) registrationPolicyError.value = 'O cadastro não está disponível para esta unidade.'
-    }
-  } catch {
-    if (request === registrationPolicyRequest) {
-      registrationPolicy.value = null
-      registrationPolicyError.value = 'Não foi possível consultar a disponibilidade do cadastro.'
-    }
-  } finally {
-    if (request === registrationPolicyRequest) registrationPolicyLoading.value = false
-  }
-})
-
-function closeExternalRegistration() {
-  if (registrationLoading.value) return
-  isRegistrationOpen.value = false
-  registrationError.value = ''
-  clearRegistrationPasswords()
-}
-
-async function handleExternalRegistration() {
-  registrationError.value = ''
-  registrationFieldErrors.value = {}
-  const validation = validateExternalRegistration({
-    ...registrationForm.value,
-    unidade: selectedUnit.value,
-  }, registrationPolicy.value)
-  if (!validation.valid) {
-    registrationFieldErrors.value = validation.errors
-    registrationError.value = ''
-    return
-  }
-
-  registrationLoading.value = true
-  try {
-    const response = await registerExternalUser(authApi, {
-      ...registrationForm.value,
-      unidade: selectedUnit.value,
-    }, registrationPolicy.value)
-    isRegistrationOpen.value = false
-    clearRegistrationPasswords()
-    registrationNotice.value = response.data?.message || 'Solicitação enviada. Aguarde a aprovação do responsável da unidade.'
-  } catch (registrationRequestError) {
-    registrationFieldErrors.value = externalRegistrationFieldErrors(registrationRequestError)
-    registrationError.value = Object.keys(registrationFieldErrors.value).length
-      ? ''
-      : registrationRequestError.validation
-      ? firstExternalRegistrationError(registrationRequestError.validation)
-      : externalRegistrationErrorMessage(registrationRequestError)
-  } finally {
-    registrationLoading.value = false
-  }
-}
 </script>
 
 <template>
@@ -274,10 +138,6 @@ async function handleExternalRegistration() {
         <div class="max-w-md mx-auto w-full my-auto">
           <h2 class="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta</h2>
           <p class="text-gray-500 mb-6">{{ credentialsHint }}</p>
-
-          <div v-if="registrationNotice" class="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700" role="status">
-            {{ registrationNotice }}
-          </div>
 
           <form @submit.prevent="handleLogin" class="space-y-4">
             <div class="space-y-1">
@@ -341,16 +201,13 @@ async function handleExternalRegistration() {
 
           <div v-if="isExternalUnitSelected" class="mt-5 text-center">
             <button
-              v-if="registrationAvailable"
               type="button"
               @click="openExternalRegistration"
               class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
             >
               <UserPlus class="h-4 w-4" />
-              Realizar cadastro
+              Solicitar conta
             </button>
-            <p v-else-if="registrationPolicyLoading" class="text-xs text-gray-500">Verificando disponibilidade do cadastro...</p>
-            <p v-else-if="registrationPolicyError" class="text-xs text-gray-500">{{ registrationPolicyError }}</p>
           </div>
 
           <div v-if="isSelectedUnitLegacy" class="mt-6 border-t border-gray-100 pt-5 text-center">
@@ -373,194 +230,6 @@ async function handleExternalRegistration() {
 
     </div>
 
-    <div
-      v-if="isRegistrationOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="external-registration-title"
-      @click.self="closeExternalRegistration"
-      @keydown.esc="closeExternalRegistration"
-    >
-      <div class="my-8 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" @click.stop>
-        <div class="flex items-start justify-between border-b border-slate-100 px-6 py-5">
-          <div>
-            <h2 id="external-registration-title" class="text-xl font-bold text-slate-900">Realizar cadastro</h2>
-            <p class="mt-1 text-sm text-slate-500">{{ registrationPolicy?.politica?.descricao || 'Crie seu acesso para a unidade selecionada.' }}</p>
-          </div>
-          <button
-            type="button"
-            aria-label="Fechar cadastro"
-            :disabled="registrationLoading"
-            @click="closeExternalRegistration"
-            class="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <X class="h-5 w-5" />
-          </button>
-        </div>
-
-        <form class="space-y-4 px-6 py-6" @submit.prevent="handleExternalRegistration">
-          <div class="space-y-1">
-            <label for="registration-unit" class="text-xs font-bold uppercase tracking-wider text-gray-600">Unidade</label>
-            <input
-              id="registration-unit"
-              :value="selectedUnitLabel"
-              type="text"
-              readonly
-              disabled
-              class="w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 text-gray-600 outline-none disabled:cursor-not-allowed disabled:opacity-80"
-            />
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-1">
-              <label for="registration-matricula" class="text-xs font-bold uppercase tracking-wider text-gray-600">Matrícula</label>
-              <input
-                id="registration-matricula"
-                v-model="registrationForm.matricula"
-                type="text"
-                :placeholder="registrationPlaceholder"
-                :inputmode="registrationRule?.tipo === 'NUMERICA' ? 'numeric' : 'text'"
-                :maxlength="registrationMaxLength"
-                autocomplete="off"
-                :aria-invalid="Boolean(registrationFieldErrors.matricula)"
-                @input="clearRegistrationFieldError('matricula')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <p v-if="registrationFieldErrors.matricula" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.matricula }}</p>
-            </div>
-            <div class="space-y-1">
-              <label for="registration-name" class="text-xs font-bold uppercase tracking-wider text-gray-600">Nome</label>
-              <input
-                id="registration-name"
-                v-model="registrationForm.nome"
-                type="text"
-                maxlength="150"
-                autocomplete="name"
-                :aria-invalid="Boolean(registrationFieldErrors.nome)"
-                @input="clearRegistrationFieldError('nome')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <p v-if="registrationFieldErrors.nome" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.nome }}</p>
-            </div>
-          </div>
-
-          <div class="space-y-1">
-            <label for="registration-username" class="text-xs font-bold uppercase tracking-wider text-gray-600">Usuário</label>
-            <input
-              id="registration-username"
-              v-model="registrationForm.usuario"
-              type="text"
-              :placeholder="usernamePlaceholder"
-              :maxlength="usernameMaxLength"
-              autocomplete="username"
-              autocapitalize="characters"
-              :aria-invalid="Boolean(registrationFieldErrors.usuario)"
-              @input="clearRegistrationFieldError('usuario')"
-              class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-              required
-            />
-            <p v-if="registrationFieldErrors.usuario" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.usuario }}</p>
-            <p v-else class="text-xs text-gray-500">{{ registrationRequirements.usuario }}</p>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-1">
-              <label for="registration-password" class="text-xs font-bold uppercase tracking-wider text-gray-600">Senha</label>
-              <input
-                id="registration-password"
-                v-model="registrationForm.senha"
-                type="password"
-                placeholder="Mínimo de 8 caracteres"
-                autocomplete="new-password"
-                minlength="8"
-                maxlength="72"
-                :aria-invalid="Boolean(registrationFieldErrors.senha)"
-                @input="clearRegistrationFieldError('senha')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <p v-if="registrationFieldErrors.senha" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.senha }}</p>
-              <p v-else class="text-xs text-gray-500">{{ registrationRequirements.senha }}</p>
-            </div>
-            <div class="space-y-1">
-              <label for="registration-password-confirmation" class="text-xs font-bold uppercase tracking-wider text-gray-600">Confirmar senha</label>
-              <input
-                id="registration-password-confirmation"
-                v-model="registrationForm.confirmarSenha"
-                type="password"
-                placeholder="Repita a senha"
-                autocomplete="new-password"
-                minlength="8"
-                maxlength="72"
-                :aria-invalid="Boolean(registrationFieldErrors.confirmarSenha)"
-                @input="clearRegistrationFieldError('confirmarSenha')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <p v-if="registrationFieldErrors.confirmarSenha" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.confirmarSenha }}</p>
-            </div>
-          </div>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-1">
-              <label for="registration-sector" class="text-xs font-bold uppercase tracking-wider text-gray-600">Setor <span class="font-normal normal-case text-gray-400">(opcional)</span></label>
-              <input
-                id="registration-sector"
-                v-model="registrationForm.setor"
-                type="text"
-                maxlength="150"
-                autocomplete="organization-title"
-                :aria-invalid="Boolean(registrationFieldErrors.setor)"
-                @input="clearRegistrationFieldError('setor')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p v-if="registrationFieldErrors.setor" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.setor }}</p>
-            </div>
-            <div class="space-y-1">
-              <label for="registration-function" class="text-xs font-bold uppercase tracking-wider text-gray-600">Função <span class="font-normal normal-case text-gray-400">(opcional)</span></label>
-              <input
-                id="registration-function"
-                v-model="registrationForm.funcao"
-                type="text"
-                maxlength="150"
-                autocomplete="organization-title"
-                :aria-invalid="Boolean(registrationFieldErrors.funcao)"
-                @input="clearRegistrationFieldError('funcao')"
-                class="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p v-if="registrationFieldErrors.funcao" class="text-xs font-medium text-red-600">{{ registrationFieldErrors.funcao }}</p>
-            </div>
-          </div>
-
-          <div v-if="registrationError" class="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-600" role="alert">
-            <AlertTriangle class="h-5 w-5 shrink-0" />
-            <span>{{ registrationError }}</span>
-          </div>
-
-          <div class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              :disabled="registrationLoading"
-              @click="closeExternalRegistration"
-              class="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              :disabled="registrationLoading"
-              class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-200 transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              <span v-if="registrationLoading" class="animate-spin">⏳</span>
-              {{ registrationLoading ? 'Cadastrando...' : 'Concluir cadastro' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 

@@ -17,6 +17,8 @@ export async function syncUser(user: AuthenticatedUser, factoryUnitId: number, c
   if (!usuario) throw new Error('Token sem identificação de usuário.');
 
   const matricula = normalizeRegistration(user.matricula);
+  const authOrigin = String(user.origem || 'LEGADO').toUpperCase();
+  const authUserId = user.id == null ? null : String(user.id);
   const email = user.email || `${usuario.toLowerCase()}@grupodass.com.br`;
   const commonData = {
     nome: user.nome || usuario,
@@ -26,16 +28,14 @@ export async function syncUser(user: AuthenticatedUser, factoryUnitId: number, c
     matriculaDass: registrationToBigInt(matricula),
   };
 
-  return client.user.upsert({
-    where: { factoryUnitId_usuario: { factoryUnitId, usuario } },
-    update: commonData,
-    create: {
-      usuario,
-      ...commonData,
-      role: INITIAL_USER_ROLE,
-      factoryUnitId,
-    },
-  });
+  if (!authUserId || typeof client.user.findUnique !== 'function') {
+    return client.user.upsert({ where: { factoryUnitId_usuario: { factoryUnitId, usuario } }, update: commonData, create: { usuario, ...commonData, role: INITIAL_USER_ROLE, factoryUnitId } });
+  }
+  const stable = await client.user.findUnique({ where: { factoryUnitId_authOrigin_authUserId: { factoryUnitId, authOrigin, authUserId } } });
+  if (stable) return client.user.update({ where: { id: stable.id }, data: { ...commonData, usuario } });
+  const legacy = await client.user.findFirst?.({ where: { factoryUnitId, authOrigin: null, OR: [{ matriculaDass: commonData.matriculaDass }, { usuario }] } });
+  if (legacy) return client.user.update({ where: { id: legacy.id }, data: { ...commonData, usuario, authOrigin, authUserId } });
+  return client.user.create({ data: { usuario, ...commonData, authOrigin, authUserId, role: INITIAL_USER_ROLE, factoryUnitId } });
 }
 
 export class AuthController {

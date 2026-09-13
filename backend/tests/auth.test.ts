@@ -143,6 +143,34 @@ test('sincronização não envia matrícula fora do BIGINT para o PostgreSQL', a
   assert.equal(upsertArgs.create.matriculaDass, null);
 });
 
+test('sincronização externa prioriza origem e id e preserva o papel local', async () => {
+  const calls: any[] = [];
+  const existing = { id: 9, role: 'lider' };
+  const result = await syncUser({ id: 'ext-12', origem: 'EXTERNO', usuario: 'NOVO.USUARIO', matricula: '123', nome: 'Nome Novo' } as any, 42, {
+    user: {
+      findUnique: async (args: any) => { calls.push(args); return existing; },
+      update: async (args: any) => ({ ...existing, ...args.data }),
+    },
+  });
+  assert.deepEqual(calls[0].where, { factoryUnitId_authOrigin_authUserId: { factoryUnitId: 42, authOrigin: 'EXTERNO', authUserId: 'ext-12' } });
+  assert.equal(result.role, 'lider');
+  assert.equal(result.usuario, 'NOVO.USUARIO');
+});
+
+test('sincronização externa vincula registro antigo não vinculado', async () => {
+  let update: any;
+  await syncUser({ id: 'ext-13', origem: 'EXTERNO', usuario: 'ANTIGO.USUARIO', matricula: '124' } as any, 7, {
+    user: {
+      findUnique: async () => null,
+      findFirst: async () => ({ id: 10, role: 'operador' }),
+      update: async (args: any) => { update = args; return args.data; },
+    },
+  });
+  assert.equal(update.where.id, 10);
+  assert.equal(update.data.authOrigin, 'EXTERNO');
+  assert.equal(update.data.authUserId, 'ext-13');
+});
+
 test('requireActiveTenant rejeita unidade inexistente ou inativa', async () => {
   await assert.rejects(() => requireActiveTenant('INVALIDA', async () => null), { status: 403 });
   assert.deepEqual(
