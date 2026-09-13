@@ -171,6 +171,32 @@ test('sincronização externa vincula registro antigo não vinculado', async () 
   assert.equal(update.data.authUserId, 'ext-13');
 });
 
+test('primeira sincronização externa cria leitor com identidade estável', async () => {
+  let created: any;
+  const result = await syncUser({ id: 'ext-14', origem: 'EXTERNO', usuario: 'NOVO.LEITOR', matricula: '125' } as any, 8, {
+    user: {
+      findUnique: async () => null,
+      findFirst: async () => null,
+      create: async (args: any) => { created = args.data; return args.data; },
+    },
+  });
+  assert.equal(created.factoryUnitId, 8);
+  assert.equal(created.authOrigin, 'EXTERNO');
+  assert.equal(created.authUserId, 'ext-14');
+  assert.equal(result.role, 'leitor');
+});
+
+test('conflito ao criar identidade externa não é convertido em outro vínculo', async () => {
+  const conflict = Object.assign(new Error('unique constraint'), { code: 'P2002' });
+  await assert.rejects(() => syncUser({ id: 'ext-15', origem: 'EXTERNO', usuario: 'JA.VINCULADO', matricula: '126' } as any, 8, {
+    user: {
+      findUnique: async () => null,
+      findFirst: async () => null,
+      create: async () => { throw conflict; },
+    },
+  }), conflict);
+});
+
 test('requireActiveTenant rejeita unidade inexistente ou inativa', async () => {
   await assert.rejects(() => requireActiveTenant('INVALIDA', async () => null), { status: 403 });
   assert.deepEqual(

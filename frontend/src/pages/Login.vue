@@ -6,6 +6,7 @@ import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus } from 'l
 import { api } from '@/services/httpClient'
 import {
   isLegacyUnit,
+  buildIdentitiesRegistrationUrl,
   selectInitialUnit,
   shouldDiscardStoredUnit,
 } from '@/services/auth/loginFlow'
@@ -97,8 +98,8 @@ async function handleLogin() {
 }
 
 function openExternalRegistration() {
-  if (!isExternalUnitSelected.value) return
-  window.open(`${identitiesUrl}/register?unidade=${encodeURIComponent(selectedUnit.value)}`, '_blank', 'noopener,noreferrer')
+  const url = buildIdentitiesRegistrationUrl(identitiesUrl, selectedUnit.value)
+  if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 </script>

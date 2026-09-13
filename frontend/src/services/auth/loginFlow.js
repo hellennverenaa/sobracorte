@@ -40,6 +40,13 @@ export function shouldDiscardStoredUnit(units, lastUnit) {
   )
 }
 
+export function buildIdentitiesRegistrationUrl(baseUrl, unitCode) {
+  const base = typeof baseUrl === 'string' ? baseUrl.trim().replace(/\/+$/, '') : ''
+  const unit = normalizeUnitCode(unitCode)
+  if (!base || !unit || isLegacyUnit(unit)) return null
+  return `${base}/register?unidade=${encodeURIComponent(unit)}`
+}
+
 export async function loginByUnit(authClient, unitCode, usuario, senha) {
   const normalizedUnit = normalizeUnitCode(unitCode)
   if (isLegacyUnit(normalizedUnit)) {

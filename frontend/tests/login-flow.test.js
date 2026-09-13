@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildIdentitiesRegistrationUrl,
   buildLoginPayload,
   getLoginEndpoint,
   isLegacyUnit,
@@ -8,6 +9,15 @@ import {
   selectInitialUnit,
   shouldDiscardStoredUnit,
 } from '../src/services/auth/loginFlow.js'
+
+test('URL de cadastro usa a base do DASS Identidades e codifica a unidade', () => {
+  assert.equal(
+    buildIdentitiesRegistrationUrl(' http://localhost:5173/identities/ ', ' saj '),
+    'http://localhost:5173/identities/register?unidade=SAJ',
+  )
+  assert.equal(buildIdentitiesRegistrationUrl('', 'SAJ'), null)
+  assert.equal(buildIdentitiesRegistrationUrl('http://localhost:5173/identities', 'SEST'), null)
+})
 
 test('SEST usa o login Unix e não envia unidade', () => {
   assert.equal(isLegacyUnit('SEST'), true)
