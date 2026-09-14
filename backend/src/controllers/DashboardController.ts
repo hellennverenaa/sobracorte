@@ -57,6 +57,10 @@ export class DashboardController {
         // Top 5 Entradas de Sobras (Corte & Multi-Setor)
         topLegacyEntradas,
         topStockEntradas,
+        // 🚀 SQL Window Function: Top 5 Materiais Acumulados particionados por Unidade de Medida
+        topRankedMaterialsByUnit,
+        // Distribuição física segregada por unidade de medida
+        distribuicaoPorUnidadeRaw,
       ] = await Promise.all([
         prisma.material.count({ where: { factoryUnitId } }),
         prisma.stockItem.count({ where: { factoryUnitId } }),
@@ -182,6 +186,143 @@ export class DashboardController {
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10
         }),
+        // 🚀 SQL Window Function: Top 5 Materiais Acumulados particionados por Setor e Unidade de Medida (Multi-Setor)
+        prisma.$queryRaw<Array<{
+          id: number;
+          code: string;
+          name: string;
+          quantity: string | number;
+          sector: string;
+          unitId: number | null;
+          unit: string;
+          type: string | null;
+          position: number | bigint;
+          global_position: number | bigint;
+        }>>`
+          SELECT 
+            ranked.id, 
+            ranked.code, 
+            ranked.name, 
+            ranked.quantity, 
+            ranked.sector,
+            ranked."unitId", 
+            ranked.unit, 
+            ranked.type, 
+            ranked.position,
+            ranked.global_position
+          FROM (
+            SELECT 
+              base.id,
+              base.code,
+              base.name,
+              base.quantity,
+              base.sector,
+              base."unitId",
+              base.unit,
+              base.type,
+              ROW_NUMBER() OVER (
+                PARTITION BY base.sector, base.unit 
+                ORDER BY base.quantity DESC, base.id ASC
+              ) AS position,
+              ROW_NUMBER() OVER (
+                PARTITION BY base.unit 
+                ORDER BY base.quantity DESC, base.id ASC
+              ) AS global_position
+            FROM (
+              SELECT 
+                m.id, 
+                m.code, 
+                m.name, 
+                m.quantity, 
+                'CORTE'::text AS sector,
+                u.id AS "unitId", 
+                COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
+                m.type
+              FROM sobra_corte."Material" m
+              LEFT JOIN sobra_corte."UnitConfig" u 
+                ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
+                AND u."factoryUnitId" = m."factoryUnitId"
+              WHERE m."factoryUnitId" = ${factoryUnitId}
+                AND m.quantity > 0
+
+              UNION ALL
+
+              SELECT 
+                s.id, 
+                COALESCE(s.code, s."pieceCode", s.sku, s."productName", 'ITEM-' || s.id::text) AS code,
+                COALESCE(
+                  s.name, 
+                  s.description, 
+                  s."productName", 
+                  s.sku, 
+                  CASE 
+                    WHEN s.sector = 'MONTAGEM' THEN 'Calçado Montagem'
+                    WHEN s.sector = 'PRE_FABRICADO' THEN 'Sola Pré-Fabricado'
+                    WHEN s.sector = 'APOIO' THEN 'Componente Apoio'
+                    ELSE 'Item Estoque'
+                  END
+                ) || CASE 
+                  WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' AND s."footSide" IS NOT NULL THEN ' (Tam ' || s."sizeGrade" || ' - Pé ' || s."footSide"::text || ')'
+                  WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' THEN ' (Tam ' || s."sizeGrade" || ')'
+                  WHEN s."footSide" IS NOT NULL THEN ' (Pé ' || s."footSide"::text || ')'
+                  ELSE ''
+                END AS name,
+                s.quantity,
+                s.sector::text AS sector,
+                u.id AS "unitId",
+                COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
+                COALESCE(s.type, s.color, s.sector::text) AS type
+              FROM sobra_corte."StockItem" s
+              LEFT JOIN sobra_corte."UnitConfig" u 
+                ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
+                AND u."factoryUnitId" = s."factoryUnitId"
+              WHERE s."factoryUnitId" = ${factoryUnitId}
+                AND s.quantity > 0
+            ) base
+          ) ranked
+          WHERE ranked.position <= 5 OR ranked.global_position <= 5
+          ORDER BY ranked.sector ASC, ranked.unit ASC, ranked.position ASC
+        `,
+        // Distribuição física segregada por unidade de medida (Material + StockItem)
+        prisma.$queryRaw<Array<{
+          unit: string;
+          totalQuantity: string | number;
+          itemsCount: number | bigint;
+        }>>`
+          SELECT 
+            u_summary.unit,
+            SUM(u_summary.quantity) AS "totalQuantity",
+            SUM(u_summary.items_count)::integer AS "itemsCount"
+          FROM (
+            SELECT 
+              COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit,
+              SUM(m.quantity) AS quantity,
+              COUNT(*)::integer AS items_count
+            FROM sobra_corte."Material" m
+            LEFT JOIN sobra_corte."UnitConfig" u 
+              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
+              AND u."factoryUnitId" = m."factoryUnitId"
+            WHERE m."factoryUnitId" = ${factoryUnitId}
+              AND m.quantity > 0
+            GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²'))))
+
+            UNION ALL
+
+            SELECT 
+              COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
+              SUM(s.quantity) AS quantity,
+              COUNT(*)::integer AS items_count
+            FROM sobra_corte."StockItem" s
+            LEFT JOIN sobra_corte."UnitConfig" u 
+              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
+              AND u."factoryUnitId" = s."factoryUnitId"
+            WHERE s."factoryUnitId" = ${factoryUnitId}
+              AND s.quantity > 0
+            GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND'))))
+          ) u_summary
+          GROUP BY u_summary.unit
+          ORDER BY u_summary.unit ASC
+        `,
       ]);
 
       const totalEntries = stockEntriesCount + legacyEntriesCount;
@@ -484,14 +625,136 @@ export class DashboardController {
       // Ordenar decrescente pela quantidade acumulada de entradas
       topSobrasEntrada.sort((a, b) => b.totalQuantity - a.totalQuantity);
 
+      // 6. Estruturação do Top 5 particionado por Setor e por Unidade via Window Function (Multi-Setor)
+      const topMateriaisPorSetorEUnidade: Record<string, Record<string, Array<{
+        id: number;
+        code: string;
+        name: string;
+        quantity: number;
+        sector: string;
+        unitId: number | null;
+        unit: string;
+        type: string;
+        position: number;
+      }>>> = {
+        TODOS: {},
+        CORTE: {},
+        APOIO: {},
+        PRE_FABRICADO: {},
+        DISTRIBUICAO: {},
+        EXPEDICAO: {},
+        MONTAGEM: {},
+      };
+
+      const topMateriaisPorUnidade: Record<string, Array<{
+        id: number;
+        code: string;
+        name: string;
+        quantity: number;
+        sector: string;
+        unitId: number | null;
+        unit: string;
+        type: string;
+        position: number;
+      }>> = {};
+
+      const unidadesSetPorSetor: Record<string, Set<string>> = {
+        TODOS: new Set(),
+        CORTE: new Set(),
+        APOIO: new Set(),
+        PRE_FABRICADO: new Set(),
+        DISTRIBUICAO: new Set(),
+        EXPEDICAO: new Set(),
+        MONTAGEM: new Set(),
+      };
+
+      const topMateriaisList: any[] = [];
+
+      for (const row of topRankedMaterialsByUnit || []) {
+        const sec = String(row.sector || 'CORTE').toUpperCase().trim();
+        const u = String(row.unit || (sec === 'CORTE' ? 'M²' : 'UND')).toUpperCase().trim();
+        const item = {
+          id: row.id,
+          code: row.code,
+          name: row.name,
+          quantity: Number(row.quantity) || 0,
+          sector: sec,
+          unitId: row.unitId ? Number(row.unitId) : null,
+          unit: u,
+          type: row.type || '',
+          position: Number(row.position) || 1,
+          globalPosition: Number(row.global_position) || 1,
+        };
+
+        topMateriaisList.push(item);
+
+        // Ranking Setorial (Top 5 do Setor)
+        if (Number(row.position) <= 5) {
+          if (!topMateriaisPorSetorEUnidade[sec]) topMateriaisPorSetorEUnidade[sec] = {};
+          if (!topMateriaisPorSetorEUnidade[sec][u]) topMateriaisPorSetorEUnidade[sec][u] = [];
+          topMateriaisPorSetorEUnidade[sec][u].push(item);
+          unidadesSetPorSetor[sec]?.add(u);
+
+          if (sec === 'DISTRIBUICAO') {
+            if (!topMateriaisPorSetorEUnidade.EXPEDICAO) topMateriaisPorSetorEUnidade.EXPEDICAO = {};
+            if (!topMateriaisPorSetorEUnidade.EXPEDICAO[u]) topMateriaisPorSetorEUnidade.EXPEDICAO[u] = [];
+            topMateriaisPorSetorEUnidade.EXPEDICAO[u].push(item);
+            unidadesSetPorSetor.EXPEDICAO?.add(u);
+          }
+        }
+
+        // Ranking Global (Top 5 Fabril na Unidade)
+        if (Number(row.global_position) <= 5) {
+          if (!topMateriaisPorUnidade[u]) topMateriaisPorUnidade[u] = [];
+          if (!topMateriaisPorSetorEUnidade.TODOS[u]) topMateriaisPorSetorEUnidade.TODOS[u] = [];
+
+          if (!topMateriaisPorUnidade[u].some(e => e.id === item.id && e.sector === item.sector)) {
+            topMateriaisPorUnidade[u].push(item);
+            topMateriaisPorSetorEUnidade.TODOS[u].push(item);
+            unidadesSetPorSetor.TODOS.add(u);
+          }
+        }
+      }
+
+      // Distribuição por unidade de medida física (calculada no SQL em distribuicaoPorUnidadeRaw)
+      const distribuicaoPorUnidade = (distribuicaoPorUnidadeRaw || []).map(d => ({
+        unit: String(d.unit || 'M²').toUpperCase().trim(),
+        totalQuantity: Number(d.totalQuantity) || 0,
+        itemsCount: Number(d.itemsCount) || 0,
+      }));
+
+      // Ordenador de unidades para dar preferência intuitiva a M² (Corte) e UND/PAR (outros setores)
+      const sortUnits = (units: string[]) => {
+        return units.sort((a, b) => {
+          if (a === 'M²' || a === 'M2') return -1;
+          if (b === 'M²' || b === 'M2') return 1;
+          if (a === 'UND') return -1;
+          if (b === 'UND') return 1;
+          return a.localeCompare(b);
+        });
+      };
+
+      const unidadesPorSetor: Record<string, string[]> = {};
+      for (const [sec, set] of Object.entries(unidadesSetPorSetor)) {
+        unidadesPorSetor[sec] = sortUnits(Array.from(set));
+      }
+
+      const unidadesDisponiveis = sortUnits(Array.from(unidadesSetPorSetor.TODOS));
+
       return res.json({
         stats,
         setores,
         volumePorSetor,
         distribuicao: materialDistribution,
+        distribuicaoPorUnidade,
         origemSobras,
         origensPorSetor,
         topSobrasEntrada,
+        topMateriais: topMateriaisList,
+        topMateriaisPorUnidade,
+        topMateriaisPorSetorEUnidade,
+        unidadesDisponiveis,
+        unidadesPorSetor,
       });
     } catch (error) {
       console.error('Erro analítico ao processar resumo consolidado do dashboard:', error);
@@ -575,25 +838,134 @@ export class DashboardController {
   }
 
   /**
-   * Rota para buscar os 5 materiais com maior acúmulo (Top 5)
+   * Rota para buscar os materiais com maior acúmulo (Top 5 Multi-Setor particionado via Window Function)
    */
   async getTopMateriais(req: Request, res: Response) {
     try {
-      const materiais = await prisma.material.findMany({
-        where: { factoryUnitId: req.tenant!.id },
-        orderBy: {
-          quantity: 'desc',
-        },
-        take: 5,
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          quantity: true,
-          unit: true,
-        },
-      });
-      return res.json(materiais);
+      const factoryUnitId = req.tenant!.id;
+      const targetSector = req.query.sector ? String(req.query.sector).toUpperCase().trim() : null;
+      const targetUnit = req.query.unit ? String(req.query.unit).toUpperCase().trim() : null;
+
+      const topRanked = await prisma.$queryRaw<Array<{
+        id: number;
+        code: string;
+        name: string;
+        quantity: string | number;
+        sector: string;
+        unitId: number | null;
+        unit: string;
+        type: string | null;
+        position: number | bigint;
+        global_position: number | bigint;
+      }>>`
+        SELECT 
+          ranked.id, 
+          ranked.code, 
+          ranked.name, 
+          ranked.quantity, 
+          ranked.sector,
+          ranked."unitId", 
+          ranked.unit, 
+          ranked.type, 
+          ranked.position,
+          ranked.global_position
+        FROM (
+          SELECT 
+            base.id,
+            base.code,
+            base.name,
+            base.quantity,
+            base.sector,
+            base."unitId",
+            base.unit,
+            base.type,
+            ROW_NUMBER() OVER (
+              PARTITION BY base.sector, base.unit 
+              ORDER BY base.quantity DESC, base.id ASC
+            ) AS position,
+            ROW_NUMBER() OVER (
+              PARTITION BY base.unit 
+              ORDER BY base.quantity DESC, base.id ASC
+            ) AS global_position
+          FROM (
+            SELECT 
+              m.id, 
+              m.code, 
+              m.name, 
+              m.quantity, 
+              'CORTE'::text AS sector,
+              u.id AS "unitId", 
+              COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
+              m.type
+            FROM sobra_corte."Material" m
+            LEFT JOIN sobra_corte."UnitConfig" u 
+              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
+              AND u."factoryUnitId" = m."factoryUnitId"
+            WHERE m."factoryUnitId" = ${factoryUnitId}
+              AND m.quantity > 0
+
+            UNION ALL
+
+            SELECT 
+              s.id, 
+              COALESCE(s.code, s."pieceCode", s.sku, s."productName", 'ITEM-' || s.id::text) AS code,
+              COALESCE(
+                s.name, 
+                s.description, 
+                s."productName", 
+                s.sku, 
+                CASE 
+                  WHEN s.sector = 'MONTAGEM' THEN 'Calçado Montagem'
+                  WHEN s.sector = 'PRE_FABRICADO' THEN 'Sola Pré-Fabricado'
+                  WHEN s.sector = 'APOIO' THEN 'Componente Apoio'
+                  ELSE 'Item Estoque'
+                END
+              ) || CASE 
+                WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' AND s."footSide" IS NOT NULL THEN ' (Tam ' || s."sizeGrade" || ' - Pé ' || s."footSide"::text || ')'
+                WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' THEN ' (Tam ' || s."sizeGrade" || ')'
+                WHEN s."footSide" IS NOT NULL THEN ' (Pé ' || s."footSide"::text || ')'
+                ELSE ''
+              END AS name,
+              s.quantity,
+              s.sector::text AS sector,
+              u.id AS "unitId",
+              COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
+              COALESCE(s.type, s.color, s.sector::text) AS type
+            FROM sobra_corte."StockItem" s
+            LEFT JOIN sobra_corte."UnitConfig" u 
+              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
+              AND u."factoryUnitId" = s."factoryUnitId"
+            WHERE s."factoryUnitId" = ${factoryUnitId}
+              AND s.quantity > 0
+          ) base
+        ) ranked
+        WHERE ranked.position <= 5 OR ranked.global_position <= 5
+        ORDER BY ranked.sector ASC, ranked.unit ASC, ranked.position ASC
+      `;
+
+      let list = (topRanked || []).map(row => ({
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        quantity: Number(row.quantity) || 0,
+        sector: String(row.sector || 'CORTE').toUpperCase().trim(),
+        unitId: row.unitId ? Number(row.unitId) : null,
+        unit: String(row.unit || 'UND').toUpperCase().trim(),
+        type: row.type || '',
+        position: Number(row.position) || 1,
+        globalPosition: Number(row.global_position) || 1,
+      }));
+
+      if (targetSector && targetSector !== 'TODOS') {
+        const mappedSec = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector;
+        list = list.filter(item => item.sector === mappedSec);
+      }
+
+      if (targetUnit) {
+        list = list.filter(item => item.unit === targetUnit);
+      }
+
+      return res.json(list);
     } catch (error) {
       console.error('Erro ao buscar maiores acúmulos do dashboard:', error);
       return res.status(500).json({ error: 'Erro interno no banco de dados ao buscar maiores acúmulos.' });

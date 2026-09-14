@@ -61,6 +61,11 @@ const pieChartData         = ref([])
 const origemChartData      = ref([])
 const origensPorSetorData  = ref({})
 const topSobrasEntrada     = ref([])
+const topMateriaisPorUnidade = ref({})
+const topMateriaisPorSetorEUnidade = ref({})
+const unidadesDisponiveis   = ref([])
+const unidadesPorSetor      = ref({})
+const selectedTopUnit       = ref('M²')
 
 const isLoading         = ref(true)
 const hoveredSector     = ref(null)
@@ -377,8 +382,102 @@ const currentFilteredPairsCard = computed(() => {
   };
 });
 
-// 5. Top 5 Entradas de Sobras Filtradas pelo Setor Selecionado
+// 5. Unidades de Medida Disponíveis para o Top 5 Reativas ao Setor
+const availableUnitsForTop = computed(() => {
+  const currentSector = selectedSector.value || 'TODOS'
+  const fromSector = unidadesPorSetor.value[currentSector]
+  if (fromSector && fromSector.length > 0) return fromSector
+
+  // Fallback para unidades do setor extraídas de topMateriaisPorSetorEUnidade
+  const sectorData = topMateriaisPorSetorEUnidade.value[currentSector]
+  if (sectorData) {
+    const keys = Object.keys(sectorData)
+    if (keys.length > 0) return keys
+  }
+
+  // Fallback para unidades globais
+  if (unidadesDisponiveis.value && unidadesDisponiveis.value.length > 0) {
+    if (currentSector === 'CORTE') {
+      const corteUnits = unidadesDisponiveis.value.filter(u => u === 'M²' || u === 'M2' || u === 'KG' || u === 'M')
+      return corteUnits.length > 0 ? corteUnits : ['M²']
+    }
+    if (currentSector !== 'TODOS') {
+      const discreteUnits = unidadesDisponiveis.value.filter(u => u !== 'M²' && u !== 'M2')
+      return discreteUnits.length > 0 ? discreteUnits : ['UND', 'PAR']
+    }
+    return unidadesDisponiveis.value
+  }
+
+  return currentSector === 'CORTE' ? ['M²'] : currentSector === 'TODOS' ? ['M²', 'KG', 'UND', 'PAR'] : ['UND', 'PAR']
+})
+
+// Sincroniza a unidade de medida do Top 5 automaticamente ao alternar de setor
+watch(selectedSector, (newSec) => {
+  const validUnits = availableUnitsForTop.value || []
+  if (validUnits.length > 0) {
+    if (!validUnits.includes(selectedTopUnit.value)) {
+      selectedTopUnit.value = validUnits[0]
+    }
+  } else {
+    selectedTopUnit.value = newSec === 'CORTE' || newSec === 'TODOS' ? 'M²' : 'UND'
+  }
+})
+
+// 6. Top 5 Materiais Particionados por Setor e por Unidade (Window Functions)
+const currentTopMateriais = computed(() => {
+  const currentSector = selectedSector.value || 'TODOS'
+  const unit = String(selectedTopUnit.value || '').toUpperCase().trim()
+
+  // 1. Tenta buscar direto do mapa estruturado por setor e unidade
+  const sectorMap = topMateriaisPorSetorEUnidade.value[currentSector]
+  if (sectorMap) {
+    // Correspondência exata
+    if (sectorMap[unit] && sectorMap[unit].length > 0) {
+      return sectorMap[unit].slice(0, 5)
+    }
+    // Correspondência case-insensitive
+    for (const [uKey, items] of Object.entries(sectorMap)) {
+      if (uKey.toUpperCase().trim() === unit && items?.length > 0) {
+        return items.slice(0, 5)
+      }
+    }
+  }
+
+  // 2. Se for 'TODOS' ou fallback, busca no topMateriaisPorUnidade global
+  if (currentSector === 'TODOS') {
+    const globalUnitData = topMateriaisPorUnidade.value[unit]
+    if (globalUnitData && globalUnitData.length > 0) {
+      return globalUnitData.slice(0, 5)
+    }
+    for (const [uKey, items] of Object.entries(topMateriaisPorUnidade.value || {})) {
+      if (uKey.toUpperCase().trim() === unit && items?.length > 0) {
+        return items.slice(0, 5)
+      }
+    }
+  }
+
+  // 3. Fallback para topSobrasEntrada
+  if (topSobrasEntrada.value && topSobrasEntrada.value.length > 0) {
+    const filtered = topSobrasEntrada.value.filter(item => {
+      const matchSector = currentSector === 'TODOS' || item.sector === currentSector || (currentSector === 'CORTE' && !item.sector)
+      const itemUnit = String(item.unit || '').toUpperCase().trim()
+      const matchUnit = itemUnit === unit || (unit === 'M²' && (itemUnit === 'M2' || item.sector === 'CORTE'))
+      return matchSector && matchUnit
+    })
+    if (filtered.length > 0) return filtered.slice(0, 5)
+
+    const sectorFiltered = topSobrasEntrada.value.filter(item => currentSector === 'TODOS' || item.sector === currentSector)
+    if (sectorFiltered.length > 0) return sectorFiltered.slice(0, 5)
+  }
+
+  return []
+})
+
+// 7. Top 5 Entradas de Sobras Filtradas pelo Setor Selecionado (Compatibilidade)
 const filteredTopSobras = computed(() => {
+  if (currentTopMateriais.value && currentTopMateriais.value.length > 0) {
+    return currentTopMateriais.value
+  }
   if (selectedSector.value === 'TODOS') {
     return topSobrasEntrada.value.slice(0, 5)
   }
@@ -386,7 +485,7 @@ const filteredTopSobras = computed(() => {
   return filtered.length > 0 ? filtered.slice(0, 5) : []
 })
 
-// 6. Origem das Entradas Reativa ao Setor Selecionado
+// 8. Origem das Entradas Reativa ao Setor Selecionado
 const filteredOrigemChartData = computed(() => {
   let list = []
   if (selectedSector.value === 'TODOS') {
@@ -519,8 +618,18 @@ async function loadData() {
 
     origensPorSetorData.value = origensPorSetorRaw
 
-    // 6. Top Sobras Entrada
-    topSobrasEntrada.value = topSobrasRaw
+    // 6. Top Sobras Entrada & Top Materiais Particionados por Setor e Unidade
+    topSobrasEntrada.value = topSobrasRaw || []
+    topMateriaisPorUnidade.value = summary?.topMateriaisPorUnidade || {}
+    topMateriaisPorSetorEUnidade.value = summary?.topMateriaisPorSetorEUnidade || {}
+    unidadesDisponiveis.value = summary?.unidadesDisponiveis || []
+    unidadesPorSetor.value = summary?.unidadesPorSetor || {}
+
+    // Ajusta a unidade padrão reativa ao setor selecionado
+    const validUnits = availableUnitsForTop.value || []
+    if (validUnits.length > 0 && !validUnits.includes(selectedTopUnit.value)) {
+      selectedTopUnit.value = validUnits[0]
+    }
 
   } catch (error) {
     console.error('Erro ao carregar métricas analíticas do dashboard:', error)
@@ -914,11 +1023,26 @@ onUnmounted(() => {
               </span>
             </div>
 
+            <!-- Seletor de Unidade de Medida Segregada -->
+            <div v-if="availableUnitsForTop.length > 1" class="flex flex-wrap gap-1.5 mb-3">
+              <button
+                v-for="u in availableUnitsForTop"
+                :key="u"
+                @click="selectedTopUnit = u"
+                class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border"
+                :class="selectedTopUnit === u 
+                  ? 'bg-red-500 text-white border-red-500 shadow-sm' 
+                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'"
+              >
+                {{ u }}
+              </button>
+            </div>
+
             <div class="w-full flex-1 flex flex-col justify-between">
               <div class="space-y-1.5">
                 <div
-                  v-for="(item, index) in filteredTopSobras"
-                  :key="item.id"
+                  v-for="(item, index) in currentTopMateriais"
+                  :key="item.id || index"
                   class="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors text-xs"
                 >
                   <div class="flex items-center gap-2 min-w-0">
@@ -926,27 +1050,27 @@ onUnmounted(() => {
                       class="w-5 h-5 rounded-md flex items-center justify-center font-black text-[10px] shrink-0"
                       :class="index === 0 ? 'bg-red-100 text-red-700' : index === 1 ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'"
                     >
-                      {{ index + 1 }}
+                      {{ item.position || (index + 1) }}
                     </span>
                     <div class="min-w-0">
                       <p class="font-bold text-slate-800 truncate text-[11px]">{{ item.name }}</p>
-                      <p class="text-[9px] text-slate-400 font-mono">Cód: {{ item.code }} · {{ item.sector }}</p>
+                      <p class="text-[9px] text-slate-400 font-mono">Cód: {{ item.code }}{{ item.type ? ` · ${item.type}` : (item.sector ? ` · ${item.sector}` : '') }}</p>
                     </div>
                   </div>
                   <div class="text-right shrink-0 ml-2">
-                    <span class="font-black text-red-700 text-xs">{{ formatNumber(item.totalQuantity) }}</span>
-                    <span class="text-[9px] text-slate-400 ml-0.5 uppercase">{{ item.unit }}</span>
+                    <span class="font-black text-red-700 text-xs">{{ formatNumber(item.quantity ?? item.totalQuantity) }}</span>
+                    <span class="text-[9px] text-slate-400 ml-0.5 uppercase">{{ item.unit || selectedTopUnit }}</span>
                   </div>
                 </div>
 
-                <div v-if="filteredTopSobras.length === 0" class="p-6 text-center text-slate-400 text-xs italic">
-                  Nenhuma entrada de sobra registrada para este setor.
+                <div v-if="currentTopMateriais.length === 0" class="p-6 text-center text-slate-400 text-xs italic">
+                  Nenhum material registrado para a unidade {{ selectedTopUnit }}.
                 </div>
               </div>
 
               <div class="w-full text-center border-t border-slate-100 pt-2.5 mt-3">
                 <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                  Entradas Acumuladas no Sistema
+                  Estoque Acumulado por Unidade
                 </span>
               </div>
             </div>
