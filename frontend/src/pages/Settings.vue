@@ -857,6 +857,9 @@ import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { useConfirmModal } from '@/composables/useConfirmModal'
+import { formatDate, formatNumber } from '@/utils/format'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
   Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2, Building2, Sliders, ClipboardList
@@ -905,47 +908,9 @@ const tabs = computed(() => {
 })
 const activeTab = ref(authStore.user?.assignedSector === 'CONSUMO' ? 'origins' : 'categories')
 
-// --- NOTIFICAÇÕES ---
-const notification = ref({ show: false, type: 'success', message: '' })
-function showNotification(type, message) {
-  notification.value = { show: true, type, message }
-  setTimeout(() => { notification.value.show = false }, 3500)
-}
-
-// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-})
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  }
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true
-    try {
-      await confirmState.value.action()
-    } finally {
-      confirmState.value.loading = false
-      confirmState.value.show = false
-    }
-  }
-}
+// --- NOTIFICAÇÕES & MODAL DE CONFIRMAÇÃO COMPARTILHADOS ---
+const { notification, showNotification } = useToast(3500)
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal()
 
 // CATEGORIAS
 const categories = ref([])

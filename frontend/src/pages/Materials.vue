@@ -296,9 +296,10 @@ import Layout from "../components/Layout.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import { Lock } from 'lucide-vue-next'
 import { api } from '../services/httpClient'
-
-// 1. LINHA PARA IMPORTAR:
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { useConfirmModal } from '@/composables/useConfirmModal'
+import { formatNumber } from '@/utils/format'
 
 const materials = ref([]);
 const search = ref("");
@@ -307,55 +308,9 @@ const showCreateModal = ref(false);
 const editingItem = ref(null);
 const viewingItem = ref(null);
 
-
-
-// 2. ADICIONE ESTA LINHA PARA CRIAR A VARIÁVEL:
 const authStore = useAuthStore()
-
-// TAREFA 1: Sistema de Notificações Elegante
-const notification = ref({ show: false, type: "", message: "" });
-
-function showNotification(type, message) {
-  notification.value = { show: true, type, message };
-  setTimeout(() => {
-    notification.value.show = false;
-  }, 3000);
-}
-
-// --- MODAL DE CONFIRMAÇÃO REUTILIZÁVEL ---
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-});
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
+const { notification, showNotification } = useToast()
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal()
 
 const form = ref({ code: "", name: "", type: "", unit: "", quantity: 0, location: "", observation: "" });
 const categories = ref(["Todos"]);
@@ -507,10 +462,6 @@ const paginatedMaterials = computed(() => {
     .sort((a, b) => b.id - a.id)
     .slice(0, 50);
 });
-
-function formatNumber(num) {
-  return Number(num).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
-}
 
 function openCreateModal() {
   editingItem.value = null;

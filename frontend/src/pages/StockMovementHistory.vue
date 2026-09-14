@@ -3,6 +3,7 @@ import { ref, onMounted, reactive } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
+import { formatDate } from '@/utils/format';
 import { 
   History, RefreshCw, User, Download
 } from 'lucide-vue-next';
@@ -56,18 +57,6 @@ function exportCSV() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-}
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function getTypeBadge(type: string) {

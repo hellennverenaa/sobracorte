@@ -5,7 +5,7 @@
       <transition name="fade-down">
         <div v-if="notification.show"
           class="absolute top-6 right-6 z-[99] px-6 py-3 rounded-xl shadow-xl font-bold flex items-center gap-3 text-sm animate-fade-in"
-          :class="notification.style">
+          :class="notificationStyle">
           <svg v-if="notification.type === 'success'" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
             viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
@@ -269,6 +269,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import Layout from '../components/Layout.vue'
 import { api } from '../services/httpClient'
+import { useToast } from '@/composables/useToast'
+import { formatNumber, formatDate } from '@/utils/format'
 
 const dbLocations = ref([]);
 const origensSobra = ref([]);
@@ -281,7 +283,20 @@ const searchQuery = ref('')
 const selectedMaterial = ref(null)
 const showDropdown = ref(false)
 const historySearch = ref('')
-const notification = ref({ show: false, message: '', type: 'success', style: '' })
+const { notification, showNotification: triggerNotification } = useToast()
+
+const notificationStyle = computed(() => {
+  if (notification.value.type === 'success') {
+    return form.value.type === 'ENTRADA'
+      ? 'bg-gradient-to-r from-red-500 to-red-600 text-red-50'
+      : 'bg-gradient-to-r from-green-500 to-green-600 text-green-50';
+  }
+  return 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-50';
+})
+
+function showNotification(message, type = 'success') {
+  triggerNotification(type, message)
+}
 
 const locationOptions = computed(() => {
   if (form.value.type === 'SAIDA') {
@@ -437,31 +452,6 @@ function selectMaterial(mat) {
 function filterMaterials() {
   selectedMaterial.value = null
   showDropdown.value = true
-}
-
-function formatNumber(num) {
-  return Number(num || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })
-}
-
-function formatDate(date) {
-  if (!date) return '-';
-  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-function showNotification(message, type = 'success', moveType = 'SAIDA') {
-  notification.value.message = message;
-  notification.value.type = type;
-
-  if (type === 'success') {
-    notification.value.style = moveType === 'ENTRADA'
-      ? 'bg-gradient-to-r from-red-500 to-red-600 text-red-50'
-      : 'bg-gradient-to-r from-green-500 to-green-600 text-green-50';
-  } else {
-    notification.value.style = 'bg-gradient-to-r from-amber-500 to-amber-600 text-amber-50';
-  }
-
-  notification.value.show = true;
-  setTimeout(() => notification.value.show = false, 3000);
 }
 
 async function submitMovement() {

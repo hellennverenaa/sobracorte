@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { formatNumber, formatDate } from '@/utils/format'
 import {
   FileSpreadsheet,
   Printer,
@@ -83,11 +85,7 @@ const canExport = computed(() => {
 })
 
 // --- NOTIFICAÇÕES TOAST ---
-const notification = ref({ show: false, type: 'success', message: '' })
-function showNotification(type, message) {
-  notification.value = { show: true, type, message }
-  setTimeout(() => { notification.value.show = false }, 3500)
-}
+const { notification, showNotification } = useToast(3500)
 
 // --- FILTROS DE CONSULTA ---
 const filters = ref({

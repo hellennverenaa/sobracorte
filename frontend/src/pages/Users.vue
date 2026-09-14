@@ -5,6 +5,9 @@ import Layout from "@/components/Layout.vue";
 import { Trash2, Edit, Search, UserCheck, Shield, ShieldCheck, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle, Layers } from "lucide-vue-next";
 import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import { useToast } from "@/composables/useToast";
+import { useConfirmModal } from "@/composables/useConfirmModal";
+import { formatDate } from "@/utils/format";
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -13,45 +16,8 @@ const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
 
-const notification = ref({ show: false, type: 'success', message: '' });
-function showNotification(type, message) {
-  notification.value = { show: true, type, message };
-  setTimeout(() => { notification.value.show = false; }, 3500);
-}
-
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Excluir',
-  variant: 'danger',
-  loading: false,
-  action: null
-});
-
-function openConfirmModal({ title, message, confirmText = 'Excluir', variant = 'danger', action }) {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    variant,
-    loading: false,
-    action
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
+const { notification, showNotification } = useToast(3500);
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
 const roleOptions = [
   { value: "admin", label: "Admin Master", description: "Acesso irrestrito a todos os setores, configurações globais e aprovações", icon: Shield, color: "text-purple-600 bg-purple-100" },
@@ -100,18 +66,6 @@ const openAuditModal = async () => {
     loadingAudit.value = false;
   }
 };
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 const saveUserRole = async () => {
   if (!editingUser.value) return;

@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import { useConfirmModal } from '@/composables/useConfirmModal';
+import { formatNumber } from '@/utils/format';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
@@ -96,45 +98,7 @@ const canDelete = computed(() => {
 });
 
 // Modal de Confirmação Corporativo
-const confirmState = ref({
-  show: false,
-  title: '',
-  message: '',
-  confirmText: 'Sim, Excluir',
-  variant: 'danger' as 'danger' | 'warning' | 'primary',
-  loading: false,
-  action: null as (() => Promise<void>) | null,
-});
-
-function openConfirmModal(config: {
-  title: string;
-  message: string;
-  confirmText?: string;
-  variant?: 'danger' | 'warning' | 'primary';
-  action: () => Promise<void>;
-}) {
-  confirmState.value = {
-    show: true,
-    title: config.title,
-    message: config.message,
-    confirmText: config.confirmText || 'Sim, Excluir',
-    variant: config.variant || 'danger',
-    loading: false,
-    action: config.action,
-  };
-}
-
-async function handleConfirmedAction() {
-  if (typeof confirmState.value.action === 'function') {
-    confirmState.value.loading = true;
-    try {
-      await confirmState.value.action();
-    } finally {
-      confirmState.value.loading = false;
-      confirmState.value.show = false;
-    }
-  }
-}
+const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
 function confirmDelete(item: any) {
   const isCorte = activeTab.value === 'CORTE' || item.sector === 'CORTE';
@@ -510,10 +474,6 @@ function getItemIdentifier(item: any) {
 function getItemDescription(item: any) {
   if (!item) return '';
   return item.name || item.description || item.productName || item.sku || '';
-}
-
-function formatNumber(num: number) {
-  return Number(num || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 watch(

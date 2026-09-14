@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
+import { formatDate } from '@/utils/format';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
@@ -572,18 +573,6 @@ function formatSectorName(sec: string) {
     MONTAGEM: 'Montagem',
   };
   return map[sec] || sec;
-}
-
-function formatDate(iso: string) {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 watch(() => route.query.status, (newStatus) => {
