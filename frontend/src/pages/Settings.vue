@@ -970,15 +970,22 @@ async function addCategory() {
 
 async function deleteCategory(cat) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
-  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Categoria' : 'Excluir Categoria de Material'
-  const message = isAdmin
-    ? `Atenção Admin: A categoria "${cat.name}" possui ou pode possuir materiais vinculados. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
+  const linked = cat.linkedCount || 0
+
+  if (!isAdmin && linked > 0) {
+    showNotification('error', `Não é possível excluir: existem ${linked} material(is) ou item(ns) vinculados a esta categoria. Apenas o Administrador Master pode gerenciar esta exclusão.`)
+    return
+  }
+
+  const title = linked > 0 ? '⚠️ Atenção Admin Master: Excluir Categoria' : 'Excluir Categoria de Material'
+  const message = linked > 0
+    ? `Atenção Admin Master: A categoria "${cat.name}" possui ${linked} material(is)/item(ns) vinculados no sistema. Ao confirmar a exclusão, esses registros perderão o vínculo desta categoria. Esta ação será registrada no Histórico de Auditoria. Deseja realmente prosseguir?`
     : `Deseja excluir a categoria "${cat.name}"?`
 
   openConfirmModal({
     title,
     message,
-    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Sim, Excluir Categoria',
+    confirmText: linked > 0 ? 'Confirmar Exclusão (Admin Master)' : 'Sim, Excluir Categoria',
     variant: 'danger',
     action: async () => {
       try {
@@ -1029,15 +1036,22 @@ async function addUnit() {
 
 async function deleteUnit(unit) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
-  const title = isAdmin ? '⚠️ Atenção Admin: Desativar Unidade' : 'Desativar Unidade de Medida'
-  const message = isAdmin
-    ? `Atenção Admin: A unidade "${unit.name} (${unit.symbol})" possui ou pode possuir materiais vinculados. A desativação forçada será registrada no Histórico. Deseja prosseguir?`
+  const linked = unit.linkedCount || 0
+
+  if (!isAdmin && linked > 0) {
+    showNotification('error', `Não é possível desativar: existem ${linked} material(is) ou item(ns) usando esta unidade. Apenas o Administrador Master pode gerenciar esta alteração.`)
+    return
+  }
+
+  const title = linked > 0 ? '⚠️ Atenção Admin Master: Desativar Unidade' : 'Desativar Unidade de Medida'
+  const message = linked > 0
+    ? `Atenção Admin Master: A unidade "${unit.name} (${unit.symbol})" possui ${linked} material(is)/item(ns) cadastrados. Ao desativar, novos cadastros não poderão selecionar esta unidade, mantendo o histórico existente intacto. Deseja prosseguir?`
     : `Deseja desativar a unidade "${unit.name} (${unit.symbol})"?`
 
   openConfirmModal({
     title,
     message,
-    confirmText: isAdmin ? 'Confirmar Desativação (Admin)' : 'Desativar Unidade',
+    confirmText: linked > 0 ? 'Confirmar Desativação (Admin Master)' : 'Desativar Unidade',
     variant: 'danger',
     action: async () => {
       try {
@@ -1226,15 +1240,23 @@ async function addLocation() {
 
 async function deleteLocation(loc) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
-  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Localização' : 'Excluir Localização'
-  const message = isAdmin
-    ? `Atenção Admin: A localização "${loc.name}" possui materiais vinculados. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
+  const linked = loc.linkedCount || 0
+  const qty = loc.totalQuantity || 0
+
+  if (!isAdmin && linked > 0) {
+    showNotification('error', `Não é possível excluir: existem ${linked} material(is) ou item(ns) vinculados a esta localização. Apenas o Administrador Master pode gerenciar esta exclusão.`)
+    return
+  }
+
+  const title = linked > 0 ? '⚠️ Atenção Admin Master: Excluir Localização' : 'Excluir Localização'
+  const message = linked > 0
+    ? `Atenção Admin Master: A localização/prateleira "${loc.name}" possui ${linked} material(is)/item(ns) vinculados${qty > 0 ? ` (Saldo total: ${qty} em estoque físico)` : ''}. Ao confirmar a exclusão, os vínculos desta prateleira serão removidos. Esta ação será registrada no Histórico de Auditoria. Deseja prosseguir?`
     : `Deseja excluir a localização "${loc.name}"?`
 
   openConfirmModal({
     title,
     message,
-    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Excluir Localização',
+    confirmText: linked > 0 ? 'Confirmar Exclusão (Admin Master)' : 'Sim, Excluir Localização',
     variant: 'danger',
     action: async () => {
       try {
@@ -1287,15 +1309,22 @@ async function addOrigin() {
 
 async function deleteOrigin(orig) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
-  const title = isAdmin ? '⚠️ Atenção Admin: Excluir Origem' : 'Excluir Origem de Sobra'
-  const message = isAdmin
-    ? `Atenção Admin: A origem "${orig.name}" possui movimentações vinculadas. A exclusão forçada será registrada no Histórico. Deseja prosseguir?`
+  const linked = orig.linkedCount || 0
+
+  if (!isAdmin && linked > 0) {
+    showNotification('error', `Não é possível excluir: existem ${linked} movimentação(ões) vinculadas a esta origem. Apenas o Administrador Master pode gerenciar esta exclusão.`)
+    return
+  }
+
+  const title = linked > 0 ? '⚠️ Atenção Admin Master: Excluir Origem' : 'Excluir Origem de Sobra'
+  const message = linked > 0
+    ? `Atenção Admin Master: A origem "${orig.name}" possui ${linked} movimentação(ões) associadas no histórico. A exclusão removerá esta opção para novas entradas. Deseja prosseguir?`
     : `Deseja excluir a origem "${orig.name}"?`
 
   openConfirmModal({
     title,
     message,
-    confirmText: isAdmin ? 'Confirmar Exclusão (Admin)' : 'Excluir Origem',
+    confirmText: linked > 0 ? 'Confirmar Exclusão (Admin Master)' : 'Sim, Excluir Origem',
     variant: 'danger',
     action: async () => {
       try {

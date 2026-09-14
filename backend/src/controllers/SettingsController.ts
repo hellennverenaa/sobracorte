@@ -60,7 +60,20 @@ export class SettingsController {
         orderBy: [{ sector: 'asc' }, { name: 'asc' }],
         include: { defaultUnit: true }
       });
-      res.json(categories);
+
+      const categoriesWithCount = await Promise.all(
+        categories.map(async (cat) => {
+          const [matCount, stockCount] = await Promise.all([
+            prisma.material.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } }),
+            prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } }),
+          ]);
+          return {
+            ...cat,
+            linkedCount: matCount + stockCount,
+          };
+        })
+      );
+      res.json(categoriesWithCount);
     } catch (error) {
       console.error('Erro ao buscar categorias:', error);
       res.status(500).json({ error: 'Erro ao buscar categorias' });
@@ -216,7 +229,7 @@ export class SettingsController {
 
       if (totalActive > 0 && !isAdmin) {
         return res.status(400).json({
-          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) usando esta categoria.`
+          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) usando esta categoria. Apenas o Administrador Master pode gerenciar esta exclusão.`
         });
       }
 
@@ -287,7 +300,20 @@ export class SettingsController {
         });
       }
 
-      res.json(units);
+      const unitsWithCount = await Promise.all(
+        units.map(async (unit) => {
+          const [matCount, stockCount] = await Promise.all([
+            prisma.material.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } }),
+            prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } }),
+          ]);
+          return {
+            ...unit,
+            linkedCount: matCount + stockCount,
+          };
+        })
+      );
+
+      res.json(unitsWithCount);
     } catch (error) {
       console.error('Erro ao buscar unidades:', error);
       res.status(500).json({ error: 'Erro ao buscar unidades de medida' });
@@ -386,7 +412,7 @@ export class SettingsController {
 
       if (totalActive > 0 && !isAdmin) {
         return res.status(400).json({
-          error: `Não é possível desativar: existem ${totalActive} material(is) ou item(ns) usando esta unidade.`
+          error: `Não é possível desativar: existem ${totalActive} material(is) ou item(ns) usando esta unidade. Apenas o Administrador Master pode gerenciar esta alteração.`
         });
       }
 
@@ -450,7 +476,31 @@ export class SettingsController {
           }
         }
       });
-      res.json(locations);
+
+      const locationsWithStats = await Promise.all(
+        locations.map(async (loc) => {
+          const [matLocs, stockLocs] = await Promise.all([
+            prisma.materialLocation.findMany({
+              where: { factoryUnitId: req.tenant!.id, locationId: loc.id },
+              select: { quantity: true }
+            }),
+            prisma.stockItemLocation.findMany({
+              where: { factoryUnitId: req.tenant!.id, locationId: loc.id },
+              select: { quantity: true }
+            })
+          ]);
+          const totalLinked = matLocs.length + stockLocs.length;
+          const totalQuantity = matLocs.reduce((sum, item) => sum + Number(item.quantity || 0), 0) +
+                                stockLocs.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+          return {
+            ...loc,
+            linkedCount: totalLinked,
+            totalQuantity: Number(totalQuantity.toFixed(2)),
+          };
+        })
+      );
+
+      res.json(locationsWithStats);
     } catch (error) {
       console.error('Erro ao buscar localizações:', error);
       res.status(500).json({ error: 'Erro ao buscar localizações' });
@@ -679,10 +729,10 @@ export class SettingsController {
 
       // 1. Verificar vínculos em MaterialLocation (Corte legado) e StockItemLocation (Multi-setor)
       const materialCount = await prisma.materialLocation.count({
-        where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
+        where: { factoryUnitId: req.tenant!.id, locationId: id }
       });
       const stockCount = await prisma.stockItemLocation.count({
-        where: { factoryUnitId: req.tenant!.id, locationId: id, quantity: { gt: 0 } }
+        where: { factoryUnitId: req.tenant!.id, locationId: id }
       });
       const totalActive = materialCount + stockCount;
 
@@ -690,7 +740,7 @@ export class SettingsController {
 
       if (totalActive > 0 && !isAdmin) {
         return res.status(400).json({
-          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) com saldo nesta localização.`
+          error: `Não é possível excluir: existem ${totalActive} material(is) ou item(ns) vinculados a esta localização. Apenas o Administrador Master pode gerenciar esta exclusão.`
         });
       }
 
@@ -753,7 +803,21 @@ export class SettingsController {
         where: whereClause,
         orderBy: { id: 'desc' }
       });
-      res.json(origins);
+
+      const originsWithCount = await Promise.all(
+        origins.map(async (orig) => {
+          const [movCount, stockMovCount] = await Promise.all([
+            prisma.movement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } }),
+            prisma.stockMovement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } }),
+          ]);
+          return {
+            ...orig,
+            linkedCount: movCount + stockMovCount,
+          };
+        })
+      );
+
+      res.json(originsWithCount);
     } catch (error) {
       console.error('Erro ao buscar origens:', error);
       res.status(500).json({ error: 'Erro ao buscar origens' });
@@ -839,7 +903,7 @@ export class SettingsController {
 
       if (totalActive > 0 && !isAdmin) {
         return res.status(400).json({
-          error: `Não é possível excluir: existem ${totalActive} movimentação(ões) vinculadas a esta origem.`
+          error: `Não é possível excluir: existem ${totalActive} movimentação(ões) vinculadas a esta origem. Apenas o Administrador Master pode gerenciar esta exclusão.`
         });
       }
 
