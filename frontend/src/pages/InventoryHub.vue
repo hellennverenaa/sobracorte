@@ -8,6 +8,7 @@ import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmModal } from '@/composables/useConfirmModal';
+import { useToast } from '@/composables/useToast';
 import { formatNumber } from '@/utils/format';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
@@ -56,18 +57,7 @@ const dbLocations = ref<any[]>([]);
 const dbOrigins = ref<any[]>([]);
 
 // Notificação padrão
-const notification = ref({
-  show: false,
-  message: '',
-  type: 'success' as 'success' | 'error',
-});
-
-function showToast(message: string, type: 'success' | 'error' = 'success') {
-  notification.value = { show: true, message, type };
-  setTimeout(() => {
-    notification.value.show = false;
-  }, 4000);
-}
+const { notification, showToast } = useToast(4000);
 
 // Modal de Movimentação Unificado
 const showMovementModal = ref(false);

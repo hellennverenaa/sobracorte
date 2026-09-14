@@ -36,6 +36,10 @@ export function useToast(durationMs = 3000) {
     }, durationMs);
   }
 
+  function showToast(message, type = 'success') {
+    showNotification(type, message);
+  }
+
   function showSuccess(message) {
     showNotification('success', message);
   }
@@ -48,5 +52,6 @@ export function useToast(durationMs = 3000) {
     showNotification('warning', message);
   }
 
-  return { notification, showNotification, showSuccess, showError, showWarning };
+  return { notification, showNotification, showToast, showSuccess, showError, showWarning };
 }
+

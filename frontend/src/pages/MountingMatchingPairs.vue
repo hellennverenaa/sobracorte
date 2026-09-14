@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/composables/useToast';
 import { 
   Footprints, Layers, Box, RefreshCw, CheckCircle2, AlertCircle, 
   MapPin, Check, ArrowRight, Search, X
@@ -25,18 +26,7 @@ const matchReason = ref('');
 const isSubmitting = ref(false);
 const showConfirmModal = ref(false);
 
-const notification = ref({
-  show: false,
-  message: '',
-  type: 'success' as 'success' | 'error',
-});
-
-function showToast(message: string, type: 'success' | 'error' = 'success') {
-  notification.value = { show: true, message, type };
-  setTimeout(() => {
-    notification.value.show = false;
-  }, 4000);
-}
+const { notification, showToast } = useToast(4000);
 
 const canOperateMatchingSector = computed(() => {
   if (!authStore.user) return false;

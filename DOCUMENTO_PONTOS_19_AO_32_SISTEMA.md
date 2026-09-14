@@ -57,7 +57,7 @@ O padrão IEEE-754 de ponto flutuante binário do tipo `Float` no PostgreSQL e J
 * `@[.agent/skills/debug_issue]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Já implementado e validado na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Todas as entidades de estoque no Prisma (`Material`, `StockItem`, `StockMovement`, `MaterialLocation`, `MaterialRequisition`, etc.) migradas para `@db.Decimal(18, 3)`, eliminando resíduos de ponto flutuante binário.
 
 ---
 
@@ -85,7 +85,7 @@ O método `delete` no `MaterialController` não realiza a consulta prévia do sa
 * `@[.agent/skills/debug_issue]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Implementado `MaterialDeletionAudit`, validação de saldo residual total e por prateleira retornando `HTTP 409 Conflict`, com isolamento transacional `Serializable`.
 
 ---
 
@@ -114,7 +114,7 @@ A tabela `Movement` (e `StockMovement`) depende estritamente de foreign keys (`m
 * `@[.agent/skills/code_review]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Relações de chave estrangeira alteradas para `onDelete: SetNull` nas tabelas `Movement` e `StockMovement`, com preenchimento compulsório de snapshots textuais imutáveis (`materialCode`, `materialName`, `itemCode`, `itemName`, etc.).
 
 ---
 
@@ -147,7 +147,7 @@ O importador CSV da branch `feat/ajustes-2.0-sobracorte` processa o arquivo via 
 * `@[.agent/skills/debug_issue]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Motor de importação [`csvParser.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/backend/src/import/csvParser.ts) e [`materialImport.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/backend/src/import/materialImport.ts) integrados, com suporte a RFC 4180, validação em lote, isolamento setorial e amarração transacional atômica com `MaterialLocation` e `Movement`.
 
 ---
 
@@ -175,7 +175,7 @@ Falta de um modelo de auditoria de papéis (`RoleChangeAudit`) e ausência da va
 * `@[.agent/skills/prisma-expert]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Implementado modelo `RoleChangeAudit`, trava otimista de concorrência (`expectedRole`), validação de elevação de privilégio restrita a Global Admin e gravação de histórico unificado em `StockMovement`.
 
 ---
 
@@ -208,7 +208,7 @@ Sob picos de requisições simultâneas (ex.: vários coletores registrando sobr
 * `@[.agent/skills/backend-architect]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: PostgreSQL Connection Pool instanciado com `new Pool()` no [`backend/src/prisma.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/backend/src/prisma.ts) com timeouts, listeners de erro em sockets ociosos e adapter `@prisma/adapter-pg`.
 
 ---
 
@@ -240,7 +240,7 @@ Configuração monolítica no `server.ts` sem separação de responsabilidades p
 * `@[.agent/skills/deployment-procedures]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Função `createApp` extraída em [`backend/src/app.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/backend/src/app.ts), limite de body configurado para 2MB, `trust proxy` ativado, rotas `/health/live` e `/health/ready`, 3 camadas de rate limiting e middleware global de captura e sanitização de erros.
 
 ---
 
@@ -277,7 +277,7 @@ Falta de um endpoint agregador consolidado no backend e queries que agrupam apen
 * `@[.agent/skills/frontend-developer]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Endpoint `GET /dashboard/summary` implementado com agregação analítica única (single round-trip), window functions no PostgreSQL para particionamento do Top 5 por setor e unidade de medida, e segregação de grandezas físicas no frontend.
 
 ---
 
@@ -304,7 +304,7 @@ Ausência de rotas de streaming no backend. A exportação depende do array reat
 * `@[.agent/skills/vue-best-practices]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Endpoints `GET /reports/inventory/export`, `GET /reports/movements/export` e `GET /reports/requisitions/export` implementados com streaming HTTP em lotes de 500 registros, paginação por cursor, inclusão de BOM UTF-8 e proteção contra CSV Injection (CWE-1236).
 
 ---
 
@@ -341,7 +341,7 @@ No [`frontend/src/services/interceptors/interceptor.ts`](file:///home/hellen/Doc
 * `@[.agent/skills/code-showcase-systematic-debugging]`
 
 #### 6. Status
-* **Pendente de Correção na v2.0** (Corrigido na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Corrigido no [`frontend/src/services/interceptors/interceptor.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/services/interceptors/interceptor.ts) com a sobrescrita imperativa dos cabeçalhos `Authorization` e `X-Dass-Unit` em todas as requisições liberadas da fila pós-refresh, impedindo deslogamento acidental.
 
 ---
 
@@ -365,7 +365,7 @@ Operadores das fábricas de Ivoti, Itabuna ou Santo Antônio de Jesus frequentem
 * `@[.agent/skills/frontend-developer]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Implementada persistência e leitura da chave `sobracorte_selected_factory_unit` no `localStorage` durante a montagem e submissão do formulário de login no [`Login.vue`](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/pages/Login.vue).
 
 ---
 
@@ -395,7 +395,7 @@ Falta de extração dessas lógicas repetitivas para Composables do Vue 3 (`useT
 * `@[.agent/skills/frontend-developer]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Composables `useToast`, `useConfirmModal` e módulo `format.js` criados e integrados em todas as telas (`Materials.vue`, `Movement.vue`, `Reports.vue`, `Settings.vue`, `Users.vue`, `InventoryHub.vue`, `MountingMatchingPairs.vue`, `Requisitions.vue` e `Dashboard.vue`).
 
 ---
 
@@ -436,7 +436,7 @@ Dificuldade e atrito no setup do ambiente de desenvolvimento de novos desenvolve
 * `@[.agent/skills/senior-frontend]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: Configurado `server.proxy` no [`frontend/vite.config.ts`](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/vite.config.ts) mapeando `/api`, `/unix`, `/auth-proxy` e `/sobracorte-api`.
 
 ---
 
@@ -471,4 +471,4 @@ Risco de regressão silenciosa em futuras atualizações (ex.: uma nova rota esq
 * `@[.agent/skills/backend-architect]`
 
 #### 6. Status
-* **Pendente de Migração na v2.0** (Disponível na `feature/multi-unidades`).
+* **Concluído / Implementado na v2.0**: 16 suítes de testes automatizados ativas (89 testes executados e aprovados com 100% de sucesso via `tsx --test tests/**/*.test.ts`), cobrindo segurança RBAC, isolamento multi-tenant, concorrência, precisão numérica decimal, interceptors, composables, importação RFC 4180 e relatórios por streaming.

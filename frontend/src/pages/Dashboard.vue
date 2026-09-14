@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useApi } from "../composables/useApi"
+import { formatNumber, formatDate } from "@/utils/format"
 import {
   Activity, Clock, RefreshCw, Layers, Scissors, Box,
   Footprints, Package, CheckCircle2, AlertTriangle,
@@ -98,18 +99,6 @@ watch(() => realStats.value.totalEntries,         (n, o) => animateValue('totalE
 watch(() => realStats.value.totalExits,           (n, o) => animateValue('totalExits',           o || 0, n))
 watch(() => realStats.value.taxaReaproveitamento, (n, o) => animateValue('taxaReaproveitamento', o || 0, n))
 watch(() => realStats.value.totalParadosSemGiro,  (n, o) => animateValue('totalParadosSemGiro',  o || 0, n))
-
-function formatNumber(value) {
-  if (!value && value !== 0) return '0'
-  return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
-
 // --- CORES PADRONIZADAS POR SETOR ---
 const sectorColors = {
   CORTE:         '#047857',

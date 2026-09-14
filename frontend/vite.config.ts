@@ -37,20 +37,30 @@ export default defineConfig(({ mode }) => {
       host: true,
       open: true,
       proxy: {
+        "/api": {
+          target: "http://127.0.0.1:2399",
+          changeOrigin: true,
+          secure: false,
+        },
+        "/unix": {
+          target: "http://10.100.1.43",
+          changeOrigin: true,
+          secure: false,
+        },
         // Proxy para o serviço de Login (Portal Unix)
-        '/auth-proxy': {
-          target: 'http://10.100.1.43:2399',
+        "/auth-proxy": {
+          target: "http://10.100.1.43:2399",
           changeOrigin: true,
           secure: false,
           cookieDomainRewrite: "localhost",
-          rewrite: (path) => path.replace(/^\/auth-proxy/, ''),
+          rewrite: (path) => path.replace(/^\/auth-proxy/, ""),
         },
         // Proxy para o Backend local do SobraCorte
-        '/sobracorte-api': {
-          target: 'http://localhost:3000',
+        "/sobracorte-api": {
+          target: "http://localhost:2399",
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path.replace(/^\/sobracorte-api/, ''),
+          rewrite: (path) => path.replace(/^\/sobracorte-api/, ""),
         },
       },
     },

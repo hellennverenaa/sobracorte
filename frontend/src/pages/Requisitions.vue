@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
+import { useToast } from '@/composables/useToast';
 import { formatDate } from '@/utils/format';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
@@ -140,18 +141,7 @@ const isFulfilling = ref(false);
 const viewingItem = ref<RequisitionItem | null>(null);
 
 // Notificações Toast
-const notification = ref({
-  show: false,
-  message: '',
-  type: 'success' as 'success' | 'error',
-});
-
-function showToast(message: string, type: 'success' | 'error' = 'success') {
-  notification.value = { show: true, message, type };
-  setTimeout(() => {
-    notification.value.show = false;
-  }, 4500);
-}
+const { notification, showToast } = useToast(4500);
 
 const sectorOptions = [
   { id: 'CORTE', label: 'Corte (Matéria-Prima)', icon: Scissors },
