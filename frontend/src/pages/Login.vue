@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Lock, User, ArrowRight, AlertTriangle, ExternalLink, UserPlus } from 'lucide-vue-next'
+import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
 import { api } from '@/services/httpClient'
 import {
   isLegacyUnit,
@@ -25,6 +25,12 @@ const unitsLoading = ref(true)
 const lastUnitStorageKey = 'sobracorte:last-unit'
 const isSelectedUnitLegacy = computed(() => isLegacyUnit(selectedUnit.value))
 const isExternalUnitSelected = computed(() => Boolean(selectedUnit.value) && !isSelectedUnitLegacy.value)
+const accessManagementUrl = computed(() => isSelectedUnitLegacy.value
+  ? portalUnixUrl
+  : buildIdentitiesRegistrationUrl(identitiesUrl, selectedUnit.value))
+const accessManagementLabel = computed(() => isSelectedUnitLegacy.value
+  ? 'Gerenciar acesso no Portal Unix'
+  : 'Gerenciar acesso no DASS Identidades')
 const usernameLabel = computed(() => isSelectedUnitLegacy.value ? 'Usuário Unix' : 'Usuário')
 const credentialsHint = computed(() => isSelectedUnitLegacy.value
   ? 'Informe suas credenciais Unix para acessar.'
@@ -97,11 +103,6 @@ async function handleLogin() {
   }
 }
 
-function openExternalRegistration() {
-  const url = buildIdentitiesRegistrationUrl(identitiesUrl, selectedUnit.value)
-  if (url) window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 </script>
 
 <template>
@@ -124,9 +125,10 @@ function openExternalRegistration() {
              Gestão inteligente de resíduos e estoque para a indústria calçadista.
            </p>
 
-           <div v-if="isSelectedUnitLegacy" class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3 py-1.5 rounded-full text-xs text-indigo-200">
+           <div v-if="isSelectedUnitLegacy || isExternalUnitSelected" class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3 py-1.5 rounded-full text-xs text-indigo-200">
              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-             Integrado ao Portal Unix
+             <span v-if="isSelectedUnitLegacy">Integrado ao Portal Unix</span>
+             <span v-else>Integrado ao DASS Identidades</span>
            </div>
         </div>
 
@@ -200,28 +202,17 @@ function openExternalRegistration() {
             </button>
           </form>
 
-          <div v-if="isExternalUnitSelected" class="mt-5 text-center">
-            <button
-              type="button"
-              @click="openExternalRegistration"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
-            >
-              <UserPlus class="h-4 w-4" />
-              Solicitar conta
-            </button>
-          </div>
-
-          <div v-if="isSelectedUnitLegacy" class="mt-6 border-t border-gray-100 pt-5 text-center">
+          <div v-if="isSelectedUnitLegacy || isExternalUnitSelected" class="mt-6 border-t border-gray-100 pt-5 text-center">
             <p class="text-xs text-gray-500 mb-2">
               Esqueceu sua senha ou precisa de uma nova conta?
             </p>
             <a 
-              :href="portalUnixUrl"
+              :href="accessManagementUrl"
               target="_blank" 
               rel="noopener noreferrer" 
               class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100 transition-colors"
             >
-              <span>Gerenciar acesso no Portal Unix</span>
+              <span>{{ accessManagementLabel }}</span>
               <ExternalLink class="w-3.5 h-3.5" />
             </a>
           </div>

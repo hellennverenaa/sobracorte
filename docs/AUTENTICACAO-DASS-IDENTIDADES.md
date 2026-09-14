@@ -16,7 +16,8 @@
 VITE_DASS_IDENTITIES_URL=http://localhost:5173/identities
 ```
 
-**Solicitar conta** abre `${VITE_DASS_IDENTITIES_URL}/register?unidade=<UNIDADE>`.
+**Gerenciar acesso no DASS Identidades** abre
+`${VITE_DASS_IDENTITIES_URL}/register?unidade=<UNIDADE>`.
 Não há `return_to`, senha persistida ou chamada de cadastro pelo Sobracorte.
 
 ## Provisionamento

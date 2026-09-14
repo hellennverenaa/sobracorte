@@ -144,7 +144,8 @@ npx prisma generate
 
 O login `SEST` continua usando o fluxo Unix legado. `SAJ` e qualquer outra
 unidade diferente de `SEST` usam exclusivamente `/auth/external/login`. O botão
-**Solicitar conta** abre o DASS Identidades em
+**Gerenciar acesso no DASS Identidades** abre a tela de cadastro do DASS
+Identidades em
 `${VITE_DASS_IDENTITIES_URL}/register?unidade=<UNIDADE>`; o Sobracorte não coleta
 dados cadastrais nem senhas de cadastro. No primeiro login, o backend cria ou
 vincula o perfil operacional como `leitor` usando `origem + id` do JWT.
