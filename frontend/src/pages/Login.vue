@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
@@ -16,12 +16,41 @@ const units = ref([])
 const selectedUnit = ref('')
 const unitsLoading = ref(true)
 
+const lastUnitStorageKey = 'sobracorte_selected_factory_unit'
+const legacyStorageKey = 'sobracorte:last-unit'
+
+function loadLastUnit() {
+  try {
+    return localStorage.getItem(lastUnitStorageKey) || localStorage.getItem(legacyStorageKey) || ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberLastUnit(unitCode) {
+  if (!unitCode) return
+  try {
+    localStorage.setItem(lastUnitStorageKey, unitCode)
+    localStorage.setItem(legacyStorageKey, unitCode)
+  } catch {
+    // A indisponibilidade do armazenamento local não deve impedir o login.
+  }
+}
+
+watch(selectedUnit, (newVal) => {
+  if (newVal) {
+    rememberLastUnit(newVal)
+  }
+})
+
 onMounted(async () => {
   try {
     const response = await api.get('/factory-units')
     units.value = Array.isArray(response.data?.data) ? response.data.data : []
-    const sest = units.value.find(u => u.code === 'SEST')
-    selectedUnit.value = sest ? sest.code : (units.value[0]?.code || '')
+    const lastUnit = loadLastUnit()
+    selectedUnit.value = units.value.some(unit => unit.code === lastUnit)
+      ? lastUnit
+      : (units.value.find(u => u.code === 'SEST')?.code || units.value[0]?.code || '')
     if (units.value.length === 0) error.value = 'Nenhuma unidade está disponível para acesso.'
   } catch {
     error.value = 'Não foi possível carregar as unidades. O login está indisponível.'
@@ -50,6 +79,7 @@ async function handleLogin() {
   isLoading.value = true
   try {
     await authStore.login(username.value.trim(), password.value, selectedUnit.value)
+    rememberLastUnit(selectedUnit.value)
     router.push('/')
   } catch (err) {
     error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'

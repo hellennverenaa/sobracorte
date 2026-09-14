@@ -96,6 +96,12 @@ export const useAuthStore = defineStore('auth', {
         );
         this.user = finalUser;
         localStorage.setItem('user', JSON.stringify(finalUser));
+        if (finalUser.unit?.code) {
+          try {
+            localStorage.setItem('sobracorte_selected_factory_unit', finalUser.unit.code);
+            localStorage.setItem('sobracorte:last-unit', finalUser.unit.code);
+          } catch {}
+        }
         return true;
       } catch (err) {
         console.error('Erro ao alternar unidade fabril:', err);
@@ -119,6 +125,12 @@ export const useAuthStore = defineStore('auth', {
         this.user = buildSessionUser(token, synced.data.user, synced.data.unit, synced.data.isGlobalAdmin)
         this.isAuthenticated = true
         localStorage.setItem('user', JSON.stringify(this.user))
+        if (this.user.unit?.code) {
+          try {
+            localStorage.setItem('sobracorte_selected_factory_unit', this.user.unit.code);
+            localStorage.setItem('sobracorte:last-unit', this.user.unit.code);
+          } catch {}
+        }
         if (this.user.role === 'admin' || this.user.isGlobalAdmin) {
           this.fetchAvailableUnits();
         }
@@ -153,6 +165,12 @@ export const useAuthStore = defineStore('auth', {
         this.user = finalUser
         this.isAuthenticated = true
         localStorage.setItem("user", JSON.stringify(finalUser))
+        if (finalUser.unit?.code) {
+          try {
+            localStorage.setItem('sobracorte_selected_factory_unit', finalUser.unit.code);
+            localStorage.setItem('sobracorte:last-unit', finalUser.unit.code);
+          } catch {}
+        }
         if (this.user.role === 'admin' || this.user.isGlobalAdmin) {
           this.fetchAvailableUnits();
         }
