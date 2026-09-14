@@ -1,6 +1,26 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 
+export function csvCell(value: unknown): string {
+  let text = String(value ?? '');
+  // Prevent spreadsheet formula execution (CSV Injection CWE-1236)
+  if (/^[=+\-@]/.test(text)) {
+    text = `'${text}`;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function csvLine(values: unknown[]): string {
+  return `${values.map(csvCell).join(';')}\r\n`;
+}
+
+export function decimalString(val: unknown): string {
+  if (val === null || val === undefined) return '0';
+  const num = Number(val);
+  if (isNaN(num)) return String(val);
+  return num.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
 export class ReportController {
   async inventory(req: Request, res: Response) {
     try {
@@ -499,6 +519,598 @@ export class ReportController {
     } catch (error) {
       console.error('Erro no relatório de requisições:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de requisições.' });
+    }
+  }
+
+  /**
+   * Exportação contínua de inventário por streaming HTTP em lotes de 500 registros
+   */
+  async exportInventory(req: Request, res: Response) {
+    try {
+      const factoryUnitId = req.tenant!.id;
+      const targetSector = req.query.sector ? String(req.query.sector).toUpperCase().trim() : 'TODOS';
+      const rawSearch = req.query.search ? String(req.query.search).trim() : null;
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sobracorte-inventario-${dateStr}.csv"`);
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      // Inicia com BOM UTF-8 para exibição correta no Excel
+      res.write('\uFEFF' + csvLine([
+        'SETOR',
+        'CODIGO',
+        'DESCRICAO',
+        'CATEGORIA',
+        'GRADE',
+        'LADO',
+        'QUANTIDADE',
+        'UNIDADE',
+        'LOCALIZACAO',
+        'DATA_CADASTRO',
+      ]));
+
+      const batchSize = 500;
+      const shouldStreamCorte = targetSector === 'TODOS' || targetSector === 'CORTE';
+      const shouldStreamStock = targetSector !== 'CORTE';
+
+      // 1. Stream de materiais do CORTE
+      if (shouldStreamCorte) {
+        let lastMaterialId: number | undefined = undefined;
+        const materialWhere: any = {
+          factoryUnitId,
+          ...(rawSearch && {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { type: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          }),
+        };
+
+        while (true) {
+          const batch: any[] = await prisma.material.findMany({
+            where: {
+              ...materialWhere,
+              ...(lastMaterialId !== undefined && { id: { gt: lastMaterialId } }),
+            },
+            take: batchSize,
+            orderBy: { id: 'asc' },
+            include: {
+              locations: {
+                include: { location: true },
+              },
+            },
+          });
+
+          if (batch.length === 0) break;
+
+          for (const m of batch) {
+            const locs = (m.locations ?? []).map((l: any) => l.location?.name).filter(Boolean).join(' | ') || '-';
+            res.write(csvLine([
+              'CORTE',
+              m.code,
+              m.name,
+              m.type.toUpperCase(),
+              '-',
+              '-',
+              decimalString(m.quantity),
+              m.unit || 'm²',
+              locs,
+              m.createdAt ? new Date(m.createdAt).toLocaleDateString('pt-BR') : '-',
+            ]));
+          }
+
+          if (batch.length < batchSize) break;
+          lastMaterialId = batch[batch.length - 1].id;
+        }
+      }
+
+      // 2. Stream de itens dos outros setores (APOIO, PRE_FABRICADO, DISTRIBUICAO, MONTAGEM)
+      if (shouldStreamStock) {
+        let lastStockId: number | undefined = undefined;
+        const stockWhere: any = {
+          factoryUnitId,
+          ...(targetSector !== 'TODOS' && {
+            sector: (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') ? 'DISTRIBUICAO' : targetSector,
+          }),
+          ...(rawSearch && {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { description: { contains: rawSearch, mode: 'insensitive' } },
+              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
+              { sku: { contains: rawSearch, mode: 'insensitive' } },
+              { productName: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          }),
+        };
+
+        while (true) {
+          const batch: any[] = await prisma.stockItem.findMany({
+            where: {
+              ...stockWhere,
+              ...(lastStockId !== undefined && { id: { gt: lastStockId } }),
+            },
+            take: batchSize,
+            orderBy: { id: 'asc' },
+            include: {
+              locations: {
+                include: { location: true },
+              },
+            },
+          });
+
+          if (batch.length === 0) break;
+
+          for (const s of batch) {
+            const code = s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`;
+            const desc = s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor';
+            const locs = (s.locations ?? []).map((l: any) => l.location?.name).filter(Boolean).join(' | ') || '-';
+
+            res.write(csvLine([
+              s.sector,
+              code,
+              desc,
+              s.type || s.sector,
+              s.sizeGrade || '-',
+              s.footSide || '-',
+              decimalString(s.quantity),
+              s.unit || 'UND',
+              locs,
+              s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '-',
+            ]));
+          }
+
+          if (batch.length < batchSize) break;
+          lastStockId = batch[batch.length - 1].id;
+        }
+      }
+
+      return res.end();
+    } catch (error) {
+      console.error('Erro ao exportar inventário por streaming:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'Erro interno ao exportar inventário.' });
+      }
+      return res.end();
+    }
+  }
+
+  /**
+   * Exportação contínua de movimentações por streaming HTTP em lotes de 500 registros
+   */
+  async exportMovements(req: Request, res: Response) {
+    try {
+      const factoryUnitId = req.tenant!.id;
+      const {
+        dataInicio,
+        dataFim,
+        startDate,
+        endDate,
+        sector,
+        tipoMovimento,
+        movementType,
+        operatorId,
+        origin,
+        origem,
+        search,
+      } = req.query;
+
+      const rawStart = dataInicio || startDate;
+      const rawEnd = dataFim || endDate;
+      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
+      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
+      const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
+      const rawSearch = search ? String(search).trim() : null;
+      const rawOperator = operatorId ? String(operatorId).trim() : null;
+
+      let start: Date | null = null;
+      let end: Date | null = null;
+
+      if (rawStart && rawEnd) {
+        start = new Date(String(rawStart));
+        start.setHours(0, 0, 0, 0);
+        end = new Date(String(rawEnd));
+        end.setHours(23, 59, 59, 999);
+      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
+        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        start.setHours(0, 0, 0, 0);
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+      }
+
+      // --- FILTROS PARA STOCKMOVEMENT ---
+      const stockWhere: Record<string, any> = { factoryUnitId };
+      if (start && end) stockWhere.createdAt = { gte: start, lte: end };
+
+      if (rawSector !== 'TODOS' && rawSector !== 'ALL' && rawSector !== 'CORTE') {
+        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        if (sec === 'DISTRIBUICAO') {
+          stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+        } else if (sec === 'CONFIGURACOES') {
+          stockWhere.sector = 'NEVER_MATCH';
+        } else {
+          stockWhere.sector = sec;
+        }
+      } else {
+        stockWhere.sector = { notIn: ['CORTE', 'CONFIGURACOES'] };
+      }
+
+      if (rawType !== 'TODOS') {
+        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
+          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
+        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'].includes(rawType)) {
+          stockWhere.type = rawType;
+        } else {
+          stockWhere.type = 'NEVER_MATCH';
+        }
+      } else {
+        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'] };
+      }
+
+      if (rawOrigin && rawOrigin !== 'TODOS') {
+        stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
+      }
+
+      if (rawOperator && rawOperator !== 'TODOS') {
+        stockWhere.OR = [
+          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
+          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
+        ];
+      }
+
+      if (rawSearch) {
+        stockWhere.OR = [
+          { itemCode: { contains: rawSearch, mode: 'insensitive' } },
+          { itemName: { contains: rawSearch, mode: 'insensitive' } },
+          { stockItem: {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { description: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { sku: { contains: rawSearch, mode: 'insensitive' } },
+              { productName: { contains: rawSearch, mode: 'insensitive' } },
+              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          } },
+        ];
+      }
+
+      // --- FILTROS PARA MOVEMENT (CORTE) ---
+      const shouldQueryStock = rawSector !== 'CORTE';
+      const shouldQueryLegacy = rawSector === 'TODOS' || rawSector === 'ALL' || rawSector === 'CORTE';
+      const legacyWhere: Record<string, any> = { factoryUnitId };
+      if (start && end) legacyWhere.createdAt = { gte: start, lte: end };
+
+      if (rawType !== 'TODOS') {
+        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
+          legacyWhere.type = { in: ['saida', 'refugo'] };
+        } else if (rawType === 'CASAMENTO_PAR') {
+          legacyWhere.type = 'never_match';
+        } else {
+          legacyWhere.type = rawType.toLowerCase();
+        }
+      }
+
+      if (rawOrigin && rawOrigin !== 'TODOS') {
+        legacyWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
+      }
+
+      if (rawOperator && rawOperator !== 'TODOS') {
+        legacyWhere.OR = [
+          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
+          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
+        ];
+      }
+
+      if (rawSearch) {
+        legacyWhere.OR = [
+          { materialCode: { contains: rawSearch, mode: 'insensitive' } },
+          { materialName: { contains: rawSearch, mode: 'insensitive' } },
+          { material: {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          } },
+        ];
+      }
+
+      const locationsList = await prisma.location.findMany({
+        where: { factoryUnitId },
+        select: { id: true, name: true },
+      });
+      const locationMap = new Map(locationsList.map((l) => [l.id, l.name]));
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sobracorte-movimentacoes-${dateStr}.csv"`);
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      // BOM UTF-8 + Cabeçalhos
+      res.write('\uFEFF' + csvLine([
+        'DATA',
+        'HORA',
+        'SETOR',
+        'TIPO_OPERACAO',
+        'CODIGO_ITEM',
+        'DESCRICAO_ITEM',
+        'TIPO_MATERIAL',
+        'GRADE',
+        'LADO',
+        'QUANTIDADE',
+        'UNIDADE',
+        'LOCALIZACAO',
+        'ORIGEM_SOBRA',
+        'MOTIVO_OPERACAO',
+        'RESPONSAVEL',
+        'MATRICULA',
+      ]));
+
+      const batchSize = 500;
+
+      // 1. Stream StockMovement
+      if (shouldQueryStock) {
+        let lastStockId: number | undefined = undefined;
+        while (true) {
+          const batch: any[] = await prisma.stockMovement.findMany({
+            where: {
+              ...stockWhere,
+              ...(lastStockId !== undefined && { id: { lt: lastStockId } }),
+            },
+            take: batchSize,
+            orderBy: { id: 'desc' },
+            include: {
+              stockItem: true,
+            },
+          });
+
+          if (batch.length === 0) break;
+
+          for (const m of batch) {
+            const item = m.stockItem;
+            const code = item?.sku || item?.pieceCode || item?.code || item?.productName || m.itemCode || '-';
+            const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || m.itemName || 'Componente Multi-Setor';
+
+            const srcLoc = (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null) || m.sourceLocationName;
+            const dstLoc = (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null) || m.destinationLocationName;
+            const locFormatted = srcLoc && dstLoc ? `${srcLoc} ➔ ${dstLoc}` : (dstLoc || srcLoc || '-');
+
+            const dateObj = new Date(m.createdAt);
+            const dataStr = dateObj.toLocaleDateString('pt-BR');
+            const horaStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            res.write(csvLine([
+              dataStr,
+              horaStr,
+              m.sector,
+              m.type,
+              code,
+              desc,
+              item?.type || item?.sector || m.itemCategory || m.sector,
+              item?.sizeGrade || '-',
+              item?.footSide || '-',
+              decimalString(m.quantity),
+              item?.unit || m.itemUnit || 'UND',
+              locFormatted,
+              m.origem || 'Geração no Setor',
+              m.reason || m.origem || '-',
+              m.operatorName || 'Operador DASS',
+              m.operatorId || '-',
+            ]));
+          }
+
+          if (batch.length < batchSize) break;
+          lastStockId = batch[batch.length - 1].id;
+        }
+      }
+
+      // 2. Stream Movement (Corte)
+      if (shouldQueryLegacy) {
+        let lastLegacyId: number | undefined = undefined;
+        while (true) {
+          const batch: any[] = await prisma.movement.findMany({
+            where: {
+              ...legacyWhere,
+              ...(lastLegacyId !== undefined && { id: { lt: lastLegacyId } }),
+            },
+            take: batchSize,
+            orderBy: { id: 'desc' },
+            include: {
+              material: {
+                include: {
+                  locations: {
+                    include: { location: true },
+                  },
+                },
+              },
+            },
+          });
+
+          if (batch.length === 0) break;
+
+          for (const m of batch) {
+            const primaryLoc = m.locationName || m.material?.locations?.[0]?.location?.name || 'Almoxarifado';
+            const dateObj = new Date(m.createdAt);
+            const dataStr = dateObj.toLocaleDateString('pt-BR');
+            const horaStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            res.write(csvLine([
+              dataStr,
+              horaStr,
+              'CORTE',
+              m.type.toUpperCase(),
+              m.material?.code || m.materialCode || '-',
+              m.material?.name || m.materialName || '-',
+              m.material?.type || m.materialCategory || 'CORTE',
+              '-',
+              '-',
+              decimalString(m.quantity),
+              m.material?.unit || m.materialUnit || 'UN',
+              primaryLoc,
+              m.origem || 'Corte / Produção',
+              m.reason || m.origem || '-',
+              m.operatorName || 'Operador DASS',
+              m.operatorId || '-',
+            ]));
+          }
+
+          if (batch.length < batchSize) break;
+          lastLegacyId = batch[batch.length - 1].id;
+        }
+      }
+
+      return res.end();
+    } catch (error) {
+      console.error('Erro ao exportar movimentações por streaming:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'Erro interno ao exportar movimentações.' });
+      }
+      return res.end();
+    }
+  }
+
+  /**
+   * Exportação contínua de requisições por streaming HTTP em lotes de 500 registros
+   */
+  async exportRequisitions(req: Request, res: Response) {
+    try {
+      const factoryUnitId = req.tenant!.id;
+      const {
+        dataInicio,
+        dataFim,
+        startDate,
+        endDate,
+        sector,
+        status,
+        search,
+      } = req.query;
+
+      const rawStart = dataInicio || startDate;
+      const rawEnd = dataFim || endDate;
+      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
+      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
+      const rawSearch = search ? String(search).trim() : null;
+
+      let start: Date | null = null;
+      let end: Date | null = null;
+
+      if (rawStart && rawEnd) {
+        start = new Date(String(rawStart));
+        start.setHours(0, 0, 0, 0);
+        end = new Date(String(rawEnd));
+        end.setHours(23, 59, 59, 999);
+      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
+        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        start.setHours(0, 0, 0, 0);
+        end = new Date();
+        end.setHours(23, 59, 59, 999);
+      }
+
+      const whereClause: any = { factoryUnitId };
+      if (start && end) whereClause.createdAt = { gte: start, lte: end };
+
+      if (rawSector !== 'TODOS') {
+        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        if (sec === 'DISTRIBUICAO') {
+          whereClause.requestSector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+        } else {
+          whereClause.requestSector = sec;
+        }
+      }
+
+      if (rawStatus !== 'TODOS') {
+        whereClause.status = rawStatus;
+      }
+
+      if (rawSearch) {
+        whereClause.OR = [
+          { code: { contains: rawSearch, mode: 'insensitive' } },
+          { sku: { contains: rawSearch, mode: 'insensitive' } },
+          { modelName: { contains: rawSearch, mode: 'insensitive' } },
+          { description: { contains: rawSearch, mode: 'insensitive' } },
+          { requesterName: { contains: rawSearch, mode: 'insensitive' } },
+          { reason: { contains: rawSearch, mode: 'insensitive' } },
+        ];
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sobracorte-requisicoes-${dateStr}.csv"`);
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      // BOM UTF-8 + Cabeçalhos
+      res.write('\uFEFF' + csvLine([
+        'CODIGO',
+        'DATA',
+        'HORA',
+        'SETOR_SOLICITANTE',
+        'SKU_MATERIAL',
+        'MODELO',
+        'DESCRICAO',
+        'GRADE',
+        'LADO',
+        'QTD_SOLICITADA',
+        'QTD_ATENDIDA',
+        'MOTIVO',
+        'STATUS',
+        'SOLICITANTE',
+        'MATRICULA',
+      ]));
+
+      const batchSize = 500;
+      let lastId: number | undefined = undefined;
+
+      while (true) {
+        const batch: any[] = await prisma.materialRequisition.findMany({
+          where: {
+            ...whereClause,
+            ...(lastId !== undefined && { id: { lt: lastId } }),
+          },
+          take: batchSize,
+          orderBy: { id: 'desc' },
+        });
+
+        if (batch.length === 0) break;
+
+        for (const r of batch) {
+          const dateObj = new Date(r.createdAt);
+          const dataStr = dateObj.toLocaleDateString('pt-BR');
+          const horaStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+          res.write(csvLine([
+            r.code,
+            dataStr,
+            horaStr,
+            r.requestSector,
+            r.sku || '-',
+            r.modelName || '-',
+            r.description,
+            r.sizeGrade || '-',
+            r.footSide || '-',
+            decimalString(r.quantityRequested),
+            decimalString(r.quantityFulfilled),
+            r.reason || '-',
+            r.status,
+            r.requesterName || r.requesterId || 'Operador DASS',
+            r.requesterId || '-',
+          ]));
+        }
+
+        if (batch.length < batchSize) break;
+        lastId = batch[batch.length - 1].id;
+      }
+
+      return res.end();
+    } catch (error) {
+      console.error('Erro ao exportar requisições por streaming:', error);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'Erro interno ao exportar requisições.' });
+      }
+      return res.end();
     }
   }
 }

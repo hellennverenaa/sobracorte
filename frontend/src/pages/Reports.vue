@@ -22,7 +22,8 @@ import {
   RotateCcw,
   ClipboardList,
   Clock,
-  Ban
+  Ban,
+  RefreshCw
 } from 'lucide-vue-next'
 import { exportToCSV } from '@/utils/export'
 import { api } from '@/services/httpClient'
@@ -310,57 +311,75 @@ function resetFilters() {
   generateReport()
 }
 
-// --- EXPORTAÇÃO CSV ---
-function downloadExcel() {
-  if (reportData.value.length === 0) {
-    showNotification('error', "Não existem dados para exportar.")
-    return
+const isExporting = ref(false)
+
+// --- EXPORTAÇÃO CSV VIA STREAMING HTTP CONTÍNUO ---
+async function downloadExcel() {
+  if (isExporting.value) return
+  isExporting.value = true
+
+  try {
+    const dates = getDatesFromPeriod(filters.value.periodo)
+    if (filters.value.periodo === 'custom' && !dates) {
+      showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
+      isExporting.value = false
+      return
+    }
+
+    let endpoint = ''
+    let defaultFilename = ''
+
+    if (reportType.value === 'requisitions') {
+      const params = new URLSearchParams({
+        sector: filters.value.sector,
+        status: filters.value.status,
+      })
+      if (dates?.start && dates?.end) {
+        params.append('dataInicio', dates.start)
+        params.append('dataFim', dates.end)
+      }
+      if (filters.value.search) params.append('search', filters.value.search)
+
+      endpoint = `/reports/requisitions/export?${params.toString()}`
+      const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
+      defaultFilename = `SobrasDASS_Requisicoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
+    } else {
+      const params = new URLSearchParams({
+        sector: filters.value.sector,
+        tipoMovimento: filters.value.tipoMovimento,
+        origin: filters.value.origin,
+      })
+      if (dates?.start && dates?.end) {
+        params.append('dataInicio', dates.start)
+        params.append('dataFim', dates.end)
+      }
+      if (filters.value.search) params.append('search', filters.value.search)
+
+      endpoint = `/reports/movements/export?${params.toString()}`
+      const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
+      defaultFilename = `SobrasDASS_Movimentacoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
+    }
+
+    showNotification('success', 'Iniciando download contínuo do relatório completo...')
+
+    const res = await api.get(endpoint, { responseType: 'blob' })
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = window.URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', defaultFilename)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    showNotification('success', 'Relatório completo baixado com sucesso!')
+  } catch (error) {
+    console.error('Erro ao exportar relatório por streaming:', error)
+    showNotification('error', 'Falha ao processar exportação contínua do relatório.')
+  } finally {
+    isExporting.value = false
   }
-
-  if (reportType.value === 'requisitions') {
-    const rows = reportData.value.map(req => ({
-      CODIGO: req.code,
-      DATA: new Date(req.data).toLocaleDateString('pt-BR'),
-      HORA: new Date(req.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      SETOR_SOLICITANTE: req.setorSolicitante,
-      SKU_MATERIAL: req.sku || '-',
-      MODELO: req.nomeModelo || '-',
-      DESCRICAO: req.descricao,
-      GRADE: req.gradeTamanho || '-',
-      LADO: req.ladoPe || '-',
-      QTD_SOLICITADA: Number(req.quantidadeSolicitada || 0),
-      QTD_ATENDIDA: Number(req.quantidadeAtendida || 0),
-      MOTIVO: req.motivo || '-',
-      STATUS: req.status,
-      SOLICITANTE: req.solicitante || '-',
-      MATRICULA: req.matriculaSolicitante || '-'
-    }))
-    const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
-    exportToCSV(`SobrasDASS_Requisicoes${secName}_${filters.value.periodo}`, rows)
-    return
-  }
-
-  const rows = reportData.value.map(mov => ({
-    DATA: new Date(mov.data).toLocaleDateString('pt-BR'),
-    HORA: new Date(mov.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    SETOR: mov.sector || mov.setor,
-    TIPO_OPERACAO: mov.tipo,
-    CODIGO_ITEM: mov.codigo || '-',
-    DESCRICAO_ITEM: mov.descricao || mov.material?.descricao || '-',
-    TIPO_MATERIAL: mov.tipoMaterial || mov.material?.tipo || '-',
-    GRADE: mov.gradeTamanho || '-',
-    LADO: mov.ladoPe || '-',
-    QUANTIDADE: Number(mov.quantidade || 0),
-    UNIDADE: mov.unidade || mov.material?.unidade || 'UND',
-    LOCALIZACAO: mov.prateleira || '-',
-    ORIGEM_SOBRA: mov.origem || '-',
-    MOTIVO_OPERACAO: mov.motivo || '-',
-    RESPONSAVEL: mov.responsavel || mov.operador || 'Operador DASS',
-    MATRICULA: mov.matricula || '-'
-  }))
-
-  const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
-  exportToCSV(`SobrasDASS_Relatorio${secName}_${filters.value.periodo}`, rows)
 }
 
 function printPDF() {
@@ -547,9 +566,12 @@ function getStatusBadge(status) {
           <button
             v-if="canExport"
             @click="downloadExcel"
-            class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow hover:bg-emerald-700 transition-all flex items-center gap-1.5"
+            :disabled="isExporting"
+            class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
           >
-            <FileSpreadsheet class="w-4 h-4" /> Exportar CSV
+            <RefreshCw v-if="isExporting" class="w-4 h-4 animate-spin" />
+            <FileSpreadsheet v-else class="w-4 h-4" />
+            <span>{{ isExporting ? 'Exportando...' : 'Exportar CSV' }}</span>
           </button>
         </div>
       </div>

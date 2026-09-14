@@ -161,9 +161,12 @@ routes.get('/movements', requireAuth, authenticatedLimiter, movementController.i
 routes.post('/movements', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
 
 routes.get('/reports/inventory', requireAuth, authenticatedLimiter, reportController.inventory);
+routes.get('/reports/inventory/export', requireAuth, authenticatedLimiter, reportController.exportInventory);
 routes.get('/reports/movements', requireAuth, authenticatedLimiter, reportController.movements);
+routes.get('/reports/movements/export', requireAuth, authenticatedLimiter, reportController.exportMovements);
 routes.get('/reports/data', requireAuth, authenticatedLimiter, reportController.movements);
 routes.get('/reports/requisitions', requireAuth, authenticatedLimiter, reportController.requisitions);
+routes.get('/reports/requisitions/export', requireAuth, authenticatedLimiter, reportController.exportRequisitions);
 
 routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), async (req, res) => {
   try {
