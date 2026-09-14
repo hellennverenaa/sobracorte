@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => {
       open: true,
       proxy: {
         "/api": {
-          target: "http://127.0.0.1:2399",
+          target: env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3000"}`,
           changeOrigin: true,
           secure: false,
         },
@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
-        // Proxy para o serviço de Login (Portal Unix)
+        // Proxy para o serviço de Login Oficial da Dass (Portal Unix)
         "/auth-proxy": {
           target: "http://10.100.1.43:2399",
           changeOrigin: true,
@@ -55,9 +55,9 @@ export default defineConfig(({ mode }) => {
           cookieDomainRewrite: "localhost",
           rewrite: (path) => path.replace(/^\/auth-proxy/, ""),
         },
-        // Proxy para o Backend local do SobraCorte
+        // Proxy para o Backend local do SobraCorte (Porta 3000)
         "/sobracorte-api": {
-          target: "http://localhost:2399",
+          target: env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3000"}`,
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/sobracorte-api/, ""),

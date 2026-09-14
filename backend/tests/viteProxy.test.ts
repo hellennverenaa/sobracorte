@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('Vite Dev Server: Proxy configuration maps /api, /unix, /auth-proxy and /sobracorte-api with changeOrigin and secure: false', () => {
+  const env: Record<string, string> = { VITE_BACKEND_PORT: '3000' };
+  const backendPort = env.VITE_BACKEND_PORT || '3000';
+  const backendTarget = env.VITE_BACKEND_URL || `http://127.0.0.1:${backendPort}`;
+
   const proxyConfig = {
     '/api': {
-      target: 'http://127.0.0.1:2399',
+      target: backendTarget,
       changeOrigin: true,
       secure: false,
     },
@@ -21,14 +25,14 @@ test('Vite Dev Server: Proxy configuration maps /api, /unix, /auth-proxy and /so
       rewrite: (p: string) => p.replace(/^\/auth-proxy/, ''),
     },
     '/sobracorte-api': {
-      target: 'http://localhost:2399',
+      target: backendTarget,
       changeOrigin: true,
       secure: false,
       rewrite: (p: string) => p.replace(/^\/sobracorte-api/, ''),
     },
   };
 
-  assert.equal(proxyConfig['/api'].target, 'http://127.0.0.1:2399');
+  assert.equal(proxyConfig['/api'].target, 'http://127.0.0.1:3000');
   assert.equal(proxyConfig['/api'].changeOrigin, true);
   assert.equal(proxyConfig['/api'].secure, false);
 
