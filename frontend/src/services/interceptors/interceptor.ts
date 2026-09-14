@@ -50,6 +50,16 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
 
     if (isRefreshing) {
       await enqueue();
+      // A request can already have a stale Authorization header when it is
+      // resumed from the queue. Always overwrite it with the refreshed token.
+      const refreshedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      if (refreshedUser.token) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedUser.token}`;
+        if (refreshedUser.unit?.code) {
+          originalRequest.headers['X-Dass-Unit'] = refreshedUser.unit.code;
+        }
+      }
       return instance(originalRequest);
     }
 
@@ -66,7 +76,7 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       const synced = await instance.post('/auth/check-user', null, {
         headers: { Authorization: `Bearer ${newToken}`, 'X-Dass-Unit': user.unit?.code },
         _retry: true,
-      } as unknown as RetryableRequestConfig);
+      } as RetryableRequestConfig);
       const tokenPayload = JSON.parse(atob(newToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(newToken.split('.')[1].length / 4) * 4, '=')));
       localStorage.setItem('user', JSON.stringify({
         ...user,
@@ -89,6 +99,11 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
       queue.forEach((p) => p.resolve());
       queue = [];
 
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      if (user.unit?.code) {
+        originalRequest.headers['X-Dass-Unit'] = user.unit.code;
+      }
       return instance(originalRequest);
     } catch (refreshError) {
 
