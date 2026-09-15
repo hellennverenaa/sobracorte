@@ -11,70 +11,82 @@ export class StockMovementService {
     const { stockItemId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Se o setor for explicitamente CORTE, buscar na tabela Material
+      // 1. Se o setor for explicitamente CORTE, processar na tabela Material
       if (sector === 'CORTE') {
         const material = await tx.material.findFirst({
           where: { id: stockItemId, factoryUnitId },
-          include: { locations: true },
+          include: { locations: { include: { location: true } } },
         });
 
         if (!material) {
           throw new Error('Matéria-prima do Corte não encontrada.');
         }
 
-        const matQty = Number(material.quantity);
-        if ((type === 'SAIDA' || type === 'REFUGO') && matQty < quantity - 0.0001) {
-          throw new Error(`Saldo insuficiente. Saldo disponível: ${matQty}`);
-        }
+        const targetLocationId = locationId || material.locations[0]?.locationId;
 
         if (type === 'ENTRADA') {
+          if (!targetLocationId) {
+            throw new Error('A localização é obrigatória para registrar a entrada.');
+          }
+
           await tx.material.update({
             where: { id: material.id },
             data: { quantity: { increment: quantity } },
           });
 
-          const targetLocationId = locationId || (material.locations[0]?.locationId);
-          if (targetLocationId) {
-            await tx.materialLocation.upsert({
-              where: {
-                materialId_locationId: {
-                  materialId: material.id,
-                  locationId: targetLocationId,
-                },
-              },
-              update: {
-                quantity: { increment: quantity },
-              },
-              create: {
+          await tx.materialLocation.upsert({
+            where: {
+              materialId_locationId: {
                 materialId: material.id,
                 locationId: targetLocationId,
-                factoryUnitId,
-                quantity,
               },
-            });
-          }
+            },
+            update: {
+              quantity: { increment: quantity },
+            },
+            create: {
+              materialId: material.id,
+              locationId: targetLocationId,
+              factoryUnitId,
+              quantity,
+            },
+          });
         } else if (type === 'SAIDA' || type === 'REFUGO') {
-          await tx.material.update({
-            where: { id: material.id },
-            data: { quantity: { decrement: quantity } },
+          if (!targetLocationId) {
+            throw new Error('A localização de origem é obrigatória para registrar a baixa.');
+          }
+
+          // 1.1 Decremento atômico condicional na prateleira física
+          const locUpdate = await tx.materialLocation.updateMany({
+            where: {
+              materialId: material.id,
+              locationId: targetLocationId,
+              factoryUnitId,
+              quantity: { gte: quantity },
+            },
+            data: {
+              quantity: { decrement: quantity },
+            },
           });
 
-          const targetLocationId = locationId || (material.locations[0]?.locationId);
-          if (targetLocationId) {
-            const locLink = material.locations.find((l) => l.locationId === targetLocationId);
-            if (locLink) {
-              await tx.materialLocation.update({
-                where: {
-                  materialId_locationId: {
-                    materialId: material.id,
-                    locationId: targetLocationId,
-                  },
-                },
-                data: {
-                  quantity: Math.max(0, Number(locLink.quantity || 0) - quantity),
-                },
-              });
-            }
+          if (locUpdate.count === 0) {
+            throw new Error(`Saldo insuficiente na prateleira selecionada para realizar a baixa.`);
+          }
+
+          // 1.2 Decremento atômico condicional no saldo total
+          const matUpdate = await tx.material.updateMany({
+            where: {
+              id: material.id,
+              factoryUnitId,
+              quantity: { gte: quantity },
+            },
+            data: {
+              quantity: { decrement: quantity },
+            },
+          });
+
+          if (matUpdate.count === 0) {
+            throw new Error(`Saldo total insuficiente para realizar a baixa.`);
           }
         } else if (type === 'TRANSFERENCIA') {
           if (!destinationLocationId) {
@@ -103,26 +115,24 @@ export class StockMovementService {
             throw new Error('A localização de origem e destino devem ser diferentes.');
           }
 
-          const sourceLocLink = material.locations.find((l) => l.locationId === sourceLocId);
-          const sourceQty = Number(sourceLocLink?.quantity || 0);
-          if (!sourceLocLink || sourceQty < quantity - 0.0001) {
-            throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
-          }
-
-          // Debitar da origem
-          await tx.materialLocation.update({
+          // Debitar da prateleira de origem com decremento condicional
+          const sourceUpdate = await tx.materialLocation.updateMany({
             where: {
-              materialId_locationId: {
-                materialId: material.id,
-                locationId: sourceLocId,
-              },
+              materialId: material.id,
+              locationId: sourceLocId,
+              factoryUnitId,
+              quantity: { gte: quantity },
             },
             data: {
-              quantity: Math.max(0, sourceQty - quantity),
+              quantity: { decrement: quantity },
             },
           });
 
-          // Creditar no destino
+          if (sourceUpdate.count === 0) {
+            throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
+          }
+
+          // Creditar na prateleira de destino via upsert
           await tx.materialLocation.upsert({
             where: {
               materialId_locationId: {
@@ -183,7 +193,7 @@ export class StockMovementService {
       // 2. Se não for Material, busca na tabela StockItem (Demais setores)
       const item = await tx.stockItem.findFirst({
         where: { id: stockItemId, factoryUnitId },
-        include: { locations: true },
+        include: { locations: { include: { location: true } } },
       });
 
       if (!item) {
@@ -194,63 +204,72 @@ export class StockMovementService {
         throw new Error(`A quantidade para o setor ${item.sector} deve ser um número inteiro (sem decimais).`);
       }
 
-      const itemQty = Number(item.quantity);
-      if ((type === 'SAIDA' || type === 'REFUGO') && itemQty < quantity - 0.0001) {
-        throw new Error(`Saldo insuficiente. Saldo disponível: ${itemQty}`);
-      }
+      const targetLocationId = locationId || item.locations[0]?.locationId;
 
       // Atualizar saldo do StockItem
       if (type === 'ENTRADA') {
-        const newQty = Number(item.quantity) + quantity;
+        if (!targetLocationId) {
+          throw new Error('A localização é obrigatória para registrar a entrada.');
+        }
+
         await tx.stockItem.update({
           where: { id: item.id },
-          data: { quantity: newQty },
+          data: { quantity: { increment: quantity } },
         });
 
-        const targetLocationId = locationId || (item.locations[0]?.locationId);
-        if (targetLocationId) {
-          await tx.stockItemLocation.upsert({
-            where: {
-              stockItemId_locationId: {
-                stockItemId: item.id,
-                locationId: targetLocationId,
-              },
-            },
-            update: {
-              quantity: { increment: quantity },
-            },
-            create: {
+        await tx.stockItemLocation.upsert({
+          where: {
+            stockItemId_locationId: {
               stockItemId: item.id,
               locationId: targetLocationId,
-              factoryUnitId,
-              quantity,
             },
-          });
-        }
+          },
+          update: {
+            quantity: { increment: quantity },
+          },
+          create: {
+            stockItemId: item.id,
+            locationId: targetLocationId,
+            factoryUnitId,
+            quantity,
+          },
+        });
       } else if (type === 'SAIDA' || type === 'REFUGO') {
-        const newQty = Math.max(0, Number(item.quantity) - quantity);
-        await tx.stockItem.update({
-          where: { id: item.id },
-          data: { quantity: newQty },
+        if (!targetLocationId) {
+          throw new Error('A localização de origem é obrigatória para registrar a baixa.');
+        }
+
+        // Decremento atômico condicional na localização
+        const locUpdate = await tx.stockItemLocation.updateMany({
+          where: {
+            stockItemId: item.id,
+            locationId: targetLocationId,
+            factoryUnitId,
+            quantity: { gte: quantity },
+          },
+          data: {
+            quantity: { decrement: quantity },
+          },
         });
 
-        // Atualizar saldo na localização de origem
-        const targetLocationId = locationId || (item.locations[0]?.locationId);
-        if (targetLocationId) {
-          const locLink = item.locations.find((l) => l.locationId === targetLocationId);
-          if (locLink) {
-            await tx.stockItemLocation.update({
-              where: {
-                stockItemId_locationId: {
-                  stockItemId: item.id,
-                  locationId: targetLocationId,
-                },
-              },
-              data: {
-                quantity: Math.max(0, Number(locLink.quantity || 0) - quantity),
-              },
-            });
-          }
+        if (locUpdate.count === 0) {
+          throw new Error(`Saldo insuficiente na prateleira selecionada para realizar a baixa.`);
+        }
+
+        // Decremento atômico condicional no StockItem
+        const itemUpdate = await tx.stockItem.updateMany({
+          where: {
+            id: item.id,
+            factoryUnitId,
+            quantity: { gte: quantity },
+          },
+          data: {
+            quantity: { decrement: quantity },
+          },
+        });
+
+        if (itemUpdate.count === 0) {
+          throw new Error(`Saldo total insuficiente para realizar a baixa.`);
         }
       }
 
@@ -290,24 +309,22 @@ export class StockMovementService {
           targetSectorForMovement = destLocation.sector as SectorType;
         }
 
-        const sourceLocLink = item.locations.find((l) => l.locationId === sourceLocId);
-        const sourceLocQty = Number(sourceLocLink?.quantity || 0);
-        if (!sourceLocLink || sourceLocQty < quantity - 0.0001) {
-          throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
-        }
-
-        // Debitar da origem
-        await tx.stockItemLocation.update({
+        // Debitar da prateleira de origem com decremento condicional
+        const sourceLocUpdate = await tx.stockItemLocation.updateMany({
           where: {
-            stockItemId_locationId: {
-              stockItemId: item.id,
-              locationId: sourceLocId,
-            },
+            stockItemId: item.id,
+            locationId: sourceLocId,
+            factoryUnitId,
+            quantity: { gte: quantity },
           },
           data: {
-            quantity: Math.max(0, sourceLocQty - quantity),
+            quantity: { decrement: quantity },
           },
         });
+
+        if (sourceLocUpdate.count === 0) {
+          throw new Error('Saldo insuficiente na prateleira de origem para transferência.');
+        }
 
         // Se for transferência intersetorial por Admin Master:
         if (isCrossSector && destLocation.sector) {
@@ -339,12 +356,20 @@ export class StockMovementService {
             });
           } else {
             // Transferência parcial: subtrai saldo do item de origem e cria novo StockItem no setor de destino
-            await tx.stockItem.update({
-              where: { id: item.id },
+            const itemDecUpdate = await tx.stockItem.updateMany({
+              where: {
+                id: item.id,
+                factoryUnitId,
+                quantity: { gte: quantity },
+              },
               data: {
                 quantity: { decrement: quantity },
               },
             });
+
+            if (itemDecUpdate.count === 0) {
+              throw new Error('Saldo total insuficiente para realizar a transferência parcial.');
+            }
 
             const newStockItem = await tx.stockItem.create({
               data: {

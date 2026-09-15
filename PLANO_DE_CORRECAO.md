@@ -135,7 +135,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** duas baixas simultâneas, entrada durante saída, último saldo, item sem localização, vínculo nulo legado, prateleira com saldo insuficiente, falha ao gravar histórico e repetição de requisição. Preservar contratos da rota legada e da unificada.
 - **Critérios de validação/teste:** PostgreSQL com saldo 100 e baixas concorrentes de 60 e 50 deve aceitar apenas o total disponível; duas entradas devem somar integralmente. No cenário total 10 e prateleiras 2/8, saída de 5 da primeira deve falhar ou seguir distribuição explicitamente definida. Verificar `saldoTotal = soma(saldosLocais)` antes/depois e rollback integral quando o histórico falhar.
 - **Commit previsto:** `fix(stock): garante baixas atomicas e saldo consistente por prateleira`.
-- **Status:** [ ] Em Progresso
+- **Status:** [x] Concluído
 
 ### Ponto 07 - Preservar estoque e rastreabilidade em transferências e exclusões
 
