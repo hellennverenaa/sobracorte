@@ -91,7 +91,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** dados negativos, casas excedentes, duplicidades, referências órfãs e históricos antigos sem snapshots. Não inventar snapshots a partir de dados atuais como se fossem originais. Validar conversão e preservação dos registros antes de impor constraints. Alterações estruturais posteriores específicas dos Pontos 05 e 11 terão suas próprias migrações.
 - **Critérios de validação/teste:** reconstruir banco descartável apenas pelas migrações; validar atualização a partir de baseline representativa; comparar schema resultante com Prisma; verificar tipos, precisão, defaults, enums, FKs, índices e tabelas de auditoria. Demonstrar retenção de histórico e rejeição de vínculos entre fábricas. Registrar explicitamente se o banco instalado não foi inspecionado.
 - **Commit previsto:** `fix(db): alinha migrations ao schema e preserva integridade relacional`.
-- **Status:** [ ] Em Progresso
+- **Status:** [x] Concluído
 
 ### Ponto 03 - Centralizar autorização por usuário, fábrica, setor e recurso
 
@@ -102,7 +102,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** papel alterado após emissão do token, usuário removido, setor nulo, token sem setor local, administrador global, fábrica inativa, lote misto, ID de outro setor e ID de outra fábrica. Registrar a política vigente de admin local versus global antes de alterá-la.
 - **Critérios de validação/teste:** matriz real de rotas para leitor, movimentador, líder, admin_setor e admin; dois setores e duas fábricas; payload com setor falso; lote misto; importação com setor por linha; alterações de configurações por ID fora do setor. Líder deve carregar listas necessárias sem adquirir permissão de administrar configurações. Consulta/atualização por ID de outra fábrica deve ser negada.
 - **Commit previsto:** `fix(authz): centraliza contexto e aplica permissoes por recurso`.
-- **Status:** [ ] Pendente
+- **Status:** [ ] Em Progresso
 
 ### Ponto 04 - Uniformizar precisão decimal e validar payloads críticos
 
