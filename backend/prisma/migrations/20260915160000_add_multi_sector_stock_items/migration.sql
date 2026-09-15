@@ -1,3 +1,14 @@
+-- Upgrade after the production history through 20260913000000.
+-- Compatibility bridge for databases that followed the main production
+-- migration line before the multi-sector work was merged. That line removed
+-- these legacy columns, while this migration still uses them when replicating
+-- the SEST configuration. They are also present in the target Prisma schema.
+ALTER TABLE "sobra_corte"."CategoryConfig"
+    ADD COLUMN IF NOT EXISTS "unitLock" TEXT NOT NULL DEFAULT 'livre';
+
+ALTER TABLE "sobra_corte"."Location"
+    ADD COLUMN IF NOT EXISTS "categoryId" INTEGER;
+
 -- 1. Create Enums
 DO $$ BEGIN
     CREATE TYPE "sobra_corte"."SectorType" AS ENUM ('CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM');
@@ -115,14 +126,14 @@ ALTER TABLE "sobra_corte"."StockMovement" ADD CONSTRAINT "StockMovement_factoryU
 ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_stockItemId_factoryUnitId_fkey";
 ALTER TABLE "sobra_corte"."StockMovement" ADD CONSTRAINT "StockMovement_stockItemId_factoryUnitId_fkey" FOREIGN KEY ("stockItemId", "factoryUnitId") REFERENCES "sobra_corte"."StockItem"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- 9. Idempotent Unit Seeding (SEST, STJ, ITB, VDC, ITP)
+-- 9. Preserve existing factories, including the STJ -> SAJ production rename.
 INSERT INTO "sobra_corte"."FactoryUnit" ("code", "name", "active") VALUES
     ('SEST', 'Santo Estêvão', true),
-    ('STJ',  'Santo Antônio de Jesus', true),
+    ('SAJ',  'Santo Antônio de Jesus', true),
     ('ITB',  'Itaberaba', true),
     ('VDC',  'Vitória da Conquista', true),
     ('ITP',  'Itapipoca', true)
-ON CONFLICT ("code") DO UPDATE SET "name" = EXCLUDED."name", "active" = EXCLUDED."active";
+ON CONFLICT ("code") DO NOTHING;
 
 -- 10. Replicate Default Configuration from SEST to other units
 DO $$
@@ -134,7 +145,8 @@ BEGIN
     SELECT "id" INTO sest_unit_id FROM "sobra_corte"."FactoryUnit" WHERE "code" = 'SEST';
 
     IF sest_unit_id IS NOT NULL THEN
-        FOR u_code IN SELECT unnest(ARRAY['ITB', 'VDC', 'ITP', 'STJ']) LOOP
+        -- SAJ already has its own configuration. Do not repopulate it from SEST.
+        FOR u_code IN SELECT unnest(ARRAY['ITB', 'VDC', 'ITP']) LOOP
             SELECT "id" INTO target_unit_id FROM "sobra_corte"."FactoryUnit" WHERE "code" = u_code;
 
             IF target_unit_id IS NOT NULL THEN

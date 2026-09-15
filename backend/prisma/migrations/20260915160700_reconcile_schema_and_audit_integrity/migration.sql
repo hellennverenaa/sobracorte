@@ -1,3 +1,4 @@
+-- Upgrade after the production history through 20260913000000.
 -- ============================================================================
 -- Migration: 20260915120000_reconcile_schema_and_audit_integrity
 -- Reconciliação do Schema Prisma, Migrações e Integridade Relacional (Ponto 02)

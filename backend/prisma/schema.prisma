@@ -103,6 +103,9 @@ model Material {
   @@index([factoryUnitId, name])
   @@index([factoryUnitId, type])
   @@index([factoryUnitId, quantity(sort: Desc)])
+  // Search indexes already present in production (pg_trgm).
+  @@index([code(ops: raw("gin_trgm_ops"))], map: "Material_code_trgm_idx", type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "Material_name_trgm_idx", type: Gin)
   @@schema("sobra_corte")
 }
 
@@ -213,9 +216,15 @@ model User {
   // Matrícula DASS (Armazenamento de referência sem FK física externa)
   matriculaDass BigInt?
 
+  // Preserve the stable identity introduced in production. This upgrade does
+  // not change authentication policy or discard external identity references.
+  authOrigin String?
+  authUserId String?
+
   @@unique([factoryUnitId, usuario])
   @@unique([factoryUnitId, email])
   @@unique([factoryUnitId, matriculaDass])
+  @@unique([factoryUnitId, authOrigin, authUserId])
   @@schema("sobra_corte")
 }
 

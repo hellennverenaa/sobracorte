@@ -1,3 +1,4 @@
+-- Upgrade after the production history through 20260913000000.
 -- ============================================================================
 -- Migration: 20260909160000_official_sectors_and_category_sector
 -- Oficialização dos 5 Setores (Distribuição) e Setorização de Categorias

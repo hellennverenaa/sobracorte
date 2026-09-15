@@ -1,3 +1,4 @@
+-- Upgrade after the production history through 20260913000000.
 -- Inserção oficial e idempotente da Unidade Ivoti (IVT)
 INSERT INTO "sobra_corte"."FactoryUnit" ("code", "name", "active") VALUES
     ('IVT', 'Ivoti', true)

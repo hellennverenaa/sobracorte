@@ -1,3 +1,4 @@
+-- Upgrade after the production history through 20260913000000.
 -- ============================================================================
 -- Migration: 20260903000000_v3_schema_alignment
 -- Alinhamento Estrutural do SobraCorte v3.0 (Multi-Setor & Requisições Digitais)
