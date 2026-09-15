@@ -19,6 +19,27 @@ export class StockItemController {
 
       const parsed = BatchCreateStockItemSchema.parse(req.body);
 
+      const role = req.effectiveContext?.effectiveRole || req.user?.role;
+      const assignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
+      const isGlobal = req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin;
+
+      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
+        let userSec = String(assignedSec).toUpperCase().trim();
+        if (userSec === 'CABEDAIS' || userSec === 'EXPEDICAO') userSec = 'DISTRIBUICAO';
+
+        const forbiddenItem = parsed.items.find(item => {
+          let itemSec = item.sector ? String(item.sector).toUpperCase().trim() : '';
+          if (itemSec === 'CABEDAIS' || itemSec === 'EXPEDICAO') itemSec = 'DISTRIBUICAO';
+          return itemSec && itemSec !== userSec;
+        });
+
+        if (forbiddenItem) {
+          return res.status(403).json({
+            error: `Acesso negado: O lote contém item pertencente ao setor ${forbiddenItem.sector}, mas seu perfil está restrito ao setor ${assignedSec}.`,
+          });
+        }
+      }
+
       const operatorContext = {
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,

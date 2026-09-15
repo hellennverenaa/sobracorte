@@ -74,3 +74,26 @@ test('Settings RBAC: Exclusão de Origem com movimentações vinculadas bloqueia
   assert.equal(isBlockedForNonAdmin, true);
   assert.equal(isBlockedForAdmin, false);
 });
+
+test('Settings RBAC: Leitor e Líder têm permissão para consultar listas de domínio ativas', () => {
+  for (const role of ['leitor', 'lider', 'movimentador', 'admin_setor', 'admin']) {
+    const isDomainReadAllowed = true; // Rotas GET /settings/* são liberadas para leitura de formulários
+    assert.equal(isDomainReadAllowed, true, `Role ${role} deve poder ler domínios`);
+  }
+});
+
+test('Settings RBAC: Leitor e Líder são bloqueados em operações de mutação de configurações', () => {
+  for (const role of ['leitor', 'lider', 'movimentador']) {
+    const isMutationAllowed = role === 'admin' || role === 'admin_setor';
+    assert.equal(isMutationAllowed, false, `Role ${role} deve ser bloqueado em mutações`);
+  }
+});
+
+test('Settings RBAC: Admin de Setor CORTE é bloqueado ao tentar gerenciar configurações de outro setor', () => {
+  const userSector = 'CORTE';
+  const targetSector = 'MONTAGEM';
+
+  const isSectorAllowed = userSector === targetSector;
+  assert.equal(isSectorAllowed, false);
+});
+

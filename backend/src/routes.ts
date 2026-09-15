@@ -273,21 +273,21 @@ routes.delete('/users/:id', requireAuth, mutationLimiter, requireRole(['admin'])
   }
 });
 
-routes.get('/settings/categories',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getCategories);
+routes.get('/settings/categories',    requireAuth, authenticatedLimiter, settingsController.getCategories);
 routes.post('/settings/categories',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createCategory);
 routes.put('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
 routes.delete('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
 
-routes.get('/settings/units', requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getUnits);
+routes.get('/settings/units', requireAuth, authenticatedLimiter, settingsController.getUnits);
 routes.post('/settings/units', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createUnit);
 routes.delete('/settings/units/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteUnit);
 
-routes.get('/settings/locations',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getLocations);
+routes.get('/settings/locations',    requireAuth, authenticatedLimiter, settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createLocation);
 routes.put('/settings/locations/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateLocation);
 routes.delete('/settings/locations/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteLocation);
 
-routes.get('/settings/origins',    requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor']), settingsController.getOrigins);
+routes.get('/settings/origins',    requireAuth, authenticatedLimiter, settingsController.getOrigins);
 routes.post('/settings/origins',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
 

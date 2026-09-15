@@ -4,6 +4,7 @@ import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequestWithAdminCheck, TenantAuthorizationError } from '../auth/tenant';
 import { tenantStorage } from '../context/tenantContext';
+import { EffectiveContext } from '../types/express';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   // O Bearer explícito representa a sessão renovada. Nunca recorrer ao cookie
@@ -48,9 +49,42 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         select: { id: true, code: true, name: true, enableRequisitions: true },
       }));
 
-    req.user = user;
+    // Busca o usuário no banco de dados na unidade ativa para estabelecer o contexto efetivo em tempo real
+    const usuario = String(user.usuario || '').toUpperCase().trim();
+    const matricula = user.matricula ? BigInt(user.matricula) : null;
+
+    const userInDb = await prismaWithoutTenant.user.findFirst({
+      where: {
+        factoryUnitId: tenant.id,
+        OR: [
+          ...(matricula ? [{ matriculaDass: matricula }] : []),
+          { usuario },
+        ],
+      },
+    });
+
+    const effectiveRole = isGlobalAdmin ? 'admin' : (userInDb?.role || user.role || 'leitor');
+    const assignedSector = userInDb?.assignedSector || (user.assignedSector as any) || null;
+
+    const effectiveContext: EffectiveContext = {
+      userId: userInDb?.id || 0,
+      factoryUnitId: tenant.id,
+      effectiveRole,
+      assignedSector,
+      isGlobalAdmin,
+      usuario,
+      matriculaDass: userInDb?.matriculaDass ? Number(userInDb.matriculaDass) : (user.matricula ? Number(user.matricula) : null),
+      nome: userInDb?.nome || user.nome || usuario,
+    };
+
+    req.user = {
+      ...user,
+      role: effectiveRole,
+      assignedSector,
+    };
     req.tenant = tenant;
     req.isGlobalAdmin = isGlobalAdmin;
+    req.effectiveContext = effectiveContext;
 
     // ── Ativa o contexto de tenant para toda a cadeia de execução downstream.
     // A partir daqui, toda query do Prisma em modelos multi-tenant terá
@@ -71,59 +105,25 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
 export const requireRole = (allowedRoles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const apiUser = req.user;
+    const effective = req.effectiveContext;
 
-    if (!apiUser || !apiUser.usuario) {
+    if (!effective || !effective.usuario) {
       return res.status(401).json({
         message: "Acesso negado! Usuário não autenticado!",
       });
     }
 
-    if (req.isGlobalAdmin) {
+    if (effective.isGlobalAdmin || effective.effectiveRole === 'admin') {
       return next();
     }
 
-    if (!req.tenant) {
-      return res.status(400).json({ error: 'Unidade fabril não identificada.' });
-    }
-
-    const usuario = String(apiUser.usuario).toUpperCase().trim();
-    const matricula = apiUser.matricula ? BigInt(apiUser.matricula) : null;
-
-    try {
-      const user = await prismaWithoutTenant.user.findFirst({
-        where: {
-          factoryUnitId: req.tenant.id,
-          OR: [
-            ...(matricula ? [{ matriculaDass: matricula }] : []),
-            { usuario },
-          ],
-        },
-      });
-
-      if (!user) {
-        return res.status(401).json({
-          message: "Acesso negado! Usuário não encontrado no sistema.",
-        });
-      }
-
-      if (user.role === 'admin') {
-        return next();
-      }
-
-      if (!allowedRoles.includes(user.role)) {
-        return res.status(403).json({
-          message: "Acesso negado! Seu perfil de acesso não permite realizar esta operação.",
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error("Erro ao verificar papel do usuário:", error);
-      return res.status(500).json({
-        message: "Erro interno de autorização",
+    if (!allowedRoles.includes(effective.effectiveRole)) {
+      return res.status(403).json({
+        message: "Acesso negado! Seu perfil de acesso não permite realizar esta operação.",
       });
     }
+
+    next();
   };
 };
 
@@ -132,14 +132,15 @@ export const requireRole = (allowedRoles: string[]) => {
  */
 export const requireSectorMatch = (getSector: (req: Request) => string | undefined) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (req.user?.role === 'admin' || req.isGlobalAdmin) {
+    const effective = req.effectiveContext;
+    if (effective?.isGlobalAdmin || effective?.effectiveRole === 'admin' || req.user?.role === 'admin' || req.isGlobalAdmin) {
       return next();
     }
 
     const targetSector = getSector(req);
-    const userAssignedSector = req.user?.assignedSector;
+    const userAssignedSector = effective?.assignedSector || req.user?.assignedSector;
 
-    if (userAssignedSector && targetSector) {
+    if (userAssignedSector && userAssignedSector !== 'TODOS' && targetSector) {
       let normalizedTarget = targetSector.toUpperCase().trim();
       let normalizedUser = userAssignedSector.toUpperCase().trim();
       if (normalizedTarget === 'CABEDAIS' || normalizedTarget === 'EXPEDICAO') normalizedTarget = 'DISTRIBUICAO';
@@ -170,3 +171,4 @@ export const requireRequisitionsEnabled = (req: Request, res: Response, next: Ne
 
   next();
 };
+

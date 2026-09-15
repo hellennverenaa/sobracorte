@@ -19,12 +19,16 @@ export class ImportController {
         return res.status(400).json({ error: 'Formato de arquivo inválido. Apenas arquivos no formato .csv são aceitos.' });
       }
 
-      const rawSector = String(req.body.sector || req.query.sector || req.user?.assignedSector || 'CORTE');
+      const role = req.effectiveContext?.effectiveRole || req.user?.role;
+      const assignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
+      const isGlobal = req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin;
+
+      const rawSector = String(req.body.sector || req.query.sector || assignedSec || 'CORTE');
       const defaultSector = normalizeSector(rawSector);
 
       // Trava RBAC para admin_setor: apenas permite importar para o seu setor designado
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        const userSec = normalizeSector(req.user.assignedSector);
+      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
+        const userSec = normalizeSector(assignedSec);
         if (defaultSector !== userSec) {
           return res.status(403).json({
             error: `Acesso negado. Você só tem permissão para importar materiais no setor ${userSec}.`,
@@ -62,6 +66,17 @@ export class ImportController {
           });
         }
         throw validationErr;
+      }
+
+      // Validação linha a linha de setor para admin_setor
+      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
+        const userSec = normalizeSector(assignedSec);
+        const forbiddenItem = validatedItems.find(item => item.sector !== userSec);
+        if (forbiddenItem) {
+          return res.status(403).json({
+            error: `Acesso negado: A linha ${forbiddenItem.rowNumber} contém material do setor ${forbiddenItem.sector}, mas seu perfil só permite importar no setor ${userSec}.`,
+          });
+        }
       }
 
       // 4. Execução Transacional Atômica (Persistência + Amarração + Movimentações)

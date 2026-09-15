@@ -7,21 +7,28 @@ function hasPrismaCode(error: unknown, code: string): boolean {
 }
 
 function checkSettingsPermission(req: Request, targetSector?: string): { allowed: boolean; status?: number; error?: string } {
-  if (req.isGlobalAdmin || req.user?.role === 'admin') {
+  const effective = req.effectiveContext;
+  const isGlobal = effective?.isGlobalAdmin ?? req.isGlobalAdmin;
+  const role = effective?.effectiveRole ?? req.user?.role;
+  const assignedSector = effective?.assignedSector ?? req.user?.assignedSector;
+
+  if (isGlobal || role === 'admin') {
     return { allowed: true };
   }
-  if (req.user?.role === 'leitor') {
+  if (role === 'leitor' || role === 'movimentador' || role === 'lider') {
     return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
   }
-  if (req.user?.role === 'admin_setor') {
-    if (targetSector && req.user.assignedSector) {
-      const userSec = req.user.assignedSector.toUpperCase().trim();
-      const tgtSec = targetSector.toUpperCase().trim();
+  if (role === 'admin_setor') {
+    if (targetSector && assignedSector && assignedSector !== 'TODOS') {
+      let userSec = assignedSector.toUpperCase().trim();
+      let tgtSec = targetSector.toUpperCase().trim();
+      if (userSec === 'CABEDAIS' || userSec === 'EXPEDICAO') userSec = 'DISTRIBUICAO';
+      if (tgtSec === 'CABEDAIS' || tgtSec === 'EXPEDICAO') tgtSec = 'DISTRIBUICAO';
       if (userSec !== tgtSec) {
         return {
           allowed: false,
           status: 403,
-          error: `Acesso negado: Seu perfil está restrito ao gerenciamento do setor ${req.user.assignedSector}.`,
+          error: `Acesso negado: Seu perfil está restrito ao gerenciamento do setor ${assignedSector}.`,
         };
       }
     }
@@ -34,17 +41,15 @@ export class SettingsController {
 
   async getCategories(req: Request, res: Response) {
     try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
       const rawSector = req.query.sector as string | undefined;
       let targetSector = rawSector ? rawSector.toUpperCase().trim() : undefined;
       if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
 
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
+      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
+
+      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
+        targetSector = userAssignedSec;
       }
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
@@ -267,11 +272,6 @@ export class SettingsController {
 
   async getUnits(req: Request, res: Response) {
     try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
       let units = await prisma.unitConfig.findMany({
         where: { factoryUnitId: req.tenant!.id, active: true },
         orderBy: { id: 'desc' }
@@ -444,19 +444,17 @@ export class SettingsController {
 
   async getLocations(req: Request, res: Response) {
     try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
       const sectorFilter = req.query.sector as string | undefined;
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
       if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
+      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
+      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
+
       const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
         whereClause.OR = [
-          { sector: req.user.assignedSector as any },
+          { sector: userAssignedSec as any },
           { sector: null }
         ];
       } else if (targetSector) {
@@ -777,19 +775,17 @@ export class SettingsController {
 
   async getOrigins(req: Request, res: Response) {
     try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
       const sectorFilter = req.query.sector as string | undefined;
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
       if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
+      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
+      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
+
       const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
+      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
         whereClause.OR = [
-          { sector: req.user.assignedSector as any },
+          { sector: userAssignedSec as any },
           { sector: null }
         ];
       } else if (targetSector) {

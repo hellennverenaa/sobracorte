@@ -1,3 +1,5 @@
+import { SectorType } from '../generated/prisma';
+
 export interface DecodedToken {
     id: string;
     usuario: string;
@@ -21,12 +23,25 @@ export interface TenantContext {
     enableRequisitions?: boolean;
 }
 
+export interface EffectiveContext {
+    userId: number;
+    factoryUnitId: number;
+    effectiveRole: string;
+    assignedSector: SectorType | null;
+    isGlobalAdmin: boolean;
+    usuario: string;
+    matriculaDass: number | null;
+    nome: string;
+}
+
 declare global {
     namespace Express {
         interface Request {
-            user?: DecodedToken
-            tenant?: TenantContext
-            isGlobalAdmin?: boolean
+            user?: DecodedToken;
+            tenant?: TenantContext;
+            isGlobalAdmin?: boolean;
+            effectiveContext?: EffectiveContext;
         }
     }
 }
+

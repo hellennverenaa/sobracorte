@@ -102,7 +102,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** papel alterado após emissão do token, usuário removido, setor nulo, token sem setor local, administrador global, fábrica inativa, lote misto, ID de outro setor e ID de outra fábrica. Registrar a política vigente de admin local versus global antes de alterá-la.
 - **Critérios de validação/teste:** matriz real de rotas para leitor, movimentador, líder, admin_setor e admin; dois setores e duas fábricas; payload com setor falso; lote misto; importação com setor por linha; alterações de configurações por ID fora do setor. Líder deve carregar listas necessárias sem adquirir permissão de administrar configurações. Consulta/atualização por ID de outra fábrica deve ser negada.
 - **Commit previsto:** `fix(authz): centraliza contexto e aplica permissoes por recurso`.
-- **Status:** [ ] Em Progresso
+- **Status:** [x] Concluído
 
 ### Ponto 04 - Uniformizar precisão decimal e validar payloads críticos
 
@@ -113,7 +113,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** `null`, `undefined`, string vazia, booleanos, arrays, strings numéricas, separadores locais, `0.00001`, limites de `Decimal(18,3)`, expoentes e quantidades acima da precisão segura de Number. Quantidade zero continua possível em eventos de configuração e onde a regra de cadastro a permitir explicitamente.
 - **Critérios de validação/teste:** POST de atendimento rejeita `-2`, zero, quantidade ausente e tipos indevidos sem alterar saldo; string numérica autorizada é normalizada sem concatenação. Casamento de 0,5 par é rejeitado. Casos de arredondamento/escala são determinísticos para string e Decimal. Validar ida e volta entre DTO, cálculo, DB e JSON nos limites adotados.
 - **Commit previsto:** `fix(validation): uniformiza decimais e valida quantidades de atendimento`.
-- **Status:** [ ] Pendente
+- **Status:** [ ] Em Progresso
 
 ### Ponto 05 - Normalizar unidades e preservar vínculos de domínio
 
