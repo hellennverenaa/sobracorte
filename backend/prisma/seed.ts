@@ -9,6 +9,20 @@ export const FACTORY_UNITS = [
   { code: 'IVT', name: 'Ivoti', active: true },
 ] as const;
 
+export const DEFAULT_UNITS = [
+  { name: 'Metro', symbol: 'm' },
+  { name: 'Metro Quadrado', symbol: 'm²' },
+  { name: 'Quilograma', symbol: 'kg' },
+  { name: 'Grama', symbol: 'g' },
+  { name: 'Unidade', symbol: 'un' },
+  { name: 'Unidade (Discreto)', symbol: 'und' },
+  { name: 'Par', symbol: 'par' },
+  { name: 'Rolo', symbol: 'rolo' },
+  { name: 'Centímetro', symbol: 'cm' },
+  { name: 'Litro', symbol: 'l' },
+  { name: 'Caixa', symbol: 'cx' },
+] as const;
+
 async function main() {
   console.log('🌱 Iniciando Seed de Unidades Fabris e Configurações...');
 
@@ -19,12 +33,29 @@ async function main() {
       create: { code: unit.code, name: unit.name, active: unit.active },
     });
     console.log(`✅ Unidade [${upserted.code}] ${upserted.name} sincronizada (ID: ${upserted.id})`);
+
+    // Provisionar DEFAULT_UNITS para a unidade
+    for (const u of DEFAULT_UNITS) {
+      const exists = await prismaWithoutTenant.unitConfig.findFirst({
+        where: { factoryUnitId: upserted.id, symbol: u.symbol },
+      });
+      if (!exists) {
+        await prismaWithoutTenant.unitConfig.create({
+          data: {
+            name: u.name,
+            symbol: u.symbol,
+            active: true,
+            factoryUnitId: upserted.id,
+          },
+        });
+      }
+    }
   }
 
-  // Obter SEST como referência de configurações padrão
+  // Obter SEST como referência de configurações de categorias e origens
   const sestUnit = await prismaWithoutTenant.factoryUnit.findUnique({
     where: { code: 'SEST' },
-    include: { units: true, categories: true, origins: true },
+    include: { categories: true, origins: true },
   });
 
   if (sestUnit) {
@@ -33,24 +64,7 @@ async function main() {
     });
 
     for (const targetUnit of otherUnits) {
-      // 1. Replicar UnitConfig
-      for (const u of sestUnit.units) {
-        const exists = await prismaWithoutTenant.unitConfig.findFirst({
-          where: { factoryUnitId: targetUnit.id, symbol: u.symbol },
-        });
-        if (!exists) {
-          await prismaWithoutTenant.unitConfig.create({
-            data: {
-              name: u.name,
-              symbol: u.symbol,
-              active: u.active,
-              factoryUnitId: targetUnit.id,
-            },
-          });
-        }
-      }
-
-      // 2. Replicar CategoryConfig
+      // 1. Replicar CategoryConfig
       for (const c of sestUnit.categories) {
         const exists = await prismaWithoutTenant.categoryConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: c.name },
@@ -68,7 +82,7 @@ async function main() {
         }
       }
 
-      // 3. Replicar OriginConfig
+      // 2. Replicar OriginConfig
       for (const o of sestUnit.origins) {
         const exists = await prismaWithoutTenant.originConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: o.name },

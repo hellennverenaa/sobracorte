@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { Prisma } from '../generated/prisma';
+import { normalizeUnit } from '../utils/unitHelper';
 
 type ImportedMaterial = {
   code?: unknown;
@@ -97,7 +98,7 @@ export class MaterialController {
 
       const code = String(req.body.codigo || req.body.code).trim().toUpperCase();
       const name = String(req.body.descricao || req.body.name).trim().toUpperCase();
-      const unit = String(req.body.unidade || req.body.unit || 'UN').trim().toUpperCase();
+      const unit = normalizeUnit(req.body.unidade || req.body.unit, 'CORTE');
       const type = String(req.body.tipo || req.body.type || 'outros').trim().toUpperCase();
 
       const movimentos = qtdInicial > 0 ? {
@@ -162,9 +163,30 @@ export class MaterialController {
 
       const atualizado = await prisma.$transaction(async (tx) => {
         const existingMaterial = await tx.material.findFirst({
-          where: { id: materialId, factoryUnitId: req.tenant!.id }, select: { id: true },
+          where: { id: materialId, factoryUnitId: req.tenant!.id },
+          include: { locations: true },
         });
         if (!existingMaterial) throw new Error('MATERIAL_NOT_FOUND');
+
+        let targetUnit: string | undefined = undefined;
+        if (req.body.unit !== undefined || req.body.unidade !== undefined) {
+          const rawRequested = req.body.unit !== undefined ? req.body.unit : req.body.unidade;
+          const requestedUnit = normalizeUnit(String(rawRequested), 'CORTE');
+          const currentUnit = normalizeUnit(existingMaterial.unit, 'CORTE');
+
+          if (requestedUnit !== currentUnit) {
+            const totalQty = Number(existingMaterial.quantity || 0);
+            const hasLocationBalance = existingMaterial.locations.some((l) => Number(l.quantity || 0) > 0.0001);
+
+            if (totalQty > 0.0001 || hasLocationBalance) {
+              const err: any = new Error(`Não é possível alterar a unidade de medida do material pois ele possui saldo físico ativo (${existingMaterial.quantity} ${existingMaterial.unit}). Zere o estoque antes de alterar a unidade.`);
+              err.status = 400;
+              throw err;
+            }
+          }
+          targetUnit = requestedUnit;
+        }
+
         if (locationName) {
           const loc = await tx.location.findUnique({
             where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
@@ -180,17 +202,20 @@ export class MaterialController {
         return tx.material.update({
           where: { id: materialId },
           data: {
-            code: req.body.code !== undefined ? String(req.body.code) : undefined,
-            name: req.body.name !== undefined ? String(req.body.name) : undefined,
-            unit: req.body.unit !== undefined ? String(req.body.unit) : undefined,
-            type: req.body.type !== undefined ? String(req.body.type) : undefined,
+            code: req.body.code !== undefined ? String(req.body.code).trim().toUpperCase() : undefined,
+            name: req.body.name !== undefined ? String(req.body.name).trim().toUpperCase() : undefined,
+            unit: targetUnit,
+            type: req.body.type !== undefined ? String(req.body.type).trim().toUpperCase() : undefined,
             observation: req.body.observation !== undefined ? String(req.body.observation) : undefined,
           },
         });
       });
       
       res.json(atualizado);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 400 && error?.message) {
+        return res.status(400).json({ error: error.message });
+      }
       if (error instanceof Error && error.message === 'LOCATION_NOT_FOUND') {
         return res.status(404).json({ error: 'Localização não encontrada.' });
       }
@@ -200,8 +225,8 @@ export class MaterialController {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return res.status(404).json({ error: 'Material não encontrado.' });
       }
-      console.error('Erro interno ao atualizar material.');
-      res.status(500).json({ error: 'Erro ao atualizar material' });
+      console.error('Erro interno ao atualizar material:', error);
+      res.status(500).json({ error: error?.message || 'Erro ao atualizar material' });
     }
   }
 

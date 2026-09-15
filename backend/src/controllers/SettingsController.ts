@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { normalizeUnit } from '../utils/unitHelper';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -173,10 +174,11 @@ export class SettingsController {
       }
 
       const updated = await prisma.$transaction(async (tx) => {
+        const newName = name ? String(name).trim().toUpperCase() : undefined;
         const cat = await tx.categoryConfig.update({
           where: { id },
           data: {
-            name: name ? String(name).trim().toUpperCase() : undefined,
+            name: newName,
             sector: targetSector !== undefined ? (targetSector as any) : undefined,
             unitLock: unitLock !== undefined ? unitLock : undefined,
             defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
@@ -185,16 +187,28 @@ export class SettingsController {
           include: { defaultUnit: true }
         });
 
+        if (newName && newName !== existing.name) {
+          await tx.material.updateMany({
+            where: { factoryUnitId: req.tenant!.id, type: existing.name },
+            data: { type: newName },
+          });
+
+          await tx.stockItem.updateMany({
+            where: { factoryUnitId: req.tenant!.id, type: existing.name },
+            data: { type: newName },
+          });
+        }
+
         await tx.stockMovement.create({
           data: {
             factoryUnitId: req.tenant!.id,
             sector: 'CONFIGURACOES',
             type: 'EDICAO_CONFIGURACAO',
             quantity: 0,
-            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
-            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            operatorId: req.effectiveContext?.matriculaDass ? String(req.effectiveContext.matriculaDass) : (req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null)),
+            operatorName: req.effectiveContext?.nome || req.user?.nome || req.user?.usuario || 'Administrador',
             origem: 'Configurações - Categorias',
-            reason: `Edição de Categoria: ${existing.name}${name && name !== existing.name ? ` para ${name}` : ''}`
+            reason: `Edição de Categoria: ${existing.name}${newName && newName !== existing.name ? ` para ${newName}` : ''}`
           }
         });
 
@@ -272,33 +286,10 @@ export class SettingsController {
 
   async getUnits(req: Request, res: Response) {
     try {
-      let units = await prisma.unitConfig.findMany({
+      const units = await prisma.unitConfig.findMany({
         where: { factoryUnitId: req.tenant!.id, active: true },
         orderBy: { id: 'desc' }
       });
-
-      if (units.length === 0) {
-        const initialUnits = [
-          { name: 'Metro', symbol: 'm' },
-          { name: 'Metro Quadrado', symbol: 'm²' },
-          { name: 'Quilograma', symbol: 'kg' },
-          { name: 'Grama', symbol: 'g' },
-          { name: 'Unidade', symbol: 'un' },
-          { name: 'Par', symbol: 'par' },
-          { name: 'Rolo', symbol: 'rolo' },
-          { name: 'Centímetro', symbol: 'cm' },
-          { name: 'Litro', symbol: 'l' },
-          { name: 'Caixa', symbol: 'cx' }
-        ];
-        await prisma.unitConfig.createMany({
-          data: initialUnits.map((unit) => ({ ...unit, factoryUnitId: req.tenant!.id })),
-          skipDuplicates: true
-        });
-        units = await prisma.unitConfig.findMany({
-          where: { factoryUnitId: req.tenant!.id, active: true },
-          orderBy: { id: 'desc' }
-        });
-      }
 
       const unitsWithCount = await Promise.all(
         units.map(async (unit) => {
@@ -335,7 +326,7 @@ export class SettingsController {
         return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
       }
 
-      const cleanSymbol = String(symbol).trim().toUpperCase();
+      const cleanSymbol = normalizeUnit(String(symbol).trim());
       const cleanName = String(name).trim().toUpperCase();
 
       const existing = await prisma.unitConfig.findUnique({

@@ -1,6 +1,7 @@
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
+import { normalizeUnit } from '../utils/unitHelper';
 
 export class StockItemService {
   /**
@@ -39,6 +40,7 @@ export class StockItemService {
         if (item.sector === 'CORTE') {
           // 📦 SETOR CORTE: Persistência oficial na tabela Material (4.000+ matérias-primas)
           const materialCode = item.code.trim().toUpperCase();
+          const normalizedIncomingUnit = normalizeUnit(item.unit, 'CORTE');
           const existingMaterial = await tx.material.findUnique({
             where: {
               factoryUnitId_code: {
@@ -50,12 +52,23 @@ export class StockItemService {
 
           let materialRecord;
           if (existingMaterial) {
+            const currentNormUnit = normalizeUnit(existingMaterial.unit, 'CORTE');
+            const totalQty = Number(existingMaterial.quantity || 0);
+
+            if (totalQty > 0.0001 && currentNormUnit !== normalizedIncomingUnit) {
+              const err: any = new Error(
+                `Conflito de unidade: O material '${materialCode}' já possui saldo ativo de ${existingMaterial.quantity} ${existingMaterial.unit} e não aceita entrada na unidade '${item.unit}'. Normalize a unidade antes de realizar a entrada.`
+              );
+              err.status = 400;
+              throw err;
+            }
+
             materialRecord = await tx.material.update({
               where: { id: existingMaterial.id },
               data: {
                 quantity: { increment: item.quantity },
                 name: item.name ? item.name.trim().toUpperCase() : existingMaterial.name,
-                unit: item.unit ? item.unit.trim().toUpperCase() : existingMaterial.unit,
+                unit: normalizedIncomingUnit || existingMaterial.unit,
                 type: item.type ? item.type.trim().toUpperCase() : existingMaterial.type,
                 observation: item.observation || existingMaterial.observation,
                 minStock: item.minStock !== undefined ? item.minStock : existingMaterial.minStock,
@@ -68,7 +81,7 @@ export class StockItemService {
                 code: materialCode,
                 name: item.name.trim().toUpperCase(),
                 quantity: item.quantity,
-                unit: (item.unit || 'UN').trim().toUpperCase(),
+                unit: normalizedIncomingUnit,
                 type: (item.type || 'GERAL').trim().toUpperCase(),
                 observation: item.observation || '',
                 minStock: item.minStock || 0,
@@ -126,7 +139,7 @@ export class StockItemService {
             factoryUnitId,
             sector: item.sector as SectorType,
             quantity: item.quantity,
-            unit: (item as any).unit ? (item as any).unit.trim().toUpperCase() : 'UND',
+            unit: normalizeUnit((item as any).unit, item.sector),
             observation: item.observation || '',
           };
 

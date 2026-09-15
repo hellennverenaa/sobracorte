@@ -1,5 +1,6 @@
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
+import { normalizeUnit } from '../utils/unitHelper';
 
 export interface AvailableLocation {
   id: number;
@@ -369,9 +370,7 @@ export function validateImportBatch(
       }
     }
 
-    let unit = rawUnit ? rawUnit.trim().toUpperCase() : (itemSector === 'CORTE' ? 'M2' : (itemSector === 'CONSUMO' ? 'UN' : 'UND'));
-    if (unit === 'UND' && itemSector === 'CORTE') unit = 'UN';
-    if (unit === 'M²') unit = 'M2';
+    let unit = normalizeUnit(rawUnit, itemSector);
 
     const type = rawType ? rawType.trim().toUpperCase() : (itemSector === 'CORTE' ? 'GERAL' : itemSector);
     const color = rawColor && rawColor.trim() !== '' ? rawColor.trim().toUpperCase() : undefined;
@@ -466,12 +465,22 @@ export async function executeImportTransaction(
 
       let materialRecord;
       if (existingMaterial) {
+        const currentNormUnit = normalizeUnit(existingMaterial.unit, 'CORTE');
+        const incomingNormUnit = normalizeUnit(item.unit, 'CORTE');
+        const totalQty = Number(existingMaterial.quantity || 0);
+
+        if (totalQty > 0.0001 && currentNormUnit !== incomingNormUnit) {
+          throw new Error(
+            `Conflito de unidade no item '${item.code}': O material já possui saldo ativo de ${existingMaterial.quantity} ${existingMaterial.unit} e não pode ser importado com a unidade '${item.unit}'.`
+          );
+        }
+
         materialRecord = await tx.material.update({
           where: { id: existingMaterial.id },
           data: {
             quantity: { increment: item.quantity },
             name: item.name,
-            unit: item.unit || existingMaterial.unit,
+            unit: incomingNormUnit || existingMaterial.unit,
             type: item.type || existingMaterial.type,
             observation: item.observation || existingMaterial.observation,
           },

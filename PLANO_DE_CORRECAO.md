@@ -124,7 +124,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** `M2/M²`, `UN/UND`, `kg/KG`, unidades desativadas ainda referenciadas, categoria renomeada/excluída, prateleira geral, entrada do mesmo código com unidade diferente e colisões na normalização. Preservar consumidores de nomes/símbolos durante a transição do contrato.
 - **Critérios de validação/teste:** consultar unidades não grava dados; reenviar mesmo código com unidade incompatível é rejeitado sem somar saldos; renomear categoria preserva vínculo e contagem; unidade desativada não entra em cadastro novo; joins de indicadores não duplicam itens. Exercitar símbolos equivalentes e conflitos de backfill em banco descartável.
 - **Commit previsto:** `fix(catalog): normaliza unidades e preserva vinculos de configuracao`.
-- **Status:** [ ] Em Progresso
+- **Status:** [x] Concluído
 
 ### Ponto 06 - Tornar entradas e baixas atômicas por item e prateleira
 
@@ -135,7 +135,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** duas baixas simultâneas, entrada durante saída, último saldo, item sem localização, vínculo nulo legado, prateleira com saldo insuficiente, falha ao gravar histórico e repetição de requisição. Preservar contratos da rota legada e da unificada.
 - **Critérios de validação/teste:** PostgreSQL com saldo 100 e baixas concorrentes de 60 e 50 deve aceitar apenas o total disponível; duas entradas devem somar integralmente. No cenário total 10 e prateleiras 2/8, saída de 5 da primeira deve falhar ou seguir distribuição explicitamente definida. Verificar `saldoTotal = soma(saldosLocais)` antes/depois e rollback integral quando o histórico falhar.
 - **Commit previsto:** `fix(stock): garante baixas atomicas e saldo consistente por prateleira`.
-- **Status:** [ ] Pendente
+- **Status:** [ ] Em Progresso
 
 ### Ponto 07 - Preservar estoque e rastreabilidade em transferências e exclusões
 
