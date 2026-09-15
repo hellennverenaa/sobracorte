@@ -8,18 +8,32 @@ export function decimalInput(val: number | string | Prisma.Decimal | null | unde
     return new Prisma.Decimal('0.000');
   }
   if (val instanceof Prisma.Decimal) {
-    return val;
+    if (val.isNaN() || !val.isFinite()) {
+      throw new Error(`Valor decimal inválido: "${val}"`);
+    }
+    if (val.abs().lessThan('0.0001')) {
+      return new Prisma.Decimal('0.000');
+    }
+    return val.toDecimalPlaces(3, Prisma.Decimal.ROUND_HALF_UP);
   }
   const cleanStr = String(val).replace(',', '.').trim();
-  const num = Number(cleanStr);
-  if (isNaN(num)) {
+  if (cleanStr === '' || cleanStr === 'NaN' || cleanStr === 'Infinity' || cleanStr === '-Infinity') {
+    throw new Error(`Valor decimal inválido: "${val}"`);
+  }
+  let dec: Prisma.Decimal;
+  try {
+    dec = new Prisma.Decimal(cleanStr);
+  } catch {
+    throw new Error(`Valor decimal inválido: "${val}"`);
+  }
+  if (dec.isNaN() || !dec.isFinite()) {
     throw new Error(`Valor decimal inválido: "${val}"`);
   }
   // Normaliza resíduos infinitesimais menores que 0.0001 para zero
-  if (Math.abs(num) < 0.0001) {
+  if (dec.abs().lessThan('0.0001')) {
     return new Prisma.Decimal('0.000');
   }
-  return new Prisma.Decimal(num.toFixed(3));
+  return dec.toDecimalPlaces(3, Prisma.Decimal.ROUND_HALF_UP);
 }
 
 /**
@@ -28,12 +42,18 @@ export function decimalInput(val: number | string | Prisma.Decimal | null | unde
 export function decimalNumber(val: number | string | Prisma.Decimal | null | undefined): number {
   if (val === null || val === undefined) return 0;
   if (val instanceof Prisma.Decimal) {
-    const n = val.toNumber();
-    return Math.abs(n) < 0.0001 ? 0 : Number(n.toFixed(3));
+    if (val.isNaN() || !val.isFinite() || val.abs().lessThan('0.0001')) return 0;
+    return val.toDecimalPlaces(3, Prisma.Decimal.ROUND_HALF_UP).toNumber();
   }
-  const num = Number(String(val).replace(',', '.').trim());
-  if (isNaN(num) || Math.abs(num) < 0.0001) return 0;
-  return Number(num.toFixed(3));
+  const cleanStr = String(val).replace(',', '.').trim();
+  if (!cleanStr) return 0;
+  try {
+    const dec = new Prisma.Decimal(cleanStr);
+    if (dec.isNaN() || !dec.isFinite() || dec.abs().lessThan('0.0001')) return 0;
+    return dec.toDecimalPlaces(3, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+  } catch {
+    return 0;
+  }
 }
 
 /**

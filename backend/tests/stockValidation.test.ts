@@ -215,4 +215,85 @@ test('RequisitionItemInputSchema preenche CALÇADO COMPLETO por padrão quando d
   assert.equal(req.quantityRequested, 2);
 });
 
+test('FulfillRequisitionSchema valida quantidade positiva e rejeita zero/negativos', () => {
+  const { FulfillRequisitionSchema } = require('../src/types/stock.dto');
+  const valid = FulfillRequisitionSchema.parse({
+    quantity: 5.5,
+    observation: 'Atendimento parcial',
+  });
+  assert.equal(valid.quantity, 5.5);
+  assert.equal(valid.observation, 'Atendimento parcial');
+
+  assert.throws(() => {
+    FulfillRequisitionSchema.parse({ quantity: 0 });
+  }, /Quantidade atendida deve ser maior que zero/);
+
+  assert.throws(() => {
+    FulfillRequisitionSchema.parse({ quantity: -3 });
+  }, /Quantidade atendida deve ser maior que zero/);
+
+  assert.throws(() => {
+    FulfillRequisitionSchema.parse({ quantity: 'invalido' });
+  });
+});
+
+test('ExecuteMatchSchema aceita apenas quantidades inteiras e rejeita frações', () => {
+  const { ExecuteMatchSchema } = require('../src/types/stock.dto');
+  const valid = ExecuteMatchSchema.parse({
+    leftStockItemId: 1,
+    rightStockItemId: 2,
+    quantity: 3,
+  });
+  assert.equal(valid.quantity, 3);
+
+  assert.throws(() => {
+    ExecuteMatchSchema.parse({
+      leftStockItemId: 1,
+      rightStockItemId: 2,
+      quantity: 1.5,
+    });
+  }, /Quantidade a casar deve ser um número inteiro/);
+
+  assert.throws(() => {
+    ExecuteMatchSchema.parse({
+      leftStockItemId: 1,
+      rightStockItemId: 2,
+      quantity: 0,
+    });
+  }, /Quantidade a casar deve ser maior que zero/);
+});
+
+test('decimalHelper realiza conversão e arredondamento determinístico com Prisma.Decimal', () => {
+  const { decimalInput, decimalNumber, isZeroOrResidual } = require('../src/utils/decimalHelper');
+  const { Prisma } = require('../src/generated/prisma');
+
+  // Conversão de números e strings com vírgula brasileira
+  const d1 = decimalInput('12,3456');
+  assert.equal(d1.toString(), '12.346');
+
+  const d2 = decimalInput(10.1);
+  assert.equal(d2.toString(), '10.1');
+
+  // Resíduos infinitesimais viram zero
+  const dZero = decimalInput('0.00005');
+  assert.equal(dZero.toString(), '0');
+  assert.equal(isZeroOrResidual(dZero), true);
+
+  // Tratamento de null/undefined
+  assert.equal(decimalInput(null).toString(), '0');
+  assert.equal(decimalInput(undefined).toString(), '0');
+
+  // Rejeição de valores não numéricos e inválidos
+  assert.throws(() => decimalInput('abc'), /Valor decimal inválido/);
+  assert.throws(() => decimalInput(NaN), /Valor decimal inválido/);
+  assert.throws(() => decimalInput(Infinity), /Valor decimal inválido/);
+
+  // decimalNumber
+  assert.equal(decimalNumber(new Prisma.Decimal('45.678')), 45.678);
+  assert.equal(decimalNumber('78,9'), 78.9);
+  assert.equal(decimalNumber(null), 0);
+  assert.equal(decimalNumber('invalid'), 0);
+});
+
+
 

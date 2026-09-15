@@ -90,8 +90,8 @@ test('Settings RBAC: Leitor e Líder são bloqueados em operações de mutação
 });
 
 test('Settings RBAC: Admin de Setor CORTE é bloqueado ao tentar gerenciar configurações de outro setor', () => {
-  const userSector = 'CORTE';
-  const targetSector = 'MONTAGEM';
+  const userSector: string = 'CORTE';
+  const targetSector: string = 'MONTAGEM';
 
   const isSectorAllowed = userSector === targetSector;
   assert.equal(isSectorAllowed, false);

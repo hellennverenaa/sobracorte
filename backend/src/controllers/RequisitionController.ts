@@ -3,7 +3,8 @@ import { RequisitionService } from '../services/RequisitionService';
 import { 
   CreateRequisitionPayloadSchema, 
   CheckStockAvailabilitySchema,
-  RequisitionFilterSchema 
+  RequisitionFilterSchema,
+  FulfillRequisitionSchema
 } from '../types/stock.dto';
 import { ZodError } from 'zod';
 
@@ -133,19 +134,25 @@ export class RequisitionController {
       }
 
       const id = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
-      const parsed = req.body;
+      const parsed = FulfillRequisitionSchema.parse(req.body);
 
       const operatorContext = {
         factoryUnitId: req.tenant.id,
-        operatorId: req.user?.matricula ? String(req.user.matricula) : null,
-        operatorName: req.user?.nome || req.user?.usuario || null,
-        role: req.user?.role || null,
-        assignedSector: req.user?.assignedSector || null,
+        operatorId: req.effectiveContext?.matriculaDass ? String(req.effectiveContext.matriculaDass) : (req.user?.matricula ? String(req.user.matricula) : null),
+        operatorName: req.effectiveContext?.nome || req.user?.nome || req.user?.usuario || null,
+        role: req.effectiveContext?.effectiveRole || req.user?.role || null,
+        assignedSector: req.effectiveContext?.assignedSector || req.user?.assignedSector || null,
       };
 
       const result = await requisitionService.fulfillRequisition(id, parsed, operatorContext);
       return res.json({ success: true, requisition: result });
     } catch (error: any) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          error: 'Dados de atendimento inválidos.',
+          details: error.flatten().fieldErrors,
+        });
+      }
       console.error('Erro ao atender requisição:', error);
       const status = error.status || (error.message?.includes('Acesso negado') ? 403 : 400);
       return res.status(status).json({ error: error.message || 'Erro ao processar baixa da requisição.' });

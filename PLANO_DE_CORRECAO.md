@@ -113,7 +113,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** `null`, `undefined`, string vazia, booleanos, arrays, strings numéricas, separadores locais, `0.00001`, limites de `Decimal(18,3)`, expoentes e quantidades acima da precisão segura de Number. Quantidade zero continua possível em eventos de configuração e onde a regra de cadastro a permitir explicitamente.
 - **Critérios de validação/teste:** POST de atendimento rejeita `-2`, zero, quantidade ausente e tipos indevidos sem alterar saldo; string numérica autorizada é normalizada sem concatenação. Casamento de 0,5 par é rejeitado. Casos de arredondamento/escala são determinísticos para string e Decimal. Validar ida e volta entre DTO, cálculo, DB e JSON nos limites adotados.
 - **Commit previsto:** `fix(validation): uniformiza decimais e valida quantidades de atendimento`.
-- **Status:** [ ] Em Progresso
+- **Status:** [x] Concluído
 
 ### Ponto 05 - Normalizar unidades e preservar vínculos de domínio
 
@@ -124,7 +124,7 @@ As falhas de autenticação vêm antes das mudanças estruturais por permitirem 
 - **Tratamentos de borda e compatibilidade:** `M2/M²`, `UN/UND`, `kg/KG`, unidades desativadas ainda referenciadas, categoria renomeada/excluída, prateleira geral, entrada do mesmo código com unidade diferente e colisões na normalização. Preservar consumidores de nomes/símbolos durante a transição do contrato.
 - **Critérios de validação/teste:** consultar unidades não grava dados; reenviar mesmo código com unidade incompatível é rejeitado sem somar saldos; renomear categoria preserva vínculo e contagem; unidade desativada não entra em cadastro novo; joins de indicadores não duplicam itens. Exercitar símbolos equivalentes e conflitos de backfill em banco descartável.
 - **Commit previsto:** `fix(catalog): normaliza unidades e preserva vinculos de configuracao`.
-- **Status:** [ ] Pendente
+- **Status:** [ ] Em Progresso
 
 ### Ponto 06 - Tornar entradas e baixas atômicas por item e prateleira
 

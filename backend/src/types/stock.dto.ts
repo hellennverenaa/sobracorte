@@ -155,7 +155,7 @@ export const BatchCreateStockItemSchema = z.object({
 export const ExecuteMatchSchema = z.object({
   leftStockItemId: z.number().int().positive('ID do Pé Esquerdo é inválido'),
   rightStockItemId: z.number().int().positive('ID do Pé Direito é inválido'),
-  quantity: z.coerce.number().positive('Quantidade a casar deve ser maior que zero'),
+  quantity: z.coerce.number().int('Quantidade a casar deve ser um número inteiro').positive('Quantidade a casar deve ser maior que zero'),
   sector: SectorEnum.optional().default('MONTAGEM'),
   reason: z.string().trim().optional().default('Casamento de par confirmado pelo operador'),
 });
