@@ -118,6 +118,7 @@ routes.patch('/factory-unit/current/settings', requireAuth, mutationLimiter, req
   }
 });
 
+// Rota legada desabilitada: credenciais são emitidas somente pelo provedor oficial.
 routes.post('/auth/login', publicLimiter, authController.login);
 routes.post('/auth/check-user', requireAuth, mutationLimiter, authController.checkUser);
 

@@ -66,3 +66,34 @@ test('isUserRole aceita apenas os papéis públicos válidos', () => {
   assert.equal(isUserRole('root'), false);
   assert.equal(isUserRole(null), false);
 });
+
+for (const environment of ['production', 'development', undefined]) {
+  test(`assinatura inválida é rejeitada com NODE_ENV=${environment}`, () => {
+    const previous = process.env.NODE_ENV;
+    try {
+      if (environment === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = environment;
+      const token = jsonwebtoken.sign({ usuario: 'USER.TESTE' }, 'wrong', { expiresIn: '5m' });
+      assert.throws(() => verifyAccessToken(token, secret), /invalid signature/);
+    } finally {
+      if (previous === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previous;
+    }
+  });
+}
+
+test('valida identidade, expiração e tipos de claims antes de consumir o JWT', () => {
+  for (const payload of [
+    { usuario: ' ' }, { usuario: 123 }, { usuario: {} },
+    { usuario: 'USER', matricula: true }, { usuario: 'USER', matricula: '1.5' },
+    { usuario: 'USER', matricula: -1 }, { usuario: 'USER', matricula: [] },
+    { usuario: 'USER', unidade: 123 }, { usuario: 'USER', unidade: ' ' },
+  ]) {
+    assert.throws(() => verifyAccessToken(jsonwebtoken.sign(payload, secret, { expiresIn: '5m' }), secret));
+  }
+  assert.throws(() => verifyAccessToken(jsonwebtoken.sign({ usuario: 'USER' }, secret), secret), /expiração/);
+  assert.throws(() => verifyAccessToken('malformed', secret));
+  assert.throws(() => verifyAccessToken(jsonwebtoken.sign({ usuario: 'USER' }, secret), ''), /Configuração/);
+  assert.throws(() => verifyAccessToken(jsonwebtoken.sign({ usuario: 'USER' }, '', { algorithm: 'none' }), secret));
+  assert.throws(() => verifyAccessToken(jsonwebtoken.sign({ usuario: 'USER' }, secret, { expiresIn: '5m', notBefore: '1h' }), secret), { name: 'NotBeforeError' });
+});

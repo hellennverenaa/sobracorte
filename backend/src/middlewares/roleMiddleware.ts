@@ -1,20 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma, prismaWithoutTenant } from '../prisma';
-import jwt from 'jsonwebtoken';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequestWithAdminCheck, TenantAuthorizationError } from '../auth/tenant';
 import { tenantStorage } from '../context/tenantContext';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
-  let token = req.cookies.token;
-
-  if (!token && req.headers.authorization) {
-    const parts = req.headers.authorization.split(' ');
-    if (parts.length === 2 && parts[0] === 'Bearer') {
-      token = parts[1];
-    }
-  }
+  // O Bearer explícito representa a sessão renovada. Nunca recorrer ao cookie
+  // quando esse cabeçalho estiver presente, mesmo se ele for inválido.
+  const authorization = req.headers.authorization;
+  const token = authorization !== undefined
+    ? /^Bearer ([^\s]+)$/i.exec(authorization)?.[1]
+    : req.cookies?.token;
 
   if (!token) {
     return res.status(401).json({ error: 'Token não fornecido' });
@@ -25,7 +22,6 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const decodedComplete = jwt.decode(token, { complete: true });
     const user = verifyAccessToken(token, vars.PRIVATE_KEY);
     const { requestedUnit, isGlobalAdmin } = await resolveTenantRequestWithAdminCheck(
       user,
