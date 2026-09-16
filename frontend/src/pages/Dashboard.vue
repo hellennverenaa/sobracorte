@@ -70,6 +70,7 @@ const topMateriaisPorUnidade = ref({})
 const topMateriaisPorSetorEUnidade = ref({})
 const unidadesDisponiveis   = ref([])
 const unidadesPorSetor      = ref({})
+const distribuicaoPorUnidade = ref([])
 const selectedTopUnit       = dashboardDomain.selectedTopUnit
 
 const isLoading         = ref(true)
@@ -143,28 +144,33 @@ const origemColors = [
 // 1. Volume Adaptável & Desmembramento de Unidades de Medida
 const currentFilteredVolume = computed(() => {
   if (selectedSector.value === 'TODOS') {
-    const corteQty = Number(setoresData.value.corte?.totalQuantity || 0)
-    const apoioQty = Number(setoresData.value.apoio?.totalQuantity || 0)
-    const preFabQty = Number(setoresData.value.preFabricado?.totalQuantity || 0)
-    const expedicaoQty = Number(setoresData.value.expedicao?.totalQuantity || 0)
-    const montagemQty = Number(setoresData.value.montagem?.totalQuantity || 0)
-    const calcadosQty = apoioQty + preFabQty + expedicaoQty + montagemQty
-
     return {
       isAllSectors: true,
       label: 'Cadastros Ativos em Estoque',
       mainCount: realStats.value.totalItems,
       mainUnit: 'cadastros',
-      corteVolume: corteQty,
-      componentesVolume: calcadosQty,
+      unitTotals: distribuicaoPorUnidade.value,
     }
+  }
+
+  const sectorData = {
+    CORTE: setoresData.value.corte,
+    APOIO: setoresData.value.apoio,
+    PRE_FABRICADO: setoresData.value.preFabricado,
+    DISTRIBUICAO: setoresData.value.distribuicao,
+    EXPEDICAO: setoresData.value.expedicao,
+    MONTAGEM: setoresData.value.montagem,
+  }[selectedSector.value]
+  const unitTotals = Object.entries(sectorData?.quantitiesByUnit || {}).map(([unit, quantity]) => ({ unit, totalQuantity: quantity }))
+  if (unitTotals.length > 1) {
+    return { isAllSectors: false, label: 'Estoque por unidade de medida', mainCount: null, mainUnit: '', itemsCount: sectorData?.itemsCount || 0, unitTotals }
   }
   if (selectedSector.value === 'CORTE') {
     return {
       isAllSectors: false,
       label: 'Estoque de Matéria-Prima (Corte)',
       mainCount: Number(setoresData.value.corte?.totalQuantity || 0),
-      mainUnit: 'm²',
+      mainUnit: unitTotals[0]?.unit || 'M²',
       itemsCount: setoresData.value.corte?.itemsCount || 0
     }
   }
@@ -173,7 +179,7 @@ const currentFilteredVolume = computed(() => {
       isAllSectors: false,
       label: 'Estoque de Peças (Apoio)',
       mainCount: Number(setoresData.value.apoio?.totalQuantity || 0),
-      mainUnit: 'peças',
+      mainUnit: unitTotals[0]?.unit || 'UND',
       itemsCount: setoresData.value.apoio?.itemsCount || 0
     }
   }
@@ -182,7 +188,7 @@ const currentFilteredVolume = computed(() => {
       isAllSectors: false,
       label: 'Estoque de Solas (Pré-Fabricado)',
       mainCount: Number(setoresData.value.preFabricado?.totalQuantity || 0),
-      mainUnit: 'pares de solas',
+      mainUnit: unitTotals[0]?.unit || 'UND',
       itemsCount: setoresData.value.preFabricado?.itemsCount || 0
     }
   }
@@ -191,7 +197,7 @@ const currentFilteredVolume = computed(() => {
       isAllSectors: false,
       label: 'Estoque de Distribuição (Cabedais/Solas)',
       mainCount: Number(setoresData.value.distribuicao?.totalQuantity || setoresData.value.expedicao?.totalQuantity || 0),
-      mainUnit: 'unidades',
+      mainUnit: unitTotals[0]?.unit || 'UND',
       itemsCount: setoresData.value.distribuicao?.itemsCount || setoresData.value.expedicao?.itemsCount || 0
     }
   }
@@ -200,7 +206,7 @@ const currentFilteredVolume = computed(() => {
       isAllSectors: false,
       label: 'Estoque de Pés Órfãos (Montagem)',
       mainCount: Number(setoresData.value.montagem?.totalQuantity || 0),
-      mainUnit: 'pés avulsos',
+      mainUnit: unitTotals[0]?.unit || 'UND',
       itemsCount: setoresData.value.montagem?.itemsCount || 0
     }
   }
@@ -214,7 +220,7 @@ const currentFilteredEfficiency = computed(() => {
       taxa: realStats.value.taxaReaproveitamento,
       entries: realStats.value.totalEntries,
       exits: realStats.value.totalExits,
-      label: 'Reaproveitamento Fabril'
+      label: 'Taxa de Operações de Saída'
     }
   }
   const secMap = {
@@ -230,7 +236,7 @@ const currentFilteredEfficiency = computed(() => {
     taxa,
     entries: s.totalEntries || 0,
     exits: s.totalExits || 0,
-    label: `Giro no Setor ${selectedSector.value}`
+    label: `Taxa de Operações de Saída — ${selectedSector.value}`
   }
 })
 
@@ -508,12 +514,12 @@ const filteredOrigemChartData = computed(() => {
 
 // Gráfico de Volume por Setor
 const sectorChartStyle = computed(() => {
-  const total = volumePorSetor.value.reduce((acc, s) => acc + s.quantity, 0)
+  const total = volumePorSetor.value.reduce((acc, s) => acc + (Number(s.count) || 0), 0)
   if (total === 0) return { background: '#e2e8f0' }
   let gradientStr = ''
   let currentDeg = 0
   volumePorSetor.value.forEach((sec, index) => {
-    const pct = (sec.quantity / total) * 100
+    const pct = ((Number(sec.count) || 0) / total) * 100
     const deg = (pct / 100) * 360
     gradientStr += `${sec.color} ${currentDeg}deg ${currentDeg + deg}deg`
     if (index < volumePorSetor.value.length - 1) gradientStr += ', '
@@ -554,6 +560,7 @@ async function loadData() {
     const origemRaw = summary?.origemSobras || []
     const origensPorSetorRaw = summary?.origensPorSetor || {}
     const topSobrasRaw = summary?.topSobrasEntrada || []
+    distribuicaoPorUnidade.value = summary?.distribuicaoPorUnidade || []
 
     // 1. Estatísticas Globais
     realStats.value = {
@@ -581,10 +588,10 @@ async function loadData() {
     }
 
     // 3. Volume por Setor
-    const totalVol = volRaw.reduce((acc, v) => acc + (Number(v.quantity) || 0), 0)
+    const totalVol = volRaw.reduce((acc, v) => acc + (Number(v.count) || 0), 0)
     volumePorSetor.value = volRaw.map(v => ({
       ...v,
-      percent: totalVol > 0 ? ((Number(v.quantity) || 0) / totalVol) * 100 : 0
+      percent: totalVol > 0 ? ((Number(v.count) || 0) / totalVol) * 100 : 0
     }))
 
     // 4. Distribuição por Categoria
@@ -744,23 +751,23 @@ onUnmounted(() => {
                     <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
                   </h3>
                   <div class="flex items-center gap-1.5 flex-wrap mt-2.5 pt-2 border-t border-slate-100">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] sm:text-[11px] font-bold border border-emerald-100 whitespace-nowrap">
-                      <Scissors class="w-3 h-3 text-emerald-600 shrink-0" />
-                      Tecido/Couro: {{ formatNumber(currentFilteredVolume.corteVolume) }} m²
-                    </span>
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[10px] sm:text-[11px] font-bold border border-blue-100 whitespace-nowrap">
-                      <Package class="w-3 h-3 text-blue-600 shrink-0" />
-                      Peças/Calçados: {{ formatNumber(currentFilteredVolume.componentesVolume) }} un
+                    <span v-for="entry in currentFilteredVolume.unitTotals" :key="entry.unit" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[10px] sm:text-[11px] font-bold border border-blue-100 whitespace-nowrap">
+                      {{ formatNumber(entry.totalQuantity) }} {{ entry.unit }}
                     </span>
                   </div>
                 </template>
 
                 <!-- Visão Setorial: Saldo numérico na unidade estrita do setor ativo -->
                 <template v-else>
-                  <h3 class="text-2xl sm:text-3xl font-black text-slate-800 mt-1 tracking-tight leading-none">
+                  <h3 v-if="currentFilteredVolume.mainCount !== null" class="text-2xl sm:text-3xl font-black text-slate-800 mt-1 tracking-tight leading-none">
                     {{ formatNumber(currentFilteredVolume.mainCount) }}
                     <span class="text-xs font-bold text-slate-400 ml-0.5">{{ currentFilteredVolume.mainUnit }}</span>
                   </h3>
+                  <div v-else class="flex flex-wrap gap-1.5 mt-2">
+                    <span v-for="entry in currentFilteredVolume.unitTotals" :key="entry.unit" class="rounded-md bg-indigo-50 px-2 py-1 text-xs font-black text-indigo-700">
+                      {{ formatNumber(entry.totalQuantity) }} {{ entry.unit }}
+                    </span>
+                  </div>
                   <p class="text-[11px] sm:text-xs text-indigo-600 font-bold mt-2 pt-1 border-t border-slate-100">
                     {{ formatNumber(currentFilteredVolume.itemsCount) }} cadastros ativos no setor
                   </p>
@@ -773,7 +780,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- 2. Taxa de Reaproveitamento Fabril (%) Adaptável -->
+          <!-- 2. Taxa de operações de saída (%) -->
           <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 border-b-4 border-b-emerald-500 relative group overflow-hidden h-full flex flex-col justify-between">
             <div class="flex justify-between items-start gap-2">
               <div class="min-w-0">
@@ -936,7 +943,7 @@ onUnmounted(() => {
           <!-- 1. Distribuição de Volume por Setor -->
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-between relative overflow-hidden h-full">
             <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
-              <PieChart class="w-4 h-4 text-indigo-500" /> Distribuição de Volume
+              <PieChart class="w-4 h-4 text-indigo-500" /> Cadastros por Setor
             </h3>
 
             <div class="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105 shrink-0"
@@ -971,7 +978,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex items-center gap-2 shrink-0 ml-2">
                   <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ sec.percent.toFixed(1) }}%</span>
-                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(sec.quantity) }}</span>
+                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(sec.count) }} cadastros</span>
                 </div>
               </div>
             </div>

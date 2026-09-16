@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { normalizeUnit } from '../utils/unitHelper';
 
 export function csvCell(value: unknown): string {
   let text = String(value ?? '');
@@ -61,11 +62,17 @@ export class ReportController {
         },
       });
 
-      const [total, quantityTotals, sectorTotals] = await Promise.all([
+      const [total, quantityTotals, sectorTotals, unitTotals] = await Promise.all([
         prisma.stockItem.count({ where }),
         prisma.stockItem.aggregate({ where, _sum: { quantity: true } }),
         prisma.stockItem.groupBy({
           by: ['sector'],
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true },
+        }),
+        prisma.stockItem.groupBy({
+          by: ['sector', 'unit'],
           where,
           _count: { _all: true },
           _sum: { quantity: true },
@@ -87,14 +94,34 @@ export class ReportController {
         data_cadastro: s.createdAt,
       }));
 
-      const quantidadeTotal = Number(quantityTotals._sum.quantity ?? 0);
-      const porSetor = Object.fromEntries(sectorTotals.map((group) => [
-        group.sector,
-        {
+      const byUnit = new Map<string, { totalRegistros: number; quantidadeTotal: number }>();
+      const bySectorUnit = new Map<string, Map<string, { totalRegistros: number; quantidadeTotal: number }>>();
+      for (const group of unitTotals) {
+        const unit = normalizeUnit(group.unit, group.sector);
+        const global = byUnit.get(unit) || { totalRegistros: 0, quantidadeTotal: 0 };
+        global.totalRegistros += group._count._all;
+        global.quantidadeTotal += Number(group._sum.quantity ?? 0);
+        byUnit.set(unit, global);
+        const sectorMap = bySectorUnit.get(group.sector) || new Map();
+        const sector = sectorMap.get(unit) || { totalRegistros: 0, quantidadeTotal: 0 };
+        sector.totalRegistros += group._count._all;
+        sector.quantidadeTotal += Number(group._sum.quantity ?? 0);
+        sectorMap.set(unit, sector);
+        bySectorUnit.set(group.sector, sectorMap);
+      }
+      const formatUnitMap = (map: Map<string, { totalRegistros: number; quantidadeTotal: number }>) => Object.fromEntries(map);
+      const porUnidade = formatUnitMap(byUnit);
+      const porSetor = Object.fromEntries(sectorTotals.map((group) => {
+        const units = bySectorUnit.get(group.sector) || new Map();
+        return [group.sector, {
           totalRegistros: group._count._all,
-          quantidadeTotal: Number(group._sum.quantity ?? 0),
-        },
-      ]));
+          quantidadeTotal: units.size === 1 ? Number(group._sum.quantity ?? 0) : null,
+          porUnidade: formatUnitMap(units),
+        }];
+      }));
+      const quantidadeTotal = byUnit.size === 1
+        ? Number(quantityTotals._sum.quantity ?? 0)
+        : null;
 
       return res.json({
         items: formattedStock,
@@ -103,6 +130,7 @@ export class ReportController {
           totalRegistros: total,
           quantidadeTotal,
           totalQuantidade: quantidadeTotal,
+          porUnidade,
           porSetor,
         },
       });
@@ -222,7 +250,7 @@ export class ReportController {
         stockWhere.AND = movementTextFilters;
       }
 
-      const [stockMovements, locationsList, total, quantityTotals, movementGroups] = await Promise.all([
+      const [stockMovements, locationsList, total, quantityTotals, movementGroups, movementUnitGroups] = await Promise.all([
         prisma.stockMovement.findMany({
           where: stockWhere,
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -240,6 +268,11 @@ export class ReportController {
           by: ['type', 'sector'],
           where: stockWhere,
           _count: { _all: true },
+          _sum: { quantity: true },
+        }),
+        prisma.stockMovement.groupBy({
+          by: ['type', 'sector', 'itemUnit'],
+          where: stockWhere,
           _sum: { quantity: true },
         }),
       ]);
@@ -307,6 +340,19 @@ export class ReportController {
       const casamento = typeStats('CASAMENTO_PAR');
       const refugo = typeStats('REFUGO');
       const transferencia = typeStats('TRANSFERENCIA');
+      const volumeByUnit = new Map<string, { entrada: number; saida: number; refugo: number; transferencia: number }>();
+      for (const group of movementUnitGroups) {
+        const unit = normalizeUnit(group.itemUnit, group.sector);
+        const current = volumeByUnit.get(unit) || { entrada: 0, saida: 0, refugo: 0, transferencia: 0 };
+        const quantity = Number(group._sum.quantity ?? 0);
+        if (group.type === 'ENTRADA') current.entrada += quantity;
+        if (group.type === 'SAIDA' || group.type === 'CASAMENTO_PAR' || group.type === 'SAIDA_REQUISICAO') current.saida += quantity;
+        if (group.type === 'REFUGO') current.refugo += quantity;
+        if (group.type === 'TRANSFERENCIA') current.transferencia += quantity;
+        volumeByUnit.set(unit, current);
+      }
+      const volumePorUnidade = Object.fromEntries(volumeByUnit);
+      const singleReportUnit = volumeByUnit.size === 1;
       const volumeTotalSaida = saida.quantity + casamento.quantity;
       const saidaCount = saida.count + casamento.count;
       const volumeEntradaCorte = movementGroups
@@ -322,18 +368,19 @@ export class ReportController {
         qtdOperacoesRefugo: refugo.count,
         qtdOperacoesTransferencia: transferencia.count,
         qtdOperacoesCasamento: casamento.count,
-        volumeTotalEntrada: entrada.quantity,
-        volumeTotalSaida,
-        totalRefugos: refugo.quantity,
-        totalTransferencias: transferencia.quantity,
+        volumeTotalEntrada: singleReportUnit ? entrada.quantity : null,
+        volumeTotalSaida: singleReportUnit ? volumeTotalSaida : null,
+        totalRefugos: singleReportUnit ? refugo.quantity : null,
+        totalTransferencias: singleReportUnit ? transferencia.quantity : null,
         totalCasamentosPares: Math.floor(casamento.quantity / 2),
-        volumeEntradaCorte,
-        volumeEntradaOutros: entrada.quantity - volumeEntradaCorte,
-        volumeSaidaCorte,
-        volumeSaidaOutros: volumeTotalSaida - volumeSaidaCorte,
-        volumeEntradas: entrada.quantity,
-        volumeSaidas: volumeTotalSaida,
-        quantidadeTotal: Number(quantityTotals._sum.quantity ?? 0),
+        volumeEntradaCorte: singleReportUnit ? volumeEntradaCorte : null,
+        volumeEntradaOutros: singleReportUnit ? entrada.quantity - volumeEntradaCorte : null,
+        volumeSaidaCorte: singleReportUnit ? volumeSaidaCorte : null,
+        volumeSaidaOutros: singleReportUnit ? volumeTotalSaida - volumeSaidaCorte : null,
+        volumeEntradas: singleReportUnit ? entrada.quantity : null,
+        volumeSaidas: singleReportUnit ? volumeTotalSaida : null,
+        quantidadeTotal: singleReportUnit ? Number(quantityTotals._sum.quantity ?? 0) : null,
+        volumePorUnidade,
         porTipo: Object.fromEntries([...groupsByType].map(([key, value]) => [key, {
           totalRegistros: value.count,
           quantidadeTotal: value.quantity,

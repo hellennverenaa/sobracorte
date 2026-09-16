@@ -64,6 +64,7 @@ const reportTotals = ref({
   volumeEntradaOutros: 0,
   volumeSaidaCorte: 0,
   volumeSaidaOutros: 0,
+  volumePorUnidade: {},
   totalAtendidas: 0,
   totalPendentes: 0,
   totalCanceladas: 0,
@@ -80,7 +81,7 @@ const currentUnitSuffix = computed(() => {
 })
 
 function formatVolume(val) {
-  if (val === null || val === undefined) return '0'
+  if (val === null || val === undefined) return '—'
   const num = Number(val)
   if (isNaN(num)) return '0'
   return num.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
@@ -239,6 +240,7 @@ async function generateReport(page = 1) {
         volumeEntradaOutros: totals.volumeEntradaOutros || 0,
         volumeSaidaCorte: totals.volumeSaidaCorte || 0,
         volumeSaidaOutros: totals.volumeSaidaOutros || 0,
+        volumePorUnidade: totals.volumePorUnidade || {},
       }
     }
   } catch (error) {
@@ -704,10 +706,13 @@ function getStatusBadge(status) {
           <div class="mt-2 border-t border-emerald-100 pt-1.5">
             <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
             <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-emerald-700 leading-tight">
-              {{ formatVolume(reportTotals.volumeEntradaCorte) }} m² <span class="font-normal text-slate-400">|</span> {{ formatVolume(reportTotals.volumeEntradaOutros) }} un
+              <template v-for="([unit, values], index) in Object.entries(reportTotals.volumePorUnidade)" :key="unit">
+                <span v-if="index > 0" class="font-normal text-slate-400"> | </span>{{ formatVolume(values.entrada) }} {{ unit }}
+              </template>
             </span>
             <span v-else class="block text-xs font-black text-emerald-700 leading-tight">
-              {{ formatVolume(reportTotals.volumeTotalEntrada) }} <span class="text-[10px] font-bold text-emerald-600 uppercase">{{ currentUnitSuffix }}</span>
+              <template v-if="reportTotals.volumeTotalEntrada !== null">{{ formatVolume(reportTotals.volumeTotalEntrada) }} <span class="text-[10px] font-bold text-emerald-600 uppercase">{{ currentUnitSuffix }}</span></template>
+              <span v-else>múltiplas unidades</span>
             </span>
           </div>
         </div>
@@ -728,10 +733,13 @@ function getStatusBadge(status) {
           <div class="mt-2 border-t border-blue-100 pt-1.5">
             <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
             <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-blue-700 leading-tight">
-              {{ formatVolume(reportTotals.volumeSaidaCorte) }} m² <span class="font-normal text-slate-400">|</span> {{ formatVolume(reportTotals.volumeSaidaOutros) }} un
+              <template v-for="([unit, values], index) in Object.entries(reportTotals.volumePorUnidade)" :key="unit">
+                <span v-if="index > 0" class="font-normal text-slate-400"> | </span>{{ formatVolume(values.saida) }} {{ unit }}
+              </template>
             </span>
             <span v-else class="block text-xs font-black text-blue-700 leading-tight">
-              {{ formatVolume(reportTotals.volumeTotalSaida) }} <span class="text-[10px] font-bold text-blue-600 uppercase">{{ currentUnitSuffix }}</span>
+              <template v-if="reportTotals.volumeTotalSaida !== null">{{ formatVolume(reportTotals.volumeTotalSaida) }} <span class="text-[10px] font-bold text-blue-600 uppercase">{{ currentUnitSuffix }}</span></template>
+              <span v-else>múltiplas unidades</span>
             </span>
           </div>
         </div>

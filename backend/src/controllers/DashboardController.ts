@@ -59,8 +59,6 @@ export class DashboardController {
         topStockEntradas,
         // 🚀 SQL Window Function: Top 5 Materiais Acumulados particionados por Unidade de Medida
         topRankedMaterialsByUnit,
-        // Distribuição física segregada por unidade de medida
-        distribuicaoPorUnidadeRaw,
       ] = await Promise.all([
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE' } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
@@ -284,52 +282,56 @@ export class DashboardController {
           WHERE ranked.position <= 5 OR ranked.global_position <= 5
           ORDER BY ranked.sector ASC, ranked.unit ASC, ranked.position ASC
         `,
-        // Distribuição física segregada por unidade de medida (Material + StockItem)
-        prisma.$queryRaw<Array<{
-          unit: string;
-          totalQuantity: string | number;
-          itemsCount: number | bigint;
-        }>>`
-          SELECT 
-            u_summary.unit,
-            SUM(u_summary.quantity) AS "totalQuantity",
-            SUM(u_summary.items_count)::integer AS "itemsCount"
-          FROM (
-            SELECT 
-              COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit,
-              SUM(m.quantity) AS quantity,
-              COUNT(*)::integer AS items_count
-            FROM sobra_corte."StockItem" m
-            LEFT JOIN sobra_corte."UnitConfig" u 
-              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
-              AND u."factoryUnitId" = m."factoryUnitId"
-            WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
-              AND m.quantity > 0
-            GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²'))))
-
-            UNION ALL
-
-            SELECT 
-              COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
-              SUM(s.quantity) AS quantity,
-              COUNT(*)::integer AS items_count
-            FROM sobra_corte."StockItem" s
-            LEFT JOIN sobra_corte."UnitConfig" u 
-              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
-              AND u."factoryUnitId" = s."factoryUnitId"
-            WHERE s."factoryUnitId" = ${factoryUnitId} AND s.sector <> 'CORTE'
-              AND s.quantity > 0
-            GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND'))))
-          ) u_summary
-          GROUP BY u_summary.unit
-          ORDER BY u_summary.unit ASC
-        `,
       ]);
+
+      const distribuicaoPorSetorUnidadeRaw = await prisma.$queryRaw<Array<{
+        sector: string;
+        unit: string;
+        totalQuantity: string | number;
+        itemsCount: number | bigint;
+      }>>`
+        SELECT
+          s.sector::text AS sector,
+          UPPER(TRIM(COALESCE(u.symbol, s.unit, CASE WHEN s.sector = 'CORTE' THEN 'M²' ELSE 'UND' END))) AS unit,
+          SUM(s.quantity) AS "totalQuantity",
+          COUNT(*)::integer AS "itemsCount"
+        FROM sobra_corte."StockItem" s
+        LEFT JOIN LATERAL (
+          SELECT u.symbol
+          FROM sobra_corte."UnitConfig" u
+          WHERE u."factoryUnitId" = s."factoryUnitId"
+            AND (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
+          ORDER BY u.id
+          LIMIT 1
+        ) u ON TRUE
+        WHERE s."factoryUnitId" = ${factoryUnitId} AND s.quantity > 0
+        GROUP BY s.sector, UPPER(TRIM(COALESCE(u.symbol, s.unit, CASE WHEN s.sector = 'CORTE' THEN 'M²' ELSE 'UND' END)))
+        ORDER BY s.sector, unit
+      `;
 
       const totalEntries = stockEntriesCount + legacyEntriesCount;
       const totalExits = stockExitsCount + legacyExitsCount;
       const taxaReaproveitamento = totalEntries > 0 ? Math.min(100, Math.round((totalExits / totalEntries) * 100)) : 0;
       const totalParadosSemGiro = stagnantMaterialsCount + stagnantStockItemsCount;
+      const distribuicaoPorSetorUnidade = (distribuicaoPorSetorUnidadeRaw || []).map(d => ({
+        sector: String(d.sector),
+        unit: String(d.unit || 'UND').toUpperCase().trim(),
+        totalQuantity: Number(d.totalQuantity) || 0,
+        itemsCount: Number(d.itemsCount) || 0,
+      }));
+      const quantitiesBySector = (sector: string) => {
+        const totals: Record<string, number> = {};
+        for (const row of distribuicaoPorSetorUnidade) {
+          if (row.sector !== sector && !(sector === 'DISTRIBUICAO' && row.sector === 'EXPEDICAO')) continue;
+          totals[row.unit] = (totals[row.unit] || 0) + row.totalQuantity;
+        }
+        return totals;
+      };
+      const singleUnitTotal = (sector: string) => {
+        const values = quantitiesBySector(sector);
+        const units = Object.keys(values);
+        return units.length === 1 ? values[units[0]] : null;
+      };
 
       // 1. Mapeamento de Pares Formáveis e Pés E / D por Setor
       const formableMap = new Map<string, number>();
@@ -404,7 +406,8 @@ export class DashboardController {
       const setores = {
         corte: {
           itemsCount: totalMaterialsCount,
-          totalQuantity: Number(corteQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('CORTE'),
+          quantitiesByUnit: quantitiesBySector('CORTE'),
           unit: 'M²',
           totalEntries: corteTotalEntries,
           totalExits: corteTotalExits,
@@ -414,7 +417,8 @@ export class DashboardController {
         },
         apoio: {
           itemsCount: apoioCount,
-          totalQuantity: Number(apoioQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('APOIO'),
+          quantitiesByUnit: quantitiesBySector('APOIO'),
           unit: 'PÇS',
           totalEntries: apoioEntriesCount,
           totalExits: apoioExitsCount,
@@ -424,7 +428,8 @@ export class DashboardController {
         },
         preFabricado: {
           itemsCount: preFabCount,
-          totalQuantity: Number(preFabQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('PRE_FABRICADO'),
+          quantitiesByUnit: quantitiesBySector('PRE_FABRICADO'),
           unit: 'PARES/PÉS',
           totalEntries: preFabEntriesCount,
           totalExits: preFabExitsCount,
@@ -437,7 +442,8 @@ export class DashboardController {
         },
         expedicao: {
           itemsCount: expedicaoCount,
-          totalQuantity: Number(expedicaoQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('EXPEDICAO'),
+          quantitiesByUnit: quantitiesBySector('EXPEDICAO'),
           unit: 'PÇS/UN',
           totalEntries: expedicaoEntriesCount,
           totalExits: expedicaoExitsCount,
@@ -450,7 +456,8 @@ export class DashboardController {
         },
         distribuicao: {
           itemsCount: expedicaoCount,
-          totalQuantity: Number(expedicaoQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('DISTRIBUICAO'),
+          quantitiesByUnit: quantitiesBySector('DISTRIBUICAO'),
           unit: 'PÇS/UN',
           totalEntries: expedicaoEntriesCount,
           totalExits: expedicaoExitsCount,
@@ -463,7 +470,8 @@ export class DashboardController {
         },
         montagem: {
           itemsCount: montagemCount,
-          totalQuantity: Number(montagemQtyAgg._sum.quantity) || 0,
+          totalQuantity: singleUnitTotal('MONTAGEM'),
+          quantitiesByUnit: quantitiesBySector('MONTAGEM'),
           unit: 'PÉS',
           totalEntries: montagemTotalEntries,
           totalExits: montagemTotalExits,
@@ -478,11 +486,11 @@ export class DashboardController {
 
       // 3. Distribuição do Volume por Setor
       const volumePorSetor = [
-        { sector: 'CORTE', label: 'Corte (Matéria-Prima)', count: totalMaterialsCount, quantity: Number(corteQtyAgg._sum.quantity) || 0, color: '#047857' },
-        { sector: 'APOIO', label: 'Apoio (Moldes/Peças)', count: apoioCount, quantity: Number(apoioQtyAgg._sum.quantity) || 0, color: '#0284c7' },
-        { sector: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', count: preFabCount, quantity: Number(preFabQtyAgg._sum.quantity) || 0, color: '#f59e0b' },
-        { sector: 'DISTRIBUICAO', label: 'Distribuição (Cabedais/Solas)', count: expedicaoCount, quantity: Number(expedicaoQtyAgg._sum.quantity) || 0, color: '#8b5cf6' },
-        { sector: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', count: montagemCount, quantity: Number(montagemQtyAgg._sum.quantity) || 0, color: '#ec4899' },
+        { sector: 'CORTE', label: 'Corte (Matéria-Prima)', count: totalMaterialsCount, quantity: null, color: '#047857' },
+        { sector: 'APOIO', label: 'Apoio (Moldes/Peças)', count: apoioCount, quantity: null, color: '#0284c7' },
+        { sector: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', count: preFabCount, quantity: null, color: '#f59e0b' },
+        { sector: 'DISTRIBUICAO', label: 'Distribuição (Cabedais/Solas)', count: expedicaoCount, quantity: null, color: '#8b5cf6' },
+        { sector: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', count: montagemCount, quantity: null, color: '#ec4899' },
       ];
 
       // 4. Mesclagem e ordenação da Origem das Sobras (StockMovement + Movement legado)
@@ -715,12 +723,14 @@ export class DashboardController {
         }
       }
 
-      // Distribuição por unidade de medida física (calculada no SQL em distribuicaoPorUnidadeRaw)
-      const distribuicaoPorUnidade = (distribuicaoPorUnidadeRaw || []).map(d => ({
-        unit: String(d.unit || 'M²').toUpperCase().trim(),
-        totalQuantity: Number(d.totalQuantity) || 0,
-        itemsCount: Number(d.itemsCount) || 0,
-      }));
+      // Distribuição global por unidade, derivada do agrupamento setorial acima.
+      const distribuicaoPorUnidade = Array.from(distribuicaoPorSetorUnidade.reduce((map, row) => {
+        const current = map.get(row.unit) || { unit: row.unit, totalQuantity: 0, itemsCount: 0 };
+        current.totalQuantity += row.totalQuantity;
+        current.itemsCount += row.itemsCount;
+        map.set(row.unit, current);
+        return map;
+      }, new Map<string, { unit: string; totalQuantity: number; itemsCount: number }>()).values());
 
       // Ordenador de unidades para dar preferência intuitiva a M² (Corte) e UND/PAR (outros setores)
       const sortUnits = (units: string[]) => {
