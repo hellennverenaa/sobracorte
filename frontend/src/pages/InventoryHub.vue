@@ -291,7 +291,7 @@ const isFormInvalid = computed(() => {
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
   if (movementType.value === 'TRANSFERENCIA' && (!destinationLocationId.value || destinationLocationId.value === selectedLocationId.value)) return true;
   if (isCrossSectorTransfer.value && !movementObservation.value?.trim()) return true;
-  if (!movementReason.value?.trim()) return true;
+  if (movementType.value === 'ENTRADA' && !movementReason.value?.trim()) return true;
   return false;
 });
 
@@ -324,7 +324,7 @@ const formValidationHint = computed(() => {
     }
   }
 
-  if (!movementReason.value?.trim()) {
+  if (movementType.value === 'ENTRADA' && !movementReason.value?.trim()) {
     return 'Selecione o motivo da movimentação.';
   }
 
@@ -333,6 +333,9 @@ const formValidationHint = computed(() => {
 
 function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
   movementType.value = type;
+  movementReason.value = type === 'ENTRADA'
+    ? (movementReason.value || stockStore.filterOrigins[0]?.name || 'Entrada Adicional')
+    : '';
 
   // Se a quantidade estiver vazia ou zero, sugere 1 ou o saldo disponível
   const currentQty = Number(movementQuantity.value);
@@ -381,7 +384,7 @@ function openMovementModal(item: any) {
     sector: activeTab.value,
   };
   movementType.value = 'SAIDA';
-  movementReason.value = stockStore.filterOrigins.length > 0 ? stockStore.filterOrigins[0].name : 'Consumo de Produção';
+  movementReason.value = '';
   movementObservation.value = '';
 
   if (item.locations && item.locations.length > 0) {
@@ -430,7 +433,7 @@ async function handleConfirmMovement() {
     }
   }
 
-  if (!movementReason.value.trim()) {
+  if (movementType.value === 'ENTRADA' && !movementReason.value.trim()) {
     showToast('Selecione o motivo/origem da movimentação.', 'error');
     return;
   }
@@ -444,7 +447,7 @@ async function handleConfirmMovement() {
       quantity: qty,
       locationId: selectedLocationId.value ? Number(selectedLocationId.value) : undefined,
       destinationLocationId: destinationLocationId.value ? Number(destinationLocationId.value) : undefined,
-      origem: movementReason.value.trim(),
+      origem: movementReason.value.trim() || undefined,
       reason: movementObservation.value.trim() || undefined,
     });
     showToast(`Movimentação (${movementType.value}) registrada com sucesso!`);
@@ -1204,8 +1207,8 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Origem / Motivo da Movimentação (Configurações) -->
-            <div>
+            <!-- Origem / Motivo só é necessário para entradas -->
+            <div v-if="movementType === 'ENTRADA'">
               <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
                 Motivo / Origem da Sobra *
               </label>

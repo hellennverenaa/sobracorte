@@ -1013,7 +1013,7 @@ onMounted(() => {
                   <input
                     v-model="formItem.modelName"
                     type="text"
-                    placeholder="Ex: PEGASUS 40"
+                    placeholder="Ex: RACER SPEEDZONE"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1204,7 +1204,7 @@ onMounted(() => {
                   <input
                     v-model="formItem.modelName"
                     type="text"
-                    placeholder="Ex: PEGASUS 40"
+                    placeholder="Ex: RACER SPEEDZONE"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1322,7 +1322,7 @@ onMounted(() => {
                   <input
                     v-model="formItem.modelName"
                     type="text"
-                    placeholder="Ex: PEGASUS 40"
+                    placeholder="Ex: RACER SPEEDZONE"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
