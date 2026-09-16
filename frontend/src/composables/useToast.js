@@ -9,6 +9,7 @@ import { ref } from 'vue';
  * @returns {{
  *   notification: import('vue').Ref<{ show: boolean, type: string, message: string }>,
  *   showNotification: (type: string, message: string) => void,
+ *   showToast: (message: string, type?: string) => void,
  *   showSuccess: (message: string) => void,
  *   showError: (message: string) => void,
  *   showWarning: (message: string) => void
@@ -54,4 +55,3 @@ export function useToast(durationMs = 3000) {
 
   return { notification, showNotification, showToast, showSuccess, showError, showWarning };
 }
-

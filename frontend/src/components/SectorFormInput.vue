@@ -22,7 +22,9 @@ const userSector = computed(() => {
 });
 
 const isSectorLocked = computed(() => {
-  return authStore.userRole !== 'admin' && !authStore.isAdmin && !!userSector.value;
+  const role = authStore.user?.role;
+  const isAdmin = role === 'admin' || authStore.user?.isGlobalAdmin === true;
+  return !isAdmin && !!userSector.value;
 });
 
 const activeSector = ref<SectorType>(
@@ -293,7 +295,7 @@ function handleQuantityInput(event: Event) {
     if (parts.length > 2) {
       clean = parts[0] + '.' + parts.slice(1).join('');
     }
-    formData.quantity = clean;
+    formData.quantity = clean ? Number(clean) : 0;
     input.value = clean;
   }
 }

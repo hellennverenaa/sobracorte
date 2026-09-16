@@ -38,7 +38,9 @@ const userSector = computed(() => {
 });
 
 const isSectorLocked = computed(() => {
-  return authStore.userRole !== 'admin' && !authStore.isAdmin && !!userSector.value;
+  const role = authStore.user?.role;
+  const isAdmin = role === 'admin' || authStore.user?.isGlobalAdmin === true;
+  return !isAdmin && !!userSector.value;
 });
 
 function getSectorFromRoute(): SectorType {
