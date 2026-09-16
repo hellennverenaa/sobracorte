@@ -39,6 +39,14 @@ const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisi
 // --- ESTADOS REATIVOS ---
 const loading = ref(false)
 const reportData = ref([])
+const pageSize = 50
+const currentPage = ref(1)
+const pagination = ref({
+  page: 1,
+  limit: pageSize,
+  total: 0,
+  totalPages: 1,
+})
 const reportTotals = ref({
   totalRegistros: 0,
   qtdOperacoesEntrada: 0,
@@ -160,7 +168,7 @@ async function fetchOrigins() {
 
 onMounted(() => {
   fetchOrigins()
-  generateReport()
+  generateReport(1)
 })
 
 // --- CÁLCULO DE DATAS ISO PARA BACKEND ---
@@ -211,11 +219,17 @@ function getDatesFromPeriod(period) {
 }
 
 // --- CONSULTA ANALÍTICA AO BACKEND ---
-async function generateReport() {
+async function generateReport(page = 1) {
   loading.value = true
   hasSearched.value = true
   reportData.value = []
-  currentPage.value = 1
+  currentPage.value = page
+  pagination.value = {
+    page,
+    limit: pageSize,
+    total: 0,
+    totalPages: 1,
+  }
 
   try {
     const dates = getDatesFromPeriod(filters.value.periodo)
@@ -229,6 +243,8 @@ async function generateReport() {
       const params = new URLSearchParams({
         sector: filters.value.sector,
         status: filters.value.status,
+        page: String(page),
+        limit: String(pageSize),
       })
       if (dates?.start && dates?.end) {
         params.append('dataInicio', dates.start)
@@ -238,6 +254,7 @@ async function generateReport() {
 
       const res = await api.get(`/reports/requisitions?${params.toString()}`)
       reportData.value = res.data.items || []
+      pagination.value = res.data.pagination
       reportTotals.value = {
         ...reportTotals.value,
         totalRegistros: res.data.totals?.totalRegistros || 0,
@@ -251,6 +268,8 @@ async function generateReport() {
         sector: filters.value.sector,
         tipoMovimento: filters.value.tipoMovimento,
         origin: filters.value.origin,
+        page: String(page),
+        limit: String(pageSize),
       })
       if (dates?.start && dates?.end) {
         params.append('dataInicio', dates.start)
@@ -260,6 +279,7 @@ async function generateReport() {
 
       const res = await api.get(`/reports/movements?${params.toString()}`)
       reportData.value = res.data.items || []
+      pagination.value = res.data.pagination
       const t = res.data.totals || res.data
       reportTotals.value = {
         ...reportTotals.value,
@@ -292,7 +312,7 @@ async function generateReport() {
 function switchReportType(type) {
   reportType.value = type
   reportData.value = []
-  generateReport()
+  generateReport(1)
 }
 
 function resetFilters() {
@@ -306,7 +326,7 @@ function resetFilters() {
     origin: 'TODOS',
     search: ''
   }
-  generateReport()
+  generateReport(1)
 }
 
 const isExporting = ref(false)
@@ -384,19 +404,14 @@ function printPDF() {
   window.print()
 }
 
-// --- PAGINAÇÃO EM TELA ---
-const currentPage = ref(1)
-const pageSize = ref(25)
-
+// --- PAGINAÇÃO NO SERVIDOR ---
 const totalPages = computed(() => {
-  if (reportData.value.length === 0) return 1
-  return Math.ceil(reportData.value.length / pageSize.value)
+  return pagination.value.totalPages || 1
 })
 
-function isRowVisible(index) {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return index >= start && index < end
+function setCurrentPage(page) {
+  if (loading.value || page < 1 || page > totalPages.value || page === currentPage.value) return
+  generateReport(page)
 }
 
 // --- FORMATADORES DE RÓTULOS ---
@@ -671,7 +686,7 @@ function getStatusBadge(status) {
                 type="text"
                 placeholder="Ex: SKU, Código, Modelo..."
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
-                @keyup.enter="generateReport"
+                @keyup.enter="generateReport(1)"
               />
             </div>
           </div>
@@ -705,7 +720,7 @@ function getStatusBadge(status) {
             <RotateCcw class="w-3.5 h-3.5" /> Limpar Filtros
           </button>
           <button
-            @click="generateReport"
+            @click="generateReport(1)"
             :disabled="loading"
             class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
           >
@@ -863,9 +878,8 @@ function getStatusBadge(status) {
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr
-                v-for="(item, idx) in reportData"
+                v-for="item in reportData"
                 :key="item.id"
-                v-show="isRowVisible(idx)"
                 class="hover:bg-slate-50/80 transition-colors"
               >
                 <td class="py-2.5 px-3 whitespace-nowrap text-slate-600 font-mono">
@@ -900,12 +914,12 @@ function getStatusBadge(status) {
         </div>
 
         <!-- Paginação -->
-        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
-          <span>Total: <strong>{{ reportData.length }}</strong> registros</span>
+        <div v-if="pagination.total > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
+          <span>Total: <strong>{{ pagination.total }}</strong> registros</span>
           <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <button @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
             <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
-            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
+            <button @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
           </div>
         </div>
       </div>
@@ -931,9 +945,8 @@ function getStatusBadge(status) {
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr
-                v-for="(req, idx) in reportData"
+                v-for="req in reportData"
                 :key="req.id"
-                v-show="isRowVisible(idx)"
                 class="hover:bg-slate-50/80 transition-colors"
               >
                 <td class="py-2.5 px-3 font-mono font-black text-indigo-700">{{ req.code }}</td>
@@ -974,12 +987,12 @@ function getStatusBadge(status) {
         </div>
 
         <!-- Paginação -->
-        <div v-if="reportData.length > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
-          <span>Total: <strong>{{ reportData.length }}</strong> requisições</span>
+        <div v-if="pagination.total > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
+          <span>Total: <strong>{{ pagination.total }}</strong> requisições</span>
           <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <button @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
             <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
-            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
+            <button @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
           </div>
         </div>
       </div>

@@ -389,6 +389,7 @@ model StockItem {
   // 🚀 ÍNDICES COMPOSTOS ESTRATÉGICOS
   @@unique([id, factoryUnitId])
   @@unique([factoryUnitId, legacyMaterialId])
+  @@index([factoryUnitId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, sector, productName, sizeGrade])
   @@index([factoryUnitId, sector, sku, sizeGrade])
@@ -449,6 +450,7 @@ model StockMovement {
 
   @@index([factoryUnitId, stockItemId])
   @@unique([factoryUnitId, legacyMovementId])
+  @@index([factoryUnitId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, operatorId, createdAt])
   @@schema("sobra_corte")

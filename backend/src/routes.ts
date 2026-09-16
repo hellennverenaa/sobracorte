@@ -2,8 +2,6 @@ import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { AuthController } from './controllers/AuthController';
-import { MaterialController } from './controllers/MaterialController';
-import { MovementController } from './controllers/MovementController';
 import { ReportController } from './controllers/ReportController';
 import { SettingsController } from './controllers/SettingsController';
 import { ImportController } from './controllers/ImportController';
@@ -60,8 +58,6 @@ const upload = multer({
 
 const reportController = new ReportController();
 const authController = new AuthController();
-const materialController = new MaterialController();
-const movementController = new MovementController();
 const settingsController = new SettingsController();
 const importController = new ImportController();
 const dashboardController = new DashboardController();
@@ -122,12 +118,6 @@ routes.patch('/factory-unit/current/settings', requireAuth, mutationLimiter, req
 routes.post('/auth/login', publicLimiter, authController.login);
 routes.post('/auth/check-user', requireAuth, mutationLimiter, authController.checkUser);
 
-routes.get('/materials', requireAuth, authenticatedLimiter, materialController.index);
-routes.post('/materials', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.create);
-routes.put('/materials/:id', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch(() => 'CORTE'), materialController.update);
-routes.delete('/materials/:id', requireAuth, mutationLimiter, requireRole(['admin_setor']), requireSectorMatch(() => 'CORTE'), materialController.delete);
-routes.post('/materials/bulk', requireAuth, mutationLimiter, requireRole(['admin']), materialController.importBatch);
-
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
 routes.post('/inventory/batch', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
 routes.get('/inventory/search', requireAuth, authenticatedLimiter, stockItemController.search);
@@ -153,19 +143,10 @@ routes.patch('/requisitions/:id/cancel', requireAuth, mutationLimiter, requireRe
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
 routes.get('/dashboard/summary', requireAuth, authenticatedLimiter, dashboardController.getSummary);
-routes.get('/stats', requireAuth, authenticatedLimiter, materialController.stats);
-routes.get('/dashboard/origem-sobras', requireAuth, authenticatedLimiter, dashboardController.getOrigemSobras);
-routes.get('/dashboard/distribuicao', requireAuth, authenticatedLimiter, dashboardController.getDistribuicao);
-routes.get('/dashboard/top-materiais', requireAuth, authenticatedLimiter, dashboardController.getTopMateriais);
-
-routes.get('/movements', requireAuth, authenticatedLimiter, movementController.index);
-routes.post('/movements', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch(() => 'CORTE'), movementController.create);
-
 routes.get('/reports/inventory', requireAuth, authenticatedLimiter, reportController.inventory);
 routes.get('/reports/inventory/export', requireAuth, authenticatedLimiter, reportController.exportInventory);
 routes.get('/reports/movements', requireAuth, authenticatedLimiter, reportController.movements);
 routes.get('/reports/movements/export', requireAuth, authenticatedLimiter, reportController.exportMovements);
-routes.get('/reports/data', requireAuth, authenticatedLimiter, reportController.movements);
 routes.get('/reports/requisitions', requireAuth, authenticatedLimiter, reportController.requisitions);
 routes.get('/reports/requisitions/export', requireAuth, authenticatedLimiter, reportController.exportRequisitions);
 

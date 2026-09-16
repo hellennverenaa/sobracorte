@@ -66,11 +66,11 @@ export class DashboardController {
         prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE', quantity: { lte: 10 } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { lte: 10 } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
         prisma.stockItem.groupBy({
           by: ['type'],
@@ -81,6 +81,7 @@ export class DashboardController {
           by: ['sector', 'origem'],
           where: {
             factoryUnitId,
+            sector: { not: 'CORTE' },
             type: 'ENTRADA',
             origem: { not: null },
           },
@@ -181,7 +182,7 @@ export class DashboardController {
         }),
         prisma.stockMovement.groupBy({
           by: ['stockItemId', 'sector'],
-          where: { factoryUnitId, type: 'ENTRADA', stockItemId: { not: null } },
+          where: { factoryUnitId, sector: { not: 'CORTE' }, type: 'ENTRADA', stockItemId: { not: null } },
           _sum: { quantity: true },
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10
@@ -276,7 +277,7 @@ export class DashboardController {
               LEFT JOIN sobra_corte."UnitConfig" u 
                 ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
                 AND u."factoryUnitId" = s."factoryUnitId"
-              WHERE s."factoryUnitId" = ${factoryUnitId}
+              WHERE s."factoryUnitId" = ${factoryUnitId} AND s.sector <> 'CORTE'
                 AND s.quantity > 0
             ) base
           ) ranked
@@ -316,7 +317,7 @@ export class DashboardController {
             LEFT JOIN sobra_corte."UnitConfig" u 
               ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
               AND u."factoryUnitId" = s."factoryUnitId"
-            WHERE s."factoryUnitId" = ${factoryUnitId}
+            WHERE s."factoryUnitId" = ${factoryUnitId} AND s.sector <> 'CORTE'
               AND s.quantity > 0
             GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND'))))
           ) u_summary
@@ -384,20 +385,18 @@ export class DashboardController {
       const [
         corteStockEntries,
         corteStockExits,
-        corteLegacyExitsAgg,
         corteStockExitsAgg,
         apoioStockExitsAgg,
       ] = await Promise.all([
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
       ]);
 
-      const corteTotalEntries = legacyEntriesCount + corteStockEntries;
-      const corteTotalExits = legacyExitsCount + corteStockExits;
-      const corteTotalExitsVolume = (Number(corteLegacyExitsAgg._sum?.quantity) || 0) + (Number(corteStockExitsAgg._sum?.quantity) || 0);
+      const corteTotalEntries = corteStockEntries;
+      const corteTotalExits = corteStockExits;
+      const corteTotalExitsVolume = Number(corteStockExitsAgg._sum?.quantity) || 0;
       const apoioTotalExitsVolume = Number(apoioStockExitsAgg._sum?.quantity) || 0;
       const montagemTotalEntries = Number(montagemEntriesCount._sum?.quantity) || 0;
       const montagemTotalExits = Number(montagemExitsCount._sum?.quantity) || 0;
@@ -759,216 +758,6 @@ export class DashboardController {
     } catch (error) {
       console.error('Erro analítico ao processar resumo consolidado do dashboard:', error);
       return res.status(500).json({ error: 'Erro interno ao carregar indicadores do dashboard.' });
-    }
-  }
-
-  /**
-   * Rota para alimentar o Gráfico de Pizza de Origem das Sobras
-   */
-  async getOrigemSobras(req: Request, res: Response) {
-    try {
-      const factoryUnitId = req.tenant!.id;
-      const [stockOrigem, legacyOrigem] = await Promise.all([
-        prisma.stockMovement.groupBy({
-          by: ['origem'],
-          where: {
-            factoryUnitId,
-            type: 'ENTRADA',
-            origem: { not: null },
-          },
-          _sum: { quantity: true },
-        }),
-        prisma.stockMovement.groupBy({
-          by: ['origem'],
-          where: {
-            factoryUnitId,
-              sector: 'CORTE', type: 'ENTRADA',
-            origem: { not: null },
-          },
-          _sum: { quantity: true },
-        }),
-      ]);
-
-      const origemMap = new Map<string, number>();
-      for (const item of legacyOrigem) {
-        if (item.origem) {
-          const norm = item.origem.trim();
-          origemMap.set(norm, (origemMap.get(norm) || 0) + (Number(item._sum?.quantity) || 0));
-        }
-      }
-      for (const item of stockOrigem) {
-        if (item.origem) {
-          const norm = item.origem.trim();
-          origemMap.set(norm, (origemMap.get(norm) || 0) + (Number(item._sum?.quantity) || 0));
-        }
-      }
-
-      const dadosGrafico = Array.from(origemMap.entries())
-        .map(([origem, qty]) => ({
-          origem,
-          _sum: { quantity: qty },
-        }))
-        .sort((a, b) => (b._sum.quantity || 0) - (a._sum.quantity || 0));
-
-      return res.json(dadosGrafico);
-    } catch (error) {
-      console.error('Erro analítico ao processar dashboard:', error);
-      return res.status(500).json({ error: 'Erro interno no banco de dados ao buscar indicadores.' });
-    }
-  }
-
-  /**
-   * Rota para alimentar o Gráfico de Distribuição por tipo de material
-   */
-  async getDistribuicao(req: Request, res: Response) {
-    try {
-      const distribuicao = await prisma.stockItem.groupBy({
-        by: ['type'],
-        where: { factoryUnitId: req.tenant!.id, sector: 'CORTE' },
-        _sum: {
-          quantity: true,
-        },
-      });
-
-      return res.json(distribuicao);
-    } catch (error) {
-      console.error('[Dashboard] Erro na rota de distribuição:', error);
-      return res.status(500).json({ error: 'Erro interno ao processar distribuição.' });
-    }
-  }
-
-  /**
-   * Rota para buscar os materiais com maior acúmulo (Top 5 Multi-Setor particionado via Window Function)
-   */
-  async getTopMateriais(req: Request, res: Response) {
-    try {
-      const factoryUnitId = req.tenant!.id;
-      const targetSector = req.query.sector ? String(req.query.sector).toUpperCase().trim() : null;
-      const targetUnit = req.query.unit ? String(req.query.unit).toUpperCase().trim() : null;
-
-      const topRanked = await prisma.$queryRaw<Array<{
-        id: number;
-        code: string;
-        name: string;
-        quantity: string | number;
-        sector: string;
-        unitId: number | null;
-        unit: string;
-        type: string | null;
-        position: number | bigint;
-        global_position: number | bigint;
-      }>>`
-        SELECT 
-          ranked.id, 
-          ranked.code, 
-          ranked.name, 
-          ranked.quantity, 
-          ranked.sector,
-          ranked."unitId", 
-          ranked.unit, 
-          ranked.type, 
-          ranked.position,
-          ranked.global_position
-        FROM (
-          SELECT 
-            base.id,
-            base.code,
-            base.name,
-            base.quantity,
-            base.sector,
-            base."unitId",
-            base.unit,
-            base.type,
-            ROW_NUMBER() OVER (
-              PARTITION BY base.sector, base.unit 
-              ORDER BY base.quantity DESC, base.id ASC
-            ) AS position,
-            ROW_NUMBER() OVER (
-              PARTITION BY base.unit 
-              ORDER BY base.quantity DESC, base.id ASC
-            ) AS global_position
-          FROM (
-            SELECT 
-              m.id, 
-              m.code, 
-              m.name, 
-              m.quantity, 
-              'CORTE'::text AS sector,
-              u.id AS "unitId", 
-              COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
-              m.type
-            FROM sobra_corte."StockItem" m
-            LEFT JOIN sobra_corte."UnitConfig" u 
-              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
-              AND u."factoryUnitId" = m."factoryUnitId"
-            WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
-              AND m.quantity > 0
-
-            UNION ALL
-
-            SELECT 
-              s.id, 
-              COALESCE(s.code, s."pieceCode", s.sku, s."productName", 'ITEM-' || s.id::text) AS code,
-              COALESCE(
-                s.name, 
-                s.description, 
-                s."productName", 
-                s.sku, 
-                CASE 
-                  WHEN s.sector = 'MONTAGEM' THEN 'Calçado Montagem'
-                  WHEN s.sector = 'PRE_FABRICADO' THEN 'Sola Pré-Fabricado'
-                  WHEN s.sector = 'APOIO' THEN 'Componente Apoio'
-                  ELSE 'Item Estoque'
-                END
-              ) || CASE 
-                WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' AND s."footSide" IS NOT NULL THEN ' (Tam ' || s."sizeGrade" || ' - Pé ' || s."footSide"::text || ')'
-                WHEN s."sizeGrade" IS NOT NULL AND s."sizeGrade" != '' THEN ' (Tam ' || s."sizeGrade" || ')'
-                WHEN s."footSide" IS NOT NULL THEN ' (Pé ' || s."footSide"::text || ')'
-                ELSE ''
-              END AS name,
-              s.quantity,
-              s.sector::text AS sector,
-              u.id AS "unitId",
-              COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
-              COALESCE(s.type, s.color, s.sector::text) AS type
-            FROM sobra_corte."StockItem" s
-            LEFT JOIN sobra_corte."UnitConfig" u 
-              ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
-              AND u."factoryUnitId" = s."factoryUnitId"
-            WHERE s."factoryUnitId" = ${factoryUnitId}
-              AND s.quantity > 0
-          ) base
-        ) ranked
-        WHERE ranked.position <= 5 OR ranked.global_position <= 5
-        ORDER BY ranked.sector ASC, ranked.unit ASC, ranked.position ASC
-      `;
-
-      let list = (topRanked || []).map(row => ({
-        id: row.id,
-        code: row.code,
-        name: row.name,
-        quantity: Number(row.quantity) || 0,
-        sector: String(row.sector || 'CORTE').toUpperCase().trim(),
-        unitId: row.unitId ? Number(row.unitId) : null,
-        unit: String(row.unit || 'UND').toUpperCase().trim(),
-        type: row.type || '',
-        position: Number(row.position) || 1,
-        globalPosition: Number(row.global_position) || 1,
-      }));
-
-      if (targetSector && targetSector !== 'TODOS') {
-        const mappedSec = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector;
-        list = list.filter(item => item.sector === mappedSec);
-      }
-
-      if (targetUnit) {
-        list = list.filter(item => item.unit === targetUnit);
-      }
-
-      return res.json(list);
-    } catch (error) {
-      console.error('Erro ao buscar maiores acúmulos do dashboard:', error);
-      return res.status(500).json({ error: 'Erro interno no banco de dados ao buscar maiores acúmulos.' });
     }
   }
 }

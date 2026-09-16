@@ -1,8 +1,6 @@
 import { ref } from 'vue'
 import { api } from '../services/httpClient'
 
-const emptyStats = () => ({ totalMaterials: 0, lowStock: 0, totalMovements: 0, totalEntries: 0 })
-
 export function useApi() {
   const error = ref(null)
   const isLoading = ref(false)
@@ -30,25 +28,9 @@ export function useApi() {
     }
   }
 
-  async function fetchStats() {
-    try {
-      const response = await api.get('/stats')
-      return response.data ?? emptyStats()
-    } catch (requestError) {
-      if (requestError.response?.status !== 429) {
-        console.error('Erro ao buscar estatísticas.')
-      }
-      return emptyStats()
-    }
-  }
-
   return {
     request,
-    fetchStats,
     fetchDashboardSummary: () => request('/dashboard/summary'),
-    fetchDistribuicao: () => request('/dashboard/distribuicao'),
-    fetchOrigemSobras: () => request('/dashboard/origem-sobras'),
-    fetchTopMateriais: () => request('/dashboard/top-materiais'),
     isLoading,
     error
   }

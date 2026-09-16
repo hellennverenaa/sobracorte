@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DashboardController } from "../src/controllers/DashboardController";
 
-test("DashboardController estrutura corretamente os dados segregados por unidade e window functions", () => {
+test("DashboardController expõe somente o resumo consolidado", () => {
   const controller = new DashboardController();
   assert.equal(typeof controller.getSummary, "function");
-  assert.equal(typeof controller.getTopMateriais, "function");
-  assert.equal(typeof controller.getOrigemSobras, "function");
-  assert.equal(typeof controller.getDistribuicao, "function");
+  assert.equal('getTopMateriais' in controller, false);
+  assert.equal('getOrigemSobras' in controller, false);
+  assert.equal('getDistribuicao' in controller, false);
 });
 
 test("Lógica de particionamento e ordenação de unidades coloca M² e UND prioritariamente", () => {

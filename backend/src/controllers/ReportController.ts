@@ -21,19 +21,56 @@ export function decimalString(val: unknown): string {
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
 
+function getPagination(req: Request) {
+  const parsedPage = Number.parseInt(String(req.query.page ?? '1'), 10);
+  const parsedLimit = Number.parseInt(String(req.query.limit ?? '50'), 10);
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+    ? Math.min(parsedLimit, 200)
+    : 50;
+
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function paginationResponse(page: number, limit: number, total: number) {
+  return {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+    hasNext: page * limit < total,
+    hasPrevious: page > 1,
+  };
+}
+
 export class ReportController {
   async inventory(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
+      const { page, limit, skip } = getPagination(req);
+      const where = { factoryUnitId };
       const stockItems = await prisma.stockItem.findMany({
-          where: { factoryUnitId },
-          orderBy: { quantity: 'desc' },
-          include: {
-            locations: {
-              include: { location: true },
-            },
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+        include: {
+          locations: {
+            include: { location: true },
           },
-        });
+        },
+      });
+
+      const [total, quantityTotals, sectorTotals] = await Promise.all([
+        prisma.stockItem.count({ where }),
+        prisma.stockItem.aggregate({ where, _sum: { quantity: true } }),
+        prisma.stockItem.groupBy({
+          by: ['sector'],
+          where,
+          _count: { _all: true },
+          _sum: { quantity: true },
+        }),
+      ]);
 
       const formattedStock = stockItems.map((s) => ({
         id: `stk_${s.id}`,
@@ -50,7 +87,25 @@ export class ReportController {
         data_cadastro: s.createdAt,
       }));
 
-      return res.json(formattedStock);
+      const quantidadeTotal = Number(quantityTotals._sum.quantity ?? 0);
+      const porSetor = Object.fromEntries(sectorTotals.map((group) => [
+        group.sector,
+        {
+          totalRegistros: group._count._all,
+          quantidadeTotal: Number(group._sum.quantity ?? 0),
+        },
+      ]));
+
+      return res.json({
+        items: formattedStock,
+        pagination: paginationResponse(page, limit, total),
+        totals: {
+          totalRegistros: total,
+          quantidadeTotal,
+          totalQuantidade: quantidadeTotal,
+          porSetor,
+        },
+      });
     } catch (error) {
       console.error('Erro no relatório de estoque:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de inventário' });
@@ -60,6 +115,7 @@ export class ReportController {
   async movements(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
+      const { page, limit, skip } = getPagination(req);
       const {
         dataInicio,
         dataFim,
@@ -138,15 +194,16 @@ export class ReportController {
         stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
       }
 
+      const movementTextFilters: Record<string, any>[] = [];
       if (rawOperator && rawOperator !== 'TODOS') {
-        stockWhere.OR = [
+        movementTextFilters.push({ OR: [
           { operatorName: { contains: rawOperator, mode: 'insensitive' } },
           { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ];
+        ] });
       }
 
       if (rawSearch) {
-        stockWhere.OR = [
+        movementTextFilters.push({ OR: [
           { itemCode: { contains: rawSearch, mode: 'insensitive' } },
           { itemName: { contains: rawSearch, mode: 'insensitive' } },
           { stockItem: {
@@ -159,21 +216,31 @@ export class ReportController {
               { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
             ],
           } },
-        ];
+        ] });
+      }
+      if (movementTextFilters.length > 0) {
+        stockWhere.AND = movementTextFilters;
       }
 
-      const [stockMovements, locationsList] = await Promise.all([
-          prisma.stockMovement.findMany({
-              where: stockWhere,
-              orderBy: { createdAt: 'desc' },
-              take: start ? undefined : 500,
-              include: {
-                stockItem: true,
-              },
-            }),
+      const [stockMovements, locationsList, total, quantityTotals, movementGroups] = await Promise.all([
+        prisma.stockMovement.findMany({
+          where: stockWhere,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take: limit,
+          include: { stockItem: true },
+        }),
         prisma.location.findMany({
           where: { factoryUnitId },
           select: { id: true, name: true },
+        }),
+        prisma.stockMovement.count({ where: stockWhere }),
+        prisma.stockMovement.aggregate({ where: stockWhere, _sum: { quantity: true } }),
+        prisma.stockMovement.groupBy({
+          by: ['type', 'sector'],
+          where: stockWhere,
+          _count: { _all: true },
+          _sum: { quantity: true },
         }),
       ]);
 
@@ -220,65 +287,67 @@ export class ReportController {
         };
       });
 
-      const allItems = formattedStock.sort(
-        (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
-      );
+      const groupsByType = new Map<string, { count: number; quantity: number }>();
+      const groupsBySector = new Map<string, { count: number; quantity: number }>();
+      for (const group of movementGroups) {
+        const quantity = Number(group._sum.quantity ?? 0);
+        const type = groupsByType.get(group.type) ?? { count: 0, quantity: 0 };
+        type.count += group._count._all;
+        type.quantity += quantity;
+        groupsByType.set(group.type, type);
+        const sector = groupsBySector.get(group.sector) ?? { count: 0, quantity: 0 };
+        sector.count += group._count._all;
+        sector.quantity += quantity;
+        groupsBySector.set(group.sector, sector);
+      }
 
-      const entradas = allItems.filter((m) => m.tipo === 'ENTRADA');
-      const saidas = allItems.filter((m) => m.tipo === 'SAIDA' || m.tipo === 'CASAMENTO_PAR');
-      const refugos = allItems.filter((m) => m.tipo === 'REFUGO');
-      const transferencias = allItems.filter((m) => m.tipo === 'TRANSFERENCIA');
-      const casamentos = allItems.filter((m) => m.tipo === 'CASAMENTO_PAR');
-
-      const volumeTotalEntrada = entradas.reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeTotalSaida = saidas.reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeTotalRefugo = refugos.reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeTotalTransferencia = transferencias.reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeTotalCasamentos = casamentos.reduce((a, c) => a + Number(c.quantidade), 0);
-
-      // Segmentação para visão de Todos os Setores (Corte m² vs Outros un/pares)
-      const volumeEntradaCorte = entradas.filter((m) => m.setor === 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeEntradaOutros = entradas.filter((m) => m.setor !== 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeSaidaCorte = saidas.filter((m) => m.setor === 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
-      const volumeSaidaOutros = saidas.filter((m) => m.setor !== 'CORTE').reduce((a, c) => a + Number(c.quantidade), 0);
-
+      const typeStats = (type: string) => groupsByType.get(type) ?? { count: 0, quantity: 0 };
+      const entrada = typeStats('ENTRADA');
+      const saida = typeStats('SAIDA');
+      const casamento = typeStats('CASAMENTO_PAR');
+      const refugo = typeStats('REFUGO');
+      const transferencia = typeStats('TRANSFERENCIA');
+      const volumeTotalSaida = saida.quantity + casamento.quantity;
+      const saidaCount = saida.count + casamento.count;
+      const volumeEntradaCorte = movementGroups
+        .filter((group) => group.type === 'ENTRADA' && group.sector === 'CORTE')
+        .reduce((sum, group) => sum + Number(group._sum.quantity ?? 0), 0);
+      const volumeSaidaCorte = movementGroups
+        .filter((group) => (group.type === 'SAIDA' || group.type === 'CASAMENTO_PAR') && group.sector === 'CORTE')
+        .reduce((sum, group) => sum + Number(group._sum.quantity ?? 0), 0);
       const totals = {
-        totalRegistros: allItems.length,
-        // 1. Quantidade de Operações (Lançamentos / Frequência de Linha)
-        qtdOperacoesEntrada: entradas.length,
-        qtdOperacoesSaida: saidas.length,
-        qtdOperacoesRefugo: refugos.length,
-        qtdOperacoesTransferencia: transferencias.length,
-        qtdOperacoesCasamento: casamentos.length,
-        // 2. Volume Físico Total (Soma real de peças / metros nos lotes)
-        volumeTotalEntrada,
+        totalRegistros: total,
+        qtdOperacoesEntrada: entrada.count,
+        qtdOperacoesSaida: saidaCount,
+        qtdOperacoesRefugo: refugo.count,
+        qtdOperacoesTransferencia: transferencia.count,
+        qtdOperacoesCasamento: casamento.count,
+        volumeTotalEntrada: entrada.quantity,
         volumeTotalSaida,
-        totalRefugos: volumeTotalRefugo,
-        totalTransferencias: volumeTotalTransferencia,
-        totalCasamentosPares: Math.floor(volumeTotalCasamentos / 2),
-        // Quebra segmentada para relatórios gerais
+        totalRefugos: refugo.quantity,
+        totalTransferencias: transferencia.quantity,
+        totalCasamentosPares: Math.floor(casamento.quantity / 2),
         volumeEntradaCorte,
-        volumeEntradaOutros,
+        volumeEntradaOutros: entrada.quantity - volumeEntradaCorte,
         volumeSaidaCorte,
-        volumeSaidaOutros,
-        // Retrocompatibilidade provisória com código legado:
-        volumeEntradas: volumeTotalEntrada,
+        volumeSaidaOutros: volumeTotalSaida - volumeSaidaCorte,
+        volumeEntradas: entrada.quantity,
         volumeSaidas: volumeTotalSaida,
+        quantidadeTotal: Number(quantityTotals._sum.quantity ?? 0),
+        porTipo: Object.fromEntries([...groupsByType].map(([key, value]) => [key, {
+          totalRegistros: value.count,
+          quantidadeTotal: value.quantity,
+        }])),
+        porSetor: Object.fromEntries([...groupsBySector].map(([key, value]) => [key, {
+          totalRegistros: value.count,
+          quantidadeTotal: value.quantity,
+        }])),
       };
 
       return res.json({
+        items: formattedStock,
+        pagination: paginationResponse(page, limit, total),
         totals,
-        items: allItems,
-        totalRegistros: totals.totalRegistros,
-        qtdOperacoesEntrada: totals.qtdOperacoesEntrada,
-        qtdOperacoesSaida: totals.qtdOperacoesSaida,
-        qtdOperacoesRefugo: totals.qtdOperacoesRefugo,
-        volumeTotalEntrada: totals.volumeTotalEntrada,
-        volumeTotalSaida: totals.volumeTotalSaida,
-        volumeEntradas: totals.volumeEntradas,
-        volumeSaidas: totals.volumeSaidas,
-        totalRefugos: totals.totalRefugos,
-        totalCasamentosPares: totals.totalCasamentosPares,
       });
     } catch (error) {
       console.error('Erro no relatório analítico de movimentações:', error);
@@ -289,6 +358,7 @@ export class ReportController {
   async requisitions(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
+      const { page, limit, skip } = getPagination(req);
       const {
         dataInicio,
         dataFim,
@@ -354,10 +424,24 @@ export class ReportController {
         ];
       }
 
-      const requisitions = await prisma.materialRequisition.findMany({
-        where: whereClause,
-        orderBy: { createdAt: 'desc' },
-      });
+      const [requisitions, totalRegistros, requisitionTotals, statusGroups] = await Promise.all([
+        prisma.materialRequisition.findMany({
+          where: whereClause,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip,
+          take: limit,
+        }),
+        prisma.materialRequisition.count({ where: whereClause }),
+        prisma.materialRequisition.aggregate({
+          where: whereClause,
+          _sum: { quantityRequested: true, quantityFulfilled: true },
+        }),
+        prisma.materialRequisition.groupBy({
+          by: ['status'],
+          where: whereClause,
+          _count: { _all: true },
+        }),
+      ]);
 
       const formatted = requisitions.map(r => ({
         id: r.id,
@@ -379,21 +463,25 @@ export class ReportController {
         updatedAt: r.updatedAt,
       }));
 
-      const totalRegistros = formatted.length;
-      const totalAtendidas = formatted.filter(r => r.status === 'ATENDIDA_TOTAL' || r.status === 'ATENDIDA_PARCIAL').length;
-      const totalPendentes = formatted.filter(r => r.status === 'PENDENTE').length;
-      const totalCanceladas = formatted.filter(r => r.status === 'CANCELADA').length;
+      const statusCounts = new Map(statusGroups.map((group) => [group.status, group._count._all]));
+      const totalAtendidas = (statusCounts.get('ATENDIDA_TOTAL') ?? 0) + (statusCounts.get('ATENDIDA_PARCIAL') ?? 0);
+      const totalPendentes = statusCounts.get('PENDENTE') ?? 0;
+      const totalCanceladas = statusCounts.get('CANCELADA') ?? 0;
       const taxaAtendimento = totalRegistros > 0 ? Number(((totalAtendidas / totalRegistros) * 100).toFixed(1)) : 0;
 
       return res.json({
+        items: formatted,
+        pagination: paginationResponse(page, limit, totalRegistros),
         totals: {
           totalRegistros,
           totalAtendidas,
           totalPendentes,
           totalCanceladas,
           taxaAtendimento,
+          quantidadeSolicitada: Number(requisitionTotals._sum.quantityRequested ?? 0),
+          quantidadeAtendida: Number(requisitionTotals._sum.quantityFulfilled ?? 0),
+          porStatus: Object.fromEntries(statusGroups.map((group) => [group.status, group._count._all])),
         },
-        items: formatted,
       });
     } catch (error) {
       console.error('Erro no relatório de requisições:', error);
@@ -493,6 +581,7 @@ export class ReportController {
           ...(targetSector !== 'TODOS' && {
             sector: (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') ? 'DISTRIBUICAO' : targetSector,
           }),
+          ...(targetSector === 'TODOS' && { sector: { not: 'CORTE' } }),
           ...(rawSearch && {
             OR: [
               { code: { contains: rawSearch, mode: 'insensitive' } },
@@ -635,15 +724,16 @@ export class ReportController {
         stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
       }
 
+      const movementTextFilters: Record<string, any>[] = [];
       if (rawOperator && rawOperator !== 'TODOS') {
-        stockWhere.OR = [
+        movementTextFilters.push({ OR: [
           { operatorName: { contains: rawOperator, mode: 'insensitive' } },
           { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ];
+        ] });
       }
 
       if (rawSearch) {
-        stockWhere.OR = [
+        movementTextFilters.push({ OR: [
           { itemCode: { contains: rawSearch, mode: 'insensitive' } },
           { itemName: { contains: rawSearch, mode: 'insensitive' } },
           { stockItem: {
@@ -656,7 +746,10 @@ export class ReportController {
               { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
             ],
           } },
-        ];
+        ] });
+      }
+      if (movementTextFilters.length > 0) {
+        stockWhere.AND = movementTextFilters;
       }
 
       const locationsList = await prisma.location.findMany({

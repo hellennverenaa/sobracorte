@@ -30,7 +30,7 @@ test('Interceptor Axios: Sobrescrita de cabeçalho Authorization em requisiçõe
     headers: { Authorization: 'Bearer old-expired-token-123', 'X-Dass-Unit': 'UNIDADE_01' }
   };
   const reqB: { url: string; headers: Record<string, string>; _retry?: boolean } = {
-    url: '/materials',
+    url: '/inventory/search',
     headers: { Authorization: 'Bearer old-expired-token-123', 'X-Dass-Unit': 'UNIDADE_01' }
   };
   const reqC: { url: string; headers: Record<string, string>; _retry?: boolean } = {

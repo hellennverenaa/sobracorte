@@ -102,11 +102,7 @@ function confirmDelete(item: any) {
     variant: 'danger',
     action: async () => {
       try {
-        if (isCorte) {
-          await api.delete(`/materials/${item.id}`);
-        } else {
-          await api.delete(`/inventory/stock-items/${item.id}`);
-        }
+        await api.delete(`/inventory/stock-items/${item.id}`);
         showToast('Item excluído com sucesso!');
         await loadData(currentPage.value);
       } catch (error: any) {
