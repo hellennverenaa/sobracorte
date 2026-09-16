@@ -95,7 +95,7 @@ const viewingItem = ref<any>(null);
 // Permissão para Excluir (apenas admin_master e admin_setor no respectivo setor)
 const canDelete = computed(() => {
   const role = authStore.user?.role;
-  if (role === 'admin' || authStore.isAdmin) return true;
+  if (role === 'admin' || authStore.user?.isGlobalAdmin === true) return true;
   if (role === 'admin_setor') {
     const userSec = authStore.user?.assignedSector;
     if (!userSec || userSec === 'TODOS') return true;
@@ -652,7 +652,7 @@ onMounted(() => {
               <tr v-if="activeTab === 'APOIO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição da Peça</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Material / Cor</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Combinação / Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Quantidade</th>
