@@ -22,12 +22,12 @@ Regras gerais:
 
 ### Política de documentação
 
-- Toda documentação técnica criada ou atualizada durante os ciclos deve ficar em `docs/` na raiz do projeto.
+- Não criar nem atualizar documentação técnica nos ciclos intermediários. Consolidar a documentação somente no Ciclo 7, após estabilizar a implementação.
 - Este plano permanece na raiz por ser o documento operacional que governa a execução.
-- `docs/README.md` é o portal da documentação e deve referenciar todos os documentos ativos.
-- O `README.md` da raiz deve permanecer curto e apontar para `docs/README.md`, seguindo o padrão de `enviroment/dass_auth_service`.
+- A pasta `docs/` será recriada no Ciclo 7 com um índice de documentos vigentes.
+- O README principal receberá links para a documentação somente no Ciclo 7.
 - Contratos de API, arquitetura, autenticação, banco, desenvolvimento, testes, migração e implantação não devem ser duplicados no README principal.
-- Quando um ciclo alterar comportamento documentado, a atualização correspondente em `docs/` faz parte do mesmo commit e do mesmo critério de conclusão.
+- Todas as obrigações documentais dos Ciclos 0 a 6 descritas abaixo ficam adiadas ao Ciclo 7 e não bloqueiam seus commits ou aceite. Decisões operacionais necessárias permanecem no código, scripts e resumo de entrega, sem documentos adicionais.
 
 ## 2. Estratégia de agentes
 
@@ -50,7 +50,7 @@ Regras de delegação:
 ### Política de commits
 
 - O agente principal confirma o encerramento do ciclo antes do commit.
-- O commit deve conter implementação, testes e documentação daquele ciclo.
+- O commit deve conter implementação e testes focados daquele ciclo; documentação somente na etapa final.
 - Usar mensagens no padrão `refactor(ciclo-N): resumo objetivo`.
 - O ciclo 0 usa `docs(ciclo-0): registrar baseline e contratos`.
 - Correções solicitadas antes do aceite entram no mesmo ciclo; se o commit já existir, criar `fix(ciclo-N): resumo objetivo`, sem alterar o commit anterior.
@@ -467,7 +467,7 @@ Rollback:
 - A execução ocorrerá somente em `refactor/sobra_corte2.0`.
 - Cada ciclo concluído será registrado em commit próprio.
 - Entre ciclos será executada validação mínima e proporcional; a validação integrada ocorrerá no Ciclo 7 e será repetida de forma focada após a contração.
-- Documentação técnica ficará em `docs/` e será acessível pelo README principal.
+- Documentação técnica será consolidada em `docs/` somente no Ciclo 7 e então referenciada pelo README principal.
 - APIs antigas serão removidas, não mantidas permanentemente.
 - A migração usará expansão, backfill reexecutável, reconciliação, cutover e contração autorizada em lote separado.
 - O gate de dados exige reconciliação de 100%.

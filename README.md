@@ -4,7 +4,7 @@ Sistema corporativo voltado ao controle de estoque de materiais, sobras de produ
 
 ## Documentação
 
-Use o [portal da documentação](docs/README.md) para arquitetura, autenticação e autorização, banco de dados, APIs, desenvolvimento, testes e implantação. O [plano de evolução arquitetural](PLANO_EVOLUCAO_ARQUITETURAL.md) é a referência obrigatória para a refatoração em ciclos na branch `refactor/sobra_corte2.0`.
+O [plano de evolução arquitetural](PLANO_EVOLUCAO_ARQUITETURAL.md) governa a refatoração em ciclos na branch `refactor/sobra_corte2.0`. A documentação técnica será consolidada na etapa final.
 
 ---
 
