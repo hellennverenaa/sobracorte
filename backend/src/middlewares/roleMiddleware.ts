@@ -49,7 +49,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       ? await prisma.authIdentity.findUnique({ where: { nativeUnitId_authOrigin_authUserId: { nativeUnitId: nativeFactory.id, authOrigin, authUserId } } })
       : null;
     const binding = identity
-      ? await tenantStorage.run({ tenantId: tenant.id }, () => prisma.userRoleBinding.findUnique({ where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } } }))
+      ? await tenantStorage.run({ tenantId: tenant.id }, async () => await prisma.userRoleBinding.findUnique({ where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } } }))
       : null;
 
     const effectiveRole = isGlobalAdmin ? 'admin' : (binding?.role || 'leitor');
@@ -91,9 +91,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       if (error instanceof Error && error.name === "TokenExpiredError") {
         return res.status(401).json({ message: "Token expirado", expired: true });
       }
-      return res.status(401).json({
-        message: "Acesso negado! Você não tem permissões para acessar essa funcionalidade!",
+      if (error instanceof Error && ['JsonWebTokenError', 'NotBeforeError'].includes(error.name)) {
+        return res.status(401).json({ message: 'Token inválido.' });
+      }
+      console.error('Falha interna ao validar a sessão:', {
+        name: error instanceof Error ? error.name : 'UnknownError',
       });
+      return res.status(500).json({ message: 'Não foi possível validar a sessão. Tente novamente.' });
   }
 }
 

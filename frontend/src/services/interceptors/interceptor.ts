@@ -39,13 +39,18 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
     if (
-      originalRequest.url?.includes("/auth/login") ||
-      originalRequest?.url?.includes("/auth/me")
+      originalRequest?.url?.includes("/auth/login") ||
+      originalRequest?.url?.includes("/auth/me") ||
+      originalRequest?.url?.includes("/auth/check-user")
     ) {
       return Promise.reject(error);
     }
 
     if (error.response?.status !== 401 || originalRequest?._retry || !originalRequest) throw error
+
+    // Sem sessão local não existe identidade para renovar. A tela de login
+    // deve receber o erro original, sem reload ou chamadas extras ao provedor.
+    if (!localStorage.getItem('user')) throw error;
 
     originalRequest._retry = true;
 

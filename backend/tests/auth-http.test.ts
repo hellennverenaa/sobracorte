@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { createApp } from '../src/app';
 import { prisma } from '../src/prisma';
 import { vars } from '../src/config/dotenv';
+import { tenantStorage } from '../src/context/tenantContext';
 
 // Provedor simulado: assinatura local com chave exclusiva de teste.
 const secret = 'point01-provider-test-key';
@@ -49,7 +50,15 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       : { id: 1, ...args.create, matriculaDass: 100n };
     return storedIdentity;
   };
-  (prisma.userRoleBinding as any).findUnique = async () => storedBinding;
+  // PrismaPromise é lazy: a query começa em `then`, não na criação do objeto.
+  (prisma.userRoleBinding as any).findUnique = (args: any) => ({
+    then(resolve: (value: unknown) => void, reject: (error: unknown) => void) {
+      try {
+        assert.equal(tenantStorage.getStore()?.tenantId, args.where.identityId_factoryUnitId.factoryUnitId, 'consulta lazy deve executar dentro do contexto ativo');
+        resolve(storedBinding);
+      } catch (error) { reject(error); }
+    },
+  });
   (prisma.userRoleBinding as any).upsert = async (args: any) => {
     storedBinding ||= { id: 1, ...args.create };
     return storedBinding;
@@ -152,6 +161,17 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       vars.PRIVATE_KEY = undefined;
       assert.equal((await check({ Authorization: `Bearer ${issue()}` })).status, 500);
       vars.PRIVATE_KEY = secret;
+    });
+    await t.test('falha interna de persistência não é tratada como credencial inválida', async () => {
+      const findIdentity = prisma.authIdentity.findUnique;
+      (prisma.authIdentity as any).findUnique = async () => { throw new Error('database unavailable'); };
+      try {
+        const response = await check({ Authorization: `Bearer ${issue()}` });
+        assert.equal(response.status, 500);
+        assert.deepEqual(await response.json(), { message: 'Não foi possível validar a sessão. Tente novamente.' });
+      } finally {
+        (prisma.authIdentity as any).findUnique = findIdentity;
+      }
     });
   } finally {
     (prisma.factoryUnit as any).findFirst = origUnitFindFirst;
