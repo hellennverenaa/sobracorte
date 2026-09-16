@@ -6,10 +6,17 @@ import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
+import InventoryItemDetails from '@/components/InventoryItemDetails.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmModal } from '@/composables/useConfirmModal';
 import { useToast } from '@/composables/useToast';
 import { formatNumber } from '@/utils/format';
+import PageState from '@/components/PageState.vue';
+import ToastNotification from '@/components/ToastNotification.vue';
+import { useInventoryQuery } from '@/composables/useInventoryQuery';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+import { useModalFocus } from '@/composables/useModalFocus';
+import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
@@ -27,7 +34,7 @@ const validSectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBU
 const userSector = computed(() => {
   const s = authStore.user?.assignedSector;
   if (!s || s === 'TODOS') return null;
-  return (s === 'EXPEDICAO' || s === 'CABEDAIS' ? 'DISTRIBUICAO' : s) as SectorType;
+  return normalizeSector(s) as SectorType;
 });
 
 const isSectorLocked = computed(() => {
@@ -47,10 +54,12 @@ function getSectorFromRoute(): SectorType {
 }
 
 const showEntryForm = ref(false);
-const activeTab = ref<SectorType>(getSectorFromRoute());
-const search = ref((route.query.q as string) || '');
-const currentPage = ref(Number(route.query.page) || 1);
-const selectedLocationFilter = ref('');
+const entryForm = ref<any>(null);
+function toggleEntryForm() {
+  if (showEntryForm.value && entryForm.value?.confirmDiscard && !entryForm.value.confirmDiscard()) return;
+  showEntryForm.value = !showEntryForm.value;
+}
+const { activeTab, search, currentPage, selectedLocationFilter, loadData } = useInventoryQuery(stockStore, authStore, route, getSectorFromRoute());
 
 // Configurações Dinâmicas
 const dbLocations = ref<any[]>([]);
@@ -69,6 +78,14 @@ const destinationLocationId = ref<number | null>(null);
 const movementReason = ref('');
 const movementObservation = ref('');
 const movementLoading = ref(false);
+const movementDialog = ref(null);
+const movementSnapshot = ref('');
+const movementValues = () => JSON.stringify([movementType.value, movementQuantity.value, selectedLocationId.value, destinationLocationId.value, movementReason.value, movementObservation.value]);
+const { confirmDiscard } = useUnsavedChanges(() => showMovementModal.value && movementValues() !== movementSnapshot.value);
+function closeMovementModal() {
+  if (!movementLoading.value && confirmDiscard()) showMovementModal.value = false;
+}
+useModalFocus(() => showMovementModal.value, movementDialog, closeMovementModal);
 
 // Modal de Detalhes
 const viewingItem = ref<any>(null);
@@ -115,12 +132,15 @@ function confirmDelete(item: any) {
 }
 
 const allTabs = [
-  { id: 'CORTE' as SectorType, label: 'Corte', countKey: 'totalCorte', icon: Scissors },
-  { id: 'APOIO' as SectorType, label: 'Apoio', countKey: 'totalApoio', icon: Wrench },
-  { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', countKey: 'totalPreFabricado', icon: Layers },
-  { id: 'DISTRIBUICAO' as SectorType, label: 'Distribuição', countKey: 'totalExpedicao', icon: Box },
-  { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', countKey: 'totalMontagem', icon: Footprints },
-];
+  { id: 'CORTE' as SectorType, countKey: 'totalCorte', icon: Scissors },
+  { id: 'APOIO' as SectorType, countKey: 'totalApoio', icon: Wrench },
+  { id: 'PRE_FABRICADO' as SectorType, countKey: 'totalPreFabricado', icon: Layers },
+  { id: 'DISTRIBUICAO' as SectorType, countKey: 'totalExpedicao', icon: Box },
+  { id: 'MONTAGEM' as SectorType, countKey: 'totalMontagem', icon: Footprints },
+].map((tab) => {
+  const sector = SECTOR_OPTIONS.find((option) => option.id === tab.id);
+  return { ...tab, label: sector?.shortLabel || sector?.label || tab.id };
+});
 
 const visibleTabs = computed(() => {
   if (isSectorLocked.value && userSector.value) {
@@ -159,16 +179,6 @@ async function changePage(page: number) {
   await loadData(page);
 }
 
-async function loadData(page: number = currentPage.value) {
-  currentPage.value = page;
-  await stockStore.fetchInventory({
-    q: search.value,
-    sector: activeTab.value,
-    page,
-    limit: 50,
-  });
-}
-
 function handleExplicitSearch() {
   currentPage.value = 1;
   const query = search.value.trim();
@@ -184,6 +194,7 @@ function handleExplicitSearch() {
 
 function clearSearch() {
   search.value = '';
+  selectedLocationFilter.value = '';
   currentPage.value = 1;
   router.replace({
     query: {
@@ -388,6 +399,7 @@ function openMovementModal(item: any) {
     destinationLocationId.value = null;
   }
 
+  movementSnapshot.value = movementValues();
   showMovementModal.value = true;
 }
 
@@ -486,7 +498,7 @@ watch(
 );
 
 onMounted(() => {
-  const initialSector = getSectorFromRoute();
+  const initialSector = isSectorLocked.value ? getSectorFromRoute() : (validSectors.includes(activeTab.value) ? activeTab.value : getSectorFromRoute());
   activeTab.value = initialSector;
   stockStore.setActiveSector(initialSector);
   if (isSectorLocked.value && route.query.sector !== initialSector) {
@@ -500,16 +512,8 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Notificação Toast Padrão Materials.vue -->
-    <div
-      v-if="notification.show"
-      :class="notification.type === 'success'
-        ? 'bg-green-100 border-green-400 text-green-700'
-        : 'bg-red-100 border-red-400 text-red-700'"
-      class="fixed top-4 right-4 px-4 py-3 rounded border shadow-lg z-50 flex items-center transition-all duration-300"
-    >
-      <span class="font-medium text-sm">{{ notification.message }}</span>
-    </div>
+    <ToastNotification :notification="notification" />
+    <PageState :loading="stockStore.loading" :error="stockStore.error || ''" @retry="loadData(currentPage)" />
 
     <div class="flex flex-col h-full">
       <!-- Top Bar com Botão Novo Item e Atualizar -->
@@ -531,7 +535,7 @@ onMounted(() => {
 
           <button
             v-if="authStore.can('cadastrar_materiais') && canOperateCurrentSector"
-            @click="showEntryForm = !showEntryForm"
+            @click="toggleEntryForm"
             class="bg-blue-600 hover:bg-blue-800 text-white px-5 py-2 rounded flex items-center gap-2 shadow-sm transition-colors text-xs font-medium"
           >
             <Plus class="w-4 h-4" />
@@ -542,7 +546,7 @@ onMounted(() => {
 
       <!-- Formulário de Entrada Rápida (Expansível) -->
       <div v-if="showEntryForm" class="mx-4">
-        <SectorFormInput @saved="() => { showToast('Entrada realizada com sucesso!'); loadData(); }" @cancel="showEntryForm = false" />
+        <SectorFormInput ref="entryForm" @saved="() => { showToast('Entrada realizada com sucesso!'); loadData(); }" @cancel="showEntryForm = false" />
       </div>
 
       <!-- Barra de Filtros e Busca Multi-Itens Sob Demanda -->
@@ -551,6 +555,7 @@ onMounted(() => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor Ativo</label>
           <select
             v-model="activeTab"
+            aria-label="Setor do estoque"
             :disabled="isSectorLocked"
             @change="selectTab(activeTab)"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
@@ -578,6 +583,7 @@ onMounted(() => {
             <div class="relative flex-1">
               <input
                 v-model="search"
+                aria-label="Buscar itens do estoque"
                 @keydown.enter="handleExplicitSearch"
                 type="text"
                 placeholder="Cole múltiplos SKUs separados por vírgula, espaço ou quebra de linha..."
@@ -906,7 +912,7 @@ onMounted(() => {
                 </td>
               </tr>
 
-              <tr v-if="stockStore.currentSectorData.data.length === 0">
+              <tr v-if="!stockStore.loading && !stockStore.error && stockStore.currentSectorData.data.length === 0">
                 <td colspan="8" class="p-8 text-center text-gray-400 font-medium text-sm">
                   Nenhum item encontrado para este setor.
                 </td>
@@ -979,87 +985,10 @@ onMounted(() => {
       </div>
 
       <!-- Modal de Detalhes Padrão Materials.vue -->
-      <div v-if="viewingItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-          <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h3 class="font-bold text-gray-800">Detalhes do Item de Estoque</h3>
-            <button @click="viewingItem = null" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
-              &times;
-            </button>
-          </div>
-          <div class="p-6 space-y-3 text-sm">
-            <div class="flex justify-center mb-2">
-              <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded text-base font-mono font-bold border border-blue-200">
-                {{ viewingItem.code || viewingItem.pieceCode || viewingItem.sku || viewingItem.productName }}
-              </span>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-gray-500 uppercase">Setor</label>
-              <div class="text-gray-900 font-bold">{{ viewingItem.sector }}</div>
-            </div>
-
-            <div v-if="viewingItem.name || viewingItem.description">
-              <label class="block text-xs font-bold text-gray-500 uppercase">Descrição</label>
-              <div class="text-gray-900 font-medium">{{ viewingItem.name || viewingItem.description }}</div>
-            </div>
-
-            <div v-if="viewingItem.sector === 'PRE_FABRICADO' || viewingItem.sector === 'DISTRIBUICAO' || viewingItem.type">
-              <label class="block text-xs font-bold text-gray-500 uppercase">
-                {{ viewingItem.sector === 'DISTRIBUICAO' ? 'Tipo de Material' : 'Material do Solado' }}
-              </label>
-              <div class="text-gray-900 font-bold">
-                <template v-if="viewingItem.sector === 'DISTRIBUICAO'">
-                  {{ viewingItem.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal' }}
-                </template>
-                <template v-else>
-                  {{ viewingItem.type === 'BORRACHA' ? 'Borracha' : (viewingItem.type === 'EVA' ? 'EVA (Sola Não Processada)' : (viewingItem.type || '-')) }}
-                </template>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase">Saldo em Estoque</label>
-                <div class="text-gray-900 font-bold">{{ formatNumber(viewingItem.quantity) }} {{ getItemUnitBadge(viewingItem) }}</div>
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase">Prateleiras / Box</label>
-                <div class="text-gray-900 font-bold">{{ viewingItem.locationDisplay }}</div>
-              </div>
-            </div>
-
-            <div v-if="viewingItem.color">
-              <label class="block text-xs font-bold text-gray-500 uppercase">Combinação / Cor</label>
-              <div class="text-gray-900 font-bold">{{ viewingItem.color }}</div>
-            </div>
-
-            <div v-if="viewingItem.sizeGrade" class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-500 uppercase">Grade</label>
-                <div class="text-gray-900 font-bold">{{ viewingItem.sizeGrade }}</div>
-              </div>
-              <div v-if="viewingItem.footSide">
-                <label class="block text-xs font-bold text-gray-500 uppercase">Lado do Pé</label>
-                <div class="text-gray-900 font-bold">{{ viewingItem.footSide === 'E' ? 'Esquerdo (E)' : 'Direito (D)' }}</div>
-              </div>
-            </div>
-
-            <div v-if="viewingItem.observation">
-              <label class="block text-xs font-bold text-gray-500 uppercase">Observações</label>
-              <div class="text-gray-700 bg-gray-50 p-2 rounded text-xs">{{ viewingItem.observation }}</div>
-            </div>
-          </div>
-          <div class="bg-gray-50 px-6 py-3 border-t flex justify-end">
-            <button @click="viewingItem = null" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium px-4 py-2 rounded text-xs">
-              Fechar
-            </button>
-          </div>
-        </div>
-      </div>
+      <InventoryItemDetails :item="viewingItem" :unit="viewingItem ? getItemUnitBadge(viewingItem) : ''" @close="viewingItem = null" />
 
       <!-- MODAL UNIFICADO ROBUSTO DE MOVIMENTAÇÃO DE ESTOQUE MULTI-SETOR -->
-      <div v-if="showMovementModal && selectedItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div v-if="showMovementModal && selectedItem" ref="movementDialog" role="dialog" aria-modal="true" aria-label="Movimentação de estoque" tabindex="-1" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
           <!-- Cabeçalho do Modal -->
           <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -1070,7 +999,7 @@ onMounted(() => {
               </h3>
               <p class="text-xs text-gray-500">Registro com rastreabilidade auditável e controle por prateleira</p>
             </div>
-            <button @click="showMovementModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none">
+            <button @click="closeMovementModal" aria-label="Fechar movimentação" class="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none">
               &times;
             </button>
           </div>
@@ -1183,6 +1112,7 @@ onMounted(() => {
               <div class="relative">
                 <input
                   v-model.number="movementQuantity"
+                  aria-label="Quantidade da movimentação"
                   type="number"
                   min="0.01"
                   step="any"
@@ -1212,6 +1142,7 @@ onMounted(() => {
               <select
                 v-if="movementType === 'ENTRADA'"
                 v-model.number="selectedLocationId"
+                aria-label="Prateleira da movimentação"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
                 <option v-for="loc in stockStore.filterLocations" :key="loc.id" :value="loc.id">
@@ -1223,6 +1154,7 @@ onMounted(() => {
               <select
                 v-else
                 v-model.number="selectedLocationId"
+                aria-label="Prateleira de origem"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
                 <option v-for="loc in (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : stockStore.filterLocations)" :key="loc.id" :value="loc.id">
@@ -1246,6 +1178,7 @@ onMounted(() => {
               <div v-else class="space-y-2">
                 <select
                   v-model.number="destinationLocationId"
+                  aria-label="Prateleira de destino"
                   class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-bold text-blue-900 text-xs"
                   required
                 >
@@ -1276,6 +1209,7 @@ onMounted(() => {
               </label>
               <select
                 v-model="movementReason"
+                aria-label="Motivo da movimentação"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white text-gray-800 text-xs font-medium"
               >
                 <option v-for="orig in stockStore.filterOrigins" :key="orig.id" :value="orig.name">
@@ -1296,6 +1230,7 @@ onMounted(() => {
               </label>
               <textarea
                 v-model="movementObservation"
+                aria-label="Observações da movimentação"
                 rows="2"
                 placeholder="Detalhes operacionais sobre a movimentação..."
                 class="w-full border border-gray-300 p-2 rounded-lg outline-none focus:border-blue-500 text-gray-800 text-xs resize-none"
@@ -1330,7 +1265,7 @@ onMounted(() => {
             <div class="flex justify-end gap-3 w-full sm:w-auto shrink-0">
               <button
                 type="button"
-                @click="showMovementModal = false"
+                @click="closeMovementModal"
                 class="bg-white hover:bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-xs border border-gray-300 transition-colors"
               >
                 Cancelar

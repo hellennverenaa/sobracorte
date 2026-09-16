@@ -1,7 +1,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
-import { useApi } from "../composables/useApi"
+import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { useDashboard } from '@/composables/useDashboard'
+import DashboardStatus from '@/components/DashboardStatus.vue'
+import ToastNotification from '@/components/ToastNotification.vue'
+import { requestErrorMessage } from '@/utils/domain'
+import { SECTOR_OPTIONS } from '@/utils/domain'
 import { formatNumber, formatDate } from "@/utils/format"
 import {
   Activity, Clock, RefreshCw, Layers, Scissors, Box,
@@ -10,18 +16,16 @@ import {
   ArrowUpRight, ArrowDownRight, Sparkles, AlertOctagon
 } from 'lucide-vue-next'
 
-const { fetchDashboardSummary } = useApi()
-
-// --- ESTADO DO FILTRO RÁPIDO ---
-const selectedSector = ref('TODOS')
-const sectorFilterOptions = [
-  { id: 'TODOS',          label: 'Todos os Setores',        icon: Layers },
-  { id: 'CORTE',          label: 'Corte (Matéria-Prima)',   icon: Scissors },
-  { id: 'APOIO',          label: 'Apoio (Moldes/Peças)',    icon: Box },
-  { id: 'PRE_FABRICADO',  label: 'Pré-Fabricado (Solas)',   icon: Package },
-  { id: 'DISTRIBUICAO',   label: 'Distribuição',            icon: Layers },
-  { id: 'MONTAGEM',       label: 'Montagem (Pés Órfãos)',   icon: Footprints },
-]
+// --- ESTADO DO FILTRO RÁPIDO (domínio persistido por unidade) ---
+const authStore = useAuthStore()
+const dashboardDomain = useDashboard({
+  unitCode: () => authStore.user?.unit?.code || 'default',
+})
+const selectedSector = dashboardDomain.selectedSector
+const sectorIcons = { TODOS: Layers, CORTE: Scissors, APOIO: Box, PRE_FABRICADO: Package, DISTRIBUICAO: Layers, MONTAGEM: Footprints }
+const sectorFilterOptions = SECTOR_OPTIONS
+  .filter((sector) => sector.id !== 'CONSUMO')
+  .map((sector) => ({ ...sector, icon: sectorIcons[sector.id] || Layers }))
 
 // --- ESTADOS DE DADOS (CARREGADOS EM 1 ÚNICA REQUISIÇÃO) ---
 const realStats = ref({
@@ -66,16 +70,19 @@ const topMateriaisPorUnidade = ref({})
 const topMateriaisPorSetorEUnidade = ref({})
 const unidadesDisponiveis   = ref([])
 const unidadesPorSetor      = ref({})
-const selectedTopUnit       = ref('M²')
+const selectedTopUnit       = dashboardDomain.selectedTopUnit
 
 const isLoading         = ref(true)
 const hoveredSector     = ref(null)
 const hoveredCategory   = ref(null)
 const hoveredOrigem     = ref(null)
 const isUpdating        = ref(false)
-const currentTime       = ref(new Date())
+const currentTime       = ref(null)
+const loadError          = ref(null)
+const hasLoadedData      = ref(false)
+const dashboardEmpty     = computed(() => hasLoadedData.value && !isLoading.value && !loadError.value && Number(realStats.value.totalItems || 0) === 0 && volumePorSetor.value.length === 0)
+const { notification, showNotification } = useToast(4000)
 let refreshInterval     = null
-let clockInterval       = null
 let isFetchingData      = false
 
 // --- ANIMAÇÃO SUAVE DE NÚMEROS ---
@@ -536,7 +543,10 @@ async function loadData() {
   isUpdating.value = true
 
   try {
-    const summary = await fetchDashboardSummary()
+    const summary = await dashboardDomain.fetchSummary()
+    loadError.value = null
+    hasLoadedData.value = true
+    currentTime.value = new Date()
     const statsData = summary?.stats || {}
     const setoresRaw = summary?.setores || {}
     const volRaw = summary?.volumePorSetor || []
@@ -622,6 +632,8 @@ async function loadData() {
 
   } catch (error) {
     console.error('Erro ao carregar métricas analíticas do dashboard:', error)
+    loadError.value = requestErrorMessage(error, 'Não foi possível carregar os indicadores.')
+    showNotification('error', loadError.value)
   } finally {
     isLoading.value = false
     isFetchingData = false
@@ -631,20 +643,20 @@ async function loadData() {
 
 onMounted(() => {
   loadData()
-  clockInterval = setInterval(() => { currentTime.value = new Date() }, 1000)
   refreshInterval = setInterval(loadData, 60000)
 })
 
 onUnmounted(() => {
   clearInterval(refreshInterval)
-  clearInterval(clockInterval)
 })
 </script>
 
 <template>
   <Layout>
+    <ToastNotification :notification="notification" />
     <div class="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-6 transition-colors duration-500">
       <div class="max-w-7xl mx-auto space-y-4 sm:space-y-5">
+        <DashboardStatus :loading="isLoading" :error="loadError" :empty="dashboardEmpty" :last-updated="currentTime" @retry="loadData" />
 
         <!-- CABEÇALHO DO PAINEL ANALÍTICO -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 gap-3 sm:gap-4">
@@ -673,12 +685,13 @@ onUnmounted(() => {
 
           <div class="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-3 shadow-inner w-full sm:w-auto self-stretch sm:self-auto justify-between sm:justify-end shrink-0">
             <div class="text-left sm:text-right">
-              <div class="text-lg sm:text-xl font-black text-slate-700 leading-none tabular-nums">
+              <div v-if="currentTime" class="text-lg sm:text-xl font-black text-slate-700 leading-none tabular-nums">
                 {{ currentTime.toLocaleTimeString('pt-BR') }}
               </div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                {{ currentTime.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) }}
+              <div v-if="currentTime" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                Última atualização · {{ currentTime.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) }}
               </div>
+              <div v-else class="text-xs font-bold text-slate-400">Aguardando dados…</div>
             </div>
             <Clock class="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 shrink-0" />
           </div>
@@ -690,7 +703,10 @@ onUnmounted(() => {
             <button
               v-for="sec in sectorFilterOptions"
               :key="sec.id"
+              type="button"
               @click="selectedSector = sec.id"
+              :aria-pressed="selectedSector === sec.id"
+              :aria-label="`Filtrar por ${sec.label}`"
               class="px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0"
               :class="selectedSector === sec.id
                 ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
@@ -698,6 +714,14 @@ onUnmounted(() => {
             >
               <component :is="sec.icon" class="w-3.5 h-3.5 shrink-0" />
               <span>{{ sec.label }}</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Limpar filtros do dashboard"
+              class="ml-1 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              @click="dashboardDomain.resetFilters()"
+            >
+              Limpar filtros
             </button>
           </div>
         </div>

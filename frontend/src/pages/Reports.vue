@@ -3,6 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { useReports } from '@/composables/useReports'
+import ReportStatus from '@/components/ReportStatus.vue'
+import ToastNotification from '@/components/ToastNotification.vue'
+import { requestErrorMessage } from '@/utils/domain'
+import { SECTOR_OPTIONS } from '@/utils/domain'
 import { formatNumber, formatDate } from '@/utils/format'
 import {
   FileSpreadsheet,
@@ -31,22 +36,18 @@ import { exportToCSV } from '@/utils/export'
 import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
+const reportDomain = useReports({
+  autoLoad: false,
+  api,
+  unitCode: () => authStore.user?.unit?.code || 'default',
+})
 
 // --- TIPO DE RELATÓRIO ATIVO ---
-const reportType = ref('movements') // 'movements' | 'requisitions'
+const { reportType, filters, loading, reportData, currentPage, pagination, hasSearched } = reportDomain
 const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisitions !== false)
 
 // --- ESTADOS REATIVOS ---
-const loading = ref(false)
-const reportData = ref([])
-const pageSize = 50
-const currentPage = ref(1)
-const pagination = ref({
-  page: 1,
-  limit: pageSize,
-  total: 0,
-  totalPages: 1,
-})
+const loadError = ref('')
 const reportTotals = ref({
   totalRegistros: 0,
   qtdOperacoesEntrada: 0,
@@ -68,7 +69,6 @@ const reportTotals = ref({
   totalCanceladas: 0,
   taxaAtendimento: 0,
 })
-const hasSearched = ref(false)
 
 // --- HELPERS DE VOLUME & UNIDADES ---
 const currentUnitSuffix = computed(() => {
@@ -95,28 +95,11 @@ const canExport = computed(() => {
 // --- NOTIFICAÇÕES TOAST ---
 const { notification, showNotification } = useToast(3500)
 
-// --- FILTROS DE CONSULTA ---
-const filters = ref({
-  sector: 'TODOS',
-  tipoMovimento: 'TODOS',
-  status: 'TODOS',
-  periodo: 'last_30_days', // 'last_30_days' como padrão
-  dataInicio: '',
-  dataFim: '',
-  origin: 'TODOS',
-  search: ''
-})
-
 // --- OPÇÕES DOS SELECTS ---
-const sectors = [
-  { value: 'TODOS', label: 'Todos os Setores (Geral)' },
-  { value: 'CORTE', label: 'Corte (Matéria-Prima)' },
-  { value: 'APOIO', label: 'Apoio (Moldes/Peças)' },
-  { value: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)' },
-  { value: 'DISTRIBUICAO', label: 'Distribuição' },
-  { value: 'MONTAGEM', label: 'Montagem (Pés Órfãos)' },
-  { value: 'CONSUMO', label: 'Consumo (Insumos)' },
-]
+const sectors = SECTOR_OPTIONS.map((sector) => ({
+  value: sector.id,
+  label: sector.id === 'TODOS' ? 'Todos os Setores (Geral)' : sector.label,
+}))
 
 const operationTypes = [
   { value: 'TODOS', label: 'Todas as Operações' },
@@ -151,6 +134,7 @@ const originsList = ref([
 
 async function fetchOrigins() {
   try {
+    loadError.value = ''
     const res = await api.get('/settings/origins')
     if (Array.isArray(res.data)) {
       originsList.value = [
@@ -220,92 +204,47 @@ function getDatesFromPeriod(period) {
 
 // --- CONSULTA ANALÍTICA AO BACKEND ---
 async function generateReport(page = 1) {
-  loading.value = true
-  hasSearched.value = true
-  reportData.value = []
-  currentPage.value = page
-  pagination.value = {
-    page,
-    limit: pageSize,
-    total: 0,
-    totalPages: 1,
-  }
-
   try {
     const dates = getDatesFromPeriod(filters.value.periodo)
     if (filters.value.periodo === 'custom' && !dates) {
-      showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
-      loading.value = false
+      showNotification('error', 'Selecione as datas de início e fim para o período personalizado.')
       return
     }
-
+    const data = await reportDomain.generateReport(page)
+    const totals = data?.totals || data || {}
     if (reportType.value === 'requisitions') {
-      const params = new URLSearchParams({
-        sector: filters.value.sector,
-        status: filters.value.status,
-        page: String(page),
-        limit: String(pageSize),
-      })
-      if (dates?.start && dates?.end) {
-        params.append('dataInicio', dates.start)
-        params.append('dataFim', dates.end)
-      }
-      if (filters.value.search) params.append('search', filters.value.search)
-
-      const res = await api.get(`/reports/requisitions?${params.toString()}`)
-      reportData.value = res.data.items || []
-      pagination.value = res.data.pagination
       reportTotals.value = {
         ...reportTotals.value,
-        totalRegistros: res.data.totals?.totalRegistros || 0,
-        totalAtendidas: res.data.totals?.totalAtendidas || 0,
-        totalPendentes: res.data.totals?.totalPendentes || 0,
-        totalCanceladas: res.data.totals?.totalCanceladas || 0,
-        taxaAtendimento: res.data.totals?.taxaAtendimento || 0,
+        totalRegistros: totals.totalRegistros || 0,
+        totalAtendidas: totals.totalAtendidas || 0,
+        totalPendentes: totals.totalPendentes || 0,
+        totalCanceladas: totals.totalCanceladas || 0,
+        taxaAtendimento: totals.taxaAtendimento || 0,
       }
     } else {
-      const params = new URLSearchParams({
-        sector: filters.value.sector,
-        tipoMovimento: filters.value.tipoMovimento,
-        origin: filters.value.origin,
-        page: String(page),
-        limit: String(pageSize),
-      })
-      if (dates?.start && dates?.end) {
-        params.append('dataInicio', dates.start)
-        params.append('dataFim', dates.end)
-      }
-      if (filters.value.search) params.append('search', filters.value.search)
-
-      const res = await api.get(`/reports/movements?${params.toString()}`)
-      reportData.value = res.data.items || []
-      pagination.value = res.data.pagination
-      const t = res.data.totals || res.data
       reportTotals.value = {
         ...reportTotals.value,
-        totalRegistros: t.totalRegistros || 0,
-        qtdOperacoesEntrada: t.qtdOperacoesEntrada || 0,
-        qtdOperacoesSaida: t.qtdOperacoesSaida || 0,
-        qtdOperacoesRefugo: t.qtdOperacoesRefugo || 0,
-        volumeTotalEntrada: t.volumeTotalEntrada ?? t.volumeEntradas ?? 0,
-        volumeTotalSaida: t.volumeTotalSaida ?? t.volumeSaidas ?? 0,
-        volumeEntradas: t.volumeTotalEntrada ?? t.volumeEntradas ?? 0,
-        volumeSaidas: t.volumeTotalSaida ?? t.volumeSaidas ?? 0,
-        totalRefugos: t.totalRefugos || 0,
-        totalCasamentosPares: t.totalCasamentosPares || 0,
-        totalTransferencias: t.totalTransferencias || 0,
-        volumeEntradaCorte: t.volumeEntradaCorte || 0,
-        volumeEntradaOutros: t.volumeEntradaOutros || 0,
-        volumeSaidaCorte: t.volumeSaidaCorte || 0,
-        volumeSaidaOutros: t.volumeSaidaOutros || 0,
+        totalRegistros: totals.totalRegistros || 0,
+        qtdOperacoesEntrada: totals.qtdOperacoesEntrada || 0,
+        qtdOperacoesSaida: totals.qtdOperacoesSaida || 0,
+        qtdOperacoesRefugo: totals.qtdOperacoesRefugo || 0,
+        volumeTotalEntrada: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
+        volumeTotalSaida: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
+        volumeEntradas: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
+        volumeSaidas: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
+        totalRefugos: totals.totalRefugos || 0,
+        totalCasamentosPares: totals.totalCasamentosPares || 0,
+        totalTransferencias: totals.totalTransferencias || 0,
+        volumeEntradaCorte: totals.volumeEntradaCorte || 0,
+        volumeEntradaOutros: totals.volumeEntradaOutros || 0,
+        volumeSaidaCorte: totals.volumeSaidaCorte || 0,
+        volumeSaidaOutros: totals.volumeSaidaOutros || 0,
       }
     }
-
   } catch (error) {
     console.error("Erro ao gerar relatório:", error)
-    showNotification('error', "Erro ao conectar com a base de dados de relatórios.")
-  } finally {
-    loading.value = false
+    loadError.value = requestErrorMessage(error, 'Erro ao conectar com a base de dados de relatórios.')
+    showNotification('error', loadError.value)
   }
 }
 
@@ -316,16 +255,7 @@ function switchReportType(type) {
 }
 
 function resetFilters() {
-  filters.value = {
-    sector: 'TODOS',
-    tipoMovimento: 'TODOS',
-    status: 'TODOS',
-    periodo: 'mes_atual',
-    dataInicio: '',
-    dataFim: '',
-    origin: 'TODOS',
-    search: ''
-  }
+  reportDomain.resetFilters()
   generateReport(1)
 }
 
@@ -500,16 +430,8 @@ function getStatusBadge(status) {
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <transition name="fade-down">
-      <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all print:hidden"
-        :class="notification.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'">
-        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-        <XCircle v-else class="w-4 h-4" />
-        {{ notification.message }}
-      </div>
-    </transition>
+    <ToastNotification :notification="notification" />
+    <ReportStatus :loading="loading && !reportData.length" :error="loadError" :empty="false" @retry="() => generateReport(currentPage)" />
 
     <div id="printable-report" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0 report-container">
 
@@ -571,14 +493,18 @@ function getStatusBadge(status) {
 
         <div class="flex items-center gap-2" v-if="reportData.length > 0">
           <button
+            type="button"
             @click="printPDF"
+            aria-label="Imprimir ou salvar o relatório em PDF"
             class="px-3.5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow hover:bg-slate-900 transition-all flex items-center gap-1.5"
           >
             <Printer class="w-4 h-4" /> Imprimir / PDF
           </button>
           <button
             v-if="canExport"
+            type="button"
             @click="downloadExcel"
+            aria-label="Exportar relatório CSV"
             :disabled="isExporting"
             class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
           >
@@ -592,7 +518,10 @@ function getStatusBadge(status) {
       <!-- SELETOR DE TIPO DE RELATÓRIO (TABS) -->
       <div class="flex gap-2 bg-slate-200/70 p-1.5 rounded-2xl w-fit print:hidden">
         <button
+          type="button"
           @click="switchReportType('movements')"
+          role="tab"
+          :aria-selected="reportType === 'movements'"
           class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2"
           :class="reportType === 'movements' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
         >
@@ -600,7 +529,10 @@ function getStatusBadge(status) {
         </button>
         <button
           v-if="isRequisitionsEnabled"
+          type="button"
           @click="switchReportType('requisitions')"
+          role="tab"
+          :aria-selected="reportType === 'requisitions'"
           class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2"
           :class="reportType === 'requisitions' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
         >
@@ -621,6 +553,7 @@ function getStatusBadge(status) {
               <Layers class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <select
                 v-model="filters.sector"
+                aria-label="Setor industrial"
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
                 <option v-for="s in sectors" :key="s.value" :value="s.value">{{ s.label }}</option>
@@ -637,6 +570,7 @@ function getStatusBadge(status) {
               <Repeat class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <select
                 v-model="filters.tipoMovimento"
+                aria-label="Tipo de operação"
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
                 <option v-for="op in operationTypes" :key="op.value" :value="op.value">{{ op.label }}</option>
@@ -651,6 +585,7 @@ function getStatusBadge(status) {
               <CheckCircle class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <select
                 v-model="filters.status"
+                aria-label="Status da requisição"
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
                 <option v-for="st in requisitionStatuses" :key="st.value" :value="st.value">{{ st.label }}</option>
@@ -667,6 +602,7 @@ function getStatusBadge(status) {
               <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <select
                 v-model="filters.periodo"
+                aria-label="Período de tempo"
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
                 <option v-for="p in periods" :key="p.value" :value="p.value">{{ p.label }}</option>
@@ -683,6 +619,7 @@ function getStatusBadge(status) {
               <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 v-model="filters.search"
+                aria-label="Buscar código, SKU ou material"
                 type="text"
                 placeholder="Ex: SKU, Código, Modelo..."
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
@@ -714,13 +651,17 @@ function getStatusBadge(status) {
 
         <div class="flex justify-end gap-3 pt-2">
           <button
+            type="button"
             @click="resetFilters"
+            aria-label="Limpar filtros"
             class="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
           >
             <RotateCcw class="w-3.5 h-3.5" /> Limpar Filtros
           </button>
           <button
+            type="button"
             @click="generateReport(1)"
+            aria-label="Aplicar filtros"
             :disabled="loading"
             class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
           >
@@ -917,9 +858,9 @@ function getStatusBadge(status) {
         <div v-if="pagination.total > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
           <span>Total: <strong>{{ pagination.total }}</strong> registros</span>
           <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <button type="button" aria-label="Página anterior" @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
             <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
-            <button @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
+            <button type="button" aria-label="Próxima página" @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
           </div>
         </div>
       </div>
@@ -990,9 +931,9 @@ function getStatusBadge(status) {
         <div v-if="pagination.total > 0" class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 print:hidden">
           <span>Total: <strong>{{ pagination.total }}</strong> requisições</span>
           <div v-if="totalPages > 1" class="flex items-center gap-2">
-            <button @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
+            <button type="button" aria-label="Página anterior" @click="setCurrentPage(currentPage - 1)" :disabled="loading || currentPage === 1" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&lt;</button>
             <span class="font-bold">{{ currentPage }} de {{ totalPages }}</span>
-            <button @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
+            <button type="button" aria-label="Próxima página" @click="setCurrentPage(currentPage + 1)" :disabled="loading || currentPage === totalPages" class="px-2.5 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40">&gt;</button>
           </div>
         </div>
       </div>

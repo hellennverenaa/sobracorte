@@ -8,6 +8,8 @@ import {
 } from 'lucide-vue-next'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
+import { confirmPendingChanges } from '@/composables/useUnsavedChanges'
+import { ROLE_LABELS } from '@/utils/domain'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -16,9 +18,14 @@ const isSidebarOpen = ref(false)
 const pendingCount = ref(0)
 const isSwitchingUnit = ref(false)
 const unitSwitchError = ref('')
+const unitSwitchStatus = computed({
+  get: () => authStore.unitSwitchStatus,
+  set: (value) => { authStore.unitSwitchStatus = value },
+})
 let notificationInterval = null
 
 async function logout() {
+  if (!confirmPendingChanges()) return
   if (notificationInterval) {
     clearInterval(notificationInterval)
     notificationInterval = null
@@ -91,13 +98,20 @@ const visibleMenuItems = computed(() => {
 async function handleUnitChange(event) {
   const targetCode = event.target.value
   if (!targetCode || targetCode === authStore.user?.unit?.code) return
+  if (!confirmPendingChanges()) {
+    event.target.value = authStore.user?.unit?.code || ''
+    return
+  }
 
   unitSwitchError.value = ''
   isSwitchingUnit.value = true
+  unitSwitchStatus.value = 'Trocando unidade…'
   try {
     await authStore.switchUnit(targetCode)
+    unitSwitchStatus.value = `Unidade ativa: ${authStore.user?.unit?.code}`
   } catch (error) {
     unitSwitchError.value = error.response?.data?.error || error.message || 'Não foi possível trocar de unidade.'
+    unitSwitchStatus.value = ''
     event.target.value = authStore.user?.unit?.code || ''
   } finally {
     isSwitchingUnit.value = false
@@ -152,7 +166,7 @@ async function handleUnitChange(event) {
           </div>
           <div class="overflow-hidden">
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
-            <p class="text-xs text-slate-500 truncate capitalize">{{ authStore.user?.role?.replace('_', ' ') }}</p>
+            <p class="text-xs text-slate-500 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>
@@ -192,7 +206,12 @@ async function handleUnitChange(event) {
                 </option>
               </select>
             </div>
-            <span v-if="unitSwitchError" class="mt-1 max-w-64 text-right text-[10px] font-semibold text-red-600">
+            <span v-if="unitSwitchStatus" role="status" aria-live="polite" class="mt-1 text-[10px] text-indigo-700">{{ unitSwitchStatus }}</span>
+            <div v-if="authStore.unitLoadError" role="alert" class="mt-1 max-w-64 text-right text-[10px] text-red-600">
+              {{ authStore.unitLoadError }}
+              <button type="button" class="ml-1 underline" @click="authStore.fetchAvailableUnits()">Tentar novamente</button>
+            </div>
+            <span v-if="unitSwitchError" role="alert" class="mt-1 max-w-64 text-right text-[10px] font-semibold text-red-600">
               {{ unitSwitchError }}
             </span>
           </div>

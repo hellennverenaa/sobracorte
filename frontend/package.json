@@ -16,11 +16,13 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "test": "node --test test/*.test.js"
+    "test": "node --max-old-space-size=256 --test --test-concurrency=1 test/*.test.js",
+    "test:components": "node --max-old-space-size=192 --test --test-concurrency=1 --test-timeout=20000 test/*.component.test.js"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^5.0.0",
+    "happy-dom": "^20.14.5",
     "vite": "^5.0.0"
   }
 }

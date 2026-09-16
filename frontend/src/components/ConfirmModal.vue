@@ -5,7 +5,7 @@
       <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity" @click="handleCancel"></div>
 
       <!-- Card do Modal -->
-      <div class="relative bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all z-10 font-sans">
+      <div ref="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" tabindex="-1" class="relative bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all z-10 font-sans">
         
         <!-- Conteúdo do Modal -->
         <div class="p-6 flex items-start gap-4">
@@ -16,15 +16,16 @@
           </div>
 
           <div class="flex-1 min-w-0">
-            <h3 class="text-base font-bold text-slate-900 leading-snug mb-1">
+            <h3 id="confirm-title" class="text-base font-bold text-slate-900 leading-snug mb-1">
               {{ title }}
             </h3>
-            <p class="text-xs text-slate-500 leading-relaxed">
+            <p id="confirm-message" class="text-xs text-slate-500 leading-relaxed">
               {{ message }}
             </p>
+            <p v-if="activeUnit" class="mt-2 text-xs font-bold text-indigo-700">Unidade ativa: {{ activeUnit }}</p>
           </div>
 
-          <button @click="handleCancel" :disabled="loading"
+          <button @click="handleCancel" :disabled="loading" aria-label="Fechar confirmação"
             class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100 -mr-1 -mt-1 disabled:opacity-50">
             <X class="w-4 h-4" />
           </button>
@@ -51,7 +52,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useModalFocus } from '@/composables/useModalFocus'
 import { AlertOctagon, AlertTriangle, Info, X } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -65,6 +68,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['confirm', 'cancel', 'update:show'])
+const authStore = useAuthStore()
+const activeUnit = computed(() => authStore.user?.unit?.code || '')
+const dialog = ref(null)
+useModalFocus(() => props.show, dialog, handleCancel)
 
 const variantIcon = computed(() => {
   if (props.variant === 'warning') return AlertTriangle
@@ -100,6 +107,7 @@ function handleConfirm() {
 }
 
 function handleCancel() {
+  if (props.loading) return
   emit('cancel')
   emit('update:show', false)
 }

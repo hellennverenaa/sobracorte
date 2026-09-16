@@ -5,7 +5,14 @@ import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import { useToast } from '@/composables/useToast';
+import { useRequisitions } from '@/composables/useRequisitions';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+import { useModalFocus } from '@/composables/useModalFocus';
 import { formatDate } from '@/utils/format';
+import PageState from '@/components/PageState.vue';
+import ToastNotification from '@/components/ToastNotification.vue';
+import RequisitionFilters from '@/components/RequisitionFilters.vue';
+import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
@@ -63,32 +70,30 @@ interface StagedRequisitionItem {
   pairsDetail?: { esq: number; dir: number };
 }
 
-const requisitions = ref<RequisitionItem[]>([]);
-const loading = ref(false);
-const totalCount = ref(0);
-const currentPage = ref(1);
-const totalPages = ref(1);
 const isMasterAdmin = computed(() => {
   return authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin);
 });
 
-const userAssignedSector = computed(() => {
-  const sec = authStore.user?.assignedSector;
-  if (!sec || sec === 'TODOS') return null;
-  return (sec === 'EXPEDICAO' || sec === 'CABEDAIS') ? 'DISTRIBUICAO' : sec;
-});
+const { notification, showToast } = useToast(4500);
 
-const filterStatus = ref(route.query.status ? String(route.query.status) : '');
-const filterSector = ref(!isMasterAdmin.value && userAssignedSector.value ? userAssignedSector.value : '');
-const search = ref('');
-const appliedSearch = ref('');
-const onlyPendingWithStock = ref(false);
-
-watch(userAssignedSector, (newSec) => {
-  if (!isMasterAdmin.value && newSec) {
-    filterSector.value = newSec;
-  }
-}, { immediate: true });
+const {
+  requisitions,
+  loading,
+  error,
+  totalCount,
+  currentPage,
+  totalPages,
+  filterStatus,
+  filterSector,
+  search,
+  onlyPendingWithStock,
+  displayedRequisitions,
+  stats,
+  userAssignedSector,
+  loadRequisitions,
+  handleSearch,
+  clearSearch,
+} = useRequisitions({ route, authStore, notify: showToast });
 
 // Modal de Nova Requisição Multi-Itens
 const showCreateModal = ref(false);
@@ -109,6 +114,36 @@ const formItem = ref({
   quantityRequested: 1,
   reason: '',
 });
+const createInitial = ref('');
+
+function isCreateDirty() {
+  return showCreateModal.value && (
+    stagedItems.value.length > 0 || JSON.stringify(formItem.value) !== createInitial.value
+  );
+}
+
+function isFulfillDirty() {
+  return showFulfillModal.value && JSON.stringify({
+    quantity: fulfillQuantity.value,
+    observation: fulfillObservation.value,
+  }) !== fulfillInitial.value;
+}
+
+const { confirmDiscard } = useUnsavedChanges(() => (
+  isCreateDirty() || isFulfillDirty()
+));
+
+function closeCreateModal() {
+  if (!isSubmitting.value && confirmDiscard()) showCreateModal.value = false;
+}
+
+function closeFulfillModal() {
+  if (!isFulfilling.value && confirmDiscard()) showFulfillModal.value = false;
+}
+
+function closeDetailsModal() {
+  viewingItem.value = null;
+}
 
 // Verificação de Saldo em Tempo Real (Trava Saldo Zero)
 const checkingAvailability = ref(false);
@@ -136,55 +171,22 @@ const fulfillingItem = ref<RequisitionItem | null>(null);
 const fulfillQuantity = ref(1);
 const fulfillObservation = ref('');
 const isFulfilling = ref(false);
+const fulfillInitial = ref('');
 
 // Modal de Detalhes
 const viewingItem = ref<RequisitionItem | null>(null);
+const createDialog = ref<HTMLElement | null>(null);
+const fulfillDialog = ref<HTMLElement | null>(null);
+const detailsDialog = ref<HTMLElement | null>(null);
 
-// Notificações Toast
-const { notification, showToast } = useToast(4500);
+useModalFocus(() => showCreateModal.value, createDialog, closeCreateModal);
+useModalFocus(() => showFulfillModal.value, fulfillDialog, closeFulfillModal);
+useModalFocus(() => Boolean(viewingItem.value), detailsDialog, closeDetailsModal);
 
-const sectorOptions = [
-  { id: 'CORTE', label: 'Corte (Matéria-Prima)', icon: Scissors },
-  { id: 'APOIO', label: 'Apoio (Peças Cortadas)', icon: Wrench },
-  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', icon: Layers },
-  { id: 'DISTRIBUICAO', label: 'Distribuição', icon: Box },
-  { id: 'MONTAGEM', label: 'Montagem', icon: Footprints },
-];
-
-async function loadRequisitions(page = currentPage.value) {
-  loading.value = true;
-  currentPage.value = page;
-  try {
-    const params: any = {
-      page,
-      limit: 20,
-    };
-    if (filterStatus.value) params.status = filterStatus.value;
-    if (filterSector.value) params.requestSector = filterSector.value;
-    if (appliedSearch.value) params.search = appliedSearch.value;
-
-    const res = await api.get('/requisitions', { params });
-    requisitions.value = res.data.data || [];
-    totalCount.value = res.data.total || 0;
-    totalPages.value = res.data.totalPages || 1;
-  } catch (error) {
-    console.error('Erro ao carregar requisições:', error);
-    showToast('Erro ao carregar requisições de reposição.', 'error');
-  } finally {
-    loading.value = false;
-  }
-}
-
-function handleSearch() {
-  appliedSearch.value = search.value.trim();
-  loadRequisitions(1);
-}
-
-function clearSearch() {
-  search.value = '';
-  appliedSearch.value = '';
-  loadRequisitions(1);
-}
+const sectorIcons = { CORTE: Scissors, APOIO: Wrench, PRE_FABRICADO: Layers, DISTRIBUICAO: Box, MONTAGEM: Footprints };
+const sectorOptions = SECTOR_OPTIONS
+  .filter(option => sectorIcons[option.id])
+  .map(option => ({ ...option, icon: sectorIcons[option.id] }));
 
 // Consulta de Disponibilidade em Tempo Real com Trava de Saldo Zero
 async function checkCurrentItemAvailability() {
@@ -305,6 +307,7 @@ function openCreate() {
   stagedItems.value = [];
   currentSector.value = 'MONTAGEM';
   onSectorChange();
+  createInitial.value = JSON.stringify(formItem.value);
   showCreateModal.value = true;
 }
 
@@ -488,6 +491,7 @@ function openFulfill(item: RequisitionItem) {
   const pending = item.quantityRequested - item.quantityFulfilled;
   fulfillQuantity.value = Math.min(pending, item.stockAvailable || pending);
   fulfillObservation.value = '';
+  fulfillInitial.value = JSON.stringify({ quantity: fulfillQuantity.value, observation: fulfillObservation.value });
   showFulfillModal.value = true;
 }
 
@@ -506,6 +510,7 @@ async function executeFulfill() {
     });
 
     showToast(`Requisição ${fulfillingItem.value.code} atendida com sucesso! Estoque debitado.`, 'success');
+    fulfillInitial.value = '';
     showFulfillModal.value = false;
     fulfillingItem.value = null;
     await loadRequisitions();
@@ -531,46 +536,11 @@ async function cancelItem(item: RequisitionItem) {
   }
 }
 
-const displayedRequisitions = computed(() => {
-  if (!onlyPendingWithStock.value) return requisitions.value;
-  return requisitions.value.filter(
-    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable > 0
-  );
-});
-
-const stats = computed(() => {
-  const total = totalCount.value;
-  const pendingWithStock = requisitions.value.filter(
-    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable >= (r.quantityRequested - r.quantityFulfilled)
-  ).length;
-  const pendingNoStock = requisitions.value.filter(
-    (r) => (r.status === 'PENDENTE' || r.status === 'ATENDIDA_PARCIAL') && r.stockAvailable === 0
-  ).length;
-  const fulfilled = requisitions.value.filter(
-    (r) => r.status === 'ATENDIDA_TOTAL'
-  ).length;
-
-  return { total, pendingWithStock, pendingNoStock, fulfilled };
-});
-
 function formatSectorName(sec: string) {
-  const map: Record<string, string> = {
-    CORTE: 'Corte',
-    APOIO: 'Apoio',
-    PRE_FABRICADO: 'Pré-Fabricado',
-    DISTRIBUICAO: 'Distribuição',
-    EXPEDICAO: 'Distribuição',
-    MONTAGEM: 'Montagem',
-  };
-  return map[sec] || sec;
+  const normalized = normalizeSector(sec);
+  const option = SECTOR_OPTIONS.find(item => item.id === normalized);
+  return option?.shortLabel || option?.label || sec;
 }
-
-watch(() => route.query.status, (newStatus) => {
-  if (newStatus) {
-    filterStatus.value = String(newStatus);
-    loadRequisitions(1);
-  }
-});
 
 onMounted(() => {
   loadRequisitions(1);
@@ -579,16 +549,7 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <div
-      v-if="notification.show"
-      :class="notification.type === 'success'
-        ? 'bg-green-100 border-green-400 text-green-700'
-        : 'bg-red-100 border-red-400 text-red-700'"
-      class="fixed top-4 right-4 px-4 py-3 rounded-xl border shadow-lg z-50 flex items-center transition-all duration-300 max-w-md"
-    >
-      <span class="font-medium text-xs">{{ notification.message }}</span>
-    </div>
+    <ToastNotification :notification="notification" />
 
     <div class="p-6 space-y-6 max-w-7xl mx-auto">
       <!-- Topbar / Cabeçalho -->
@@ -680,79 +641,24 @@ onMounted(() => {
       </div>
 
       <!-- Filtros e Busca -->
-      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-end">
-        <div class="w-full md:w-1/4">
-          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Status</label>
-          <select
-            v-model="filterStatus"
-            @change="loadRequisitions(1)"
-            class="w-full border border-slate-200 p-2 rounded-xl outline-none focus:border-indigo-500 bg-white text-xs font-medium"
-          >
-            <option value="">Todos os Status</option>
-            <option value="PENDENTE">Pendente</option>
-            <option value="ATENDIDA_TOTAL">Atendida Total</option>
-            <option value="ATENDIDA_PARCIAL">Atendida Parcial</option>
-            <option value="CANCELADA">Cancelada</option>
-          </select>
-        </div>
-
-        <div class="w-full md:w-1/4">
-          <label class="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center justify-between">
-            <span>Setor Solicitante</span>
-            <span v-if="!isMasterAdmin && userAssignedSector" class="text-[10px] text-indigo-600 font-semibold lowercase">
-              (fixo ao seu setor)
-            </span>
-          </label>
-          <select
-            v-model="filterSector"
-            @change="loadRequisitions(1)"
-            :disabled="!isMasterAdmin && Boolean(userAssignedSector)"
-            class="w-full border border-slate-200 p-2 rounded-xl outline-none focus:border-indigo-500 bg-white text-xs font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-          >
-            <option v-if="isMasterAdmin || !userAssignedSector" value="">Todos os Setores</option>
-            <option value="CORTE">Corte</option>
-            <option value="APOIO">Apoio</option>
-            <option value="PRE_FABRICADO">Pré-Fabricado</option>
-            <option value="DISTRIBUICAO">Distribuição</option>
-            <option value="MONTAGEM">Montagem</option>
-          </select>
-        </div>
-
-        <div class="w-full md:w-2/4">
-          <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Buscar por Código, SKU, Modelo ou Solicitante</label>
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <input
-                v-model="search"
-                @keydown.enter="handleSearch"
-                type="text"
-                placeholder="Ex: REQ-2026, SKU, Pegasus, Gáspea..."
-                class="w-full border border-slate-200 py-2 pl-3 pr-8 rounded-xl outline-none focus:border-indigo-500 text-xs uppercase bg-white"
-              />
-              <button
-                v-if="search"
-                type="button"
-                @click="clearSearch"
-                class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                title="Limpar"
-              >
-                <X class="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              @click="handleSearch"
-              class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors"
-            >
-              <Search class="w-3.5 h-3.5" />
-              <span>Buscar</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <RequisitionFilters
+        v-model:status="filterStatus"
+        v-model:sector="filterSector"
+        v-model:search="search"
+        :sector-locked="!isMasterAdmin && Boolean(userAssignedSector)"
+        @change="loadRequisitions(1)"
+        @search="handleSearch"
+        @clear-search="clearSearch"
+      />
 
       <!-- Tabela de Requisições -->
+      <PageState
+        :loading="loading && displayedRequisitions.length === 0"
+        :error="error"
+        :empty="!loading && !error && displayedRequisitions.length === 0"
+        empty-message="Nenhuma requisição de reposição encontrada."
+        @retry="loadRequisitions(currentPage)"
+      />
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -769,12 +675,6 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="loading && displayedRequisitions.length === 0">
-                <td colspan="8" class="text-center py-8 text-slate-400 font-medium">Carregando solicitações de reposição...</td>
-              </tr>
-              <tr v-else-if="displayedRequisitions.length === 0">
-                <td colspan="8" class="text-center py-8 text-slate-400 font-medium">Nenhuma requisição de reposição encontrada.</td>
-              </tr>
               <tr
                 v-for="item in displayedRequisitions"
                 :key="item.id"
@@ -956,6 +856,10 @@ onMounted(() => {
     <!-- Modal Nova Solicitação Multi-Itens Adaptativo com Trava Saldo Zero -->
     <div
       v-if="showCreateModal"
+      ref="createDialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-requisition-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
     >
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 max-h-[92vh] flex flex-col">
@@ -964,11 +868,11 @@ onMounted(() => {
           <div class="flex items-center gap-2">
             <ClipboardList class="w-5 h-5" />
             <div>
-              <h3 class="font-bold text-sm">Abertura Digital de Requisição de Reposição</h3>
+              <h3 id="new-requisition-title" class="font-bold text-sm">Abertura Digital de Requisição de Reposição</h3>
               <p class="text-[11px] text-indigo-200">Adicione um ou mais itens com saldo disponível</p>
             </div>
           </div>
-          <button @click="showCreateModal = false" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
+          <button @click="closeCreateModal" aria-label="Fechar nova solicitação" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
         </div>
 
         <div class="p-6 overflow-y-auto space-y-5 text-xs flex-1">
@@ -1625,7 +1529,7 @@ onMounted(() => {
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
           <button
             type="button"
-            @click="showCreateModal = false"
+            @click="closeCreateModal"
             class="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all text-xs"
           >
             Cancelar
@@ -1647,15 +1551,19 @@ onMounted(() => {
     <!-- Modal Atendimento de Requisição (Baixa 1 Clique) -->
     <div
       v-if="showFulfillModal && fulfillingItem"
+      ref="fulfillDialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fulfill-requisition-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
     >
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
         <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center text-white">
           <div class="flex items-center gap-2">
             <CheckCheck class="w-5 h-5" />
-            <h3 class="font-bold text-sm">Atender Requisição {{ fulfillingItem.code }}</h3>
+            <h3 id="fulfill-requisition-title" class="font-bold text-sm">Atender Requisição {{ fulfillingItem.code }}</h3>
           </div>
-          <button @click="showFulfillModal = false" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
+          <button @click="closeFulfillModal" aria-label="Fechar atendimento" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
         </div>
 
         <form @submit.prevent="executeFulfill" class="p-6 space-y-4 text-xs">
@@ -1700,7 +1608,7 @@ onMounted(() => {
           <div class="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
             <button
               type="button"
-              @click="showFulfillModal = false"
+              @click="closeFulfillModal"
               class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition-all"
             >
               Cancelar
@@ -1722,15 +1630,19 @@ onMounted(() => {
     <!-- Modal Detalhes da Requisição -->
     <div
       v-if="viewingItem"
+      ref="detailsDialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="requisition-details-title"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
     >
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
         <div class="bg-slate-900 px-6 py-4 flex justify-between items-center text-white">
           <div class="flex items-center gap-2">
             <FileText class="w-5 h-5 text-indigo-400" />
-            <h3 class="font-bold text-sm">Detalhes da Requisição {{ viewingItem.code }}</h3>
+            <h3 id="requisition-details-title" class="font-bold text-sm">Detalhes da Requisição {{ viewingItem.code }}</h3>
           </div>
-          <button @click="viewingItem = null" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
+          <button @click="closeDetailsModal" aria-label="Fechar detalhes" class="text-white/80 hover:text-white font-bold text-lg">&times;</button>
         </div>
 
         <div class="p-6 space-y-4 text-xs">
@@ -1819,7 +1731,7 @@ onMounted(() => {
           <div class="pt-2 flex justify-end">
             <button
               type="button"
-              @click="viewingItem = null"
+              @click="closeDetailsModal"
               class="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800"
             >
               Fechar

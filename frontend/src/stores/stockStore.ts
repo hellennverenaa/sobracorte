@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/httpClient';
+import { requestErrorMessage } from '@/utils/domain';
 
 export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
 
@@ -22,7 +23,7 @@ export interface MatchingPair {
 export interface StockState {
   activeSector: SectorType;
   searchQuery: string;
-  loading: boolean;
+  pendingOperations: number;
   error: string | null;
   pagination: {
     total: number;
@@ -65,7 +66,7 @@ export const useStockStore = defineStore('stock', {
   state: (): StockState => ({
     activeSector: 'CORTE',
     searchQuery: '',
-    loading: false,
+    pendingOperations: 0,
     error: null,
     pagination: {
       total: 0,
@@ -103,6 +104,7 @@ export const useStockStore = defineStore('stock', {
   }),
 
   getters: {
+    loading: (state) => state.pendingOperations > 0,
     currentSectorData(state) {
       switch (state.activeSector) {
         case 'CORTE':
@@ -127,7 +129,7 @@ export const useStockStore = defineStore('stock', {
      * Busca unificada Round-Trip Único (GET /inventory/search)
      */
     async fetchInventory(params?: { q?: string; sector?: SectorType; page?: number; limit?: number }) {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const targetSector = params?.sector ?? this.activeSector;
@@ -151,9 +153,9 @@ export const useStockStore = defineStore('stock', {
         this.filterCategories = data.filterOptions?.categories || [];
       } catch (err: any) {
         console.error('Erro ao carregar estoque:', err);
-        this.error = err.response?.data?.error || 'Erro ao carregar dados do estoque.';
+        this.error = requestErrorMessage(err, 'Erro ao carregar dados do estoque.');
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 
@@ -161,7 +163,7 @@ export const useStockStore = defineStore('stock', {
      * Cadastro em lote de itens por setor (POST /inventory/batch)
      */
     async createBatch(items: any[]) {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.post('/inventory/batch', { items });
@@ -169,11 +171,11 @@ export const useStockStore = defineStore('stock', {
         return response.data;
       } catch (err: any) {
         console.error('Erro ao cadastrar lote:', err);
-        const msg = err.response?.data?.error || 'Erro ao processar cadastro em lote.';
+        const msg = requestErrorMessage(err, 'Erro ao processar cadastro em lote.');
         this.error = msg;
         throw new Error(msg);
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 
@@ -181,7 +183,7 @@ export const useStockStore = defineStore('stock', {
      * Busca de pares prontos para casar multi-setor (GET /inventory/mounting/matching-pairs)
      */
     async fetchMatchingPairs(sector: SectorType = 'MONTAGEM', search: string = '') {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.get('/inventory/mounting/matching-pairs', {
@@ -191,9 +193,9 @@ export const useStockStore = defineStore('stock', {
         this.matchingPairsCount = response.data.totalMatchingPairsCount || 0;
       } catch (err: any) {
         console.error('Erro ao buscar pares casáveis:', err);
-        this.error = err.response?.data?.error || 'Erro ao consultar pares casáveis.';
+        this.error = requestErrorMessage(err, 'Erro ao consultar pares casáveis.');
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 
@@ -207,7 +209,7 @@ export const useStockStore = defineStore('stock', {
       sector?: SectorType;
       reason?: string;
     }) {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.post('/inventory/mounting/execute-match', payload);
@@ -216,11 +218,11 @@ export const useStockStore = defineStore('stock', {
         return response.data;
       } catch (err: any) {
         console.error('Erro ao executar casamento:', err);
-        const msg = err.response?.data?.error || 'Erro ao executar casamento de par.';
+        const msg = requestErrorMessage(err, 'Erro ao executar casamento de par.');
         this.error = msg;
         throw new Error(msg);
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 
@@ -237,7 +239,7 @@ export const useStockStore = defineStore('stock', {
       origem?: string;
       reason?: string;
     }) {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.post('/inventory/movements', payload);
@@ -245,11 +247,11 @@ export const useStockStore = defineStore('stock', {
         return response.data;
       } catch (err: any) {
         console.error('Erro ao registrar movimentação:', err);
-        const msg = err.response?.data?.error || 'Erro ao registrar movimentação.';
+        const msg = requestErrorMessage(err, 'Erro ao registrar movimentação.');
         this.error = msg;
         throw new Error(msg);
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 
@@ -257,16 +259,16 @@ export const useStockStore = defineStore('stock', {
      * Consulta do Histórico de Auditoria (GET /inventory/movements/history)
      */
     async fetchHistory(params?: any) {
-      this.loading = true;
+      this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.get('/inventory/movements/history', { params });
         this.history = response.data;
       } catch (err: any) {
         console.error('Erro ao buscar histórico:', err);
-        this.error = err.response?.data?.error || 'Erro ao buscar histórico de auditoria.';
+        this.error = requestErrorMessage(err, 'Erro ao buscar histórico de auditoria.');
       } finally {
-        this.loading = false;
+        this.pendingOperations--;
       }
     },
 

@@ -3,6 +3,9 @@ import { ref, reactive, nextTick, onMounted, computed } from 'vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+import { normalizeSector, requestErrorMessage, SECTOR_OPTIONS } from '@/utils/domain';
+import PageState from '@/components/PageState.vue';
 import { 
   Scissors, Wrench, Layers, Box, Footprints, 
   Plus, Check, AlertCircle, Lock
@@ -15,7 +18,7 @@ const authStore = useAuthStore();
 const userSector = computed(() => {
   const s = authStore.user?.assignedSector;
   if (!s || s === 'TODOS') return null;
-  return (s === 'EXPEDICAO' || s === 'CABEDAIS' ? 'DISTRIBUICAO' : s) as SectorType;
+  return normalizeSector(s) as SectorType;
 });
 
 const isSectorLocked = computed(() => {
@@ -38,6 +41,7 @@ const dbCategories = ref<any[]>([]);
 const dbUnits = ref<any[]>([]);
 const dbLocations = ref<any[]>([]);
 const loadingSettings = ref(false);
+const settingsError = ref('');
 
 // Cache reativo de combinações / cores para autocomplete por setor
 const combinationsCache = ref<Record<string, string[]>>({});
@@ -58,8 +62,7 @@ async function fetchCombinations(sector: SectorType) {
     });
     combinationsCache.value[sector] = Array.isArray(res.data) ? res.data : [];
   } catch (err) {
-    console.error('Erro ao carregar combinações:', err);
-    combinationsCache.value[sector] = [];
+    errorMessage.value = requestErrorMessage(err, 'Não foi possível carregar as combinações.');
   }
 }
 
@@ -92,6 +95,12 @@ const formData = reactive({
   sku: '',
   footSide: 'E' as 'E' | 'D',
 });
+const savedForm = ref(JSON.stringify(formData));
+const { confirmDiscard } = useUnsavedChanges(() => JSON.stringify(formData) !== savedForm.value);
+defineExpose({ confirmDiscard });
+function cancelForm() {
+  if (!isSubmitting.value && confirmDiscard()) emit('cancel');
+}
 
 const isUnitLocked = computed(() => {
   if (activeSector.value !== 'CORTE' || !formData.type) return false;
@@ -100,12 +109,12 @@ const isUnitLocked = computed(() => {
 });
 
 const allSectors = [
-  { id: 'CORTE' as SectorType, label: 'Corte (Matéria-Prima)', icon: Scissors },
-  { id: 'APOIO' as SectorType, label: 'Apoio (Peças / Moldes)', icon: Wrench },
-  { id: 'PRE_FABRICADO' as SectorType, label: 'Pré-Fabricado (Solas)', icon: Layers },
-  { id: 'DISTRIBUICAO' as SectorType, label: 'Distribuição', icon: Box },
-  { id: 'MONTAGEM' as SectorType, label: 'Montagem (Pés Órfãos)', icon: Footprints },
-];
+  { id: 'CORTE' as SectorType, icon: Scissors },
+  { id: 'APOIO' as SectorType, icon: Wrench },
+  { id: 'PRE_FABRICADO' as SectorType, icon: Layers },
+  { id: 'DISTRIBUICAO' as SectorType, icon: Box },
+  { id: 'MONTAGEM' as SectorType, icon: Footprints },
+].map((sector) => ({ ...sector, label: SECTOR_OPTIONS.find((option) => option.id === sector.id)?.label || sector.id }));
 
 const availableSectors = computed(() => {
   if (isSectorLocked.value && userSector.value) {
@@ -125,6 +134,7 @@ const availableCategories = computed(() => {
 
 async function fetchDynamicSettings() {
   loadingSettings.value = true;
+  settingsError.value = '';
   try {
     const [catsRes, unitsRes, locsRes] = await Promise.all([
       api.get('/settings/categories'),
@@ -142,7 +152,7 @@ async function fetchDynamicSettings() {
       onCategoryChange();
     }
   } catch (err) {
-    console.error('Erro ao carregar configurações dinâmicas:', err);
+    settingsError.value = requestErrorMessage(err, 'Não foi possível carregar as configurações.');
   } finally {
     loadingSettings.value = false;
   }
@@ -350,6 +360,7 @@ function resetForm() {
   formData.footSide = 'E';
 
   onCategoryChange();
+  savedForm.value = JSON.stringify(formData);
 
   nextTick(() => {
     firstInputRef.value?.focus();
@@ -488,6 +499,7 @@ async function handleSubmit() {
 onMounted(async () => {
   await fetchDynamicSettings();
   await fetchCombinations(activeSector.value);
+  savedForm.value = JSON.stringify(formData);
   firstInputRef.value?.focus();
 });
 </script>
@@ -529,7 +541,8 @@ onMounted(async () => {
       <span>{{ successMessage }}</span>
     </div>
 
-    <div v-if="errorMessage" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-xs font-medium flex items-center gap-2">
+    <PageState :loading="loadingSettings" :error="settingsError" @retry="fetchDynamicSettings" />
+    <div v-if="errorMessage" role="alert" class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-xs font-medium flex items-center gap-2">
       <AlertCircle class="w-4 h-4 text-red-600 flex-shrink-0" />
       <span>{{ errorMessage }}</span>
     </div>
@@ -990,7 +1003,7 @@ onMounted(async () => {
       <div class="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
-          @click="emit('cancel')"
+          @click="cancelForm"
           class="px-4 py-2 rounded text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
         >
           Cancelar

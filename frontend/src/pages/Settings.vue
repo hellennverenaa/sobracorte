@@ -16,31 +16,15 @@
         </span>
       </div>
 
-      <!-- Notificação Toast -->
-      <transition name="fade-down">
-        <div v-if="notification.show"
-          class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-          :class="notification.type === 'success'
-            ? 'bg-emerald-500 text-white'
-            : 'bg-red-500 text-white'">
-          <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-          <XCircle v-else class="w-4 h-4" />
-          {{ notification.message }}
-        </div>
-      </transition>
+      <ToastNotification :notification="notification" />
 
-      <!-- Tabs -->
-      <div class="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
-        <button v-for="tab in tabs" :key="tab.key"
-          @click="activeTab = tab.key"
-          class="px-5 py-2 rounded-lg text-sm font-bold transition-all"
-          :class="activeTab === tab.key
-            ? 'bg-white text-indigo-700 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'">
-          <component :is="tab.icon" class="w-4 h-4 inline mr-1.5 -mt-0.5" />
-          {{ tab.label }}
-        </button>
-      </div>
+      <SettingsTabNav :active-tab="activeTab" :tabs="tabs" @update:active-tab="changeTab" />
+      <PageState
+        :loading="settingsLoading"
+        :error="settingsError"
+        :empty="false"
+        @retry="settingsData.fetchAll"
+      />
 
       <!-- ABA 1: CATEGORIAS                         -->
       <div v-if="activeTab === 'categories'" class="space-y-6">
@@ -748,14 +732,14 @@
     </div>
 
     <!-- MODAL DE EDIÇÃO DE LOCALIZAÇÃO (MULTI-CATEGORIA) -->
-    <div v-if="showEditLocationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+    <div v-if="showEditLocationModal" ref="editLocationDialog" role="dialog" aria-modal="true" aria-labelledby="edit-location-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
         <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-          <h3 class="font-bold text-gray-800 flex items-center gap-2">
+          <h3 id="edit-location-title" class="font-bold text-gray-800 flex items-center gap-2">
             <MapPin class="w-4 h-4 text-emerald-600" />
             Editar Localização & Categorias
           </h3>
-          <button @click="showEditLocationModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
+          <button @click="closeEditLocationModal" aria-label="Fechar edição de localização" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
             &times;
           </button>
         </div>
@@ -820,7 +804,7 @@
           <div class="bg-gray-50 px-6 py-3 -mx-6 -mb-6 border-t flex justify-end gap-2 mt-6">
             <button
               type="button"
-              @click="showEditLocationModal = false"
+              @click="closeEditLocationModal"
               class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg text-xs"
             >
               Cancelar
@@ -859,6 +843,14 @@ import { api } from '@/services/httpClient'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirmModal } from '@/composables/useConfirmModal'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useModalFocus } from '@/composables/useModalFocus'
+import { usePersistedFilters } from '@/composables/usePersistedFilters'
+import { useSettings } from '@/composables/useSettings'
+import PageState from '@/components/PageState.vue'
+import ToastNotification from '@/components/ToastNotification.vue'
+import SettingsTabNav from '@/components/SettingsTabNav.vue'
+import { normalizeSector } from '@/utils/domain'
 import { formatDate, formatNumber } from '@/utils/format'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
@@ -866,12 +858,17 @@ import {
 } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
+const settingsPersisted = usePersistedFilters('settings', {
+  categoryFilterSector: 'TODOS',
+  templateSector: authStore.user?.assignedSector || 'CORTE',
+}, () => authStore.user?.unit?.code || 'default')
 
 // --- PERMISSÕES ---
 const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor')
 const isMasterAdmin = computed(() => authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin))
 
 function formatSectorName(sec) {
+  const normalized = normalizeSector(sec)
   const map = {
     CORTE: 'Corte',
     APOIO: 'Apoio',
@@ -881,7 +878,7 @@ function formatSectorName(sec) {
     MONTAGEM: 'Montagem',
     CONSUMO: 'Consumo',
   }
-  return sec ? (map[sec] || sec) : 'Geral / Livre'
+  return sec ? (map[normalized] || sec) : 'Geral / Livre'
 }
 
 // --- TABS DINÂMICAS POR PERFIL ---
@@ -911,11 +908,20 @@ const activeTab = ref(authStore.user?.assignedSector === 'CONSUMO' ? 'origins' :
 // --- NOTIFICAÇÕES & MODAL DE CONFIRMAÇÃO COMPARTILHADOS ---
 const { notification, showNotification } = useToast(3500)
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal()
+const settingsData = useSettings({ notify: showNotification })
+const {
+  categories, units, locations, origins,
+  loadingCategory, loadingUnit, loadingLocation, loadingOrigin,
+  loading: settingsLoading,
+  error: settingsError,
+  fetchCategories, fetchUnits, fetchLocations, fetchOrigins,
+} = settingsData
 
 // CATEGORIAS
-const categories = ref([])
-const loadingCategory = ref(false)
-const categoryFilterSector = ref('TODOS')
+const categoryFilterSector = computed({
+  get: () => settingsPersisted.filters.value.categoryFilterSector || 'TODOS',
+  set: value => { settingsPersisted.filters.value.categoryFilterSector = value || 'TODOS' },
+})
 const newCategory = ref({
   name: '',
   sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
@@ -931,18 +937,6 @@ const filteredCategories = computed(() => {
     return catSec === target
   })
 })
-
-async function fetchCategories() {
-  loadingCategory.value = true
-  try {
-    const res = await api.get('/settings/categories')
-    categories.value = res.data
-  } catch (e) {
-    showNotification('error', 'Erro ao carregar categorias.')
-  } finally {
-    loadingCategory.value = false
-  }
-}
 
 async function addCategory() {
   if (!newCategory.value.name.trim()) return
@@ -1001,21 +995,7 @@ async function deleteCategory(cat) {
 }
 
 // UNIDADES DE MEDIDA
-const units = ref([])
-const loadingUnit = ref(false)
 const newUnit = ref({ name: '', symbol: '' })
-
-async function fetchUnits() {
-  loadingUnit.value = true
-  try {
-    const res = await api.get('/settings/units')
-    units.value = res.data
-  } catch (e) {
-    showNotification('error', 'Erro ao carregar unidades de medida.')
-  } finally {
-    loadingUnit.value = false
-  }
-}
 
 async function addUnit() {
   if (!newUnit.value.name.trim() || !newUnit.value.symbol.trim()) return
@@ -1067,14 +1047,14 @@ async function deleteUnit(unit) {
 }
 
 // LOCALIZAÇÕES
-const locations = ref([])
-const loadingLocation = ref(false)
 const newLocation = ref({
   name: '',
   sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
   categoryIds: []
 })
 const showEditLocationModal = ref(false)
+const editLocationDialog = ref(null)
+const editLocationInitial = ref('')
 const editingLocation = ref({
   id: 0,
   name: '',
@@ -1178,6 +1158,7 @@ function openEditLocationModal(loc) {
     sector: targetSector,
     categoryIds: [...catIds]
   }
+  editLocationInitial.value = JSON.stringify(editingLocation.value)
   showEditLocationModal.value = true
 }
 
@@ -1193,23 +1174,12 @@ async function saveEditLocation() {
       categoryIds: editingLocation.value.categoryIds
     })
     showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
+    editLocationInitial.value = ''
     showEditLocationModal.value = false
     await fetchLocations()
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao atualizar localização.'
     showNotification('error', msg)
-  }
-}
-
-async function fetchLocations() {
-  loadingLocation.value = true
-  try {
-    const res = await api.get('/settings/locations')
-    locations.value = res.data
-  } catch (e) {
-    showNotification('error', 'Erro ao carregar localizações.')
-  } finally {
-    loadingLocation.value = false
   }
 }
 
@@ -1272,22 +1242,27 @@ async function deleteLocation(loc) {
 }
 
 // ORIGENS
-const origins = ref([])
-const loadingOrigin = ref(false)
 const newOrigin = ref('')
 const newOriginSector = ref(authStore.user?.assignedSector || '')
 
-async function fetchOrigins() {
-  loadingOrigin.value = true
-  try {
-    const res = await api.get('/settings/origins')
-    origins.value = res.data
-  } catch (e) {
-    showNotification('error', 'Erro ao carregar origens.')
-  } finally {
-    loadingOrigin.value = false
-  }
+const { confirmDiscard } = useUnsavedChanges(() => (
+  Boolean(newCategory.value.name.trim()) ||
+  Boolean(newUnit.value.name.trim() || newUnit.value.symbol.trim()) ||
+  Boolean(newLocation.value.name.trim()) ||
+  Boolean(newOrigin.value.trim()) ||
+  Boolean(selectedFile.value) ||
+  showEditLocationModal.value && JSON.stringify(editingLocation.value) !== editLocationInitial.value
+))
+
+function changeTab(tab) {
+  if (tab === activeTab.value || confirmDiscard()) activeTab.value = tab
 }
+
+function closeEditLocationModal() {
+  if (confirmDiscard()) showEditLocationModal.value = false
+}
+
+useModalFocus(() => showEditLocationModal.value, editLocationDialog, closeEditLocationModal)
 
 async function addOrigin() {
   if (!newOrigin.value.trim()) return
@@ -1343,7 +1318,10 @@ async function deleteOrigin(orig) {
 const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
-const templateSector = ref(authStore.user?.assignedSector || 'CORTE')
+const templateSector = computed({
+  get: () => settingsPersisted.filters.value.templateSector || 'CORTE',
+  set: value => { settingsPersisted.filters.value.templateSector = value || 'CORTE' },
+})
 const importSector = ref(authStore.user?.assignedSector || 'CORTE')
 
 // --- PADRÃO EXIGIDO DE CSV DINÂMICO & REATIVO POR SETOR ---

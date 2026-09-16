@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { authApi, api } from '../services/httpClient'
 import { externalLoginMessage, loginRequest, normalizeUnitCode } from '../services/loginFlow'
 import { canSwitchFactoryUnit, normalizeFactoryUnitCode } from '../services/unitAccess'
+import { requestErrorMessage } from '../utils/domain'
 
 function loadStoredUser() {
   try {
@@ -50,6 +51,8 @@ export const useAuthStore = defineStore('auth', {
       user,
       isAuthenticated: Boolean(user),
       availableUnits: [],
+      unitSwitchStatus: '',
+      unitLoadError: '',
     }
   },
 
@@ -58,6 +61,8 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.isAuthenticated = false
       this.availableUnits = []
+      this.unitSwitchStatus = ''
+      this.unitLoadError = ''
       localStorage.removeItem('user')
       sessionStorage.removeItem('expirationTime')
     },
@@ -76,12 +81,13 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async fetchAvailableUnits() {
+      this.unitLoadError = '';
       try {
         const response = await api.get('/factory-units');
         this.availableUnits = response.data?.data || response.data || [];
         return this.availableUnits;
       } catch (error) {
-        console.error('Erro ao buscar unidades fabris:', error);
+        this.unitLoadError = requestErrorMessage(error, 'Não foi possível carregar as unidades fabris.');
         return [];
       }
     },
