@@ -1,6 +1,8 @@
 import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
+import { DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, normalizeStockSector, stockIdentity } from './stockIdentity';
+import { normalizeUnit } from '../utils/unitHelper';
 
 export class StockMovementService {
   /**
@@ -11,6 +13,7 @@ export class StockMovementService {
     const { stockItemId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
 
     return await prisma.$transaction(async (tx) => {
+      if (type === 'TRANSFERENCIA') await lockStockIdentityWrites(tx, factoryUnitId);
       // Todos os setores, inclusive CORTE, usam o modelo canônico.
       const item = await tx.stockItem.findFirst({
         where: { id: stockItemId, factoryUnitId },
@@ -128,7 +131,7 @@ export class StockMovementService {
           if (context.role !== 'admin') {
             throw new Error('Acesso Negado: Transferência entre setores diferentes é permitida exclusivamente para o Administrador Master.');
           }
-          targetSectorForMovement = destLocation.sector as SectorType;
+          targetSectorForMovement = normalizeStockSector(destLocation.sector!) as SectorType;
         }
 
         // Debitar da prateleira de origem com decremento condicional
@@ -150,12 +153,44 @@ export class StockMovementService {
 
         // Se for transferência intersetorial por Admin Master:
         if (isCrossSector && destLocation.sector) {
-          if (quantity >= Number(item.quantity) - 0.0001) {
+          const destinationData = { ...item, sector: targetSectorForMovement };
+          const identity = stockIdentity(destinationData);
+          const required = targetSectorForMovement === 'CORTE' ? ['code', 'name', 'type']
+            : targetSectorForMovement === 'APOIO' ? ['pieceCode', 'description', 'materialColor', 'sizeGrade']
+            : targetSectorForMovement === 'CONSUMO' ? ['productName'] : ['sku', 'sizeGrade'];
+          if (required.some(field => !identity[field])) {
+            throw new Error('O item não possui os campos de identificação necessários para o setor de destino.');
+          }
+          const matches = await findStockIdentityMatches(tx, factoryUnitId, destinationData);
+          if (matches.length > 1) {
+            throw new DuplicateStockItemError('Existem itens duplicados no setor de destino. Regularize os cadastros antes da transferência.');
+          }
+          const existingDestination = matches[0];
+          if (existingDestination) {
+            if (normalizeUnit(existingDestination.unit || undefined, targetSectorForMovement) !== normalizeUnit(item.unit || undefined, targetSectorForMovement)) {
+              throw new Error('O item equivalente no destino possui uma unidade de medida incompatível.');
+            }
+            const debit = await tx.stockItem.updateMany({
+              where: { id: item.id, factoryUnitId, quantity: { gte: quantity } },
+              data: { quantity: { decrement: quantity } },
+            });
+            if (!debit.count) throw new Error('Saldo total insuficiente para realizar a transferência.');
+            await tx.stockItem.update({
+              where: { id_factoryUnitId: { id: existingDestination.id, factoryUnitId } },
+              data: { quantity: { increment: quantity } },
+            });
+            await tx.stockItemLocation.upsert({
+              where: { stockItemId_locationId_factoryUnitId: { stockItemId: existingDestination.id, locationId: destinationLocationId, factoryUnitId } },
+              update: { quantity: { increment: quantity } },
+              create: { stockItemId: existingDestination.id, locationId: destinationLocationId, factoryUnitId, quantity },
+            });
+            effectiveStockItemId = existingDestination.id;
+          } else if (quantity >= Number(item.quantity) - 0.0001) {
             // Transferência total: atualiza o setor do próprio item
             await tx.stockItem.update({
               where: { id_factoryUnitId: { id: item.id, factoryUnitId } },
               data: {
-                sector: destLocation.sector,
+                sector: targetSectorForMovement,
                 observation: `Transferido do setor ${item.sector} para ${destLocation.sector}. ${reason || ''}`.trim(),
               },
             });
@@ -197,7 +232,7 @@ export class StockMovementService {
             const newStockItem = await tx.stockItem.create({
               data: {
                 factoryUnitId,
-                sector: destLocation.sector,
+                sector: targetSectorForMovement,
                 quantity,
                 code: item.code,
                 name: item.name,

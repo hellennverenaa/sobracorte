@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { parseCsvRFC4180 } from '../import/csvParser';
+import { DuplicateStockItemError } from '../services/stockIdentity';
 import {
   validateImportBatch,
   executeImportTransaction,
@@ -99,6 +100,9 @@ export class ImportController {
       });
 
     } catch (error: unknown) {
+      if (error instanceof DuplicateStockItemError) {
+        return res.status(409).json({ error: error.message });
+      }
       if (error instanceof ImportValidationError) {
         return res.status(422).json({
           error: error.message,

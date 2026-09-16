@@ -2,13 +2,8 @@ import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit } from '../utils/unitHelper';
-
-export class DuplicateStockItemError extends Error {
-  constructor() {
-    super('Este material já existe no estoque. Para adicionar saldo, utilize a movimentação de entrada do item existente.');
-    this.name = 'DuplicateStockItemError';
-  }
-}
+import { lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem } from './stockIdentity';
+export { DuplicateStockItemError } from './stockIdentity';
 
 export class StockItemService {
   /**
@@ -21,28 +16,9 @@ export class StockItemService {
     return await prisma.$transaction(async (tx) => {
       const createdItems = [];
 
-      if (dto.items.some(item => item.sector === 'APOIO')) {
-        // Serializa cadastros da unidade para impedir duplicações simultâneas.
-        await tx.$queryRaw`SELECT id FROM sobra_corte."FactoryUnit" WHERE id = ${factoryUnitId} FOR NO KEY UPDATE`;
-      }
+      await lockStockIdentityWrites(tx, factoryUnitId);
 
       for (const item of dto.items) {
-        if (item.sector === 'APOIO') {
-          const productName = item.productName?.trim().toUpperCase() || null;
-          const existing = await tx.stockItem.findFirst({
-            where: {
-              factoryUnitId,
-              sector: 'APOIO',
-              pieceCode: item.pieceCode.trim().toUpperCase(),
-              description: item.description.trim().toUpperCase(),
-              materialColor: item.materialColor.trim().toUpperCase(),
-              sizeGrade: item.sizeGrade.trim().toUpperCase(),
-              ...(productName ? { productName } : { OR: [{ productName: null }, { productName: '' }] }),
-            },
-            select: { id: true },
-          });
-          if (existing) throw new DuplicateStockItemError();
-        }
         const locationName = item.location.trim().toUpperCase();
 
         // 1. Localizar ou criar a prateleira/localização
@@ -68,50 +44,21 @@ export class StockItemService {
           // CORTE também persiste no modelo unificado.
           const materialCode = item.code.trim().toUpperCase();
           const normalizedIncomingUnit = normalizeUnit(item.unit, 'CORTE');
-          const existingMaterial = await tx.stockItem.findFirst({
-            where: { factoryUnitId, sector: 'CORTE', code: materialCode },
+          await rejectDuplicateStockItem(tx, factoryUnitId, item);
+          const materialRecord = await tx.stockItem.create({
+            data: {
+              factoryUnitId,
+              sector: 'CORTE',
+              componentType: 'MATERIA_PRIMA',
+              code: materialCode,
+              name: item.name.trim().toUpperCase(),
+              quantity: item.quantity,
+              unit: normalizedIncomingUnit,
+              type: (item.type || 'GERAL').trim().toUpperCase(),
+              observation: item.observation || '',
+              minStock: item.minStock || 0,
+            },
           });
-
-          let materialRecord;
-          if (existingMaterial) {
-            const currentNormUnit = normalizeUnit(existingMaterial.unit, 'CORTE');
-            const totalQty = Number(existingMaterial.quantity || 0);
-
-            if (totalQty > 0.0001 && currentNormUnit !== normalizedIncomingUnit) {
-              const err: any = new Error(
-                `Conflito de unidade: O material '${materialCode}' já possui saldo ativo de ${existingMaterial.quantity} ${existingMaterial.unit} e não aceita entrada na unidade '${item.unit}'. Normalize a unidade antes de realizar a entrada.`
-              );
-              err.status = 400;
-              throw err;
-            }
-
-            materialRecord = await tx.stockItem.update({
-              where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
-              data: {
-                quantity: { increment: item.quantity },
-                name: item.name ? item.name.trim().toUpperCase() : existingMaterial.name,
-                unit: normalizedIncomingUnit || existingMaterial.unit,
-                type: item.type ? item.type.trim().toUpperCase() : existingMaterial.type,
-                observation: item.observation || existingMaterial.observation,
-                minStock: item.minStock !== undefined ? item.minStock : existingMaterial.minStock,
-              },
-            });
-          } else {
-            materialRecord = await tx.stockItem.create({
-              data: {
-                factoryUnitId,
-                sector: 'CORTE',
-                componentType: 'MATERIA_PRIMA',
-                code: materialCode,
-                name: item.name.trim().toUpperCase(),
-                quantity: item.quantity,
-                unit: normalizedIncomingUnit,
-                type: (item.type || 'GERAL').trim().toUpperCase(),
-                observation: item.observation || '',
-                minStock: item.minStock || 0,
-              },
-            });
-          }
 
           await tx.stockItemLocation.upsert({
             where: {
@@ -162,7 +109,7 @@ export class StockItemService {
           // 📦 DEMAIS SETORES: Persistência na tabela StockItem
           const baseData = {
             factoryUnitId,
-            sector: item.sector as SectorType,
+            sector: normalizeStockSector(item.sector) as SectorType,
             quantity: item.quantity,
             unit: normalizeUnit((item as any).unit, item.sector),
             observation: item.observation || '',
@@ -188,7 +135,7 @@ export class StockItemService {
                 type: (item.type || 'EVA').trim().toUpperCase(),
                 sku: (item.sku || item.productName).trim().toUpperCase(),
                 productName: item.productName.trim().toUpperCase(),
-                color: item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(),
+                color: normalizeStockColor(item.color),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide || null,
               };
@@ -202,7 +149,7 @@ export class StockItemService {
                 type: distType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
-                color: item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(),
+                color: normalizeStockColor(item.color),
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide || null,
               };
@@ -213,13 +160,22 @@ export class StockItemService {
                 componentType: 'PE_PRONTO' as ComponentType,
                 sku: item.sku.trim().toUpperCase(),
                 productName: item.productName ? item.productName.trim().toUpperCase() : null,
-                color: item.color ? item.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase() : null,
+                color: normalizeStockColor(item.color) || null,
                 sizeGrade: item.sizeGrade.trim().toUpperCase(),
                 footSide: item.footSide,
               };
               break;
+            case 'CONSUMO':
+              sectorSpecificData = {
+                sku: (item.sku || item.code || '').trim().toUpperCase() || null,
+                code: item.code.trim().toUpperCase() || null,
+                productName: item.productName.trim().toUpperCase(),
+                name: item.productName.trim().toUpperCase(),
+              };
+              break;
           }
 
+          await rejectDuplicateStockItem(tx, factoryUnitId, { ...baseData, ...sectorSpecificData });
           const stockItem = await tx.stockItem.create({
             data: {
               ...baseData,

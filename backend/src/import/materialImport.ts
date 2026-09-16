@@ -1,6 +1,7 @@
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit } from '../utils/unitHelper';
+import { lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
 
 export interface AvailableLocation {
   id: number;
@@ -39,6 +40,7 @@ export interface ValidatedImportItem {
   sizeGrade?: string;
   footSide?: 'E' | 'D' | null;
   observation?: string;
+  productName?: string;
 }
 
 export interface ImportExecutionContext {
@@ -140,10 +142,12 @@ export function validateImportBatch(
   }
 
   const headerCols = headers.map(c => c.toLowerCase().trim());
+  const modelIdx = headerCols.findIndex(c => ['modelo', 'productname', 'nome_modelo', 'nomemodelo'].includes(c));
 
   const sectorIdx = headerCols.findIndex(c => c === 'setor' || c === 'sector' || c === 'área' || c === 'area');
   const codeIdx = headerCols.findIndex(c => c === 'codigo' || c === 'código' || c === 'code' || c === 'sku' || c === 'id_produto' || c === 'produto' || c === 'cod_peca' || c === 'codigo_material');
-  const descIdx = headerCols.findIndex(c => c === 'descricao' || c === 'descrição' || c === 'name' || c === 'nome' || c === 'material' || c === 'modelo' || c === 'nomemodelo' || c === 'peca' || c === 'peça' || c === 'description');
+  const descriptionIdx = headerCols.findIndex(c => c === 'descricao' || c === 'descrição' || c === 'name' || c === 'nome' || c === 'material' || c === 'peca' || c === 'peça' || c === 'description');
+  const descIdx = descriptionIdx === -1 ? modelIdx : descriptionIdx;
   const catIdx = headerCols.findIndex(c => c === 'categoria' || c === 'type' || c === 'tipo' || c === 'componenttype');
   const unitIdx = headerCols.findIndex(c => c === 'unidade' || c === 'unit' || c === 'um' || c === 'sigla');
   const qtdIdx = headerCols.findIndex(c => c === 'quantidade' || c === 'quantity' || c === 'estoque' || c === 'saldo' || c === 'qtd' || c === 'saldo_consumo');
@@ -392,6 +396,7 @@ export function validateImportBatch(
         color,
         sizeGrade,
         footSide: 'E',
+        productName: modelIdx === -1 ? undefined : row.cells[modelIdx]?.trim().toUpperCase(),
         observation: observation ? `${observation} (Pé Esquerdo)` : 'Importado via planilha (Pé Esquerdo)',
       });
       validatedItems.push({
@@ -407,6 +412,7 @@ export function validateImportBatch(
         color,
         sizeGrade,
         footSide: 'D',
+        productName: modelIdx === -1 ? undefined : row.cells[modelIdx]?.trim().toUpperCase(),
         observation: observation ? `${observation} (Pé Direito)` : 'Importado via planilha (Pé Direito)',
       });
     } else {
@@ -423,6 +429,7 @@ export function validateImportBatch(
         color,
         sizeGrade,
         footSide: parsedSide === 'E' || parsedSide === 'D' ? parsedSide : null,
+        productName: modelIdx === -1 ? undefined : row.cells[modelIdx]?.trim().toUpperCase(),
         observation,
       });
     }
@@ -448,54 +455,28 @@ export async function executeImportTransaction(
   const { factoryUnitId, operatorId, operatorName } = context;
 
   return await prisma.$transaction(async (tx: any) => {
+    await lockStockIdentityWrites(tx, factoryUnitId);
     let insertedCount = 0;
     let movementsCreatedCount = 0;
 
     // 1. Processar itens de CORTE no modelo canônico.
     const corteItems = items.filter(i => i.sector === 'CORTE');
     for (const item of corteItems) {
-      const existingMaterial = await tx.stockItem.findFirst({
-        where: { factoryUnitId, sector: 'CORTE', code: item.code },
+      await rejectDuplicateStockItem(tx, factoryUnitId, item);
+      const materialRecord = await tx.stockItem.create({
+        data: {
+          factoryUnitId,
+          sector: 'CORTE',
+          componentType: 'MATERIA_PRIMA',
+          code: item.code,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          type: item.type,
+          observation: item.observation || 'Importado via planilha de materiais CSV',
+        },
       });
-
-      let materialRecord;
-      if (existingMaterial) {
-        const currentNormUnit = normalizeUnit(existingMaterial.unit, 'CORTE');
-        const incomingNormUnit = normalizeUnit(item.unit, 'CORTE');
-        const totalQty = Number(existingMaterial.quantity || 0);
-
-        if (totalQty > 0.0001 && currentNormUnit !== incomingNormUnit) {
-          throw new Error(
-            `Conflito de unidade no item '${item.code}': O material já possui saldo ativo de ${existingMaterial.quantity} ${existingMaterial.unit} e não pode ser importado com a unidade '${item.unit}'.`
-          );
-        }
-
-        materialRecord = await tx.stockItem.update({
-          where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
-          data: {
-            quantity: { increment: item.quantity },
-            name: item.name,
-            unit: incomingNormUnit || existingMaterial.unit,
-            type: item.type || existingMaterial.type,
-            observation: item.observation || existingMaterial.observation,
-          },
-        });
-      } else {
-        materialRecord = await tx.stockItem.create({
-          data: {
-            factoryUnitId,
-            sector: 'CORTE',
-            componentType: 'MATERIA_PRIMA',
-            code: item.code,
-            name: item.name,
-            quantity: item.quantity,
-            unit: item.unit,
-            type: item.type,
-            observation: item.observation || 'Importado via planilha de materiais CSV',
-          },
-        });
-        insertedCount++;
-      }
+      insertedCount++;
 
       await tx.stockItemLocation.upsert({
         where: {
@@ -556,23 +537,23 @@ export async function executeImportTransaction(
           componentType = 'PECA_CORTADA';
           pieceCode = item.code;
           description = item.name;
-          productName = item.name;
+          productName = item.productName || null;
           break;
         case 'PRE_FABRICADO':
           componentType = 'SOLADO';
-          productName = item.name;
+          productName = item.productName || item.name;
           sku = item.code;
           break;
         case 'DISTRIBUICAO':
         case 'EXPEDICAO':
           componentType = 'CABEDAL';
           sku = item.code;
-          productName = item.name;
+          productName = item.productName || item.name;
           break;
         case 'MONTAGEM':
           componentType = 'PE_PRONTO';
           sku = item.code;
-          productName = item.name;
+          productName = item.productName || item.name;
           break;
         default: // CONSUMO
           name = item.name;
@@ -580,8 +561,7 @@ export async function executeImportTransaction(
           break;
       }
 
-      const stockItem = await tx.stockItem.create({
-        data: {
+      const data = {
           factoryUnitId,
           sector: item.sector,
           componentType,
@@ -592,14 +572,16 @@ export async function executeImportTransaction(
           name: name || item.name,
           pieceCode,
           description: description || item.name,
-          productName: productName || item.name,
+          productName: item.sector === 'APOIO' ? productName : productName || item.name,
           sku: sku || item.code,
-          color: item.color || null,
+          color: normalizeStockColor(item.color) || null,
+          materialColor: item.sector === 'APOIO' ? item.color || 'PADRAO' : null,
           sizeGrade: item.sizeGrade || null,
           footSide: item.footSide as FootSide || null,
           observation: item.observation || 'Importado via planilha de componentes CSV',
-        },
-      });
+      };
+      await rejectDuplicateStockItem(tx, factoryUnitId, data);
+      const stockItem = await tx.stockItem.create({ data });
       insertedCount++;
 
       // Amarração com a prateleira física existente

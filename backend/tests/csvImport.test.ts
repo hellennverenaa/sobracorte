@@ -21,6 +21,15 @@ const mockLocations: AvailableLocation[] = [
   { id: 8, name: 'CS-01', sector: 'CONSUMO' },
 ];
 
+test('CSV de Apoio preserva modelo e descrição da peça separadamente, independentemente da ordem das colunas', () => {
+  const parsed = parseCsvRFC4180('codigo;modelo;descricao;material_cor;grade;quantidade;prateleira\n121212;RACER SPEEDZONE;LINGUETA;SINTETICO;40;100;AP-01');
+  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'APOIO', mockLocations);
+  assert.equal(item.name, 'LINGUETA');
+  assert.equal(item.productName, 'RACER SPEEDZONE');
+  assert.equal(item.color, 'SINTETICO');
+  assert.equal(item.sizeGrade, '40');
+});
+
 test('detectDelimiter detecta corretamente delimitadores ponto e vírgula, vírgula e tab', () => {
   assert.equal(detectDelimiter('codigo;descricao;quantidade\n1;tec;10'), ';');
   assert.equal(detectDelimiter('codigo,descricao,quantidade\n1,tec,10'), ',');

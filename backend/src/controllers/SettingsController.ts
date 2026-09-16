@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
+import { DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -172,6 +173,17 @@ export class SettingsController {
 
       const updated = await prisma.$transaction(async (tx) => {
         const newName = name ? String(name).trim().toUpperCase() : undefined;
+        if (newName && newName !== existing.name) {
+          await lockStockIdentityWrites(tx, req.tenant!.id);
+          const affected = await tx.stockItem.findMany({ where: { factoryUnitId: req.tenant!.id, type: existing.name } });
+          for (const item of affected) {
+            if (!('type' in stockIdentity(item))) continue;
+            const matches = await findStockIdentityMatches(tx, req.tenant!.id, { ...item, type: newName });
+            if (matches.some(match => match.id !== item.id)) {
+              throw new DuplicateStockItemError('A alteração da categoria criaria itens duplicados no estoque.');
+            }
+          }
+        }
         const cat = await tx.categoryConfig.update({
           where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
           data: {
@@ -209,6 +221,9 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if (error instanceof DuplicateStockItemError) {
+        return res.status(409).json({ error: error.message });
+      }
       console.error('Erro ao atualizar categoria:', error);
       res.status(500).json({ error: 'Erro ao atualizar categoria' });
     }
