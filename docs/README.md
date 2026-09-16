@@ -5,6 +5,7 @@ Este diretório concentra a documentação técnica e operacional do projeto. O 
 ## Documentos atuais
 
 - [Plano de evolução arquitetural](../PLANO_EVOLUCAO_ARQUITETURAL.md): ordem dos ciclos, responsabilidades, critérios de conclusão e rollout.
+- [Baseline e contratos do Ciclo 0](CICLO-0-BASELINE-E-CONTRATOS.md): checkpoint reproduzível, contratos compartilhados e especificação das fixtures de reconciliação.
 - [README principal](../README.md): visão geral e início rápido.
 - [Backend](../backend/README.md): referência atual do serviço enquanto a documentação especializada ainda não foi migrada para este diretório.
 
