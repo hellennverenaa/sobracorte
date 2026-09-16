@@ -4,6 +4,7 @@ import { DuplicateStockItemError, StockItemService } from '../services/StockItem
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
 import { SectorType } from '../generated/prisma';
+import { lockStockIdentityWrites } from '../services/stockIdentity';
 
 const stockItemService = new StockItemService();
 
@@ -187,6 +188,7 @@ export class StockItemController {
 
       await (prisma as any).$transaction(
         async (tx: any) => {
+          await lockStockIdentityWrites(tx, factoryUnitId);
           const item = await tx.stockItem.findFirst({
             where: { id: itemId, factoryUnitId },
             include: {

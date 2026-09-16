@@ -8,6 +8,9 @@ import {
   OperatorContext 
 } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
+import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
+import { debitStockItem } from './stockDebit';
+import { assertCompatiblePair, findRequisitionStock } from './requisitionStock';
 
 export class RequisitionService {
   /**
@@ -50,203 +53,28 @@ export class RequisitionService {
    */
   async checkStockAvailability(
     req: {
-      requestSector: SectorType;
-      sku?: string | null;
-      modelName?: string | null;
-      description: string;
-      color?: string | null;
-      sizeGrade?: string | null;
-      footSide?: string | null;
+      requestSector: SectorType; sku?: string | null; modelName?: string | null;
+      description: string; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
     },
     factoryUnitId: number
-  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number } }> {
-    let reqSector = req.requestSector;
-    if ((reqSector as string) === 'EXPEDICAO' || (reqSector as string) === 'CABEDAIS') {
-      reqSector = 'DISTRIBUICAO';
-    }
-    const sectorFilter = (reqSector === 'DISTRIBUICAO' || (reqSector as string) === 'EXPEDICAO')
-      ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
-      : reqSector;
-
-    // 1. CORTE: Matéria-Prima
-    if (reqSector === 'CORTE') {
-      const materials = await prisma.stockItem.findMany({
-        where: {
-          factoryUnitId,
-          sector: 'CORTE',
-          OR: [
-            ...(req.sku ? [{ code: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-            { name: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-          ],
-        },
-        include: {
-          locations: {
-            include: { location: true },
-          },
-        },
-      });
-
-      const totalQty = materials.reduce((acc, m) => acc + Number(m.quantity || 0), 0);
-      const locSet = new Set<string>();
-      for (const m of materials) {
-        for (const locLink of m.locations) {
-          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
-          }
-        }
-      }
-
-      return {
-        quantity: totalQty,
-        locations: Array.from(locSet),
-      };
-    }
-
-    // 2. APOIO: Peças Cortadas / Moldes (sem pé)
-    if (req.requestSector === 'APOIO') {
-      const stockItems = await prisma.stockItem.findMany({
-        where: {
-          factoryUnitId,
-          sector: 'APOIO',
-          quantity: { gt: 0 },
-          OR: [
-            ...(req.sku ? [
-              { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-              { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-            ] : []),
-            ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-            { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-          ],
-        },
-        include: {
-          locations: {
-            include: { location: true },
-          },
-        },
-      });
-
-      const totalQty = stockItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
-      const locSet = new Set<string>();
-      for (const item of stockItems) {
-        for (const locLink of item.locations) {
-          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
-          }
-        }
-      }
-
-      return {
-        quantity: totalQty,
-        locations: Array.from(locSet),
-      };
-    }
-
-    // 3. SETORES DE CALÇADOS (PRE_FABRICADO, EXPEDICAO, MONTAGEM)
-    // Se o operador solicitou PAR COMPLETO ('PAR'), calcular min(Saldo E, Saldo D)
+  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number }; ambiguous?: boolean }> {
+    const items = await findRequisitionStock(prisma, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
+    let selected = items;
+    let pairsDetail;
     if (req.footSide === 'PAR') {
-      const orConditions: any[] = [];
-      if (req.sku) {
-        orConditions.push({ sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
-        orConditions.push({ pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
-      }
-      if (req.modelName) {
-        orConditions.push({ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } });
-      }
-      if (req.description && req.description !== 'CALÇADO COMPLETO') {
-        orConditions.push({ description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } });
-      }
-
-      const baseFilter = {
-        factoryUnitId,
-        sector: sectorFilter as any,
-        quantity: { gt: 0 },
-        ...(orConditions.length > 0 ? { OR: orConditions } : {}),
-        ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-        ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-      };
-
-      const [leftItems, rightItems] = await Promise.all([
-        prisma.stockItem.findMany({
-          where: { ...baseFilter, footSide: 'E' },
-          include: { locations: { include: { location: true } } },
-        }),
-        prisma.stockItem.findMany({
-          where: { ...baseFilter, footSide: 'D' },
-          include: { locations: { include: { location: true } } },
-        }),
-      ]);
-
-      const totalE = leftItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
-      const totalD = rightItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
-      const fullPairs = Math.min(totalE, totalD);
-
-      const locSet = new Set<string>();
-      for (const item of leftItems) {
-        for (const locLink of item.locations) {
-          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (E: ${Number(locLink.quantity)})`);
-          }
-        }
-      }
-      for (const item of rightItems) {
-        for (const locLink of item.locations) {
-          if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
-            locSet.add(`${locLink.location.name} (D: ${Number(locLink.quantity)})`);
-          }
-        }
-      }
-
-      return {
-        quantity: fullPairs,
-        locations: Array.from(locSet),
-        pairsDetail: { esq: totalE, dir: totalD },
-      };
+      const rightItems = await findRequisitionStock(prisma, factoryUnitId, req, 'D');
+      if (items.length > 1 || rightItems.length > 1) return { quantity: 0, locations: [], ambiguous: true };
+      if (!items.length || !rightItems.length) return { quantity: 0, locations: [], pairsDetail: { esq: Number(items[0]?.quantity || 0), dir: Number(rightItems[0]?.quantity || 0) } };
+      try { assertCompatiblePair(items[0], rightItems[0]); }
+      catch { return { quantity: 0, locations: [], ambiguous: true }; }
+      pairsDetail = { esq: Number(items[0].quantity), dir: Number(rightItems[0].quantity) };
+      selected = [...items, ...rightItems];
+    } else if (items.length > 1) {
+      return { quantity: 0, locations: [], ambiguous: true };
     }
-
-    // Requisição de Pé Individual ('E' ou 'D') ou sem especificação
-    const orConditions: any[] = [];
-    if (req.sku) {
-      orConditions.push({ sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
-      orConditions.push({ pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } });
-    }
-    if (req.modelName) {
-      orConditions.push({ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } });
-    }
-    if (req.description && req.description !== 'CALÇADO COMPLETO') {
-      orConditions.push({ description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } });
-    }
-
-    const stockItems = await prisma.stockItem.findMany({
-      where: {
-        factoryUnitId,
-        sector: sectorFilter as any,
-        quantity: { gt: 0 },
-        ...(orConditions.length > 0 ? { OR: orConditions } : {}),
-        ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-        ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-        ...(req.footSide ? { footSide: req.footSide as any } : {}),
-      },
-      include: {
-        locations: {
-          include: { location: true },
-        },
-      },
-    });
-
-    const totalQty = stockItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
-    const locSet = new Set<string>();
-    for (const item of stockItems) {
-      for (const locLink of item.locations) {
-        if (locLink.location?.name && Number(locLink.quantity || 0) > 0) {
-          locSet.add(`${locLink.location.name} (${Number(locLink.quantity)})`);
-        }
-      }
-    }
-
-    return {
-      quantity: totalQty,
-      locations: Array.from(locSet),
-    };
+    const locations = [...new Set(selected.flatMap(item => item.locations.filter(link => Number(link.quantity) > 0)
+      .map(link => `${link.location.name} (${link.quantity})`)))];
+    return { quantity: pairsDetail ? Math.min(pairsDetail.esq, pairsDetail.dir) : Number(items[0]?.quantity || 0), locations, ...(pairsDetail ? { pairsDetail } : {}) };
   }
 
   /**
@@ -279,6 +107,7 @@ export class RequisitionService {
         factoryUnitId
       );
 
+      if (stockInfo.ambiguous) throw new Error('Há materiais ambíguos no estoque. Especifique a identificação completa ou regularize duplicatas.');
       if (stockInfo.quantity <= 0) {
         const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
         throw new Error(
@@ -412,305 +241,55 @@ export class RequisitionService {
    */
   async fulfillRequisition(id: string, dto: FulfillRequisitionDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
-
-    return await prisma.$transaction(async (tx) => {
-      const req = await tx.materialRequisition.findFirst({
-        where: { id, factoryUnitId },
-      });
-
-      if (!req) {
-        throw new Error('Requisição não encontrada.');
-      }
-
+    return prisma.$transaction(async tx => {
+      await lockStockIdentityWrites(tx, factoryUnitId);
+      const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
+      if (!req) throw new Error('Requisição não encontrada.');
       if (req.status !== 'PENDENTE' && req.status !== 'ATENDIDA_PARCIAL') {
         throw new Error('Apenas requisições pendentes ou atendidas parcialmente podem receber baixa.');
       }
-
-      // Governança de Perfis: Somente admin master ou admin_setor do respectivo setor podem aprovar/atender
       if (context.role !== 'admin') {
-        if (context.role !== 'admin_setor') {
-          const err: any = new Error('Acesso negado: Apenas administradores podem aprovar ou dar baixa em requisições.');
-          err.status = 403;
-          throw err;
-        }
-
-        const userSec = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
-          ? 'DISTRIBUICAO'
-          : context.assignedSector;
-        const reqSec = ((req.requestSector as string) === 'CABEDAIS' || (req.requestSector as string) === 'EXPEDICAO')
-          ? 'DISTRIBUICAO'
-          : req.requestSector;
-
-        if (!userSec || userSec !== reqSec) {
-          const err: any = new Error(`Acesso negado: Apenas o Admin de Setor de ${req.requestSector} pode aprovar esta requisição.`);
-          err.status = 403;
-          throw err;
+        if (context.role !== 'admin_setor' || !context.assignedSector || normalizeStockSector(context.assignedSector === 'CABEDAIS' ? 'DISTRIBUICAO' : context.assignedSector) !== normalizeStockSector(req.requestSector)) {
+          const error: any = new Error('Acesso negado: apenas administradores do setor podem atender esta requisição.');
+          error.status = 403;
+          throw error;
         }
       }
-
-      const pendingQty = Number(req.quantityRequested) - Number(req.quantityFulfilled);
-      if (dto.quantity > pendingQty + 0.0001) {
-        throw new Error(`A quantidade informada (${dto.quantity}) excede a pendência da requisição (${pendingQty}).`);
+      const amount = new Prisma.Decimal(dto.quantity);
+      if (!amount.isPositive() || amount.decimalPlaces() > 3 || amount.gt(new Prisma.Decimal(req.quantityRequested).minus(req.quantityFulfilled))) {
+        throw new Error('A quantidade informada é inválida ou excede a pendência da requisição.');
       }
-
-      let sourceLocationId = dto.locationId || null;
-
-      // 1. CORTE: Matéria-Prima
-      if (req.requestSector === 'CORTE') {
-        const material = await tx.stockItem.findFirst({
-          where: {
-            factoryUnitId,
-            sector: 'CORTE',
-            OR: [
-              ...(req.sku ? [{ code: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-              { name: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-            ],
-            quantity: { gte: dto.quantity },
-          },
-          include: { locations: { include: { location: true } } },
-        });
-
-        if (!material) {
-          throw new Error('Saldo insuficiente na matéria-prima do Corte para atender esta requisição.');
-        }
-
-        await tx.stockItem.update({
-          where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
-          data: { quantity: { decrement: dto.quantity } },
-        });
-
-        const targetLocId = sourceLocationId || material.locations[0]?.locationId;
-        const targetLocLink = material.locations.find((l) => l.locationId === targetLocId);
-        if (targetLocId && targetLocLink) {
-          await tx.stockItemLocation.update({
-            where: {
-              stockItemId_locationId_factoryUnitId: {
-                stockItemId: material.id,
-                locationId: targetLocId,
-                factoryUnitId,
-              },
-            },
-            data: {
-              quantity: Math.max(0, Number(targetLocLink.quantity || 0) - dto.quantity),
-            },
-          });
-        }
-
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
-            stockItemId: material.id,
-            sector: 'CORTE',
-            type: 'SAIDA_REQUISICAO',
-            quantity: dto.quantity,
-            sourceLocationId: targetLocId || null,
-            sourceLocationName: targetLocLink?.location?.name || null,
-            itemCode: material.code,
-            itemName: material.name,
-            itemCategory: material.type,
-            itemUnit: material.unit,
-            origem: 'Atendimento de Requisição',
-            reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Operador',
-          },
-        });
-      } else if (req.footSide === 'PAR') {
-        // 2. PAR COMPLETO: Debitar coordenadamente Pé Esquerdo ('E') E Pé Direito ('D')
-        const reqSec = (req.requestSector === 'DISTRIBUICAO' || (req.requestSector as string) === 'EXPEDICAO') ? 'DISTRIBUICAO' : req.requestSector;
-        const sectorFilter = (reqSec === 'DISTRIBUICAO') ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] } : reqSec;
-
-        const baseFilter = {
-          factoryUnitId,
-          sector: sectorFilter as any,
-          quantity: { gte: dto.quantity },
-          OR: [
-            ...(req.sku ? [
-              { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-              { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-            ] : []),
-            ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-            { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-          ],
-          ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-          ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-        };
-
-        const leftItem = await tx.stockItem.findFirst({
-          where: { ...baseFilter, footSide: 'E' },
-          include: { locations: { include: { location: true } } },
-        });
-
-        const rightItem = await tx.stockItem.findFirst({
-          where: { ...baseFilter, footSide: 'D' },
-          include: { locations: { include: { location: true } } },
-        });
-
-        if (!leftItem || !rightItem) {
-          throw new Error('Saldo insuficiente de pares completos (E ou D ausente) para atender a requisição.');
-        }
-
-        // Debitar Pé Esquerdo
-        await tx.stockItem.update({
-          where: { id_factoryUnitId: { id: leftItem.id, factoryUnitId } },
-          data: { quantity: { decrement: dto.quantity } },
-        });
-        if (leftItem.locations[0]?.locationId) {
-          await tx.stockItemLocation.update({
-            where: {
-              stockItemId_locationId_factoryUnitId: {
-                stockItemId: leftItem.id,
-                locationId: leftItem.locations[0].locationId,
-                factoryUnitId,
-              },
-            },
-            data: {
-              quantity: Math.max(0, Number(leftItem.locations[0].quantity || 0) - dto.quantity),
-            },
-          });
-        }
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
-            stockItemId: leftItem.id,
-            sector: req.requestSector,
-            type: 'SAIDA_REQUISICAO',
-            quantity: dto.quantity,
-            sourceLocationId: leftItem.locations[0]?.locationId || null,
-            sourceLocationName: leftItem.locations[0]?.location?.name || null,
-            itemCode: leftItem.sku || leftItem.code || null,
-            itemName: leftItem.description || leftItem.productName || null,
-            itemCategory: leftItem.componentType || leftItem.type || null,
-            itemUnit: leftItem.unit || 'UND',
-            origem: 'Atendimento de Requisição (Pé Esquerdo)',
-            reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Operador',
-          },
-        });
-
-        // Debitar Pé Direito
-        await tx.stockItem.update({
-          where: { id_factoryUnitId: { id: rightItem.id, factoryUnitId } },
-          data: { quantity: { decrement: dto.quantity } },
-        });
-        if (rightItem.locations[0]?.locationId) {
-          await tx.stockItemLocation.update({
-            where: {
-              stockItemId_locationId_factoryUnitId: {
-                stockItemId: rightItem.id,
-                locationId: rightItem.locations[0].locationId,
-                factoryUnitId,
-              },
-            },
-            data: {
-              quantity: Math.max(0, Number(rightItem.locations[0].quantity || 0) - dto.quantity),
-            },
-          });
-        }
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
-            stockItemId: rightItem.id,
-            sector: req.requestSector,
-            type: 'SAIDA_REQUISICAO',
-            quantity: dto.quantity,
-            sourceLocationId: rightItem.locations[0]?.locationId || null,
-            sourceLocationName: rightItem.locations[0]?.location?.name || null,
-            itemCode: rightItem.sku || rightItem.code || null,
-            itemName: rightItem.description || rightItem.productName || null,
-            itemCategory: rightItem.componentType || rightItem.type || null,
-            itemUnit: rightItem.unit || 'UND',
-            origem: 'Atendimento de Requisição (Pé Direito)',
-            reason: `Atendimento de par da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Operador',
-          },
-        });
-      } else {
-        // 3. Multi-Setor Padrão (APOIO ou Pé Individual)
-        const reqSec = (req.requestSector === 'DISTRIBUICAO' || (req.requestSector as string) === 'EXPEDICAO') ? 'DISTRIBUICAO' : req.requestSector;
-        const sectorFilter = (reqSec === 'DISTRIBUICAO') ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] } : reqSec;
-
-        const stockItem = await tx.stockItem.findFirst({
-          where: {
-            factoryUnitId,
-            sector: sectorFilter as any,
-            quantity: { gte: dto.quantity },
-            OR: [
-              ...(req.sku ? [
-                { sku: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-                { pieceCode: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } },
-              ] : []),
-              ...(req.modelName ? [{ productName: { equals: req.modelName, mode: 'insensitive' as Prisma.QueryMode } }] : []),
-              { description: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
-            ],
-            ...(req.sizeGrade ? { sizeGrade: { equals: req.sizeGrade, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-            ...(req.color ? { color: { equals: req.color, mode: 'insensitive' as Prisma.QueryMode } } : {}),
-            ...(req.footSide ? { footSide: req.footSide as any } : {}),
-          },
-          include: { locations: { include: { location: true } } },
-        });
-
-        if (!stockItem) {
-          throw new Error(`Saldo insuficiente no setor ${req.requestSector} para atender esta requisição.`);
-        }
-
-        await tx.stockItem.update({
-          where: { id_factoryUnitId: { id: stockItem.id, factoryUnitId } },
-          data: { quantity: { decrement: dto.quantity } },
-        });
-
-        const targetLocId = sourceLocationId || stockItem.locations[0]?.locationId;
-        const targetLocLink = stockItem.locations.find((l) => l.locationId === targetLocId);
-        if (targetLocId && targetLocLink) {
-          await tx.stockItemLocation.update({
-            where: {
-              stockItemId_locationId_factoryUnitId: {
-                stockItemId: stockItem.id,
-                locationId: targetLocId,
-                factoryUnitId,
-              },
-            },
-            data: {
-              quantity: Math.max(0, Number(targetLocLink.quantity || 0) - dto.quantity),
-            },
-          });
-        }
-
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
-            stockItemId: stockItem.id,
-            sector: req.requestSector,
-            type: 'SAIDA_REQUISICAO',
-            quantity: dto.quantity,
-            sourceLocationId: targetLocId || null,
-            sourceLocationName: targetLocLink?.location?.name || null,
-            itemCode: stockItem.sku || stockItem.pieceCode || null,
-            itemName: stockItem.description || stockItem.productName || null,
-            itemCategory: stockItem.componentType || stockItem.type || null,
-            itemUnit: stockItem.unit || 'UND',
-            origem: 'Atendimento de Requisição',
-            reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ` - ${dto.observation}` : ''}`,
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Operador',
-          },
-        });
+      const candidates = await findRequisitionStock(tx, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
+      if (candidates.length > 1) throw new Error('Há mais de um material compatível. Regularize duplicatas ou especifique a identificação completa.');
+      if (!candidates.length) throw new Error('Material compatível não encontrado para atender esta requisição.');
+      const items = [candidates[0]];
+      if (req.footSide === 'PAR') {
+        const rightItems = await findRequisitionStock(tx, factoryUnitId, req, 'D');
+        if (rightItems.length !== 1) throw new Error('O pé direito está ausente ou possui cadastros ambíguos.');
+        assertCompatiblePair(items[0], rightItems[0]);
+        items.push(rightItems[0]);
       }
-
-      const newFulfilled = Number(req.quantityFulfilled) + dto.quantity;
-      const newStatus = newFulfilled >= Number(req.quantityRequested) - 0.0001 ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL';
-
-      const updatedRequisition = await tx.materialRequisition.update({
-        where: { id_factoryUnitId: { id: req.id, factoryUnitId } },
-        data: {
-          quantityFulfilled: newFulfilled,
-          status: newStatus,
-        },
+      for (const item of items.sort((a, b) => a.id - b.id)) {
+        const { debits } = await debitStockItem(tx, item, dto.quantity, dto.locationId);
+        for (const debit of debits) {
+          await tx.stockMovement.create({
+            data: {
+              factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'SAIDA_REQUISICAO',
+              quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
+              itemCode: item.sku || item.pieceCode || item.code, itemName: item.description || item.name || item.productName,
+              itemCategory: item.type || item.componentType, itemUnit: item.unit,
+              origem: req.footSide === 'PAR' ? `Atendimento de Requisição (Pé ${item.footSide === 'E' ? 'Esquerdo' : 'Direito'})` : 'Atendimento de Requisição',
+              reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ' - ' + dto.observation : ''}`,
+              operatorId: operatorId || null, operatorName: operatorName || 'Operador',
+            },
+          });
+        }
+      }
+      const fulfilled = new Prisma.Decimal(req.quantityFulfilled).plus(amount);
+      return tx.materialRequisition.update({
+        where: { id_factoryUnitId: { id, factoryUnitId }, status: req.status, quantityFulfilled: req.quantityFulfilled },
+        data: { quantityFulfilled: { increment: amount }, status: fulfilled.gte(req.quantityRequested) ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL' },
       });
-
-      return updatedRequisition;
     });
   }
 
@@ -719,24 +298,15 @@ export class RequisitionService {
    */
   async cancelRequisition(id: string, context: OperatorContext) {
     const { factoryUnitId } = context;
-
-    const req = await prisma.materialRequisition.findFirst({
-      where: { id, factoryUnitId },
+    return prisma.$transaction(async tx => {
+      await lockStockIdentityWrites(tx, factoryUnitId);
+      const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
+      if (!req) throw new Error('Requisição não encontrada.');
+      if (req.status !== 'PENDENTE') throw new Error('Apenas requisições pendentes podem ser canceladas.');
+      return tx.materialRequisition.update({
+        where: { id_factoryUnitId: { id, factoryUnitId }, status: 'PENDENTE', quantityFulfilled: 0 },
+        data: { status: 'CANCELADA' },
+      });
     });
-
-    if (!req) {
-      throw new Error('Requisição não encontrada.');
-    }
-
-    if (req.status !== 'PENDENTE') {
-      throw new Error('Apenas requisições pendentes podem ser canceladas.');
-    }
-
-    const updated = await prisma.materialRequisition.update({
-      where: { id_factoryUnitId: { id: req.id, factoryUnitId } },
-      data: { status: 'CANCELADA' },
-    });
-
-    return updated;
   }
 }

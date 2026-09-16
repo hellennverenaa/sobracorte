@@ -2,7 +2,7 @@ import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 import { DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, normalizeStockSector, stockIdentity } from './stockIdentity';
-import { normalizeUnit } from '../utils/unitHelper';
+import { isDiscreteSector, normalizeUnit } from '../utils/unitHelper';
 
 export class StockMovementService {
   /**
@@ -13,7 +13,7 @@ export class StockMovementService {
     const { stockItemId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
 
     return await prisma.$transaction(async (tx) => {
-      if (type === 'TRANSFERENCIA') await lockStockIdentityWrites(tx, factoryUnitId);
+      await lockStockIdentityWrites(tx, factoryUnitId);
       // Todos os setores, inclusive CORTE, usam o modelo canônico.
       const item = await tx.stockItem.findFirst({
         where: { id: stockItemId, factoryUnitId },
@@ -24,7 +24,7 @@ export class StockMovementService {
         throw new Error('Item de estoque ou matéria-prima não encontrado.');
       }
 
-      if (item.sector !== 'CORTE' && !Number.isInteger(quantity)) {
+      if (isDiscreteSector(item.sector) && !Number.isInteger(quantity)) {
         throw new Error(`A quantidade para o setor ${item.sector} deve ser um número inteiro (sem decimais).`);
       }
 

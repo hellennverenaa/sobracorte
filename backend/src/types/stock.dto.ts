@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeStockColor } from '../services/stockIdentity';
 
 export const SectorEnum = z.enum([
   'CORTE',
@@ -195,7 +196,7 @@ export const RequisitionItemInputSchema = z.object({
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().optional().default('CALÇADO COMPLETO').transform((val) => (val && val.trim().length > 0 ? val.trim().toUpperCase() : 'CALÇADO COMPLETO')),
-  color: z.string().trim().optional().transform((val) => val ? val.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase() : undefined),
+  color: z.string().trim().optional().transform((val) => val ? normalizeStockColor(val) : undefined),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
   quantityRequested: z.coerce.number().positive('Quantidade solicitada deve ser maior que zero'),
@@ -214,7 +215,7 @@ export const CheckStockAvailabilitySchema = z.object({
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
-  color: z.string().trim().optional().transform((val) => val ? val.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase() : undefined),
+  color: z.string().trim().optional().transform((val) => val ? normalizeStockColor(val) : undefined),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
 });

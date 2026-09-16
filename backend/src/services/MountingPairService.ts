@@ -1,4 +1,8 @@
 import { prisma } from '../prisma';
+import { Prisma } from '../generated/prisma';
+import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
+import { debitStockItem } from './stockDebit';
+import { assertCompatiblePair } from './requisitionStock';
 import { ExecuteMatchDTO, OperatorContext } from '../types/stock.dto';
 import { SectorType } from '../generated/prisma';
 
@@ -62,6 +66,7 @@ export class MountingPairService {
         ON e."factoryUnitId" = d."factoryUnitId"
         AND e.sector = d.sector
         AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
+        AND COALESCE(e."productName", '') = COALESCE(d."productName", '')
         AND e."sizeGrade" = d."sizeGrade"
         AND COALESCE(e."color", '') = COALESCE(d."color", '')
         AND COALESCE(e."type", '') = COALESCE(d."type", '')
@@ -103,160 +108,37 @@ export class MountingPairService {
    */
   async executeMatch(dto: ExecuteMatchDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
-    const { leftStockItemId, rightStockItemId, quantity, reason } = dto;
-
-    return await prisma.$transaction(async (tx) => {
-      // 1. Buscar os dois itens com validação de tenant
-      const [leftItem, rightItem] = await Promise.all([
-        tx.stockItem.findFirst({
-          where: { id: leftStockItemId, factoryUnitId },
-          include: { locations: { include: { location: true } } },
-        }),
-        tx.stockItem.findFirst({
-          where: { id: rightStockItemId, factoryUnitId },
-          include: { locations: { include: { location: true } } },
-        }),
-      ]);
-
-      if (!leftItem || !rightItem) {
-        throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
-      }
-
-      if (leftItem.sector !== rightItem.sector) {
-        throw new Error('Os itens selecionados devem pertencer ao mesmo setor fabril.');
-      }
-
-      if (leftItem.footSide !== 'E' || rightItem.footSide !== 'D') {
-        throw new Error('Os itens selecionados devem ser compostos por 1 Pé Esquerdo (E) e 1 Pé Direito (D).');
-      }
-
-      const leftSku = leftItem.sku || leftItem.productName || '';
-      const rightSku = rightItem.sku || rightItem.productName || '';
-
-      if (leftSku !== rightSku || leftItem.sizeGrade !== rightItem.sizeGrade) {
-        throw new Error('Os itens devem possuir o mesmo COD. PRODUTO / SKU e mesma Grade de numeração.');
-      }
-
-      const leftColor = (leftItem.color || '').trim().toUpperCase();
-      const rightColor = (rightItem.color || '').trim().toUpperCase();
-      if (leftColor !== rightColor) {
-        throw new Error(`Os itens devem possuir a mesma Combinação/Cor (${leftColor || 'N/A'} != ${rightColor || 'N/A'}).`);
-      }
-
-      const leftType = (leftItem.type || '').trim().toUpperCase();
-      const rightType = (rightItem.type || '').trim().toUpperCase();
-      if (leftType !== rightType) {
-        throw new Error(`Os itens devem possuir o mesmo tipo de material (${leftType || 'N/A'} != ${rightType || 'N/A'}).`);
-      }
-
-      if (Number(leftItem.quantity) < quantity || Number(rightItem.quantity) < quantity) {
-        throw new Error(`Saldo insuficiente para efetuar o casamento de ${quantity} par(es).`);
-      }
-
-      // 2. Debitar saldo do Pé Esquerdo
-      const newLeftQty = Math.max(0, Number(leftItem.quantity) - quantity);
-      await tx.stockItem.update({
-        where: { id_factoryUnitId: { id: leftItem.id, factoryUnitId } },
-        data: { quantity: newLeftQty },
-      });
-
-      // Atualizar localização do Pé Esquerdo
-      if (leftItem.locations.length > 0) {
-        const leftLoc = leftItem.locations[0];
-        const newLeftLocQty = Math.max(0, Number(leftLoc.quantity || 0) - quantity);
-        await tx.stockItemLocation.update({
-          where: {
-            stockItemId_locationId_factoryUnitId: {
-              stockItemId: leftItem.id,
-              locationId: leftLoc.locationId,
-              factoryUnitId,
+    return prisma.$transaction(async tx => {
+      await lockStockIdentityWrites(tx, factoryUnitId);
+      const items = await Promise.all([dto.leftStockItemId, dto.rightStockItemId].map(id => tx.stockItem.findFirst({
+        where: { id, factoryUnitId }, include: { locations: { include: { location: true } } },
+      })));
+      const [left, right] = items;
+      if (!left || !right) throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
+      if (!['PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(left.sector)) throw new Error('O setor não permite casamento de pares.');
+      if (normalizeStockSector(left.sector) !== normalizeStockSector(dto.sector)) throw new Error('Os itens não pertencem ao setor informado para o casamento.');
+      assertCompatiblePair(left, right);
+      const balances = new Map<number, Prisma.Decimal>();
+      for (const item of [left, right].sort((a, b) => a.id - b.id)) {
+        const { debits, remainingQuantity } = await debitStockItem(tx, item, dto.quantity);
+        balances.set(item.id, remainingQuantity);
+        for (const debit of debits) {
+          await tx.stockMovement.create({
+            data: {
+              factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'CASAMENTO_PAR',
+              quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
+              itemCode: item.sku || item.code, itemName: item.description || item.productName,
+              itemCategory: item.type || item.componentType, itemUnit: item.unit,
+              origem: `Casamento de Pares no setor ${item.sector}`,
+              reason: `Casamento de Par - Pé ${item.footSide} casado com ID ${item.id === left.id ? right.id : left.id}. Obs: ${dto.reason}`,
+              operatorId: operatorId || null, operatorName: operatorName || 'Operador',
             },
-          },
-          data: { quantity: newLeftLocQty },
-        });
+          });
+        }
       }
-
-      // 3. Debitar saldo do Pé Direito
-      const newRightQty = Math.max(0, Number(rightItem.quantity) - quantity);
-      await tx.stockItem.update({
-        where: { id_factoryUnitId: { id: rightItem.id, factoryUnitId } },
-        data: { quantity: newRightQty },
-      });
-
-      // Atualizar localização do Pé Direito
-      if (rightItem.locations.length > 0) {
-        const rightLoc = rightItem.locations[0];
-        const newRightLocQty = Math.max(0, Number(rightLoc.quantity || 0) - quantity);
-        await tx.stockItemLocation.update({
-          where: {
-            stockItemId_locationId_factoryUnitId: {
-              stockItemId: rightItem.id,
-              locationId: rightLoc.locationId,
-              factoryUnitId,
-            },
-          },
-          data: { quantity: newRightLocQty },
-        });
-      }
-
-      const sectorLabel =
-        leftItem.sector === 'PRE_FABRICADO'
-          ? 'Pré-Fabricado (Solas)'
-          : (leftItem.sector === 'DISTRIBUICAO' || (leftItem.sector as string) === 'EXPEDICAO')
-          ? 'Distribuição'
-          : 'Montagem';
-
-      // 4. Auditoria atômica: Registrar saída do Pé Esquerdo
-      await tx.stockMovement.create({
-        data: {
-          factoryUnitId,
-          stockItemId: leftItem.id,
-          sector: leftItem.sector,
-          type: 'CASAMENTO_PAR',
-          quantity,
-          sourceLocationId: leftItem.locations[0]?.locationId || null,
-          sourceLocationName: leftItem.locations[0]?.location?.name || null,
-          itemCode: leftItem.sku || leftItem.code || null,
-          itemName: leftItem.description || leftItem.productName || null,
-          itemCategory: leftItem.componentType || leftItem.type || null,
-          itemUnit: leftItem.unit || 'PAR',
-          origem: `Casamento de Pares no setor ${sectorLabel}`,
-          reason: `Casamento de Par - Pé E casado com Pé D (ID ${rightItem.id}). Obs: ${reason}`,
-          operatorId: operatorId || null,
-          operatorName: operatorName || `Operador ${sectorLabel}`,
-        },
-      });
-
-      // 5. Auditoria atômica: Registrar saída do Pé Direito
-      await tx.stockMovement.create({
-        data: {
-          factoryUnitId,
-          stockItemId: rightItem.id,
-          sector: rightItem.sector,
-          type: 'CASAMENTO_PAR',
-          quantity,
-          sourceLocationId: rightItem.locations[0]?.locationId || null,
-          sourceLocationName: rightItem.locations[0]?.location?.name || null,
-          itemCode: rightItem.sku || rightItem.code || null,
-          itemName: rightItem.description || rightItem.productName || null,
-          itemCategory: rightItem.componentType || rightItem.type || null,
-          itemUnit: rightItem.unit || 'PAR',
-          origem: `Casamento de Pares no setor ${sectorLabel}`,
-          reason: `Casamento de Par - Pé D casado com Pé E (ID ${leftItem.id}). Obs: ${reason}`,
-          operatorId: operatorId || null,
-          operatorName: operatorName || `Operador ${sectorLabel}`,
-        },
-      });
-
-      return {
-        success: true,
-        matchedPairs: quantity,
-        sector: leftItem.sector,
-        sku: leftSku,
-        sizeGrade: leftItem.sizeGrade,
-        remainingLeftQuantity: newLeftQty,
-        remainingRightQuantity: newRightQty,
-      };
+      return { success: true, matchedPairs: dto.quantity, sector: left.sector, sku: left.sku || left.productName,
+        sizeGrade: left.sizeGrade, remainingLeftQuantity: Number(balances.get(left.id)), remainingRightQuantity: Number(balances.get(right.id)) };
     });
   }
+
 }
