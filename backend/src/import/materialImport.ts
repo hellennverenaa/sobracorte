@@ -1,6 +1,6 @@
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
-import { normalizeUnit } from '../utils/unitHelper';
+import { normalizeUnit, isDiscreteUnit } from '../utils/unitHelper';
 import { lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
 
 export interface AvailableLocation {
@@ -300,7 +300,8 @@ export function validateImportBatch(
 
     // 3. Validação de casas decimais para setores discretos
     const isDiscreteSector = ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(itemSector);
-    if (isDiscreteSector && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
+    const isDiscreteConsumption = itemSector === 'CONSUMO' && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
+    if ((isDiscreteSector || isDiscreteConsumption) && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
       errors.push({
         row: row.rowNumber,
         column: 'quantidade',

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeUnit, areUnitsCompatible, isDiscreteSector } from '../src/utils/unitHelper';
+import { normalizeUnit, areUnitsCompatible, isDiscreteSector, isDiscreteUnit, requiresIntegerQuantity } from '../src/utils/unitHelper';
 import { validateImportBatch } from '../src/import/materialImport';
 import { ParsedCsvRow } from '../src/import/csvParser';
+import { ConsumoItemSchema } from '../src/types/stock.dto';
 
 test('unitHelper: normalizeUnit padroniza variações e aliases de unidades de medida', () => {
   // Metro quadrado
@@ -74,6 +75,33 @@ test('unitHelper: isDiscreteSector identifica corretamente setores discretos vs 
   assert.equal(isDiscreteSector('CORTE'), false);
   assert.equal(isDiscreteSector('CONSUMO'), false);
   assert.equal(isDiscreteSector(null), false);
+});
+
+test('unitHelper: quantidade de Consumo segue a unidade, não apenas o setor', () => {
+  assert.equal(isDiscreteUnit('UN'), true);
+  assert.equal(isDiscreteUnit('CX'), true);
+  assert.equal(isDiscreteUnit('KG'), false);
+  assert.equal(isDiscreteUnit('L'), false);
+  assert.equal(requiresIntegerQuantity('UN', 'CONSUMO'), true);
+  assert.equal(requiresIntegerQuantity('KG', 'CONSUMO'), false);
+  assert.equal(requiresIntegerQuantity(undefined, 'CONSUMO'), true);
+});
+
+test('Consumo aceita fração em KG e rejeita fração em UN no cadastro e CSV', () => {
+  assert.doesNotThrow(() => ConsumoItemSchema.parse({
+    sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1.5, location: 'CS-01',
+  }));
+  assert.throws(() => ConsumoItemSchema.parse({
+    sector: 'CONSUMO', productName: 'COLA', unit: 'UN', quantity: 1.5, location: 'CS-01',
+  }), /unidade discreta/);
+
+  const locations = [{ id: 1, name: 'CS-01', sector: 'CONSUMO' as any }];
+  assert.equal(validateImportBatch([
+    'codigo', 'descricao', 'unidade', 'quantidade', 'prateleira',
+  ], [{ rowNumber: 2, cells: ['INS-KG', 'COLA', 'KG', '1.5', 'CS-01'] } as ParsedCsvRow], 'CONSUMO', locations)[0].quantity, 1.5);
+  assert.throws(() => validateImportBatch([
+    'codigo', 'descricao', 'unidade', 'quantidade', 'prateleira',
+  ], [{ rowNumber: 2, cells: ['INS-UN', 'PINCEL', 'UN', '1.5', 'CS-01'] } as ParsedCsvRow], 'CONSUMO', locations), (err: any) => err.errors?.some((item: any) => /Valores fracionados/.test(item.message)));
 });
 
 test('Validação de Domínio: Bloqueio de troca de unidade em material com saldo ativo', () => {

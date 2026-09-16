@@ -22,6 +22,24 @@ export function isDiscreteSector(sector?: string | null): boolean {
   return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(s);
 }
 
+/** Unidades que representam peças, volumes ou pares indivisíveis. */
+export function isDiscreteUnit(unit?: string | null): boolean {
+  if (!unit) return false;
+  return ['UN', 'UND', 'PC', 'PAR', 'CX', 'ROLO'].includes(String(unit).toUpperCase().trim());
+}
+
+/**
+ * Decide se a quantidade deve ser inteira, considerando a unidade cadastrada.
+ * Setores historicamente discretos continuam inteiros mesmo quando a unidade
+ * antiga não foi preenchida; Consumo sem unidade usa o default UN.
+ */
+export function requiresIntegerQuantity(unit?: string | null, sector?: string | null): boolean {
+  if (!unit || String(unit).trim() === '') {
+    return isDiscreteSector(sector) || String(sector || '').toUpperCase().trim() === 'CONSUMO';
+  }
+  return isDiscreteUnit(normalizeUnit(unit, sector));
+}
+
 /**
  * Normaliza qualquer variação ou alias textual de unidade de medida para o símbolo canônico.
  */

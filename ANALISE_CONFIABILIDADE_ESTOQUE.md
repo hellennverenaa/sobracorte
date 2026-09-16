@@ -29,8 +29,8 @@ Na conferência de SEST, não havia saldos negativos, diferenças entre saldo to
 
 8. **Indicadores sem coerência dimensional.** Relatórios somam unidades incompatíveis; dashboard de Corte identifica o total agregado como M². Taxa de reaproveitamento usa contagem de movimentações, não volume.
    - Referências: `backend/src/controllers/ReportController.ts`, `backend/src/controllers/DashboardController.ts`.
-9. **Consumo fracionado inconsistente.** Cadastro admite decimais, mas movimentação rejeita decimais para todo setor diferente de Corte.
-   - Referências: `backend/src/types/stock.dto.ts`, `backend/src/services/StockMovementService.ts`.
+9. **Consumo fracionado inconsistente.** Inicialmente, o cadastro aceitava decimais enquanto a movimentação rejeitava decimais por setor. A regra foi corrigida para considerar a unidade: Consumo aceita frações em unidades contínuas (`KG`, `G`, `L`, `M`, `M²`) e exige inteiros em unidades discretas (`UN`, `UND`, `PC`, `PAR`, `CX`, `ROLO`).
+   - Referências: `backend/src/utils/unitHelper.ts`, `backend/src/types/stock.dto.ts`, `backend/src/import/materialImport.ts`, `backend/src/services/StockMovementService.ts` e `backend/src/services/stockDebit.ts`.
 
 ## Diretrizes de correção dos críticos
 
@@ -51,11 +51,12 @@ Os críticos **1, 2 e 3 foram corrigidos**:
 - `requisitionStock.ts` exige todos os identificadores fornecidos, sem descrição parcial ou alternativas por OR. Disponibilidade e atendimento usam a mesma seleção; ambiguidades são bloqueadas. Pares exigem identidade, material e unidade compatíveis.
 - A migração `20260916220000_stock_quantity_guards` foi aplicada ao banco local: impede saldos negativos e atendimento acima do solicitado. Movimentações físicas exigem quantidade positiva; eventos de configuração podem registrar zero. Nenhum registro existente foi corrigido ou excluído.
 
-Os pontos **4 e 5** também foram corrigidos por integrarem esses fluxos. O ponto **9** foi alinhado à regra existente de setores discretos: Consumo admite quantidade fracionada na movimentação. Os pontos **6, 7 e 8 permanecem pendentes**.
+Os pontos **4, 5 e 9** também foram corrigidos por integrarem esses fluxos. Os pontos **6, 7 e 8 permanecem pendentes**.
 
 Validação realizada:
 
 - Quatro testes focados de duplicidade, transferência, baixa por localização, rollback, concorrência simulada, seleção exata e compatibilidade de pares passaram; mais 14 testes de CSV passaram.
+- Testes de unidade confirmam Consumo fracionado em KG e rejeição de fração em UN no cadastro e na importação CSV.
 - Serviços de casamento e atendimento de Apoio executados no PostgreSQL local com rollback obrigatório: saldos e pendência permaneceram intactos.
 - Restrições CHECK bloquearam saldo negativo e excesso de atendimento em transações revertidas.
 - Reconciliação final de SEST: zero diferenças entre saldo do item e soma dos locais.

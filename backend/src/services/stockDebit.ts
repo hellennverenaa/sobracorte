@@ -1,12 +1,12 @@
 import { Prisma } from '../generated/prisma';
-import { isDiscreteSector } from '../utils/unitHelper';
+import { requiresIntegerQuantity } from '../utils/unitHelper';
 
 type ItemWithLocations = Prisma.StockItemGetPayload<{ include: { locations: { include: { location: true } } } }>;
 
 /** A transação chamadora deve bloquear a unidade antes de ler o item. */
 export async function debitStockItem(tx: Prisma.TransactionClient, item: ItemWithLocations, quantity: number, locationId?: number) {
   const amount = new Prisma.Decimal(quantity);
-  if (!amount.isPositive() || amount.decimalPlaces() > 3 || (isDiscreteSector(item.sector) && !amount.isInteger())) {
+  if (!amount.isPositive() || amount.decimalPlaces() > 3 || (requiresIntegerQuantity(item.unit, item.sector) && !amount.isInteger())) {
     throw new Error('Quantidade inválida para o setor ou precisão superior a três casas decimais.');
   }
   const locationTotal = item.locations.reduce((sum, link) => sum.plus(link.quantity), new Prisma.Decimal(0));

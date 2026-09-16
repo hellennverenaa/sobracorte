@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizeStockColor } from '../services/stockIdentity';
+import { isDiscreteUnit, normalizeUnit } from '../utils/unitHelper';
 
 export const SectorEnum = z.enum([
   'CORTE',
@@ -134,6 +135,10 @@ export const ConsumoItemSchema = z.object({
   quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
+}).superRefine((item, ctx) => {
+  if (isDiscreteUnit(normalizeUnit(item.unit, 'CONSUMO')) && !Number.isInteger(item.quantity)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantity'], message: 'Quantidade para unidade discreta deve ser um número inteiro.' });
+  }
 });
 
 // 🌟 Discriminated Union dos Setores

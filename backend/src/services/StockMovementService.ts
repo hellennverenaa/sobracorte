@@ -2,7 +2,7 @@ import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 import { DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, normalizeStockSector, stockIdentity } from './stockIdentity';
-import { isDiscreteSector, normalizeUnit } from '../utils/unitHelper';
+import { normalizeUnit, requiresIntegerQuantity } from '../utils/unitHelper';
 
 export class StockMovementService {
   /**
@@ -24,8 +24,8 @@ export class StockMovementService {
         throw new Error('Item de estoque ou matéria-prima não encontrado.');
       }
 
-      if (isDiscreteSector(item.sector) && !Number.isInteger(quantity)) {
-        throw new Error(`A quantidade para o setor ${item.sector} deve ser um número inteiro (sem decimais).`);
+      if (requiresIntegerQuantity(item.unit, item.sector) && !Number.isInteger(quantity)) {
+        throw new Error(`A quantidade para a unidade ${item.unit || 'UN'} deve ser um número inteiro (sem decimais).`);
       }
 
       const targetLocationId = locationId || item.locations[0]?.locationId;
