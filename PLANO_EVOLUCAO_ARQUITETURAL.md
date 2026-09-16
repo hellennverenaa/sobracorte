@@ -17,7 +17,7 @@ Regras gerais:
 - Não avançar quando houver achado crítico ou alto aberto.
 - Não misturar em um commit alterações pertencentes a ciclos diferentes.
 - Antes de cada commit, revisar o diff e confirmar que somente o escopo do ciclo está incluído.
-- Registrar no resumo de cada ciclo: commit, arquivos alterados, decisões, testes executados, resultados e pendências.
+- Registrar um resumo curto por ciclo: resultado, commit, validação executada e pendências relevantes, sem inventário de arquivos ou relatório adicional.
 - Não reescrever, fazer squash ou alterar o histórico dos commits de ciclo sem autorização explícita.
 
 ### Política de documentação
@@ -35,15 +35,17 @@ O agente principal será responsável por registrar o baseline, preparar contrat
 
 Distribuição padrão:
 
-- **Luna high:** frontend, experiência do usuário, testes gerais, documentação e limpeza.
-- **Terra medium:** segurança, RBAC, multi-tenancy, modelagem, migrações, desempenho e outras tarefas arquiteturais complexas.
-- **Agente principal:** orquestração, análise, contratos, controle de escopo e aceite dos ciclos.
+- **Luna high:** primeira opção para tarefas simples e delimitadas de qualquer ciclo: conversões mecânicas, alterações locais, testes focados, frontend, limpeza e documentação final.
+- **Terra medium:** somente para tarefas que exijam raciocínio arquitetural complexo, como invariantes de segurança, modelagem e migrações; o assunto sozinho não justifica escalada de modelo.
+- **Agente principal:** decisões acopladas, implementação sequencial ou bloqueadora, integração, controle de escopo e aceite.
 
 Regras de delegação:
 
-- Usar zero subagentes por padrão e no máximo dois simultâneos quando houver trabalhos substanciais, independentes e bem delimitados.
-- Não permitir que dois agentes editem o mesmo diretório ou fluxo ao mesmo tempo.
-- Reutilizar o agente que já conhece o contexto quando um ciclo evoluir naturalmente para o seguinte.
+- Delegar a Luna high tarefas simples quando a execução independente economizar trabalho do principal. Não delegar ações triviais ou imediatamente bloqueadoras cujo custo de coordenação exceda o benefício. Usar no máximo dois subagentes simultâneos.
+- Definir arquivos exclusivos por agente e não permitir alterações concorrentes no mesmo fluxo acoplado.
+- Entregar uma tarefa completa por delegação: inspecionar o mínimo, implementar e verificar o próprio escopo. Evitar delegações fragmentadas de inspeção → alteração parcial → conclusão.
+- Reutilizar agentes com contexto relevante e capacidade adequada. Não manter um modelo mais caro apenas por já conhecer o repositório; fornecer contexto curto e explícito a Luna high quando isso for mais econômico.
+- O principal não repete a investigação nem os checks concluídos pelo subagente sem mudança posterior ou evidência concreta de falha; revisa o diff e integra a entrega.
 - Usar um agente novo para a revisão independente final.
 - Toda correção encontrada pelo revisor volta ao agente proprietário do escopo.
 
@@ -54,7 +56,7 @@ Regras de delegação:
 - Usar mensagens no padrão `refactor(ciclo-N): resumo objetivo`.
 - O ciclo 0 usa `docs(ciclo-0): registrar baseline e contratos`.
 - Correções solicitadas antes do aceite entram no mesmo ciclo; se o commit já existir, criar `fix(ciclo-N): resumo objetivo`, sem alterar o commit anterior.
-- O hash de cada commit deve ser registrado no acompanhamento deste plano.
+- Registrar o hash no resumo de entrega; não atualizar este plano a cada commit.
 - A criação de um commit depende de solicitação ou autorização explícita do usuário; concluir tecnicamente um ciclo não autoriza o agente a gravar o histórico por conta própria.
 
 ## 3. Custos relativos e ordem obrigatória
@@ -87,6 +89,16 @@ Validação mínima por tipo de alteração:
 - todo ciclo: `git diff --check`, revisão do diff e confirmação de que não há alteração fora do escopo.
 
 Não executar a suíte completa nos ciclos 1 a 6. Se um teste focado revelar falha estrutural fora do escopo previsto, interromper o aceite, analisar a dependência e atualizar este plano antes de expandir o trabalho.
+
+### Fluxo enxuto dos ciclos intermediários
+
+1. Delimitar o fluxo afetado e ler somente o código necessário e seus consumidores diretos, sem inventário geral do repositório.
+2. Implementar o marco completo, delegando partes independentes e simples a Luna high. Os responsáveis indicados em cada ciclo são referências de capacidade, não obrigação de usar o mesmo modelo em todo o escopo.
+3. Executar uma rodada de validação focal ao terminar: typecheck ou build somente quando necessário e testes que exercitem a integração alterada. Não acumular checks equivalentes nem tratar testes de lógica copiada como prova de integração.
+4. Se houver falha, corrigir a causa e repetir somente o check afetado. Checks aprovados não são repetidos sem alteração que possa invalidá-los.
+5. Revisar apenas o diff ainda não revisado, registrar um commit e entregar um resumo curto.
+
+Reutilizar infraestrutura descartável disponível quando seguro; não recriar bancos ou contêineres por rotina. Gates de integridade dos dados, isolamento e autorização de produção continuam obrigatórios. Documentação, auditoria transversal e suíte completa ficam no Ciclo 7.
 
 ## 5. Ciclo 0 — Baseline e contratos
 
