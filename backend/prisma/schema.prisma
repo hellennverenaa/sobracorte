@@ -221,9 +221,6 @@ model User {
   authOrigin String?
   authUserId String?
 
-  @@unique([factoryUnitId, usuario])
-  @@unique([factoryUnitId, email])
-  @@unique([factoryUnitId, matriculaDass])
   @@unique([factoryUnitId, authOrigin, authUserId])
   @@schema("sobra_corte")
 }

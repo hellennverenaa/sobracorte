@@ -4,51 +4,45 @@ export class TenantAuthorizationError extends Error {
   }
 }
 
+const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
+const REGISTRATION_PATTERN = /^\d+$/;
+
+/** Normalizes provider and legacy registrations without losing textual IDs. */
+export function normalizeRegistration(value: unknown): string {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toUpperCase();
+    if (!/^\d+$/.test(normalized)) return normalized;
+    const registration = BigInt(normalized);
+    return registration > 0n ? registration.toString() : '';
+  }
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return String(value);
+  if (typeof value === 'bigint' && value > 0n) return value.toString();
+  return '';
+}
+
+export function registrationToBigInt(value: string): bigint | null {
+  if (!/^\d+$/.test(value)) return null;
+  const registration = BigInt(value);
+  return registration > 0n && registration <= POSTGRES_BIGINT_MAX ? registration : null;
+}
+
 export function resolveTenantRequest(
   claims: { unidade?: unknown; matricula?: unknown },
   header: string | undefined,
-  globalAdminRegistrations: ReadonlySet<number>,
+  globalAdminIdentities: ReadonlySet<string>,
 ) {
   const jwtUnit = typeof claims.unidade === 'string' ? claims.unidade.trim().toUpperCase() : '';
-  const registration = Number(claims.matricula);
-  if (!jwtUnit || !Number.isSafeInteger(registration) || registration <= 0) {
+  const registration = normalizeRegistration(claims.matricula);
+  if (!jwtUnit || !REGISTRATION_PATTERN.test(registration)) {
     throw new TenantAuthorizationError('Token sem unidade ou matrícula válida.', 401);
   }
 
   const requestedUnit = header?.trim().toUpperCase() || jwtUnit;
-  const isGlobalAdmin = globalAdminRegistrations.has(registration);
+  const isGlobalAdmin = globalAdminIdentities.has(`${jwtUnit}:${registration}`);
   if (requestedUnit !== jwtUnit && !isGlobalAdmin) {
     throw new TenantAuthorizationError('Acesso negado para a unidade selecionada.', 403);
   }
   return { requestedUnit, isGlobalAdmin, registration };
-}
-
-export async function resolveTenantRequestWithAdminCheck(
-  claims: { unidade?: unknown; matricula?: unknown; usuario?: unknown },
-  header: string | undefined,
-  globalAdminRegistrations: ReadonlySet<number>,
-  isDbAdminCheck?: (matricula: number, usuario: string) => Promise<boolean>,
-) {
-  const jwtUnit = typeof claims.unidade === 'string' ? claims.unidade.trim().toUpperCase() : '';
-  const registration = Number(claims.matricula);
-  const validRegistration = Number.isSafeInteger(registration) && registration > 0 ? registration : 0;
-  const usuario = typeof claims.usuario === 'string' ? claims.usuario.trim().toUpperCase() : '';
-  
-  if (!jwtUnit && !header) {
-    throw new TenantAuthorizationError('Token sem unidade válida.', 401);
-  }
-
-  const requestedUnit = header?.trim().toUpperCase() || jwtUnit;
-  let isGlobalAdmin = validRegistration > 0 ? globalAdminRegistrations.has(validRegistration) : false;
-
-  if (!isGlobalAdmin && isDbAdminCheck) {
-    isGlobalAdmin = await isDbAdminCheck(validRegistration, usuario);
-  }
-
-  if (requestedUnit !== jwtUnit && !isGlobalAdmin) {
-    throw new TenantAuthorizationError('Acesso negado: Seu usuário não possui permissão para acessar a unidade selecionada.', 403);
-  }
-  return { requestedUnit, isGlobalAdmin, registration: validRegistration };
 }
 
 export type ActiveTenant = { id: number; code: string; name: string; enableRequisitions: boolean };

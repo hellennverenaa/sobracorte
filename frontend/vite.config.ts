@@ -8,6 +8,7 @@ const requiredFrontendVars = [
   "VITE_AUTH_API_URL",
   "VITE_SOBRACORTE_API_URL",
   "VITE_PORTAL_UNIX_URL",
+  "VITE_DASS_IDENTITIES_URL",
   "VITE_DEV_PORT",
 ] as const;
 
@@ -22,6 +23,9 @@ export default defineConfig(({ mode }) => {
   if (!Number.isInteger(devPort) || devPort < 1 || devPort > 65_535) {
     throw new Error("VITE_DEV_PORT deve ser um número inteiro entre 1 e 65535.");
   }
+
+  const gatewayTarget = env.VITE_GATEWAY_URL || "http://127.0.0.1:2399";
+  const backendTarget = env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3333"}`;
 
   return {
     plugins: [vue()],
@@ -38,7 +42,7 @@ export default defineConfig(({ mode }) => {
       open: true,
       proxy: {
         "/api": {
-          target: env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3000"}`,
+          target: gatewayTarget,
           changeOrigin: true,
           secure: false,
         },
@@ -57,7 +61,7 @@ export default defineConfig(({ mode }) => {
         },
         // Proxy para o Backend local do SobraCorte (Porta 3000)
         "/sobracorte-api": {
-          target: env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3000"}`,
+          target: backendTarget,
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/sobracorte-api/, ""),

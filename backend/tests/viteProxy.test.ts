@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('Vite Dev Server: Proxy configuration maps /api, /unix, /auth-proxy and /sobracorte-api with changeOrigin and secure: false', () => {
-  const env: Record<string, string> = { VITE_BACKEND_PORT: '3000' };
-  const backendPort = env.VITE_BACKEND_PORT || '3000';
+  const env: Record<string, string> = {};
+  const gatewayTarget = env.VITE_GATEWAY_URL || 'http://127.0.0.1:2399';
+  const backendPort = env.VITE_BACKEND_PORT || '3333';
   const backendTarget = env.VITE_BACKEND_URL || `http://127.0.0.1:${backendPort}`;
 
   const proxyConfig = {
     '/api': {
-      target: backendTarget,
+      target: gatewayTarget,
       changeOrigin: true,
       secure: false,
     },
@@ -32,7 +33,7 @@ test('Vite Dev Server: Proxy configuration maps /api, /unix, /auth-proxy and /so
     },
   };
 
-  assert.equal(proxyConfig['/api'].target, 'http://127.0.0.1:3000');
+  assert.equal(proxyConfig['/api'].target, 'http://127.0.0.1:2399');
   assert.equal(proxyConfig['/api'].changeOrigin, true);
   assert.equal(proxyConfig['/api'].secure, false);
 
@@ -41,6 +42,7 @@ test('Vite Dev Server: Proxy configuration maps /api, /unix, /auth-proxy and /so
   assert.equal(proxyConfig['/unix'].secure, false);
 
   assert.equal(proxyConfig['/auth-proxy'].rewrite('/auth-proxy/api/login'), '/api/login');
+  assert.equal(proxyConfig['/sobracorte-api'].target, 'http://127.0.0.1:3333');
   assert.equal(proxyConfig['/sobracorte-api'].rewrite('/sobracorte-api/dashboard/summary'), '/dashboard/summary');
 });
 

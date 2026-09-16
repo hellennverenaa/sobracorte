@@ -70,10 +70,10 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=sobr
 PORT=3333
 PRIVATE_KEY="mesmo JWT_SECRET configurado no dass_auth_service"
 CORS_ORIGINS="http://localhost:3000"
-GLOBAL_ADMIN_REGISTRATIONS="12345,67890"
+GLOBAL_ADMIN_IDENTITIES="SEST:12345,SAJ:67890"
 ```
 
-`GLOBAL_ADMIN_REGISTRATIONS` aceita matrículas inteiras positivas sem duplicatas. Use uma string vazia quando não houver administradores globais.
+`GLOBAL_ADMIN_IDENTITIES` aceita identidades `UNIDADE:MATRÍCULA` sem duplicatas. Use uma string vazia quando não houver administradores globais.
 
 Crie também `frontend/.env`:
 
@@ -81,6 +81,7 @@ Crie também `frontend/.env`:
 VITE_AUTH_API_URL="http://localhost:2399/api"
 VITE_SOBRACORTE_API_URL="http://localhost:2399/api/sobracorte"
 VITE_PORTAL_UNIX_URL="http://10.100.1.43/unix/"
+VITE_DASS_IDENTITIES_URL="http://10.100.1.43/identities/"
 VITE_DEV_PORT=3000
 ```
 

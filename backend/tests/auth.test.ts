@@ -29,17 +29,21 @@ test('deriveInitialRole atribui papel leitor por padrão, desacoplado de cargos 
 
 test('resolveTenantRequest mantém usuários comuns em sua unidade', () => {
   assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, undefined, new Set()), {
-    requestedUnit: 'SEST', isGlobalAdmin: false, registration: 100,
+    requestedUnit: 'SEST', isGlobalAdmin: false, registration: '100',
   });
   assert.deepEqual(resolveTenantRequest({ unidade: 'STJ', matricula: '101' }, 'STJ', new Set()), {
-    requestedUnit: 'STJ', isGlobalAdmin: false, registration: 101,
+    requestedUnit: 'STJ', isGlobalAdmin: false, registration: '101',
   });
   assert.throws(() => resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, 'STJ', new Set()), { status: 403 });
 });
 
-test('resolveTenantRequest permite ao administrador global escolher uma unidade', () => {
-  assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, 'STJ', new Set([100])), {
-    requestedUnit: 'STJ', isGlobalAdmin: true, registration: 100,
+test('resolveTenantRequest permite ao administrador global configurado por unidade e matrícula escolher uma unidade', () => {
+  assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '100' }, 'STJ', new Set(['SEST:100'])), {
+    requestedUnit: 'STJ', isGlobalAdmin: true, registration: '100',
+  });
+  assert.throws(() => resolveTenantRequest({ unidade: 'SAJ', matricula: '100' }, 'STJ', new Set(['SEST:100'])), { status: 403 });
+  assert.deepEqual(resolveTenantRequest({ unidade: 'SEST', matricula: '000100' }, 'STJ', new Set(['SEST:100'])), {
+    requestedUnit: 'STJ', isGlobalAdmin: true, registration: '100',
   });
 });
 
@@ -88,6 +92,7 @@ test('valida identidade, expiração e tipos de claims antes de consumir o JWT',
     { usuario: 'USER', matricula: true }, { usuario: 'USER', matricula: '1.5' },
     { usuario: 'USER', matricula: -1 }, { usuario: 'USER', matricula: [] },
     { usuario: 'USER', unidade: 123 }, { usuario: 'USER', unidade: ' ' },
+    { usuario: 'USER', origem: ' ' }, { usuario: 'USER', id: {} }, { usuario: 'USER', authUserId: [] },
   ]) {
     assert.throws(() => verifyAccessToken(jsonwebtoken.sign(payload, secret, { expiresIn: '5m' }), secret));
   }

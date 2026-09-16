@@ -15,7 +15,8 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

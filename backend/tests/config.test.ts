@@ -15,7 +15,7 @@ test("carrega e normaliza a configuração obrigatória", () => {
     databaseUrl: validEnv.DATABASE_URL,
     privateKey: validEnv.PRIVATE_KEY,
     corsOrigins: ["http://localhost:3000", "https://sobracorte.example.com"],
-    globalAdminRegistrations: new Set(),
+    globalAdminIdentities: new Set(),
     dbPoolMax: 20,
     dbPoolIdleTimeoutMs: 30000,
     dbPoolConnectionTimeoutMs: 5000,
@@ -39,14 +39,15 @@ test("rejeita origens CORS com caminho", () => {
   );
 });
 
-test("valida matrículas de administradores globais", () => {
+test("valida identidades de administradores globais", () => {
   assert.deepEqual(
-    loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345, 67890" }).globalAdminRegistrations,
-    new Set([12345, 67890]),
+    loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "sest:12345, saj:67890" }).globalAdminIdentities,
+    new Set(["SEST:12345", "SAJ:67890"]),
   );
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12345,12345" }), /duplicada/);
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "0" }), /inteiras positivas/);
-  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_REGISTRATIONS: "12A" }), /inteiras positivas/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "SEST:12345,SEST:12345" }), /duplicada/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "12345" }), /formato/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "SEST:12-A" }), /formato/);
+  assert.throws(() => loadServerConfig({ ...validEnv, GLOBAL_ADMIN_IDENTITIES: "SEST:0" }), /formato/);
 });
 
 test("carrega e valida configurações customizadas do pool de conexões", () => {

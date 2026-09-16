@@ -1,4 +1,5 @@
 import { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import { buildRefreshedSessionUser } from "./sessionRefresh";
 
 type QueueItem = {
   resolve: () => void;
@@ -78,19 +79,12 @@ export function attachInterceptors(api: AxiosInstance, apiAuth: AxiosInstance) {
         _retry: true,
       } as RetryableRequestConfig);
       const tokenPayload = JSON.parse(atob(newToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(newToken.split('.')[1].length / 4) * 4, '=')));
-      localStorage.setItem('user', JSON.stringify({
-        ...user,
+      localStorage.setItem('user', JSON.stringify(buildRefreshedSessionUser({
+        user,
         token: newToken,
-        id: synced.data.user.id,
-        nome: tokenPayload.nome || tokenPayload.usuario,
-        usuario: tokenPayload.usuario,
-        email: tokenPayload.email || `${tokenPayload.usuario.toLowerCase()}@grupodass.com.br`,
-        setor: tokenPayload.setor || 'NÃO DEFINIDO',
-        funcao: tokenPayload.funcao || 'NÃO DEFINIDO',
-        role: synced.data.user.role,
-        unit: synced.data.unit,
-        isGlobalAdmin: synced.data.isGlobalAdmin,
-      }));
+        tokenPayload,
+        synced: synced.data,
+      })));
       sessionStorage.setItem(
         "expirationTime",
         response.data.tokenExpirationTime

@@ -11,28 +11,30 @@ export interface ServerConfig {
   databaseUrl: string;
   privateKey: string;
   corsOrigins: string[];
-  globalAdminRegistrations: Set<number>;
+  globalAdminIdentities: Set<string>;
   dbPoolMax: number;
   dbPoolIdleTimeoutMs: number;
   dbPoolConnectionTimeoutMs: number;
 }
 
-export function parseGlobalAdminRegistrations(value: string | undefined): Set<number> {
-  const registrations = new Set<number>();
+export function parseGlobalAdminIdentities(value: string | undefined): Set<string> {
+  const identities = new Set<string>();
   for (const item of (value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean)) {
-    if (!/^\d+$/.test(item)) {
-      throw new Error('GLOBAL_ADMIN_REGISTRATIONS deve conter apenas matrículas inteiras positivas separadas por vírgula.');
+    const identity = item.toUpperCase();
+    if (!/^[A-Z0-9_-]+:\d+$/.test(identity)) {
+      throw new Error('GLOBAL_ADMIN_IDENTITIES deve usar o formato UNIDADE:MATRICULA, separado por vírgulas.');
     }
-    const registration = Number(item);
-    if (!Number.isSafeInteger(registration) || registration <= 0) {
-      throw new Error('GLOBAL_ADMIN_REGISTRATIONS deve conter apenas matrículas inteiras positivas separadas por vírgula.');
+    const [unit, registration] = identity.split(':');
+    if (BigInt(registration) <= 0n) {
+      throw new Error('GLOBAL_ADMIN_IDENTITIES deve usar o formato UNIDADE:MATRICULA, separado por vírgulas.');
     }
-    if (registrations.has(registration)) {
-      throw new Error(`GLOBAL_ADMIN_REGISTRATIONS contém matrícula duplicada: ${item}.`);
+    const canonicalIdentity = `${unit}:${BigInt(registration)}`;
+    if (identities.has(canonicalIdentity)) {
+      throw new Error(`GLOBAL_ADMIN_IDENTITIES contém identidade duplicada: ${canonicalIdentity}.`);
     }
-    registrations.add(registration);
+    identities.add(canonicalIdentity);
   }
-  return registrations;
+  return identities;
 }
 
 export function parseOptionalPositiveInt(value: string | undefined, defaultValue: number, paramName: string): number {
@@ -83,7 +85,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
     databaseUrl: required(env, "DATABASE_URL"),
     privateKey: required(env, "PRIVATE_KEY"),
     corsOrigins: parseCorsOrigins(required(env, "CORS_ORIGINS")),
-    globalAdminRegistrations: parseGlobalAdminRegistrations(env.GLOBAL_ADMIN_REGISTRATIONS),
+    globalAdminIdentities: parseGlobalAdminIdentities(env.GLOBAL_ADMIN_IDENTITIES),
     dbPoolMax: parseOptionalPositiveInt(env.DB_POOL_MAX, 20, 'DB_POOL_MAX'),
     dbPoolIdleTimeoutMs: parseOptionalPositiveInt(env.DB_POOL_IDLE_TIMEOUT_MS, 30000, 'DB_POOL_IDLE_TIMEOUT_MS'),
     dbPoolConnectionTimeoutMs: parseOptionalPositiveInt(env.DB_POOL_CONN_TIMEOUT_MS, 5000, 'DB_POOL_CONN_TIMEOUT_MS'),
@@ -93,7 +95,7 @@ export function loadServerConfig(env: NodeJS.ProcessEnv = process.env): ServerCo
 export const vars = {
   DB_URL: process.env.DATABASE_URL?.trim() ?? "",
   PRIVATE_KEY: process.env.PRIVATE_KEY?.trim(),
-  GLOBAL_ADMIN_REGISTRATIONS: parseGlobalAdminRegistrations(process.env.GLOBAL_ADMIN_REGISTRATIONS),
+  GLOBAL_ADMIN_IDENTITIES: parseGlobalAdminIdentities(process.env.GLOBAL_ADMIN_IDENTITIES),
   DB_POOL_MAX: parseOptionalPositiveInt(process.env.DB_POOL_MAX, 20, 'DB_POOL_MAX'),
   DB_POOL_IDLE_TIMEOUT_MS: parseOptionalPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30000, 'DB_POOL_IDLE_TIMEOUT_MS'),
   DB_POOL_CONN_TIMEOUT_MS: parseOptionalPositiveInt(process.env.DB_POOL_CONN_TIMEOUT_MS, 5000, 'DB_POOL_CONN_TIMEOUT_MS'),

@@ -4,7 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { 
   LayoutDashboard, Package, ArrowLeftRight, Users, 
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
-  ClipboardList, Bell
+  ClipboardList, Bell, Building2
 } from 'lucide-vue-next'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
@@ -14,6 +14,8 @@ const router = useRouter()
 const route = useRoute()
 const isSidebarOpen = ref(false)
 const pendingCount = ref(0)
+const isSwitchingUnit = ref(false)
+const unitSwitchError = ref('')
 let notificationInterval = null
 
 async function logout() {
@@ -52,6 +54,9 @@ async function fetchPendingCount() {
 }
 
 onMounted(() => {
+  if (authStore.user?.isGlobalAdmin) {
+    authStore.fetchAvailableUnits()
+  }
   fetchPendingCount()
   notificationInterval = setInterval(fetchPendingCount, 45000)
 })
@@ -82,6 +87,22 @@ const visibleMenuItems = computed(() => {
     return true
   })
 })
+
+async function handleUnitChange(event) {
+  const targetCode = event.target.value
+  if (!targetCode || targetCode === authStore.user?.unit?.code) return
+
+  unitSwitchError.value = ''
+  isSwitchingUnit.value = true
+  try {
+    await authStore.switchUnit(targetCode)
+  } catch (error) {
+    unitSwitchError.value = error.response?.data?.error || error.message || 'Não foi possível trocar de unidade.'
+    event.target.value = authStore.user?.unit?.code || ''
+  } finally {
+    isSwitchingUnit.value = false
+  }
+}
 </script>
 
 <template>
@@ -154,6 +175,28 @@ const visibleMenuItems = computed(() => {
         </div>
 
         <div class="flex items-center gap-4">
+          <div v-if="authStore.user?.isGlobalAdmin" class="flex flex-col items-end">
+            <label for="global-unit-selector" class="sr-only">Unidade ativa</label>
+            <div class="flex items-center gap-2">
+              <Building2 class="w-4 h-4 text-indigo-600 hidden sm:block" />
+              <select
+                id="global-unit-selector"
+                :value="authStore.user?.unit?.code"
+                :disabled="isSwitchingUnit"
+                class="max-w-48 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
+                title="Trocar unidade fabril"
+                @change="handleUnitChange"
+              >
+                <option v-for="unit in authStore.availableUnits" :key="unit.code" :value="unit.code">
+                  {{ unit.code }} — {{ unit.name }}
+                </option>
+              </select>
+            </div>
+            <span v-if="unitSwitchError" class="mt-1 max-w-64 text-right text-[10px] font-semibold text-red-600">
+              {{ unitSwitchError }}
+            </span>
+          </div>
+
           <!-- Central de Notificações / Requisições -->
           <router-link
             v-if="isRequisitionsEnabled"

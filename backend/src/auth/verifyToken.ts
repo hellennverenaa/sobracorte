@@ -14,19 +14,27 @@ export function verifyAccessToken(token: string, secret: string): DecodedToken {
   if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
     throw new jsonwebtoken.JsonWebTokenError('Token sem expiração válida.');
   }
-  // Matrícula é opcional: o fluxo vigente também identifica admins pelo usuário.
+  // Matrícula é textual no provedor externo; tokens legados numéricos seguem válidos.
   if (payload.matricula !== undefined && payload.matricula !== null &&
-      !((typeof payload.matricula === 'string' && /^\d+$/.test(payload.matricula)) ||
-        typeof payload.matricula === 'number')) {
-    throw new jsonwebtoken.JsonWebTokenError('Token com matrícula inválida.');
-  }
-  if (payload.matricula !== undefined && payload.matricula !== null &&
-      (!Number.isSafeInteger(Number(payload.matricula)) || Number(payload.matricula) <= 0)) {
+      !((typeof payload.matricula === 'string' && /^\d+$/.test(payload.matricula.trim())) ||
+        (typeof payload.matricula === 'number' && Number.isSafeInteger(payload.matricula) && payload.matricula > 0))) {
     throw new jsonwebtoken.JsonWebTokenError('Token com matrícula inválida.');
   }
   if (payload.unidade !== undefined &&
       (typeof payload.unidade !== 'string' || !payload.unidade.trim())) {
     throw new jsonwebtoken.JsonWebTokenError('Token com unidade inválida.');
+  }
+  for (const key of ['origem', 'authOrigin'] as const) {
+    if (payload[key] !== undefined && (typeof payload[key] !== 'string' || !payload[key].trim())) {
+      throw new jsonwebtoken.JsonWebTokenError('Token com origem inválida.');
+    }
+  }
+  for (const key of ['id', 'authUserId'] as const) {
+    if (payload[key] !== undefined &&
+      !((typeof payload[key] === 'string' && payload[key].trim()) ||
+        (typeof payload[key] === 'number' && Number.isSafeInteger(payload[key])))) {
+    throw new jsonwebtoken.JsonWebTokenError('Token com identificador do provedor inválido.');
+    }
   }
   return payload as unknown as DecodedToken;
 }

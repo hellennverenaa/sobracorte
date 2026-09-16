@@ -1,9 +1,16 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
-import { api } from '@/services/httpClient'
+import { api, authApi } from '@/services/httpClient'
+import {
+  externalLoginMessage,
+  getLoginPresentation,
+  intersectFactoryUnits,
+  isLegacyUnit,
+  normalizeUnitCode,
+} from '@/services/loginFlow'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -11,10 +18,13 @@ const portalUnixUrl = import.meta.env.VITE_PORTAL_UNIX_URL
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const errorCode = ref('')
 const isLoading = ref(false)
 const units = ref([])
 const selectedUnit = ref('')
 const unitsLoading = ref(true)
+const externalCatalogUnavailable = ref(false)
+const factoryCatalogUnavailable = ref(false)
 
 const lastUnitStorageKey = 'sobracorte_selected_factory_unit'
 const legacyStorageKey = 'sobracorte:last-unit'
@@ -37,6 +47,14 @@ function rememberLastUnit(unitCode) {
   }
 }
 
+const presentation = computed(() => getLoginPresentation(selectedUnit.value, {
+  portalUnixUrl,
+  dassIdentitiesUrl: import.meta.env.VITE_DASS_IDENTITIES_URL,
+}))
+
+const registrationUrl = computed(() => presentation.value.registrationUrl)
+const recoveryUrl = computed(() => presentation.value.recoveryUrl)
+
 watch(selectedUnit, (newVal) => {
   if (newVal) {
     rememberLastUnit(newVal)
@@ -44,26 +62,36 @@ watch(selectedUnit, (newVal) => {
 })
 
 onMounted(async () => {
-  try {
-    const response = await api.get('/factory-units')
-    units.value = Array.isArray(response.data?.data) ? response.data.data : []
-    const lastUnit = loadLastUnit()
-    selectedUnit.value = units.value.some(unit => unit.code === lastUnit)
-      ? lastUnit
-      : (units.value.find(u => u.code === 'SEST')?.code || units.value[0]?.code || '')
-    if (units.value.length === 0) error.value = 'Nenhuma unidade está disponível para acesso.'
-  } catch {
-    error.value = 'Não foi possível carregar as unidades. O login está indisponível.'
-  } finally {
-    unitsLoading.value = false
+  const [factoryResult, externalResult] = await Promise.allSettled([
+    api.get('/factory-units'),
+    authApi.get('/auth/external/units'),
+  ])
+
+  factoryCatalogUnavailable.value = factoryResult.status === 'rejected'
+  externalCatalogUnavailable.value = externalResult.status === 'rejected'
+  units.value = factoryResult.status === 'fulfilled'
+    ? intersectFactoryUnits(factoryResult.value, externalResult.status === 'fulfilled' ? externalResult.value : [])
+    : []
+
+  const lastUnit = normalizeUnitCode(loadLastUnit())
+  selectedUnit.value = units.value.some(unit => unit.code === lastUnit)
+    ? lastUnit
+    : (units.value.find(unit => isLegacyUnit(unit.code))?.code || units.value[0]?.code || '')
+
+  if (factoryCatalogUnavailable.value || units.value.length === 0) {
+    error.value = factoryCatalogUnavailable.value
+      ? 'Não foi possível carregar as unidades. O login está indisponível.'
+      : 'Nenhuma unidade está disponível para acesso.'
   }
+  unitsLoading.value = false
 })
 
 async function handleLogin() {
   error.value = ''
+  errorCode.value = ''
 
   if (!username.value.trim()) {
-    error.value = 'Por favor, informe seu Usuário Unix.'
+    error.value = `Por favor, informe seu ${presentation.value.usernameLabel}.`
     return
   }
 
@@ -82,7 +110,8 @@ async function handleLogin() {
     rememberLastUnit(selectedUnit.value)
     router.push('/')
   } catch (err) {
-    error.value = err.message || 'Erro ao conectar ao serviço de autenticação.'
+    errorCode.value = err.code || ''
+    error.value = externalLoginMessage(err.code) || err.message || 'Erro ao conectar ao serviço de autenticação.'
   } finally {
     isLoading.value = false
   }
@@ -111,7 +140,7 @@ async function handleLogin() {
 
            <div class="inline-flex items-center gap-2 bg-indigo-500/20 border border-indigo-400/30 px-3.5 py-1.5 rounded-full text-xs text-indigo-200 shadow-sm">
              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-             Integrado ao Portal Unix
+             {{ presentation.issuer }}
            </div>
         </div>
 
@@ -123,7 +152,9 @@ async function handleLogin() {
       <div class="md:w-1/2 p-10 md:p-12 flex flex-col justify-between bg-white relative">
         <div class="max-w-md mx-auto w-full my-auto">
           <h2 class="text-3xl font-bold text-slate-900 mb-2">Bem-vindo de volta</h2>
-          <p class="text-slate-500 mb-6 text-sm">Informe suas credenciais Unix para acessar.</p>
+          <p class="text-slate-500 mb-6 text-sm">
+            Informe suas credenciais {{ presentation.legacy ? 'Unix' : 'do DASS Identidades' }} para acessar.
+          </p>
 
           <form @submit.prevent="handleLogin" class="space-y-4">
             <div class="space-y-1">
@@ -140,15 +171,19 @@ async function handleLogin() {
                 </option>
               </select>
             </div>
+
+            <div v-if="externalCatalogUnavailable && !factoryCatalogUnavailable" class="text-amber-700 bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs font-semibold">
+              As unidades externas não puderam ser carregadas. O acesso SEST pelo Portal Unix continua disponível.
+            </div>
             
             <div class="space-y-1">
-              <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Usuário Unix</label>
+              <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">{{ presentation.usernameLabel }}</label>
               <div class="relative">
                 <User class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <input 
                   v-model="username" 
                   type="text" 
-                  placeholder="Ex: hellen.magalhaes" 
+                  :placeholder="presentation.usernamePlaceholder"
                   class="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 font-medium shadow-inner transition-all" 
                   required 
                 />
@@ -171,7 +206,15 @@ async function handleLogin() {
 
             <div v-if="error" class="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl text-sm font-bold animate-shake border border-red-100">
               <AlertTriangle class="w-5 h-5 shrink-0" /> 
-              <span>{{ error }}</span>
+              <span>
+                {{ error }}
+                <a v-if="errorCode === 'PASSWORD_CHANGE_REQUIRED'" :href="recoveryUrl" target="_blank" rel="noopener noreferrer" class="block mt-1 underline">
+                  Alterar senha no DASS Identidades
+                </a>
+                <a v-if="errorCode === 'REGISTRATION_PENDING' || errorCode === 'REGISTRATION_REJECTED'" :href="recoveryUrl" target="_blank" rel="noopener noreferrer" class="block mt-1 underline">
+                  Consultar cadastro no DASS Identidades
+                </a>
+              </span>
             </div>
 
             <button 
@@ -187,15 +230,25 @@ async function handleLogin() {
 
           <div class="mt-6 border-t border-slate-100 pt-5 text-center">
             <p class="text-xs text-slate-500 mb-2">
-              Esqueceu sua senha ou precisa de uma nova conta?
+              {{ presentation.legacy ? 'Esqueceu sua senha ou precisa de uma nova conta?' : 'Gerencie seu cadastro ou recupere sua senha no DASS Identidades.' }}
             </p>
-            <a 
-              :href="portalUnixUrl"
+            <a
+              :href="registrationUrl"
               target="_blank" 
               rel="noopener noreferrer" 
               class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100 transition-colors"
             >
-              <span>Gerenciar acesso no Portal Unix</span>
+              <span>{{ presentation.legacy ? 'Gerenciar acesso no Portal Unix' : 'Criar cadastro no DASS Identidades' }}</span>
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
+            <a
+              v-if="!presentation.legacy"
+              :href="recoveryUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-2 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:underline px-3 py-2 rounded-lg border border-slate-200 transition-colors"
+            >
+              <span>Recuperar senha</span>
               <ExternalLink class="w-3.5 h-3.5" />
             </a>
           </div>

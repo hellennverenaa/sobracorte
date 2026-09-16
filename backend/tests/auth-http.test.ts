@@ -13,22 +13,27 @@ const issue = (payload = claims, key = secret) => jwt.sign(payload, key, { expir
 
 test('rotas reais de autenticação com provedor e persistência simulados', async (t) => {
   const previousKey = vars.PRIVATE_KEY;
-  const previousAdmins = vars.GLOBAL_ADMIN_REGISTRATIONS;
+  const previousAdmins = vars.GLOBAL_ADMIN_IDENTITIES;
   vars.PRIVATE_KEY = secret;
-  vars.GLOBAL_ADMIN_REGISTRATIONS = new Set();
+  vars.GLOBAL_ADMIN_IDENTITIES = new Set();
   let dbAdmin = false;
   let inactive = false;
   let syncCount = 0;
   let lookupCalls = 0;
 
   const origUserFindFirst = prismaWithoutTenant.user.findFirst;
+  const origUserFindUnique = prismaWithoutTenant.user.findUnique;
   const origUnitFindFirst = prisma.factoryUnit.findFirst;
   const origUserUpsert = prisma.user.upsert;
+  const origUserCreate = prisma.user.create;
+  const origUserUpdate = prisma.user.update;
+  const origUserFindMany = prisma.user.findMany;
 
   (prismaWithoutTenant.user as any).findFirst = async (args: any) => {
     lookupCalls++;
     return dbAdmin ? { role: 'admin' } : null;
   };
+  (prismaWithoutTenant.user as any).findUnique = async () => null;
   (prisma.factoryUnit as any).findFirst = async (args: any) => {
     return inactive ? null : ({
       id: args.where.code === 'STJ' ? 2 : 1,
@@ -41,6 +46,12 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
     syncCount++;
     return { id: 1, ...args.create, matriculaDass: 100n };
   };
+  (prisma.user as any).create = async (args: any) => {
+    syncCount++;
+    return { id: 1, ...args.data, matriculaDass: 100n };
+  };
+  (prisma.user as any).update = async (args: any) => ({ id: 1, ...args.data, matriculaDass: 100n });
+  (prisma.user as any).findMany = async () => [];
 
   const server = http.createServer(createApp({ corsOrigins: ['http://localhost'] }));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -90,16 +101,14 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
         assert.equal((await check({ Authorization: authorization, Cookie: `token=${issue()}` })).status, 401);
       }
     });
-    await t.test('troca de fábrica negada a usuário comum e mantida para admins configurados ou locais', async () => {
+    await t.test('troca de fábrica é negada a usuário comum e permitida apenas ao admin global configurado', async () => {
       const headers = { Authorization: `Bearer ${issue()}`, 'X-Dass-Unit': 'STJ' };
       assert.equal((await check(headers)).status, 403);
-      vars.GLOBAL_ADMIN_REGISTRATIONS = new Set([100]);
+      vars.GLOBAL_ADMIN_IDENTITIES = new Set(['SEST:100']);
       assert.equal((await check(headers)).status, 200);
-      vars.GLOBAL_ADMIN_REGISTRATIONS = new Set();
+      vars.GLOBAL_ADMIN_IDENTITIES = new Set();
       dbAdmin = true;
-      assert.equal((await check(headers)).status, 200);
-      // Admin identificado pelo usuário pode selecionar unidade mesmo sem matrícula/unidade no JWT.
-      assert.equal((await check({ Authorization: `Bearer ${jwt.sign({ usuario: claims.usuario }, secret, { expiresIn: '5m' })}`, 'X-Dass-Unit': 'STJ' })).status, 200);
+      assert.equal((await check(headers)).status, 403);
       dbAdmin = false;
       inactive = true;
       assert.equal((await check({ Authorization: `Bearer ${issue()}` })).status, 403);
@@ -112,10 +121,14 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
     });
   } finally {
     (prismaWithoutTenant.user as any).findFirst = origUserFindFirst;
+    (prismaWithoutTenant.user as any).findUnique = origUserFindUnique;
     (prisma.factoryUnit as any).findFirst = origUnitFindFirst;
     (prisma.user as any).upsert = origUserUpsert;
+    (prisma.user as any).create = origUserCreate;
+    (prisma.user as any).update = origUserUpdate;
+    (prisma.user as any).findMany = origUserFindMany;
     vars.PRIVATE_KEY = previousKey;
-    vars.GLOBAL_ADMIN_REGISTRATIONS = previousAdmins;
+    vars.GLOBAL_ADMIN_IDENTITIES = previousAdmins;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });

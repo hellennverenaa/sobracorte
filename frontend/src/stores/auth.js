@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { authApi, api } from '../services/httpClient'
+import { externalLoginMessage, loginRequest, normalizeUnitCode } from '../services/loginFlow'
+import { canSwitchFactoryUnit, normalizeFactoryUnitCode } from '../services/unitAccess'
 
 function loadStoredUser() {
   try {
@@ -18,6 +20,8 @@ function decodeJwtPayload(token) {
 
 function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
   const apiUser = decodeJwtPayload(token)
+  const authOrigin = String(apiUser.origem || apiUser.origin || 'LEGADO').toUpperCase()
+  const authUserId = String(apiUser.id ?? '')
   const matricula = syncedUser?.matriculaDass || apiUser.matricula || apiUser.registration || apiUser.matriculaDass || syncedUser?.id || apiUser.id
   return {
     id: syncedUser?.id ?? apiUser.id,
@@ -33,6 +37,8 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
     role: syncedUser?.role || 'leitor',
     token,
     unit,
+    authOrigin,
+    authUserId,
     isGlobalAdmin,
   }
 }
@@ -81,10 +87,11 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async switchUnit(unitCode) {
-      if (!this.user?.isGlobalAdmin && this.user?.role !== 'admin') return false;
+      if (!canSwitchFactoryUnit(this.user)) return false;
       try {
         const token = this.user.token;
-        const targetCode = typeof unitCode === 'object' ? unitCode.code : unitCode;
+        const targetCode = normalizeFactoryUnitCode(typeof unitCode === 'object' ? unitCode.code : unitCode);
+        if (!targetCode || targetCode === this.user.unit?.code) return true;
         const checkResponse = await api.post('/auth/check-user', null, {
           headers: { Authorization: `Bearer ${token}`, 'X-Dass-Unit': targetCode }
         });
@@ -142,16 +149,17 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async login(user, password, unitCode) {
+      const normalizedUnit = normalizeUnitCode(unitCode)
+      const request = loginRequest(normalizedUnit, user, password)
       try {
-        const response = await authApi.post("/auth/login", { 
-          usuario: user,
-          senha: password
-        })
+        // The unit determines the authentication domain. There is deliberately
+        // no fallback: an external credential must never be sent to Unix.
+        const response = await authApi.post(request.endpoint, request.payload)
 
         const payload = response.data
 
         const checkResponse = await api.post('/auth/check-user', null, {
-          headers: { Authorization: `Bearer ${payload.data.token}`, 'X-Dass-Unit': unitCode }
+          headers: { Authorization: `Bearer ${payload.data.token}`, 'X-Dass-Unit': normalizedUnit }
         });
         const userSobraCorte = checkResponse.data.user;
 
@@ -178,7 +186,18 @@ export const useAuthStore = defineStore('auth', {
         return true
 
       } catch (error) {
-        if (error.response?.status === 403) {
+        const errorCode = error.response?.data?.code
+        if (!request.legacy && errorCode) {
+          const knownMessage = externalLoginMessage(errorCode)
+          if (knownMessage) {
+            const authError = new Error(knownMessage)
+            authError.code = errorCode
+            authError.unitCode = normalizedUnit
+            throw authError
+          }
+        }
+
+        if (request.legacy && error.response?.status === 403) {
           try { await authApi.post('/auth/logout') } catch {}
           this.clearSession()
         }

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma, prismaWithoutTenant } from '../prisma';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
-import { requireActiveTenant, resolveTenantRequestWithAdminCheck, TenantAuthorizationError } from '../auth/tenant';
+import { requireActiveTenant, resolveTenantRequest, TenantAuthorizationError, normalizeRegistration, registrationToBigInt } from '../auth/tenant';
 import { tenantStorage } from '../context/tenantContext';
 import { EffectiveContext } from '../types/express';
 
@@ -24,22 +24,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
   try {
     const user = verifyAccessToken(token, vars.PRIVATE_KEY);
-    const { requestedUnit, isGlobalAdmin } = await resolveTenantRequestWithAdminCheck(
+    const { requestedUnit, isGlobalAdmin } = resolveTenantRequest(
       user,
       req.get('X-Dass-Unit'),
-      vars.GLOBAL_ADMIN_REGISTRATIONS,
-      async (matricula, usuario) => {
-        const adminUser = await prismaWithoutTenant.user.findFirst({
-          where: {
-            OR: [
-              ...(matricula > 0 ? [{ matriculaDass: BigInt(matricula) }] : []),
-              ...(usuario ? [{ usuario: String(usuario).toUpperCase().trim() }] : [])
-            ],
-            role: 'admin'
-          }
-        });
-        return Boolean(adminUser);
-      }
+      vars.GLOBAL_ADMIN_IDENTITIES,
     );
 
     // `prisma.factoryUnit` é um modelo GLOBAL — o interceptor de tenant é
@@ -51,17 +39,13 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
     // Busca o usuário no banco de dados na unidade ativa para estabelecer o contexto efetivo em tempo real
     const usuario = String(user.usuario || '').toUpperCase().trim();
-    const matricula = user.matricula ? BigInt(user.matricula) : null;
-
-    const userInDb = await prismaWithoutTenant.user.findFirst({
-      where: {
-        factoryUnitId: tenant.id,
-        OR: [
-          ...(matricula ? [{ matriculaDass: matricula }] : []),
-          { usuario },
-        ],
-      },
-    });
+    const authOrigin = String(user.origem || user.authOrigin || 'LEGADO').trim().toUpperCase();
+    const authUserId = String(user.authUserId ?? user.id ?? usuario).trim();
+    const userInDb = authOrigin && authUserId
+      ? await prismaWithoutTenant.user.findUnique({
+          where: { factoryUnitId_authOrigin_authUserId: { factoryUnitId: tenant.id, authOrigin, authUserId } },
+        })
+      : null;
 
     const effectiveRole = isGlobalAdmin ? 'admin' : (userInDb?.role || user.role || 'leitor');
     const assignedSector = userInDb?.assignedSector || (user.assignedSector as any) || null;
@@ -73,7 +57,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       assignedSector,
       isGlobalAdmin,
       usuario,
-      matriculaDass: userInDb?.matriculaDass ? Number(userInDb.matriculaDass) : (user.matricula ? Number(user.matricula) : null),
+      matriculaDass: userInDb?.matriculaDass ? Number(userInDb.matriculaDass) : (() => {
+        const registration = registrationToBigInt(normalizeRegistration(user.matricula));
+        return registration === null ? null : Number(registration);
+      })(),
       nome: userInDb?.nome || user.nome || usuario,
     };
 
@@ -171,4 +158,3 @@ export const requireRequisitionsEnabled = (req: Request, res: Response, next: Ne
 
   next();
 };
-

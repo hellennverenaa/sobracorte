@@ -1,19 +1,22 @@
 import { SectorType } from '../generated/prisma';
 
 export interface DecodedToken {
-    id: string;
+    id?: string | number;
     usuario: string;
     codbarras: string;
     rfid: string;
-    matricula: string;
-    setor: string;
-    nivel: string;
-    unidade: string;
-    funcao: string;
+    matricula?: string | number | null;
+    setor?: string;
+    nivel?: string;
+    unidade?: string;
+    funcao?: string;
     nome?: string;
     email?: string;
     role?: string;
     assignedSector?: string | null;
+    origem?: string;
+    authOrigin?: string;
+    authUserId?: string | number;
 }
 
 export interface TenantContext {
@@ -44,4 +47,3 @@ declare global {
         }
     }
 }
-
