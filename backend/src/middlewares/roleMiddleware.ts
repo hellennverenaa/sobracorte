@@ -43,27 +43,32 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const authUserId = String(user.authUserId ?? user.id ?? usuario).trim();
     // This lookup deliberately runs with the same tenant guard used by the
     // request. Provider claims never grant a local role or sector.
-    const userInDb = authOrigin && authUserId
-      ? await tenantStorage.run({ tenantId: tenant.id }, () => prisma.user.findUnique({
-          where: { factoryUnitId_authOrigin_authUserId: { factoryUnitId: tenant.id, authOrigin, authUserId } },
-        }))
+    const nativeUnit = String(user.unidade || '').trim().toUpperCase();
+    const nativeFactory = await prisma.factoryUnit.findFirst({ where: { code: nativeUnit, active: true }, select: { id: true } });
+    const identity = authOrigin && authUserId && nativeFactory
+      ? await prisma.authIdentity.findUnique({ where: { nativeUnitId_authOrigin_authUserId: { nativeUnitId: nativeFactory.id, authOrigin, authUserId } } })
+      : null;
+    const binding = identity
+      ? await tenantStorage.run({ tenantId: tenant.id }, () => prisma.userRoleBinding.findUnique({ where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } } }))
       : null;
 
-    const effectiveRole = isGlobalAdmin ? 'admin' : (userInDb?.role || 'leitor');
-    const assignedSector = isGlobalAdmin ? null : (userInDb?.assignedSector || null);
+    const effectiveRole = isGlobalAdmin ? 'admin' : (binding?.role || 'leitor');
+    const assignedSector = isGlobalAdmin ? null : (binding?.assignedSector || null);
 
     const effectiveContext: EffectiveContext = {
-      userId: userInDb?.id || 0,
+      userId: identity?.id || 0,
+      identityId: identity?.id || 0,
+      bindingId: binding?.id || null,
       factoryUnitId: tenant.id,
       effectiveRole,
       assignedSector,
       isGlobalAdmin,
       usuario,
-      matriculaDass: userInDb?.matriculaDass ? Number(userInDb.matriculaDass) : (() => {
+      matriculaDass: identity?.matriculaDass ? Number(identity.matriculaDass) : (() => {
         const registration = registrationToBigInt(normalizeRegistration(user.matricula));
         return registration === null ? null : Number(registration);
       })(),
-      nome: userInDb?.nome || user.nome || usuario,
+      nome: identity?.nome || user.nome || usuario,
     };
 
     req.user = {

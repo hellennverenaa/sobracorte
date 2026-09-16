@@ -19,18 +19,20 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
   let inactive = false;
   let syncCount = 0;
   let lookupCalls = 0;
-  let storedAuthorization: Record<string, unknown> | null = null;
+  let storedIdentity: Record<string, unknown> | null = null;
+  let storedBinding: Record<string, unknown> | null = null;
 
-  const origUserFindUnique = prisma.user.findUnique;
   const origUnitFindFirst = prisma.factoryUnit.findFirst;
-  const origUserUpsert = prisma.user.upsert;
-  const origUserCreate = prisma.user.create;
-  const origUserUpdate = prisma.user.update;
   const origUserFindMany = prisma.user.findMany;
+  const origIdentityFindUnique = prisma.authIdentity.findUnique;
+  const origIdentityUpsert = prisma.authIdentity.upsert;
+  const origBindingFindUnique = prisma.userRoleBinding.findUnique;
+  const origBindingUpsert = prisma.userRoleBinding.upsert;
+  const origBindingFindMany = prisma.userRoleBinding.findMany;
 
-  (prisma.user as any).findUnique = async (args: any) => {
+  (prisma.authIdentity as any).findUnique = async () => {
     lookupCalls++;
-    return storedAuthorization;
+    return storedIdentity;
   };
   (prisma.factoryUnit as any).findFirst = async (args: any) => {
     return inactive ? null : ({
@@ -40,16 +42,22 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       enableRequisitions: true,
     });
   };
-  (prisma.user as any).upsert = async (args: any) => {
+  (prisma.authIdentity as any).upsert = async (args: any) => {
     syncCount++;
-    return { id: 1, ...args.create, matriculaDass: 100n };
+    storedIdentity = storedIdentity
+      ? { ...storedIdentity, ...args.update }
+      : { id: 1, ...args.create, matriculaDass: 100n };
+    return storedIdentity;
   };
-  (prisma.user as any).create = async (args: any) => {
-    syncCount++;
-    return { id: 1, ...args.data, matriculaDass: 100n };
+  (prisma.userRoleBinding as any).findUnique = async () => storedBinding;
+  (prisma.userRoleBinding as any).upsert = async (args: any) => {
+    storedBinding ||= { id: 1, ...args.create };
+    return storedBinding;
   };
-  (prisma.user as any).update = async (args: any) => ({ id: 1, ...args.data, matriculaDass: 100n });
   (prisma.user as any).findMany = async () => [];
+  (prisma.userRoleBinding as any).findMany = async () => storedBinding && storedIdentity
+    ? [{ ...storedBinding, identity: storedIdentity }]
+    : [];
 
   const server = http.createServer(createApp({ corsOrigins: ['http://localhost'] }));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -91,6 +99,11 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       assert.equal(body.user.usuario, claims.usuario);
       assert.equal(body.user.matriculaDass, 100);
       assert.equal(body.user.role, 'leitor', 'claims do provedor não concedem papel local');
+      assert.equal(body.identity.authUserId, claims.usuario);
+      assert.equal(body.binding.role, 'leitor');
+      assert.equal(body.effectiveContext.identityId, body.identity.id);
+      assert.equal(body.effectiveContext.bindingId, body.binding.id);
+      assert.equal(body.nativeUnit.code, 'SEST');
       assert.equal(body.unit.code, 'SEST');
       assert.equal(body.isGlobalAdmin, false);
     });
@@ -98,17 +111,26 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       const providerAdmin = { Authorization: `Bearer ${issue({ ...claims, role: 'admin', assignedSector: 'CORTE' })}` };
       assert.equal((await listUsers(providerAdmin)).status, 403);
 
-      storedAuthorization = {
+      storedIdentity = {
         id: 7,
+        nativeUnitId: 1,
+        authOrigin: 'LEGADO',
+        authUserId: claims.usuario,
+        usuario: claims.usuario,
+        nome: 'Admin local',
+        email: 'admin@teste.local',
+        matriculaDass: 100n,
+      };
+      storedBinding = {
+        id: 7,
+        identityId: 7,
         factoryUnitId: 1,
         role: 'admin',
         assignedSector: null,
-        usuario: claims.usuario,
-        nome: 'Admin local',
-        matriculaDass: 100n,
       };
       assert.equal((await listUsers({ Authorization: `Bearer ${issue()}` })).status, 200);
-      storedAuthorization = null;
+      storedIdentity = null;
+      storedBinding = null;
     });
     await t.test('cookie válido funciona apenas sem Authorization; Bearer inválido não usa cookie', async () => {
       assert.equal((await check({ Cookie: `token=${issue()}` })).status, 200);
@@ -132,12 +154,13 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       vars.PRIVATE_KEY = secret;
     });
   } finally {
-    (prisma.user as any).findUnique = origUserFindUnique;
     (prisma.factoryUnit as any).findFirst = origUnitFindFirst;
-    (prisma.user as any).upsert = origUserUpsert;
-    (prisma.user as any).create = origUserCreate;
-    (prisma.user as any).update = origUserUpdate;
     (prisma.user as any).findMany = origUserFindMany;
+    (prisma.authIdentity as any).findUnique = origIdentityFindUnique;
+    (prisma.authIdentity as any).upsert = origIdentityUpsert;
+    (prisma.userRoleBinding as any).findUnique = origBindingFindUnique;
+    (prisma.userRoleBinding as any).upsert = origBindingUpsert;
+    (prisma.userRoleBinding as any).findMany = origBindingFindMany;
     vars.PRIVATE_KEY = previousKey;
     vars.GLOBAL_ADMIN_IDENTITIES = previousAdmins;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "NODE_ENV=test tsx --test tests/**/*.test.ts",
+    "test:identity:db": "NODE_ENV=test tsx --test tests/identityRbac.db.test.ts",
     "test:tenant:db": "NODE_ENV=test tsx --test tests/multiTenantIsolation.db.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"
   },

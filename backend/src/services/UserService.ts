@@ -59,8 +59,9 @@ export class UserService {
 
     return await prisma.$transaction(async (tx: any) => {
       // 2. Buscar usuário atual na fábrica
-      const currentUser = await tx.user.findFirst({
+      const currentUser = await tx.userRoleBinding.findFirst({
         where: { id: targetUserId, factoryUnitId },
+        include: { identity: true },
       });
 
       if (!currentUser) {
@@ -84,7 +85,7 @@ export class UserService {
       }
 
       // 5. Atualizar o usuário
-      const updatedUser = await tx.user.update({
+      const updatedUser = await tx.userRoleBinding.update({
         where: { id_factoryUnitId: { id: targetUserId, factoryUnitId } },
         data: {
           role: newRole,
@@ -97,8 +98,9 @@ export class UserService {
         data: {
           factoryUnitId,
           userId: currentUser.id,
-          usuario: currentUser.usuario,
-          nome: currentUser.nome,
+          bindingId: currentUser.id,
+          usuario: currentUser.identity.usuario,
+          nome: currentUser.identity.nome,
           previousRole: currentUser.role,
           newRole,
           previousSector: normalizedCurrentSector,
@@ -118,12 +120,12 @@ export class UserService {
           operatorId: actor.matricula || null,
           operatorName: actor.nome || actor.usuario,
           origem: 'Gestão de Usuários - RBAC',
-          reason: `Alteração de permissões do usuário ${currentUser.usuario} (${currentUser.nome}): papel de '${currentUser.role}' para '${newRole}' e setor de '${normalizedCurrentSector || 'TODOS'}' para '${normalizedNewSector || 'TODOS'}'.`,
+          reason: `Alteração de permissões do usuário ${currentUser.identity.usuario} (${currentUser.identity.nome}): papel de '${currentUser.role}' para '${newRole}' e setor de '${normalizedCurrentSector || 'TODOS'}' para '${normalizedNewSector || 'TODOS'}'.`,
         },
       });
 
       return {
-        user: updatedUser,
+        user: { ...updatedUser, identity: currentUser.identity },
         changed: true,
         auditLog,
       };

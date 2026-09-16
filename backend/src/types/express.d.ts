@@ -28,6 +28,8 @@ export interface TenantContext {
 
 export interface EffectiveContext {
     userId: number;
+    identityId: number;
+    bindingId: number | null;
     factoryUnitId: number;
     effectiveRole: string;
     assignedSector: SectorType | null;

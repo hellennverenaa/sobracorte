@@ -35,6 +35,7 @@ const adapter = new PrismaPg(pool, {
 //     ficarão expostos sem filtro de tenant.
 const GLOBAL_MODELS = new Set<string>([
   "FactoryUnit",   // Tabela-pai do tenant — sem factoryUnitId próprio
+  "AuthIdentity",  // consultada por identidade nativa durante o bootstrap autenticado
 ]);
 
 // ─── Operações que injetam `where.factoryUnitId` ─────────────────────────────

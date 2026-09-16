@@ -66,6 +66,8 @@ model FactoryUnit {
   materialLocations  MaterialLocation[]
   movements          Movement[]
   users              User[]
+  nativeIdentities   AuthIdentity[] @relation("IdentityNativeUnit")
+  userRoleBindings   UserRoleBinding[]
   units              UnitConfig[]
   categories         CategoryConfig[]
   origins            OriginConfig[]
@@ -227,10 +229,52 @@ model User {
   @@schema("sobra_corte")
 }
 
+// Identidade autenticada é vinculada somente à sua unidade de origem. RBAC
+// local vive em UserRoleBinding para que uma visita global não crie usuário local.
+model AuthIdentity {
+  id             Int         @id @default(autoincrement())
+  nativeUnitId   Int
+  authOrigin     String
+  authUserId     String
+  usuario        String
+  nome           String
+  email          String
+  setor          String?
+  funcao         String?
+  matriculaDass  BigInt?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  nativeUnit     FactoryUnit @relation("IdentityNativeUnit", fields: [nativeUnitId], references: [id])
+  bindings       UserRoleBinding[]
+
+  @@unique([nativeUnitId, authOrigin, authUserId])
+  @@index([nativeUnitId, matriculaDass])
+  @@schema("sobra_corte")
+}
+
+model UserRoleBinding {
+  id             Int          @id @default(autoincrement())
+  identityId     Int
+  factoryUnitId  Int
+  role           String       @default("leitor")
+  assignedSector SectorType?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  identity       AuthIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  factoryUnit    FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
+  audits         RoleChangeAudit[]
+
+  @@unique([identityId, factoryUnitId])
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, identityId])
+  @@schema("sobra_corte")
+}
+
 // 🛡️ TABELA DE AUDITORIA DE ALTERAÇÃO DE PERMISSÕES RBAC (LGPD / SEGURANÇA DASS)
 model RoleChangeAudit {
   id             Int          @id @default(autoincrement())
   userId         Int
+  bindingId      Int?
   usuario        String
   nome           String
   previousRole   String
@@ -241,6 +285,7 @@ model RoleChangeAudit {
   changedByName  String       // Nome do operador
   factoryUnitId  Int
   factoryUnit    FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
+  binding        UserRoleBinding? @relation(fields: [bindingId], references: [id], onDelete: SetNull)
   changedAt      DateTime     @default(now())
 
   @@index([factoryUnitId, userId])

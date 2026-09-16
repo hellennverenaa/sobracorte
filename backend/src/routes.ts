@@ -171,15 +171,19 @@ routes.get('/reports/requisitions/export', requireAuth, authenticatedLimiter, re
 
 routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
+    const users = await prisma.userRoleBinding.findMany({
       where: { factoryUnitId: req.tenant!.id },
-      orderBy: { nome: 'asc' }
+      include: { identity: true },
+      orderBy: { identity: { nome: 'asc' } },
     });
 
-    const safeUsers = users.map(user => ({
-      ...user,
-      matriculaDass: user.matriculaDass ? Number(user.matriculaDass) : null,
-      assignedSector: user.assignedSector || null,
+    const safeUsers = users.map(({ identity, ...binding }) => ({
+      ...identity,
+      ...binding,
+      identityId: identity.id,
+      id: binding.id,
+      matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
+      assignedSector: binding.assignedSector || null,
     }));
 
     res.json(safeUsers);
@@ -231,10 +235,14 @@ routes.put('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), a
       actor,
     });
 
+    const { identity, ...binding } = result.user;
     const safeUser = {
-      ...result.user,
-      matriculaDass: result.user.matriculaDass ? Number(result.user.matriculaDass) : null,
-      assignedSector: result.user.assignedSector || null,
+      ...identity,
+      ...binding,
+      identityId: identity.id,
+      id: binding.id,
+      matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
+      assignedSector: binding.assignedSector || null,
     };
 
     return res.json(safeUser);
@@ -260,13 +268,16 @@ routes.delete('/users/:id', requireAuth, mutationLimiter, requireRole(['admin'])
   }
 
   try {
-    const target = await prisma.user.findFirst({ where: { id, factoryUnitId: req.tenant!.id }, select: { usuario: true } });
+    const target = await prisma.userRoleBinding.findFirst({
+      where: { id, factoryUnitId: req.tenant!.id },
+      include: { identity: { select: { usuario: true } } },
+    });
     if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
-    if (target.usuario === req.user?.usuario) {
+    if (target.identity.usuario === req.user?.usuario) {
       return res.status(409).json({ error: 'Não é possível remover o próprio usuário.' });
     }
 
-    await prisma.user.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+    await prisma.userRoleBinding.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } } });
     return res.json({ message: 'Usuário removido com sucesso.' });
   } catch {
     return res.status(500).json({ error: 'Erro interno ao remover usuário' });

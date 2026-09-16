@@ -49,13 +49,12 @@ test('UserService.updateUserRole detecta conflito de concorrência quando expect
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
-        user: {
+        userRoleBinding: {
           findFirst: async () => ({
             id: 10,
-            usuario: 'operador1',
-            nome: 'Operador Um',
             role: 'lider', // Papel já foi alterado para líder no banco
             assignedSector: 'CORTE',
+            identity: { usuario: 'operador1', nome: 'Operador Um' },
           }),
         },
       };
@@ -90,13 +89,12 @@ test('UserService.updateUserRole é idempotente quando dados não são alterados
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
-        user: {
+        userRoleBinding: {
           findFirst: async () => ({
             id: 10,
-            usuario: 'operador1',
-            nome: 'Operador Um',
             role: 'lider',
             assignedSector: 'CORTE',
+            identity: { usuario: 'operador1', nome: 'Operador Um' },
           }),
         },
         roleChangeAudit: {
@@ -135,20 +133,17 @@ test('UserService.updateUserRole atualiza usuário e persiste auditoria em RoleC
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
-        user: {
+        userRoleBinding: {
           findFirst: async () => ({
             id: 10,
-            usuario: 'operador1',
-            nome: 'Operador Um',
             role: 'leitor',
             assignedSector: null,
+            identity: { usuario: 'operador1', nome: 'Operador Um' },
           }),
           update: async ({ data }: any) => {
             userUpdated = true;
             return {
               id: 10,
-              usuario: 'operador1',
-              nome: 'Operador Um',
               role: data.role,
               assignedSector: data.assignedSector,
             };
@@ -192,6 +187,7 @@ test('UserService.updateUserRole atualiza usuário e persiste auditoria em RoleC
 
   // Verifica dados do log de auditoria
   assert.equal(auditRecord.userId, 10);
+  assert.equal(auditRecord.bindingId, 10);
   assert.equal(auditRecord.previousRole, 'leitor');
   assert.equal(auditRecord.newRole, 'movimentador');
   assert.equal(auditRecord.previousSector, null);

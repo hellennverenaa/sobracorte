@@ -75,7 +75,7 @@ Os ciclos 1 a 4 são sequenciais. Trabalho frontend preparatório só pode ocorr
 
 ## 4. Estratégia de validação
 
-Durante os ciclos, executar somente a validação mínima capaz de provar o marco sem regressão no escopo alterado. A validação completa e transversal fica concentrada no Ciclo 7.
+Durante os ciclos 1 a 6, executar somente a validação mínima capaz de provar a integração alterada: typecheck ou build quando o contrato exigir e testes diretamente ligados aos arquivos e fluxos modificados. Não executar a suíte completa, auditorias gerais ou matrizes adicionais por precaução. A validação completa e transversal fica concentrada no Ciclo 7; a única exceção é uma falha focal que forneça evidência concreta de regressão mais ampla.
 
 Validação mínima por tipo de alteração:
 
@@ -86,7 +86,7 @@ Validação mínima por tipo de alteração:
 - documentação e limpeza: `git diff --check`, busca por referências removidas e build/typecheck somente quando a remoção afetar imports ou configuração;
 - todo ciclo: `git diff --check`, revisão do diff e confirmação de que não há alteração fora do escopo.
 
-Não executar repetidamente a suíte completa entre pequenas alterações do mesmo ciclo. Se um teste focado revelar falha estrutural fora do escopo previsto, interromper o aceite, analisar a dependência e atualizar este plano antes de expandir o trabalho.
+Não executar a suíte completa nos ciclos 1 a 6. Se um teste focado revelar falha estrutural fora do escopo previsto, interromper o aceite, analisar a dependência e atualizar este plano antes de expandir o trabalho.
 
 ## 5. Ciclo 0 — Baseline e contratos
 

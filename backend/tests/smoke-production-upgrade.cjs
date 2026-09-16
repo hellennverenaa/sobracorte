@@ -10,11 +10,14 @@ const { prismaForInternalUse: db, pool } = require('../dist/src/prisma');
 const { loadServerConfig } = require('../dist/src/config/dotenv');
 
 async function main() {
-  const operator = await db.user.findFirst({ where: { role: 'admin' }, include: { factoryUnit: true } });
+  const operator = await db.userRoleBinding.findFirst({
+    where: { role: 'admin' },
+    include: { factoryUnit: true, identity: true },
+  });
   assert.ok(operator, 'The acceptance copy must contain an administrator for authenticated read checks');
-  const token = jwt.sign({ usuario: operator.usuario, nome: operator.nome,
+  const token = jwt.sign({ usuario: operator.identity.usuario, nome: operator.identity.nome,
     unidade: operator.factoryUnit.code,
-    ...(operator.matriculaDass ? { matricula: Number(operator.matriculaDass) } : {}) },
+    ...(operator.identity.matriculaDass ? { matricula: Number(operator.identity.matriculaDass) } : {}) },
   process.env.PRIVATE_KEY, { expiresIn: '5m' });
   const app = createApp(loadServerConfig());
   const server = app.listen(0, '127.0.0.1');
@@ -43,7 +46,8 @@ async function main() {
       await tx.movement.create({ data: { factoryUnitId: operator.factoryUnitId,
         materialId: material.id, type: 'entrada', quantity: 1, origem: 'UPGRADE ACCEPTANCE' } });
       await tx.roleChangeAudit.create({ data: { factoryUnitId: operator.factoryUnitId,
-        userId: operator.id, usuario: operator.usuario, nome: operator.nome,
+        userId: operator.id, bindingId: operator.id,
+        usuario: operator.identity.usuario, nome: operator.identity.nome,
         previousRole: 'leitor', newRole: 'lider', previousSector: 'CORTE', newSector: 'CORTE',
         changedByName: 'UPGRADE ACCEPTANCE' } });
       const stock = await tx.stockItem.create({ data: { factoryUnitId: operator.factoryUnitId,
