@@ -21,7 +21,7 @@ export class MaterialController {
         ? rawSearch.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean)
         : [];
 
-      const whereClause: Prisma.MaterialWhereInput = {
+      const whereClause: Prisma.StockItemWhereInput = { sector: 'CORTE',
         ...(searchTerms.length > 0
           ? {
               OR: searchTerms.flatMap((term) => [
@@ -33,7 +33,7 @@ export class MaterialController {
           : {}),
       };
 
-      const totalItems = await prisma.material.count({ where: whereClause });
+      const totalItems = await prisma.stockItem.count({ where: whereClause });
       res.set('X-Total-Count', totalItems.toString());
 
       const requestedPage = Number(_page);
@@ -42,7 +42,7 @@ export class MaterialController {
       const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 10000) : 10000;
       const skip = (page - 1) * limit;
 
-      const materials = await prisma.material.findMany({
+      const materials = await prisma.stockItem.findMany({
         where: whereClause,
         skip: skip,
         take: limit,
@@ -101,30 +101,19 @@ export class MaterialController {
       const unit = normalizeUnit(req.body.unidade || req.body.unit, 'CORTE');
       const type = String(req.body.tipo || req.body.type || 'outros').trim().toUpperCase();
 
-      const movimentos = qtdInicial > 0 ? {
-        create: {
-          factoryUnitId: req.tenant!.id,
-          type: 'entrada',
-          quantity: qtdInicial,
-          origem: 'Saldo Inicial / Implantação',
-          reason: 'Saldo Inicial de Implantação',
-          materialCode: code,
-          materialName: name,
-          materialCategory: type,
-          materialUnit: unit,
-          locationName,
-          operatorId: req.user?.matricula ? String(req.user.matricula) : null,
-          operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação'
-        }
-      } : undefined;
-
       const novo = await prisma.$transaction(async (tx) => {
+        const duplicate = await tx.stockItem.findFirst({
+          where: { factoryUnitId: req.tenant!.id, sector: 'CORTE', code },
+          select: { id: true },
+        });
+        if (duplicate) throw new Error('MATERIAL_DUPLICATE');
+
         let loc = await tx.location.findUnique({
           where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
         });
         if (!loc) loc = await tx.location.create({ data: { name: locationName, factoryUnitId: req.tenant!.id } });
 
-        return tx.material.create({
+        const created = await tx.stockItem.create({
           data: {
             code,
             name,
@@ -133,15 +122,38 @@ export class MaterialController {
             type,
             observation: String(req.body.observacoes || req.body.observation || ''),
             factoryUnitId: req.tenant!.id,
+            sector: 'CORTE', componentType: 'MATERIA_PRIMA',
             locations: { create: { locationId: loc.id, quantity: qtdInicial } },
-            movements: movimentos,
           },
         });
+        if (qtdInicial > 0) {
+          await tx.stockMovement.create({
+            data: {
+              factoryUnitId: req.tenant!.id,
+              stockItemId: created.id,
+              sector: 'CORTE',
+              type: 'ENTRADA',
+              quantity: qtdInicial,
+              destinationLocationId: loc.id,
+              destinationLocationName: loc.name,
+              itemCode: code,
+              itemName: name,
+              itemCategory: type,
+              itemUnit: unit,
+              origem: 'Saldo Inicial / Implantação',
+              reason: 'Saldo Inicial de Implantação',
+              operatorId: req.user?.matricula ? String(req.user.matricula) : null,
+              operatorName: req.user?.nome || req.user?.usuario || 'Sistema / Implantação',
+            },
+          });
+        }
+        return created;
       });
       
       res.status(201).json(novo);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if ((error instanceof Error && error.message === 'MATERIAL_DUPLICATE') ||
+          (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
         return res.status(409).json({ error: 'Já existe um material com esse código.' });
       }
       console.error('Erro interno ao criar material.');
@@ -162,8 +174,8 @@ export class MaterialController {
       }
 
       const atualizado = await prisma.$transaction(async (tx) => {
-        const existingMaterial = await tx.material.findFirst({
-          where: { id: materialId, factoryUnitId: req.tenant!.id },
+        const existingMaterial = await tx.stockItem.findFirst({
+          where: { id: materialId, factoryUnitId: req.tenant!.id, sector: 'CORTE' },
           include: { locations: true },
         });
         if (!existingMaterial) throw new Error('MATERIAL_NOT_FOUND');
@@ -192,14 +204,14 @@ export class MaterialController {
             where: { factoryUnitId_name: { factoryUnitId: req.tenant!.id, name: locationName } },
           });
           if (!loc) throw new Error('LOCATION_NOT_FOUND');
-          await tx.materialLocation.upsert({
-            where: { materialId_locationId_factoryUnitId: { materialId, locationId: loc.id, factoryUnitId: req.tenant!.id } },
+          await tx.stockItemLocation.upsert({
+            where: { stockItemId_locationId_factoryUnitId: { stockItemId: materialId, locationId: loc.id, factoryUnitId: req.tenant!.id } },
             update: {},
-            create: { materialId, locationId: loc.id, factoryUnitId: req.tenant!.id, quantity: 0 },
+            create: { stockItemId: materialId, locationId: loc.id, factoryUnitId: req.tenant!.id, quantity: 0 },
           });
         }
 
-        return tx.material.update({
+        return tx.stockItem.update({
           where: { id_factoryUnitId: { id: materialId, factoryUnitId: req.tenant!.id } },
           data: {
             code: req.body.code !== undefined ? String(req.body.code).trim().toUpperCase() : undefined,
@@ -243,8 +255,8 @@ export class MaterialController {
 
       await prisma.$transaction(
         async (tx) => {
-          const material = await tx.material.findFirst({
-            where: { id: materialId, factoryUnitId },
+          const material = await tx.stockItem.findFirst({
+            where: { id: materialId, factoryUnitId, sector: 'CORTE' },
             include: {
               locations: {
                 include: { location: true },
@@ -275,8 +287,8 @@ export class MaterialController {
             data: {
               factoryUnitId,
               materialId: material.id,
-              code: material.code,
-              name: material.name,
+              code: material.code || '-',
+              name: material.name || '-',
               categoryName: material.type || null,
               unitSymbol: material.unit || 'UN',
               quantity: 0,
@@ -287,16 +299,16 @@ export class MaterialController {
           });
 
           // Desvincular materialId das movimentações passadas mantendo o histórico de auditoria intacto
-          await tx.movement.updateMany({
-            where: { materialId: material.id, factoryUnitId },
-            data: { materialId: null },
+          await tx.stockMovement.updateMany({
+            where: { stockItemId: material.id, factoryUnitId },
+            data: { stockItemId: null },
           });
 
-          await tx.materialLocation.deleteMany({
-            where: { materialId: material.id, factoryUnitId },
+          await tx.stockItemLocation.deleteMany({
+            where: { stockItemId: material.id, factoryUnitId },
           });
 
-          await tx.material.delete({
+          await tx.stockItem.delete({
             where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
           });
         },
@@ -324,10 +336,10 @@ export class MaterialController {
     try {
       // `factoryUnitId` é injetado automaticamente pelo Prisma $extends (tenantContext).
       const [totalMaterials, lowStock, totalMovements, totalEntries] = await Promise.all([
-        prisma.material.count(),
-        prisma.material.count({ where: { quantity: { lte: 10 } } }),
-        prisma.movement.count(),
-        prisma.movement.count({ where: { type: 'entrada' } })
+        prisma.stockItem.count({ where: { sector: 'CORTE' } }),
+        prisma.stockItem.count({ where: { sector: 'CORTE', quantity: { lte: 10 } } }),
+        prisma.stockMovement.count({ where: { sector: 'CORTE' } }),
+        prisma.stockMovement.count({ where: { sector: 'CORTE', type: 'ENTRADA' } })
       ]);
       res.json({ totalMaterials, lowStock, totalMovements, totalEntries });
     } catch (error) {
@@ -349,10 +361,12 @@ export class MaterialController {
         name: String(m.name || '').trim().toUpperCase(),
         quantity: Number(String(m.quantity).replace(',', '.')) || 0,
         unit: String(m.unit || 'UN').toUpperCase(),
-        type: String(m.type || 'OUTRO').toLowerCase()
+        type: String(m.type || 'OUTRO').toLowerCase(),
+        sector: 'CORTE' as const,
+        componentType: 'MATERIA_PRIMA' as const,
       })).filter((m) => m.name !== '');
 
-      const result = await prisma.material.createMany({
+      const result = await prisma.stockItem.createMany({
         data: dadosLimpos,
         skipDuplicates: true,
       });

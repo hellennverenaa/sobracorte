@@ -70,9 +70,10 @@ export class RequisitionService {
 
     // 1. CORTE: Matéria-Prima
     if (reqSector === 'CORTE') {
-      const materials = await prisma.material.findMany({
+      const materials = await prisma.stockItem.findMany({
         where: {
           factoryUnitId,
+          sector: 'CORTE',
           OR: [
             ...(req.sku ? [{ code: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } }] : []),
             { name: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
@@ -456,9 +457,10 @@ export class RequisitionService {
 
       // 1. CORTE: Matéria-Prima
       if (req.requestSector === 'CORTE') {
-        const material = await tx.material.findFirst({
+        const material = await tx.stockItem.findFirst({
           where: {
             factoryUnitId,
+            sector: 'CORTE',
             OR: [
               ...(req.sku ? [{ code: { equals: req.sku, mode: 'insensitive' as Prisma.QueryMode } }] : []),
               { name: { contains: req.description, mode: 'insensitive' as Prisma.QueryMode } },
@@ -472,7 +474,7 @@ export class RequisitionService {
           throw new Error('Saldo insuficiente na matéria-prima do Corte para atender esta requisição.');
         }
 
-        await tx.material.update({
+        await tx.stockItem.update({
           where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
           data: { quantity: { decrement: dto.quantity } },
         });
@@ -480,10 +482,10 @@ export class RequisitionService {
         const targetLocId = sourceLocationId || material.locations[0]?.locationId;
         const targetLocLink = material.locations.find((l) => l.locationId === targetLocId);
         if (targetLocId && targetLocLink) {
-          await tx.materialLocation.update({
+          await tx.stockItemLocation.update({
             where: {
-              materialId_locationId_factoryUnitId: {
-                materialId: material.id,
+              stockItemId_locationId_factoryUnitId: {
+                stockItemId: material.id,
                 locationId: targetLocId,
                 factoryUnitId,
               },
@@ -497,6 +499,7 @@ export class RequisitionService {
         await tx.stockMovement.create({
           data: {
             factoryUnitId,
+            stockItemId: material.id,
             sector: 'CORTE',
             type: 'SAIDA_REQUISICAO',
             quantity: dto.quantity,

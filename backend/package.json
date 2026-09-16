@@ -7,6 +7,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "NODE_ENV=test tsx --test tests/**/*.test.ts",
     "test:identity:db": "NODE_ENV=test tsx --test tests/identityRbac.db.test.ts",
+    "stock:backfill": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/backfill-stock-unification.sql",
+    "stock:fixture": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/fixtures/stock-unification.sql",
+    "stock:reconcile": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/reconcile-stock-unification.sql",
     "test:tenant:db": "NODE_ENV=test tsx --test tests/multiTenantIsolation.db.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"
   },

@@ -25,8 +25,7 @@ export class ReportController {
   async inventory(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
-      const [materials, stockItems] = await Promise.all([
-        prisma.material.findMany({
+      const stockItems = await prisma.stockItem.findMany({
           where: { factoryUnitId },
           orderBy: { quantity: 'desc' },
           include: {
@@ -34,32 +33,7 @@ export class ReportController {
               include: { location: true },
             },
           },
-        }),
-        prisma.stockItem.findMany({
-          where: { factoryUnitId },
-          orderBy: { quantity: 'desc' },
-          include: {
-            locations: {
-              include: { location: true },
-            },
-          },
-        }),
-      ]);
-
-      const formattedMaterials = materials.map((m) => ({
-        id: `mat_${m.id}`,
-        setor: 'CORTE',
-        codigo: m.code,
-        material: m.name,
-        descricao: m.name,
-        quantidade: m.quantity,
-        unidade: m.unit,
-        categoria: m.type.toUpperCase(),
-        gradeTamanho: '-',
-        ladoPe: '-',
-        prateleira: m.locations.map((l) => l.location.name).join(', ') || '-',
-        data_cadastro: m.createdAt,
-      }));
+        });
 
       const formattedStock = stockItems.map((s) => ({
         id: `stk_${s.id}`,
@@ -76,9 +50,7 @@ export class ReportController {
         data_cadastro: s.createdAt,
       }));
 
-      const all = [...formattedMaterials, ...formattedStock];
-
-      return res.json(all);
+      return res.json(formattedStock);
     } catch (error) {
       console.error('Erro no relatório de estoque:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de inventário' });
@@ -135,7 +107,9 @@ export class ReportController {
         stockWhere.createdAt = { gte: start, lte: end };
       }
 
-      if (rawSector !== 'TODOS' && rawSector !== 'ALL' && rawSector !== 'CORTE') {
+      if (rawSector === 'CORTE') {
+        stockWhere.sector = 'CORTE';
+      } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
         const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
@@ -145,7 +119,7 @@ export class ReportController {
           stockWhere.sector = sec;
         }
       } else {
-        stockWhere.sector = { notIn: ['CORTE', 'CONFIGURACOES'] };
+        stockWhere.sector = { not: 'CONFIGURACOES' };
       }
 
       if (rawType !== 'TODOS') {
@@ -188,78 +162,15 @@ export class ReportController {
         ];
       }
 
-      // --- FILTROS PRISMA PARA MOVEMENT (CORTE) & STOCKMOVEMENT (OUTROS SETORES) ---
-      const shouldQueryStock = rawSector !== 'CORTE';
-      const shouldQueryLegacy = rawSector === 'TODOS' || rawSector === 'ALL' || rawSector === 'CORTE';
-      const legacyWhere: Record<string, any> = {
-        factoryUnitId,
-      };
-
-      if (start && end) {
-        legacyWhere.createdAt = { gte: start, lte: end };
-      }
-
-      if (rawType !== 'TODOS') {
-        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          legacyWhere.type = { in: ['saida', 'refugo'] };
-        } else if (rawType === 'CASAMENTO_PAR') {
-          legacyWhere.type = 'never_match';
-        } else {
-          legacyWhere.type = rawType.toLowerCase();
-        }
-      }
-
-      if (rawOrigin && rawOrigin !== 'TODOS') {
-        legacyWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
-      }
-
-      if (rawOperator && rawOperator !== 'TODOS') {
-        legacyWhere.OR = [
-          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
-          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ];
-      }
-
-      if (rawSearch) {
-        legacyWhere.OR = [
-          { materialCode: { contains: rawSearch, mode: 'insensitive' } },
-          { materialName: { contains: rawSearch, mode: 'insensitive' } },
-          { material: {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          } },
-        ];
-      }
-
-      const [stockMovements, legacyMovements, locationsList] = await Promise.all([
-        shouldQueryStock
-          ? prisma.stockMovement.findMany({
+      const [stockMovements, locationsList] = await Promise.all([
+          prisma.stockMovement.findMany({
               where: stockWhere,
               orderBy: { createdAt: 'desc' },
               take: start ? undefined : 500,
               include: {
                 stockItem: true,
               },
-            })
-          : [],
-        shouldQueryLegacy
-          ? prisma.movement.findMany({
-              where: legacyWhere,
-              orderBy: { createdAt: 'desc' },
-              take: start ? undefined : 500,
-              include: {
-                material: {
-                  include: {
-                    locations: {
-                      include: { location: true },
-                    },
-                  },
-                },
-              },
-            })
-          : [],
+            }),
         prisma.location.findMany({
           where: { factoryUnitId },
           select: { id: true, name: true },
@@ -309,39 +220,7 @@ export class ReportController {
         };
       });
 
-      const formattedLegacy = legacyMovements.map((m) => {
-        const primaryLoc = m.locationName || m.material?.locations?.[0]?.location?.name || 'Almoxarifado';
-        return {
-          id: `leg_${m.id}`,
-          data: m.createdAt,
-          data_hora: m.createdAt,
-          sector: 'CORTE',
-          setor: 'CORTE',
-          tipo: m.type.toUpperCase(),
-          codigo: m.material?.code || m.materialCode || '-',
-          descricao: m.material?.name || m.materialName || '-',
-          tipoMaterial: m.material?.type || m.materialCategory || 'CORTE',
-          gradeTamanho: '-',
-          ladoPe: '-',
-          quantidade: m.quantity,
-          unidade: m.material?.unit || m.materialUnit || 'UN',
-          prateleira: primaryLoc,
-          origem: m.origem || 'Corte / Produção',
-          motivo: m.reason || m.origem || '-',
-          operador: m.operatorName || 'Operador DASS',
-          matricula: m.operatorId || null,
-          responsavel: m.operatorName || 'Operador DASS',
-          material: {
-            codigo: m.material?.code || m.materialCode || '-',
-            descricao: m.material?.name || m.materialName || '-',
-            tipo: m.material?.type || m.materialCategory || 'CORTE',
-            unidade: m.material?.unit || m.materialUnit || 'UN',
-          },
-          nomeMaterial: m.material?.name || m.materialName || '-',
-        };
-      });
-
-      const allItems = [...formattedStock, ...formattedLegacy].sort(
+      const allItems = formattedStock.sort(
         (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
       );
 
@@ -569,9 +448,9 @@ export class ReportController {
         };
 
         while (true) {
-          const batch: any[] = await prisma.material.findMany({
+          const batch: any[] = await prisma.stockItem.findMany({
             where: {
-              ...materialWhere,
+              ...materialWhere, sector: 'CORTE',
               ...(lastMaterialId !== undefined && { id: { gt: lastMaterialId } }),
             },
             take: batchSize,
@@ -725,7 +604,9 @@ export class ReportController {
       const stockWhere: Record<string, any> = { factoryUnitId };
       if (start && end) stockWhere.createdAt = { gte: start, lte: end };
 
-      if (rawSector !== 'TODOS' && rawSector !== 'ALL' && rawSector !== 'CORTE') {
+      if (rawSector === 'CORTE') {
+        stockWhere.sector = 'CORTE';
+      } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
         const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
@@ -735,7 +616,7 @@ export class ReportController {
           stockWhere.sector = sec;
         }
       } else {
-        stockWhere.sector = { notIn: ['CORTE', 'CONFIGURACOES'] };
+        stockWhere.sector = { not: 'CONFIGURACOES' };
       }
 
       if (rawType !== 'TODOS') {
@@ -778,46 +659,6 @@ export class ReportController {
         ];
       }
 
-      // --- FILTROS PARA MOVEMENT (CORTE) ---
-      const shouldQueryStock = rawSector !== 'CORTE';
-      const shouldQueryLegacy = rawSector === 'TODOS' || rawSector === 'ALL' || rawSector === 'CORTE';
-      const legacyWhere: Record<string, any> = { factoryUnitId };
-      if (start && end) legacyWhere.createdAt = { gte: start, lte: end };
-
-      if (rawType !== 'TODOS') {
-        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          legacyWhere.type = { in: ['saida', 'refugo'] };
-        } else if (rawType === 'CASAMENTO_PAR') {
-          legacyWhere.type = 'never_match';
-        } else {
-          legacyWhere.type = rawType.toLowerCase();
-        }
-      }
-
-      if (rawOrigin && rawOrigin !== 'TODOS') {
-        legacyWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
-      }
-
-      if (rawOperator && rawOperator !== 'TODOS') {
-        legacyWhere.OR = [
-          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
-          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ];
-      }
-
-      if (rawSearch) {
-        legacyWhere.OR = [
-          { materialCode: { contains: rawSearch, mode: 'insensitive' } },
-          { materialName: { contains: rawSearch, mode: 'insensitive' } },
-          { material: {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          } },
-        ];
-      }
-
       const locationsList = await prisma.location.findMany({
         where: { factoryUnitId },
         select: { id: true, name: true },
@@ -852,7 +693,7 @@ export class ReportController {
       const batchSize = 500;
 
       // 1. Stream StockMovement
-      if (shouldQueryStock) {
+      {
         let lastStockId: number | undefined = undefined;
         while (true) {
           const batch: any[] = await prisma.stockMovement.findMany({
@@ -904,61 +745,6 @@ export class ReportController {
 
           if (batch.length < batchSize) break;
           lastStockId = batch[batch.length - 1].id;
-        }
-      }
-
-      // 2. Stream Movement (Corte)
-      if (shouldQueryLegacy) {
-        let lastLegacyId: number | undefined = undefined;
-        while (true) {
-          const batch: any[] = await prisma.movement.findMany({
-            where: {
-              ...legacyWhere,
-              ...(lastLegacyId !== undefined && { id: { lt: lastLegacyId } }),
-            },
-            take: batchSize,
-            orderBy: { id: 'desc' },
-            include: {
-              material: {
-                include: {
-                  locations: {
-                    include: { location: true },
-                  },
-                },
-              },
-            },
-          });
-
-          if (batch.length === 0) break;
-
-          for (const m of batch) {
-            const primaryLoc = m.locationName || m.material?.locations?.[0]?.location?.name || 'Almoxarifado';
-            const dateObj = new Date(m.createdAt);
-            const dataStr = dateObj.toLocaleDateString('pt-BR');
-            const horaStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-            res.write(csvLine([
-              dataStr,
-              horaStr,
-              'CORTE',
-              m.type.toUpperCase(),
-              m.material?.code || m.materialCode || '-',
-              m.material?.name || m.materialName || '-',
-              m.material?.type || m.materialCategory || 'CORTE',
-              '-',
-              '-',
-              decimalString(m.quantity),
-              m.material?.unit || m.materialUnit || 'UN',
-              primaryLoc,
-              m.origem || 'Corte / Produção',
-              m.reason || m.origem || '-',
-              m.operatorName || 'Operador DASS',
-              m.operatorId || '-',
-            ]));
-          }
-
-          if (batch.length < batchSize) break;
-          lastLegacyId = batch[batch.length - 1].id;
         }
       }
 

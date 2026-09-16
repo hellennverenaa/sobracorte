@@ -62,19 +62,19 @@ export class DashboardController {
         // Distribuição física segregada por unidade de medida
         distribuicaoPorUnidadeRaw,
       ] = await Promise.all([
-        prisma.material.count({ where: { factoryUnitId } }),
-        prisma.stockItem.count({ where: { factoryUnitId } }),
-        prisma.material.count({ where: { factoryUnitId, quantity: { lte: 10 } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, quantity: { lte: 10 } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE' } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE', quantity: { lte: 10 } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { lte: 10 } } }),
         prisma.stockMovement.count({ where: { factoryUnitId } }),
-        prisma.movement.count({ where: { factoryUnitId } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, type: 'ENTRADA' } }),
-        prisma.movement.count({ where: { factoryUnitId, type: 'entrada' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
-        prisma.movement.count({ where: { factoryUnitId, type: 'saida' } }),
-        prisma.material.groupBy({
+        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockItem.groupBy({
           by: ['type'],
-          where: { factoryUnitId },
+          where: { factoryUnitId, sector: 'CORTE' },
           _sum: { quantity: true },
         }),
         prisma.stockMovement.groupBy({
@@ -87,19 +87,19 @@ export class DashboardController {
           _sum: { quantity: true },
           _count: { _all: true },
         }),
-        prisma.movement.groupBy({
+        prisma.stockMovement.groupBy({
           by: ['origem'],
           where: {
             factoryUnitId,
-            type: 'entrada',
+            sector: 'CORTE', type: 'ENTRADA',
             origem: { not: null },
           },
           _sum: { quantity: true },
           _count: { _all: true },
         }),
-        prisma.material.count({
+        prisma.stockItem.count({
           where: {
-            factoryUnitId,
+            factoryUnitId, sector: 'CORTE',
             quantity: { gt: 0 },
             updatedAt: { lte: thirtyDaysAgo }
           }
@@ -112,8 +112,8 @@ export class DashboardController {
           }
         }),
         // Quantidades por setor
-        prisma.material.aggregate({
-          where: { factoryUnitId },
+        prisma.stockItem.aggregate({
+          where: { factoryUnitId, sector: 'CORTE' },
           _sum: { quantity: true }
         }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO' } }),
@@ -172,9 +172,9 @@ export class DashboardController {
         prisma.stockItem.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         // Agrupamento de maiores entradas acumuladas
-        prisma.movement.groupBy({
-          by: ['materialId'],
-          where: { factoryUnitId, type: 'entrada' },
+        prisma.stockMovement.groupBy({
+          by: ['stockItemId'],
+          where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' },
           _sum: { quantity: true },
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10
@@ -238,11 +238,11 @@ export class DashboardController {
                 u.id AS "unitId", 
                 COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
                 m.type
-              FROM sobra_corte."Material" m
+              FROM sobra_corte."StockItem" m
               LEFT JOIN sobra_corte."UnitConfig" u 
                 ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
                 AND u."factoryUnitId" = m."factoryUnitId"
-              WHERE m."factoryUnitId" = ${factoryUnitId}
+              WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
                 AND m.quantity > 0
 
               UNION ALL
@@ -298,11 +298,11 @@ export class DashboardController {
               COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit,
               SUM(m.quantity) AS quantity,
               COUNT(*)::integer AS items_count
-            FROM sobra_corte."Material" m
+            FROM sobra_corte."StockItem" m
             LEFT JOIN sobra_corte."UnitConfig" u 
               ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
               AND u."factoryUnitId" = m."factoryUnitId"
-            WHERE m."factoryUnitId" = ${factoryUnitId}
+            WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
               AND m.quantity > 0
             GROUP BY COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²'))))
 
@@ -390,7 +390,7 @@ export class DashboardController {
       ] = await Promise.all([
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
         prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
-        prisma.movement.aggregate({ where: { factoryUnitId, type: 'saida' }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
         prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
       ]);
@@ -560,13 +560,13 @@ export class DashboardController {
       }
 
       // 5. Hidratação dos Top 5 Entradas de Sobras (Corte + Multi-Setor)
-      const materialIds = topLegacyEntradas.map(e => e.materialId).filter((id): id is number => id !== null);
+      const materialIds = topLegacyEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
       const stockItemIds = topStockEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
 
       const [materialsList, stockItemsList] = await Promise.all([
         materialIds.length > 0
-          ? prisma.material.findMany({
-              where: { factoryUnitId, id: { in: materialIds } },
+          ? prisma.stockItem.findMany({
+              where: { factoryUnitId, sector: 'CORTE', id: { in: materialIds } },
               select: { id: true, code: true, name: true, unit: true, type: true }
             })
           : [],
@@ -592,12 +592,12 @@ export class DashboardController {
       }> = [];
 
       for (const leg of topLegacyEntradas) {
-        const mat = leg.materialId ? materialMap.get(leg.materialId) : null;
+        const mat = leg.stockItemId ? materialMap.get(leg.stockItemId) : null;
         if (mat) {
           topSobrasEntrada.push({
             id: `mat_${mat.id}`,
-            code: mat.code,
-            name: mat.name,
+            code: mat.code || '-',
+            name: mat.name || '-',
             sector: 'CORTE',
             totalQuantity: Number(leg._sum?.quantity) || 0,
             unit: mat.unit || 'm²',
@@ -778,11 +778,11 @@ export class DashboardController {
           },
           _sum: { quantity: true },
         }),
-        prisma.movement.groupBy({
+        prisma.stockMovement.groupBy({
           by: ['origem'],
           where: {
             factoryUnitId,
-            type: 'entrada',
+              sector: 'CORTE', type: 'ENTRADA',
             origem: { not: null },
           },
           _sum: { quantity: true },
@@ -822,9 +822,9 @@ export class DashboardController {
    */
   async getDistribuicao(req: Request, res: Response) {
     try {
-      const distribuicao = await prisma.material.groupBy({
+      const distribuicao = await prisma.stockItem.groupBy({
         by: ['type'],
-        where: { factoryUnitId: req.tenant!.id },
+        where: { factoryUnitId: req.tenant!.id, sector: 'CORTE' },
         _sum: {
           quantity: true,
         },
@@ -897,11 +897,11 @@ export class DashboardController {
               u.id AS "unitId", 
               COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
               m.type
-            FROM sobra_corte."Material" m
+            FROM sobra_corte."StockItem" m
             LEFT JOIN sobra_corte."UnitConfig" u 
               ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
               AND u."factoryUnitId" = m."factoryUnitId"
-            WHERE m."factoryUnitId" = ${factoryUnitId}
+            WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
               AND m.quantity > 0
 
             UNION ALL
@@ -972,4 +972,3 @@ export class DashboardController {
     }
   }
 }
-

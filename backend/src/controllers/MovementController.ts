@@ -5,11 +5,11 @@ import { MovementRequestError, parseMovementInput } from '../movements/validatio
 export class MovementController {
   async index(req: Request, res: Response) {
     try {
-      const movements = await prisma.movement.findMany({
-        where: { factoryUnitId: req.tenant!.id },
+      const movements = await prisma.stockMovement.findMany({
+        where: { factoryUnitId: req.tenant!.id, sector: 'CORTE' },
         take: 100,
         orderBy: { createdAt: 'desc' },
-        include: { material: true },
+        include: { stockItem: true },
       });
 
       res.json(movements.map((movement) => ({
@@ -21,11 +21,11 @@ export class MovementController {
         observacao: movement.reason,
         usuario: movement.operatorName,
         operador: movement.operatorName,
-        nomeMaterial: movement.material?.name || movement.materialName || movement.material?.code || movement.materialCode || 'Material Removido',
-        codigoMaterial: movement.material?.code || movement.materialCode || '-',
-        unidade: movement.material?.unit || movement.materialUnit || 'UN',
-        categoria: movement.material?.type || movement.materialCategory || 'CORTE',
-        localizacao: movement.locationName || '-',
+        nomeMaterial: movement.stockItem?.name || movement.itemName || movement.stockItem?.code || movement.itemCode || 'Material Removido',
+        codigoMaterial: movement.stockItem?.code || movement.itemCode || '-',
+        unidade: movement.stockItem?.unit || movement.itemUnit || 'UN',
+        categoria: movement.stockItem?.type || movement.itemCategory || 'CORTE',
+        localizacao: movement.sourceLocationName || movement.destinationLocationName || '-',
       })));
     } catch {
       res.status(500).json({ error: 'Erro ao buscar movimentações.' });
@@ -44,8 +44,8 @@ export class MovementController {
 
       const result = await prisma.$transaction(async (tx) => {
         const [material, location] = await Promise.all([
-          tx.material.findFirst({
-            where: { id: input.materialId, factoryUnitId: req.tenant!.id },
+          tx.stockItem.findFirst({
+            where: { id: input.materialId, factoryUnitId: req.tenant!.id, sector: 'CORTE' },
             select: { id: true, code: true, name: true, type: true, unit: true },
           }),
           tx.location.findUnique({
@@ -58,19 +58,19 @@ export class MovementController {
         if (!location) throw new MovementRequestError('Localização não encontrada.', 404);
 
         if (input.type === 'entrada') {
-          await tx.material.update({
+          await tx.stockItem.update({
             where: { id_factoryUnitId: { id: input.materialId, factoryUnitId: req.tenant!.id } },
             data: { quantity: { increment: input.quantity } },
           });
-          await tx.materialLocation.upsert({
-            where: { materialId_locationId_factoryUnitId: { materialId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id } },
+          await tx.stockItemLocation.upsert({
+            where: { stockItemId_locationId_factoryUnitId: { stockItemId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id } },
             update: { quantity: { increment: input.quantity } },
-            create: { materialId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id, quantity: input.quantity },
+            create: { stockItemId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id, quantity: input.quantity },
           });
         } else {
-          const locationUpdate = await tx.materialLocation.updateMany({
+          const locationUpdate = await tx.stockItemLocation.updateMany({
             where: {
-              materialId: input.materialId,
+              stockItemId: input.materialId,
               locationId: location.id,
               factoryUnitId: req.tenant!.id,
               quantity: { gte: input.quantity },
@@ -81,7 +81,7 @@ export class MovementController {
             throw new MovementRequestError(`Estoque insuficiente na localização: ${input.location}`, 409);
           }
 
-          const materialUpdate = await tx.material.updateMany({
+          const materialUpdate = await tx.stockItem.updateMany({
             where: { id: input.materialId, factoryUnitId: req.tenant!.id, quantity: { gte: input.quantity } },
             data: { quantity: { decrement: input.quantity } },
           });
@@ -90,19 +90,23 @@ export class MovementController {
           }
         }
 
-        return tx.movement.create({
+        return tx.stockMovement.create({
           data: {
-            materialId: input.materialId,
+            stockItemId: input.materialId,
             factoryUnitId: req.tenant!.id,
-            type: input.type,
+            sector: 'CORTE',
+            type: input.type.toUpperCase() as any,
             quantity: input.quantity,
             origem: input.origin,
             reason: input.reason,
-            materialCode: material.code,
-            materialName: material.name,
-            materialCategory: material.type,
-            materialUnit: material.unit,
-            locationName: location.name,
+            itemCode: material.code,
+            itemName: material.name,
+            itemCategory: material.type,
+            itemUnit: material.unit,
+            sourceLocationId: input.type === 'entrada' ? null : location.id,
+            sourceLocationName: input.type === 'entrada' ? null : location.name,
+            destinationLocationId: input.type === 'entrada' ? location.id : null,
+            destinationLocationName: input.type === 'entrada' ? location.name : null,
             operatorId,
             operatorName,
           },

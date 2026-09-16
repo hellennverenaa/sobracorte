@@ -36,3 +36,7 @@ DATABASE_URL="$TEST_DATABASE_URL" npm --prefix backend run test:identity:db
 ```
 
 O teste se recusa a executar quando `DATABASE_URL` e `TEST_DATABASE_URL` não são exatamente iguais.
+
+## Estoque canônico
+
+O procedimento operacional de expansão, backfill, reconciliação e cutover está em [Migração para o estoque canônico](MIGRACAO-ESTOQUE-CANONICO.md). O gate é obrigatório e a implantação usa janela sem gravações, não dual-write.

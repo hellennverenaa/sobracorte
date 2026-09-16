@@ -69,13 +69,10 @@ export class SettingsController {
 
       const categoriesWithCount = await Promise.all(
         categories.map(async (cat) => {
-          const [matCount, stockCount] = await Promise.all([
-            prisma.material.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } }),
-            prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } }),
-          ]);
+          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } });
           return {
             ...cat,
-            linkedCount: matCount + stockCount,
+            linkedCount: stockCount,
           };
         })
       );
@@ -188,11 +185,6 @@ export class SettingsController {
         });
 
         if (newName && newName !== existing.name) {
-          await tx.material.updateMany({
-            where: { factoryUnitId: req.tenant!.id, type: existing.name },
-            data: { type: newName },
-          });
-
           await tx.stockItem.updateMany({
             where: { factoryUnitId: req.tenant!.id, type: existing.name },
             data: { type: newName },
@@ -235,14 +227,10 @@ export class SettingsController {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
 
-      // 1. Verificar materiais ou stockItems vinculados
-      const materialCount = await prisma.material.count({
-        where: { factoryUnitId: req.tenant!.id, type: category.name }
-      });
       const stockCount = await prisma.stockItem.count({
         where: { factoryUnitId: req.tenant!.id, type: category.name }
       });
-      const totalActive = materialCount + stockCount;
+      const totalActive = stockCount;
 
       const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
 
@@ -293,13 +281,10 @@ export class SettingsController {
 
       const unitsWithCount = await Promise.all(
         units.map(async (unit) => {
-          const [matCount, stockCount] = await Promise.all([
-            prisma.material.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } }),
-            prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } }),
-          ]);
+          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } });
           return {
             ...unit,
-            linkedCount: matCount + stockCount,
+            linkedCount: stockCount,
           };
         })
       );
@@ -391,13 +376,10 @@ export class SettingsController {
         return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
       }
 
-      const materialCount = await prisma.material.count({
-        where: { factoryUnitId: req.tenant!.id, unit: unit.symbol }
-      });
       const stockCount = await prisma.stockItem.count({
         where: { factoryUnitId: req.tenant!.id, unit: unit.symbol }
       });
-      const totalActive = materialCount + stockCount;
+      const totalActive = stockCount;
 
       const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
 
@@ -468,19 +450,13 @@ export class SettingsController {
 
       const locationsWithStats = await Promise.all(
         locations.map(async (loc) => {
-          const [matLocs, stockLocs] = await Promise.all([
-            prisma.materialLocation.findMany({
+          const stockLocs = await prisma.stockItemLocation.findMany(
+            {
               where: { factoryUnitId: req.tenant!.id, locationId: loc.id },
               select: { quantity: true }
-            }),
-            prisma.stockItemLocation.findMany({
-              where: { factoryUnitId: req.tenant!.id, locationId: loc.id },
-              select: { quantity: true }
-            })
-          ]);
-          const totalLinked = matLocs.length + stockLocs.length;
-          const totalQuantity = matLocs.reduce((sum, item) => sum + Number(item.quantity || 0), 0) +
-                                stockLocs.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+            });
+          const totalLinked = stockLocs.length;
+          const totalQuantity = stockLocs.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
           return {
             ...loc,
             linkedCount: totalLinked,
@@ -716,14 +692,10 @@ export class SettingsController {
         return res.status(404).json({ error: 'Localização não encontrada.' });
       }
 
-      // 1. Verificar vínculos em MaterialLocation (Corte legado) e StockItemLocation (Multi-setor)
-      const materialCount = await prisma.materialLocation.count({
-        where: { factoryUnitId: req.tenant!.id, locationId: id }
-      });
       const stockCount = await prisma.stockItemLocation.count({
         where: { factoryUnitId: req.tenant!.id, locationId: id }
       });
-      const totalActive = materialCount + stockCount;
+      const totalActive = stockCount;
 
       const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
 
@@ -749,7 +721,6 @@ export class SettingsController {
         });
 
         await tx.locationCategory.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
-        await tx.materialLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
         await tx.stockItemLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
         await tx.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
       });
@@ -793,13 +764,10 @@ export class SettingsController {
 
       const originsWithCount = await Promise.all(
         origins.map(async (orig) => {
-          const [movCount, stockMovCount] = await Promise.all([
-            prisma.movement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } }),
-            prisma.stockMovement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } }),
-          ]);
+          const stockMovCount = await prisma.stockMovement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } });
           return {
             ...orig,
-            linkedCount: movCount + stockMovCount,
+            linkedCount: stockMovCount,
           };
         })
       );
@@ -878,13 +846,10 @@ export class SettingsController {
         return res.status(404).json({ error: 'Origem não encontrada.' });
       }
 
-      const movementCount = await prisma.movement.count({
-        where: { factoryUnitId: req.tenant!.id, origem: origin.name }
-      });
       const stockMovementCount = await prisma.stockMovement.count({
         where: { factoryUnitId: req.tenant!.id, origem: origin.name }
       });
-      const totalActive = movementCount + stockMovementCount;
+      const totalActive = stockMovementCount;
 
       const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
 

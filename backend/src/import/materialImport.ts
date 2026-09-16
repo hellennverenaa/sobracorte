@@ -451,16 +451,11 @@ export async function executeImportTransaction(
     let insertedCount = 0;
     let movementsCreatedCount = 0;
 
-    // 1. Processar itens de CORTE (tabela Material + MaterialLocation + Movement)
+    // 1. Processar itens de CORTE no modelo canônico.
     const corteItems = items.filter(i => i.sector === 'CORTE');
     for (const item of corteItems) {
-      const existingMaterial = await tx.material.findUnique({
-        where: {
-          factoryUnitId_code: {
-            factoryUnitId,
-            code: item.code,
-          },
-        },
+      const existingMaterial = await tx.stockItem.findFirst({
+        where: { factoryUnitId, sector: 'CORTE', code: item.code },
       });
 
       let materialRecord;
@@ -475,7 +470,7 @@ export async function executeImportTransaction(
           );
         }
 
-        materialRecord = await tx.material.update({
+        materialRecord = await tx.stockItem.update({
           where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
           data: {
             quantity: { increment: item.quantity },
@@ -486,9 +481,11 @@ export async function executeImportTransaction(
           },
         });
       } else {
-        materialRecord = await tx.material.create({
+        materialRecord = await tx.stockItem.create({
           data: {
             factoryUnitId,
+            sector: 'CORTE',
+            componentType: 'MATERIA_PRIMA',
             code: item.code,
             name: item.name,
             quantity: item.quantity,
@@ -500,11 +497,10 @@ export async function executeImportTransaction(
         insertedCount++;
       }
 
-      // Upsert na prateleira física (MaterialLocation) com a localização existente
-      await tx.materialLocation.upsert({
+      await tx.stockItemLocation.upsert({
         where: {
-          materialId_locationId_factoryUnitId: {
-            materialId: materialRecord.id,
+          stockItemId_locationId_factoryUnitId: {
+            stockItemId: materialRecord.id,
             locationId: item.locationId,
             factoryUnitId,
           },
@@ -513,7 +509,7 @@ export async function executeImportTransaction(
           quantity: { increment: item.quantity },
         },
         create: {
-          materialId: materialRecord.id,
+          stockItemId: materialRecord.id,
           locationId: item.locationId,
           factoryUnitId,
           quantity: item.quantity,
@@ -522,17 +518,19 @@ export async function executeImportTransaction(
 
       // Se quantidade > 0, registrar movimentação inicial de implantação com snapshots
       if (item.quantity > 0) {
-        await tx.movement.create({
+        await tx.stockMovement.create({
           data: {
             factoryUnitId,
-            materialId: materialRecord.id,
-            type: 'entrada',
+            stockItemId: materialRecord.id,
+            sector: 'CORTE',
+            type: 'ENTRADA',
             quantity: item.quantity,
-            materialCode: materialRecord.code,
-            materialName: materialRecord.name,
-            materialCategory: materialRecord.type,
-            materialUnit: materialRecord.unit,
-            locationName: item.locationName,
+            itemCode: materialRecord.code,
+            itemName: materialRecord.name,
+            itemCategory: materialRecord.type,
+            itemUnit: materialRecord.unit,
+            destinationLocationId: item.locationId,
+            destinationLocationName: item.locationName,
             origem: 'Saldo Inicial / Implantação',
             reason: item.observation || 'Importação inicial via planilha CSV',
             operatorId: operatorId || null,

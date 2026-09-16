@@ -6,8 +6,7 @@ import { normalizeUnit } from '../utils/unitHelper';
 export class StockItemService {
   /**
    * Cadastro em lote com transação ACID e persistência oficial:
-   * - Setor CORTE -> grava diretamente na tabela Material
-   * - Outros Setores -> grava na tabela StockItem
+   * Todos os setores gravam no modelo canônico StockItem.
    */
   async createBatch(dto: BatchCreateStockItemDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
@@ -38,16 +37,11 @@ export class StockItemService {
         }
 
         if (item.sector === 'CORTE') {
-          // 📦 SETOR CORTE: Persistência oficial na tabela Material (4.000+ matérias-primas)
+          // CORTE também persiste no modelo unificado.
           const materialCode = item.code.trim().toUpperCase();
           const normalizedIncomingUnit = normalizeUnit(item.unit, 'CORTE');
-          const existingMaterial = await tx.material.findUnique({
-            where: {
-              factoryUnitId_code: {
-                factoryUnitId,
-                code: materialCode,
-              },
-            },
+          const existingMaterial = await tx.stockItem.findFirst({
+            where: { factoryUnitId, sector: 'CORTE', code: materialCode },
           });
 
           let materialRecord;
@@ -63,7 +57,7 @@ export class StockItemService {
               throw err;
             }
 
-            materialRecord = await tx.material.update({
+            materialRecord = await tx.stockItem.update({
               where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
               data: {
                 quantity: { increment: item.quantity },
@@ -75,9 +69,11 @@ export class StockItemService {
               },
             });
           } else {
-            materialRecord = await tx.material.create({
+            materialRecord = await tx.stockItem.create({
               data: {
                 factoryUnitId,
+                sector: 'CORTE',
+                componentType: 'MATERIA_PRIMA',
                 code: materialCode,
                 name: item.name.trim().toUpperCase(),
                 quantity: item.quantity,
@@ -89,11 +85,10 @@ export class StockItemService {
             });
           }
 
-          // Upsert MaterialLocation
-          await tx.materialLocation.upsert({
+          await tx.stockItemLocation.upsert({
             where: {
-              materialId_locationId_factoryUnitId: {
-                materialId: materialRecord.id,
+              stockItemId_locationId_factoryUnitId: {
+                stockItemId: materialRecord.id,
                 locationId: loc.id,
                 factoryUnitId,
               },
@@ -102,25 +97,26 @@ export class StockItemService {
               quantity: { increment: item.quantity },
             },
             create: {
-              materialId: materialRecord.id,
+              stockItemId: materialRecord.id,
               locationId: loc.id,
               factoryUnitId,
               quantity: item.quantity,
             },
           });
 
-          // Auditoria em Movement (histórico oficial de matérias-primas do Corte)
-          await tx.movement.create({
+          await tx.stockMovement.create({
             data: {
               factoryUnitId,
-              materialId: materialRecord.id,
-              type: 'entrada',
+              stockItemId: materialRecord.id,
+              sector: 'CORTE',
+              type: 'ENTRADA',
               quantity: item.quantity,
-              materialCode: materialRecord.code,
-              materialName: materialRecord.name,
-              materialCategory: materialRecord.type,
-              materialUnit: materialRecord.unit,
-              locationName: loc.name,
+              itemCode: materialRecord.code,
+              itemName: materialRecord.name,
+              itemCategory: materialRecord.type,
+              itemUnit: materialRecord.unit,
+              destinationLocationId: loc.id,
+              destinationLocationName: loc.name,
               origem: 'Saldo Inicial / Entrada no Setor',
               reason: item.observation || 'Entrada em lote no Estoque de Corte',
               operatorId: operatorId || null,
@@ -251,8 +247,7 @@ export class StockItemService {
 
   /**
    * Busca consolidada Round-Trip Único para todos os 5 setores
-   * - Setor CORTE: lê da tabela oficial Material
-   * - Demais setores: leem da tabela StockItem
+   * Todos os setores são lidos de StockItem.
    */
   async searchUnified(
     params: { q?: string; sector?: SectorType; page?: number; limit?: number },
@@ -361,10 +356,10 @@ export class StockItemService {
       categories,
     ] = await Promise.all([
       // Contagem e lista paginada na tabela oficial Material (4.000+ matérias-primas)
-      prisma.material.count({ where: buildMaterialWhere() }),
+      prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }),
       targetSector === 'CORTE'
-        ? prisma.material.findMany({
-            where: buildMaterialWhere(),
+        ? prisma.stockItem.findMany({
+            where: { ...buildMaterialWhere(), sector: 'CORTE' },
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -553,9 +548,10 @@ export class StockItemService {
     const rawQ = query ? query.trim() : '';
 
     if (sector === 'CORTE') {
-      const materials = await prisma.material.findMany({
+      const materials = await prisma.stockItem.findMany({
         where: {
           factoryUnitId,
+          sector: 'CORTE',
           ...(rawQ
             ? {
                 OR: [

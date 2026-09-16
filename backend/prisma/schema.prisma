@@ -349,6 +349,7 @@ model OriginConfig {
 // =======================================================
 model StockItem {
   id            Int            @id @default(autoincrement())
+  legacyMaterialId Int?
   factoryUnitId Int
   sector        SectorType     @default(CORTE)
   componentType ComponentType?
@@ -387,6 +388,7 @@ model StockItem {
 
   // 🚀 ÍNDICES COMPOSTOS ESTRATÉGICOS
   @@unique([id, factoryUnitId])
+  @@unique([factoryUnitId, legacyMaterialId])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, sector, productName, sizeGrade])
   @@index([factoryUnitId, sector, sku, sizeGrade])
@@ -415,6 +417,7 @@ model StockItemLocation {
 // 🛡️ HISTÓRICO COMPLETO DE AUDITORIA & RASTREABILIDADE
 model StockMovement {
   id                    Int          @id @default(autoincrement())
+  legacyMovementId      Int?
   factoryUnitId         Int
   stockItemId           Int?
   sector                SectorType
@@ -445,6 +448,7 @@ model StockMovement {
   stockItem             StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
 
   @@index([factoryUnitId, stockItemId])
+  @@unique([factoryUnitId, legacyMovementId])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, operatorId, createdAt])
   @@schema("sobra_corte")

@@ -8,6 +8,7 @@ Este diretório concentra a documentação técnica e operacional do projeto. O 
 - [Baseline e contratos do Ciclo 0](CICLO-0-BASELINE-E-CONTRATOS.md): checkpoint reproduzível, contratos compartilhados e especificação das fixtures de reconciliação.
 - [Autenticação e autorização](AUTENTICACAO-E-AUTORIZACAO.md): token, contexto efetivo, RBAC local e administrador global.
 - [Banco de dados e multi-tenancy](BANCO-DE-DADOS.md): guard tenant, chaves compostas e validação de isolamento.
+- [Migração para o estoque canônico](MIGRACAO-ESTOQUE-CANONICO.md): backfill reexecutável, reconciliação e cutover.
 - [README principal](../README.md): visão geral e início rápido.
 - [Backend](../backend/README.md): referência atual do serviço enquanto a documentação especializada ainda não foi migrada para este diretório.
 
