@@ -59,11 +59,11 @@ export class MovementController {
 
         if (input.type === 'entrada') {
           await tx.material.update({
-            where: { id: input.materialId },
+            where: { id_factoryUnitId: { id: input.materialId, factoryUnitId: req.tenant!.id } },
             data: { quantity: { increment: input.quantity } },
           });
           await tx.materialLocation.upsert({
-            where: { materialId_locationId: { materialId: input.materialId, locationId: location.id } },
+            where: { materialId_locationId_factoryUnitId: { materialId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id } },
             update: { quantity: { increment: input.quantity } },
             create: { materialId: input.materialId, locationId: location.id, factoryUnitId: req.tenant!.id, quantity: input.quantity },
           });

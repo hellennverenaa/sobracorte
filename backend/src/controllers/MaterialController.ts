@@ -193,14 +193,14 @@ export class MaterialController {
           });
           if (!loc) throw new Error('LOCATION_NOT_FOUND');
           await tx.materialLocation.upsert({
-            where: { materialId_locationId: { materialId, locationId: loc.id } },
+            where: { materialId_locationId_factoryUnitId: { materialId, locationId: loc.id, factoryUnitId: req.tenant!.id } },
             update: {},
             create: { materialId, locationId: loc.id, factoryUnitId: req.tenant!.id, quantity: 0 },
           });
         }
 
         return tx.material.update({
-          where: { id: materialId },
+          where: { id_factoryUnitId: { id: materialId, factoryUnitId: req.tenant!.id } },
           data: {
             code: req.body.code !== undefined ? String(req.body.code).trim().toUpperCase() : undefined,
             name: req.body.name !== undefined ? String(req.body.name).trim().toUpperCase() : undefined,
@@ -297,7 +297,7 @@ export class MaterialController {
           });
 
           await tx.material.delete({
-            where: { id: material.id },
+            where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
           });
         },
         {

@@ -34,7 +34,7 @@ export async function syncUser(user: AuthenticatedUser, factoryUnitId: number, c
     where: { factoryUnitId_authOrigin_authUserId: identity },
   });
   if (stable) {
-    return client.user.update({ where: { id: stable.id }, data: { usuario, ...commonData } });
+    return client.user.update({ where: { id_factoryUnitId: { id: stable.id, factoryUnitId } }, data: { usuario, ...commonData } });
   }
 
   // Only bind an unclaimed/legacy profile in the same unit. A matching
@@ -59,7 +59,7 @@ export async function syncUser(user: AuthenticatedUser, factoryUnitId: number, c
   if (legacyCandidates?.length === 1) {
     const legacy = legacyCandidates[0];
     return client.user.update({
-      where: { id: legacy.id },
+      where: { id_factoryUnitId: { id: legacy.id, factoryUnitId } },
       data: { usuario, ...commonData, authOrigin, authUserId },
     });
   }

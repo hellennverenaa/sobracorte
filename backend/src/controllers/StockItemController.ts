@@ -255,7 +255,7 @@ export class StockItemController {
           });
 
           await tx.stockItem.delete({
-            where: { id: item.id },
+            where: { id_factoryUnitId: { id: item.id, factoryUnitId } },
           });
         },
         {

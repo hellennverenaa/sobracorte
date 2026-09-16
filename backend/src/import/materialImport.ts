@@ -476,7 +476,7 @@ export async function executeImportTransaction(
         }
 
         materialRecord = await tx.material.update({
-          where: { id: existingMaterial.id },
+          where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
           data: {
             quantity: { increment: item.quantity },
             name: item.name,
@@ -503,9 +503,10 @@ export async function executeImportTransaction(
       // Upsert na prateleira física (MaterialLocation) com a localização existente
       await tx.materialLocation.upsert({
         where: {
-          materialId_locationId: {
+          materialId_locationId_factoryUnitId: {
             materialId: materialRecord.id,
             locationId: item.locationId,
+            factoryUnitId,
           },
         },
         update: {

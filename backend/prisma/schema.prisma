@@ -161,6 +161,7 @@ model MaterialLocation {
   location    Location    @relation(fields: [locationId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
 
   @@id([materialId, locationId]) // Impede que o mesmo material seja duplicado no mesmo local
+  @@unique([materialId, locationId, factoryUnitId])
   @@index([factoryUnitId, locationId])
   @@schema("sobra_corte")
 }
@@ -222,6 +223,7 @@ model User {
   authUserId String?
 
   @@unique([factoryUnitId, authOrigin, authUserId])
+  @@unique([id, factoryUnitId])
   @@schema("sobra_corte")
 }
 
@@ -441,6 +443,7 @@ model MaterialRequisition {
   @@index([factoryUnitId, requestSector, status])
   @@index([factoryUnitId, sku])
   @@index([factoryUnitId, sku, color])
+  @@unique([id, factoryUnitId])
   @@schema("sobra_corte")
 }
 

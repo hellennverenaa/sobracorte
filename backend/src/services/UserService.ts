@@ -85,7 +85,7 @@ export class UserService {
 
       // 5. Atualizar o usuário
       const updatedUser = await tx.user.update({
-        where: { id: targetUserId },
+        where: { id_factoryUnitId: { id: targetUserId, factoryUnitId } },
         data: {
           role: newRole,
           assignedSector: normalizedNewSector,

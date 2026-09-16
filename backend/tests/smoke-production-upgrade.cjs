@@ -6,7 +6,7 @@ assert.match(url.pathname, /^\/sobracorte_deploy_acceptance_[a-z0-9_]+$/);
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
 const jwt = require('jsonwebtoken');
 const { createApp } = require('../dist/src/app');
-const { prismaWithoutTenant: db, pool } = require('../dist/src/prisma');
+const { prismaForInternalUse: db, pool } = require('../dist/src/prisma');
 const { loadServerConfig } = require('../dist/src/config/dotenv');
 
 async function main() {

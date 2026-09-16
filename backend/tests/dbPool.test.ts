@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Pool } from "pg";
-import { pool, prisma, prismaWithoutTenant } from "../src/prisma";
+import { pool, prisma, prismaForInternalUse } from "../src/prisma";
 
 test("pg.Pool é instanciado corretamente e exportado", () => {
   assert.ok(pool instanceof Pool, "pool deve ser uma instância válida de pg.Pool");
@@ -31,9 +31,9 @@ test("pg.Pool possui listener de erro para clientes ociosos (resiliência)", () 
   );
 });
 
-test("Prisma e PrismaWithoutTenant são instanciados com o adapter baseado no Pool", () => {
+test("Prisma e PrismaForInternalUse são instanciados com o adapter baseado no Pool", () => {
   assert.ok(prisma, "prisma deve estar definido");
   assert.ok(typeof prisma.$extends === "function", "prisma deve conter extensões");
-  assert.ok(prismaWithoutTenant, "prismaWithoutTenant deve estar definido");
-  assert.ok(typeof prismaWithoutTenant.$connect === "function", "prismaWithoutTenant deve conter $connect");
+  assert.ok(prismaForInternalUse, "prismaForInternalUse deve estar definido");
+  assert.ok(typeof prismaForInternalUse.$connect === "function", "prismaForInternalUse deve conter $connect");
 });

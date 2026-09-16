@@ -176,7 +176,7 @@ export class SettingsController {
       const updated = await prisma.$transaction(async (tx) => {
         const newName = name ? String(name).trim().toUpperCase() : undefined;
         const cat = await tx.categoryConfig.update({
-          where: { id },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
           data: {
             name: newName,
             sector: targetSector !== undefined ? (targetSector as any) : undefined,
@@ -271,7 +271,7 @@ export class SettingsController {
         await tx.location.updateMany({
           where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
         });
-        await tx.categoryConfig.delete({ where: { id } });
+        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } } });
       });
 
       res.json({ message: 'Categoria excluída com sucesso.' });
@@ -335,7 +335,7 @@ export class SettingsController {
       if (existing) {
         if (!existing.active) {
           const reactivated = await prisma.unitConfig.update({
-            where: { id: existing.id },
+            where: { id_factoryUnitId: { id: existing.id, factoryUnitId: req.tenant!.id } },
             data: { name: cleanName, active: true }
           });
           return res.status(200).json(reactivated);
@@ -421,7 +421,7 @@ export class SettingsController {
           }
         }),
         prisma.unitConfig.update({
-          where: { id },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
           data: { active: false }
         })
       ]);
@@ -664,7 +664,7 @@ export class SettingsController {
         }
 
         const loc = await tx.location.update({
-          where: { id },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,

@@ -30,15 +30,16 @@ export class StockMovementService {
           }
 
           await tx.material.update({
-            where: { id: material.id },
+            where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
             data: { quantity: { increment: quantity } },
           });
 
           await tx.materialLocation.upsert({
             where: {
-              materialId_locationId: {
+              materialId_locationId_factoryUnitId: {
                 materialId: material.id,
                 locationId: targetLocationId,
+                factoryUnitId,
               },
             },
             update: {
@@ -135,9 +136,10 @@ export class StockMovementService {
           // Creditar na prateleira de destino via upsert
           await tx.materialLocation.upsert({
             where: {
-              materialId_locationId: {
+              materialId_locationId_factoryUnitId: {
                 materialId: material.id,
                 locationId: destinationLocationId,
+                factoryUnitId,
               },
             },
             update: {
@@ -213,15 +215,16 @@ export class StockMovementService {
         }
 
         await tx.stockItem.update({
-          where: { id: item.id },
+          where: { id_factoryUnitId: { id: item.id, factoryUnitId } },
           data: { quantity: { increment: quantity } },
         });
 
         await tx.stockItemLocation.upsert({
           where: {
-            stockItemId_locationId: {
+            stockItemId_locationId_factoryUnitId: {
               stockItemId: item.id,
               locationId: targetLocationId,
+              factoryUnitId,
             },
           },
           update: {
@@ -331,7 +334,7 @@ export class StockMovementService {
           if (quantity >= Number(item.quantity) - 0.0001) {
             // Transferência total: atualiza o setor do próprio item
             await tx.stockItem.update({
-              where: { id: item.id },
+              where: { id_factoryUnitId: { id: item.id, factoryUnitId } },
               data: {
                 sector: destLocation.sector,
                 observation: `Transferido do setor ${item.sector} para ${destLocation.sector}. ${reason || ''}`.trim(),
@@ -339,9 +342,10 @@ export class StockMovementService {
             });
             await tx.stockItemLocation.upsert({
               where: {
-                stockItemId_locationId: {
+                stockItemId_locationId_factoryUnitId: {
                   stockItemId: item.id,
                   locationId: destinationLocationId,
+                  factoryUnitId,
                 },
               },
               update: {
@@ -408,9 +412,10 @@ export class StockMovementService {
           // Transferência intra-setor normal: credita no destino para o mesmo item
           await tx.stockItemLocation.upsert({
             where: {
-              stockItemId_locationId: {
+              stockItemId_locationId_factoryUnitId: {
                 stockItemId: item.id,
                 locationId: destinationLocationId,
+                factoryUnitId,
               },
             },
             update: {

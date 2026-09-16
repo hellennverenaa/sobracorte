@@ -1,100 +1,80 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { applyTenantGuard, requireTenantContext, TenantGuardError } from '../src/prisma';
+import { tenantStorage } from '../src/context/tenantContext';
 
-test('Multi-Tenant Isolation: Operador não pode acessar ou movimentar material de outra unidade fabril (Cross-Tenant Leak)', () => {
-  const tenant1 = { id: 1, code: 'SEST' };
-  const tenant2 = { id: 2, code: 'IVT' };
+const tenantOne = 1;
+const tenantTwo = 2;
 
-  // Material cadastrado na fábrica de Ivoti (tenantId: 2)
-  const materialIvoti = {
-    id: 101,
-    factoryUnitId: tenant2.id,
-    code: 'TEC-001',
-    name: 'TECIDO AZUL',
-    quantity: 50,
-  };
-
-  // Simulação da query executada pelo MaterialController / StockItemService
-  const findMaterialForTenant = (materialId: number, currentTenantId: number) => {
-    if (materialIvoti.id === materialId && materialIvoti.factoryUnitId === currentTenantId) {
-      return materialIvoti;
-    }
-    return null; // Isolamento multi-tenant: registro de outro tenant não existe na visão local
-  };
-
-  // Tentativa de acesso do operador de Santo Estêvão (tenantId: 1)
-  const resultTenant1 = findMaterialForTenant(101, tenant1.id);
-  assert.equal(resultTenant1, null, 'O operador da Unidade 1 não pode visualizar ou movimentar o material da Unidade 2');
-
-  // Acesso legítimo do operador de Ivoti (tenantId: 2)
-  const resultTenant2 = findMaterialForTenant(101, tenant2.id);
-  assert.notEqual(resultTenant2, null);
-  assert.equal(resultTenant2?.code, 'TEC-001');
+test('TenantGuard falha antes de qualquer query sem contexto ativo', () => {
+  assert.throws(() => requireTenantContext('Material', 'findMany'), TenantGuardError);
+  assert.equal(tenantStorage.run({ tenantId: tenantOne }, () => requireTenantContext('Material', 'findMany')), tenantOne);
 });
 
-test('Multi-Tenant Isolation: Transferência de estoque rejeita prateleira de destino pertencente a outra unidade fabril', () => {
-  const currentTenantId = 1; // SEST
-
-  const sourceLocation = { id: 10, factoryUnitId: 1, name: 'PRAT-A1' };
-  const crossTenantLocation = { id: 25, factoryUnitId: 2, name: 'PRAT-IVOTI-B' };
-
-  const validateTransferLocations = (src: typeof sourceLocation, dest: typeof crossTenantLocation, tenantId: number) => {
-    if (src.factoryUnitId !== tenantId || dest.factoryUnitId !== tenantId) {
-      throw new Error('CROSS_TENANT_LOCATION_FORBIDDEN');
-    }
-    return true;
-  };
-
-  assert.throws(
-    () => validateTransferLocations(sourceLocation, crossTenantLocation, currentTenantId),
-    /CROSS_TENANT_LOCATION_FORBIDDEN/,
-    'Transferência entre prateleiras de tenants distintos deve ser terminantemente bloqueada'
+test('TenantGuard injeta unidade em leituras, lotes e criações sem aceitar unidade estrangeira', () => {
+  assert.deepEqual(
+    applyTenantGuard('Material', 'findMany', { where: { code: 'TEC-001' } }, tenantOne),
+    { where: { code: 'TEC-001', factoryUnitId: tenantOne } },
   );
-});
-
-test('Multi-Tenant Concurrency: Transações concorrentes respeitam saldo atômico e impedem saldo negativo', () => {
-  let currentStock = 100;
-
-  // Simulação de transação ACID serializada com decremento condicional
-  const performWithdrawal = (requestedQty: number) => {
-    if (currentStock < requestedQty) {
-      throw new Error('SALDO_INSUFICIENTE');
-    }
-    currentStock -= requestedQty;
-    return currentStock;
-  };
-
-  // Primeira saída de 60
-  const afterFirst = performWithdrawal(60);
-  assert.equal(afterFirst, 40);
-
-  // Segunda saída concorrente de 50 (restavam apenas 40)
-  assert.throws(
-    () => performWithdrawal(50),
-    /SALDO_INSUFICIENTE/,
-    'Concorrência deve abortar a segunda transação quando o saldo residual for menor que a quantidade solicitada'
+  assert.deepEqual(
+    applyTenantGuard('Material', 'createMany', { data: [{ code: 'A' }, { code: 'B', factoryUnitId: tenantOne }] }, tenantOne),
+    { data: [{ code: 'A', factoryUnitId: tenantOne }, { code: 'B', factoryUnitId: tenantOne }] },
   );
-
-  // Saldo final deve permanecer 40 íntegro
-  assert.equal(currentStock, 40);
+  for (const operation of ['findMany', 'create', 'createMany', 'updateMany', 'deleteMany']) {
+    const args = operation === 'create'
+      ? { data: { factoryUnitId: tenantTwo } }
+      : operation === 'createMany'
+        ? { data: [{ factoryUnitId: tenantTwo }] }
+        : { where: { factoryUnitId: tenantTwo } };
+    assert.throws(() => applyTenantGuard('Material', operation, args, tenantOne), TenantGuardError);
+  }
+  assert.throws(() => applyTenantGuard('Material', 'updateMany', {
+    where: { code: 'TEC-001' }, data: { factoryUnitId: tenantTwo },
+  }, tenantOne), TenantGuardError);
 });
 
-test('Multi-Tenant Isolation: Configurações (Categorias, Prateleiras e Origens) são segregadas por factoryUnitId', () => {
-  const allCategories = [
-    { id: 1, factoryUnitId: 1, name: 'SINTETICO' },
-    { id: 2, factoryUnitId: 1, name: 'COURO' },
-    { id: 3, factoryUnitId: 2, name: 'LAMINADO ESPECIAL' },
-  ];
+test('TenantGuard exige seletor composto da unidade ativa em operações singulares', () => {
+  for (const operation of ['findUnique', 'findUniqueOrThrow', 'update', 'delete', 'upsert']) {
+    assert.throws(() => applyTenantGuard('StockItem', operation, { where: { id: 99 } }, tenantOne), TenantGuardError);
+    assert.throws(
+      () => applyTenantGuard('StockItem', operation, { where: { id: 99, stockItem: { factoryUnitId: tenantOne } } }, tenantOne),
+      TenantGuardError,
+    );
+    assert.throws(
+      () => applyTenantGuard('StockItem', operation, { where: { id_factoryUnitId: { id: 99, factoryUnitId: tenantTwo } } }, tenantOne),
+      TenantGuardError,
+    );
+  }
+  assert.deepEqual(
+    applyTenantGuard('StockItem', 'update', { where: { id_factoryUnitId: { id: 99, factoryUnitId: tenantOne } }, data: { quantity: 2 } }, tenantOne),
+    { where: { id_factoryUnitId: { id: 99, factoryUnitId: tenantOne } }, data: { quantity: 2 } },
+  );
+  assert.throws(() => applyTenantGuard('StockItem', 'update', {
+    where: { id_factoryUnitId: { id: 99, factoryUnitId: tenantOne } },
+    data: { factoryUnitId: tenantTwo },
+  }, tenantOne), TenantGuardError);
+});
 
-  const getCategoriesByTenant = (tenantId: number) => {
-    return allCategories.filter((c) => c.factoryUnitId === tenantId);
-  };
+test('TenantGuard mantém upsert na unidade ativa, inclusive nas ramificações de criação', () => {
+  const result = applyTenantGuard('MaterialLocation', 'upsert', {
+    where: { materialId_locationId_factoryUnitId: { materialId: 10, locationId: 20, factoryUnitId: tenantOne } },
+    update: { quantity: 3 },
+    create: { materialId: 10, locationId: 20 },
+  }, tenantOne);
+  assert.equal(result.create.factoryUnitId, tenantOne);
+  assert.throws(() => applyTenantGuard('MaterialLocation', 'upsert', {
+    where: { materialId_locationId_factoryUnitId: { materialId: 10, locationId: 20, factoryUnitId: tenantOne } },
+    update: {},
+    create: { materialId: 10, locationId: 20, factoryUnitId: tenantTwo },
+  }, tenantOne), TenantGuardError);
+});
 
-  const categoriesUnit1 = getCategoriesByTenant(1);
-  assert.equal(categoriesUnit1.length, 2);
-  assert.deepEqual(categoriesUnit1.map((c) => c.name), ['SINTETICO', 'COURO']);
-
-  const categoriesUnit2 = getCategoriesByTenant(2);
-  assert.equal(categoriesUnit2.length, 1);
-  assert.deepEqual(categoriesUnit2.map((c) => c.name), ['LAMINADO ESPECIAL']);
+test('TenantGuard preserva a unidade em chamadas feitas dentro de transação', async () => {
+  await tenantStorage.run({ tenantId: tenantOne }, async () => {
+    const guarded = applyTenantGuard('StockItemLocation', 'update', {
+      where: { stockItemId_locationId_factoryUnitId: { stockItemId: 1, locationId: 2, factoryUnitId: tenantOne } },
+      data: { quantity: 4 },
+    }, requireTenantContext('StockItemLocation', 'update'));
+    assert.equal(guarded.where.stockItemId_locationId_factoryUnitId.factoryUnitId, tenantOne);
+  });
 });

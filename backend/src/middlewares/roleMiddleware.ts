@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma, prismaWithoutTenant } from '../prisma';
+import { prisma } from '../prisma';
 import { vars } from "../config/dotenv"
 import { verifyAccessToken } from '../auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequest, TenantAuthorizationError, normalizeRegistration, registrationToBigInt } from '../auth/tenant';
@@ -41,14 +41,16 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const usuario = String(user.usuario || '').toUpperCase().trim();
     const authOrigin = String(user.origem || user.authOrigin || 'LEGADO').trim().toUpperCase();
     const authUserId = String(user.authUserId ?? user.id ?? usuario).trim();
+    // This lookup deliberately runs with the same tenant guard used by the
+    // request. Provider claims never grant a local role or sector.
     const userInDb = authOrigin && authUserId
-      ? await prismaWithoutTenant.user.findUnique({
+      ? await tenantStorage.run({ tenantId: tenant.id }, () => prisma.user.findUnique({
           where: { factoryUnitId_authOrigin_authUserId: { factoryUnitId: tenant.id, authOrigin, authUserId } },
-        })
+        }))
       : null;
 
-    const effectiveRole = isGlobalAdmin ? 'admin' : (userInDb?.role || user.role || 'leitor');
-    const assignedSector = userInDb?.assignedSector || (user.assignedSector as any) || null;
+    const effectiveRole = isGlobalAdmin ? 'admin' : (userInDb?.role || 'leitor');
+    const assignedSector = isGlobalAdmin ? null : (userInDb?.assignedSector || null);
 
     const effectiveContext: EffectiveContext = {
       userId: userInDb?.id || 0,
@@ -120,14 +122,14 @@ export const requireRole = (allowedRoles: string[]) => {
 export const requireSectorMatch = (getSector: (req: Request) => string | undefined) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const effective = req.effectiveContext;
-    if (effective?.isGlobalAdmin || effective?.effectiveRole === 'admin' || req.user?.role === 'admin' || req.isGlobalAdmin) {
+    if (effective?.isGlobalAdmin || effective?.effectiveRole === 'admin') {
       return next();
     }
 
     const targetSector = getSector(req);
-    const userAssignedSector = effective?.assignedSector || req.user?.assignedSector;
+    const userAssignedSector = effective?.assignedSector;
 
-    if (userAssignedSector && userAssignedSector !== 'TODOS' && targetSector) {
+    if (userAssignedSector && targetSector) {
       let normalizedTarget = targetSector.toUpperCase().trim();
       let normalizedUser = userAssignedSector.toUpperCase().trim();
       if (normalizedTarget === 'CABEDAIS' || normalizedTarget === 'EXPEDICAO') normalizedTarget = 'DISTRIBUICAO';

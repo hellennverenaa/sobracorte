@@ -473,7 +473,7 @@ export class RequisitionService {
         }
 
         await tx.material.update({
-          where: { id: material.id },
+          where: { id_factoryUnitId: { id: material.id, factoryUnitId } },
           data: { quantity: { decrement: dto.quantity } },
         });
 
@@ -482,9 +482,10 @@ export class RequisitionService {
         if (targetLocId && targetLocLink) {
           await tx.materialLocation.update({
             where: {
-              materialId_locationId: {
+              materialId_locationId_factoryUnitId: {
                 materialId: material.id,
                 locationId: targetLocId,
+                factoryUnitId,
               },
             },
             data: {
@@ -548,15 +549,16 @@ export class RequisitionService {
 
         // Debitar Pé Esquerdo
         await tx.stockItem.update({
-          where: { id: leftItem.id },
+          where: { id_factoryUnitId: { id: leftItem.id, factoryUnitId } },
           data: { quantity: { decrement: dto.quantity } },
         });
         if (leftItem.locations[0]?.locationId) {
           await tx.stockItemLocation.update({
             where: {
-              stockItemId_locationId: {
+              stockItemId_locationId_factoryUnitId: {
                 stockItemId: leftItem.id,
                 locationId: leftItem.locations[0].locationId,
+                factoryUnitId,
               },
             },
             data: {
@@ -586,15 +588,16 @@ export class RequisitionService {
 
         // Debitar Pé Direito
         await tx.stockItem.update({
-          where: { id: rightItem.id },
+          where: { id_factoryUnitId: { id: rightItem.id, factoryUnitId } },
           data: { quantity: { decrement: dto.quantity } },
         });
         if (rightItem.locations[0]?.locationId) {
           await tx.stockItemLocation.update({
             where: {
-              stockItemId_locationId: {
+              stockItemId_locationId_factoryUnitId: {
                 stockItemId: rightItem.id,
                 locationId: rightItem.locations[0].locationId,
+                factoryUnitId,
               },
             },
             data: {
@@ -651,7 +654,7 @@ export class RequisitionService {
         }
 
         await tx.stockItem.update({
-          where: { id: stockItem.id },
+          where: { id_factoryUnitId: { id: stockItem.id, factoryUnitId } },
           data: { quantity: { decrement: dto.quantity } },
         });
 
@@ -660,9 +663,10 @@ export class RequisitionService {
         if (targetLocId && targetLocLink) {
           await tx.stockItemLocation.update({
             where: {
-              stockItemId_locationId: {
+              stockItemId_locationId_factoryUnitId: {
                 stockItemId: stockItem.id,
                 locationId: targetLocId,
+                factoryUnitId,
               },
             },
             data: {
@@ -696,7 +700,7 @@ export class RequisitionService {
       const newStatus = newFulfilled >= Number(req.quantityRequested) - 0.0001 ? 'ATENDIDA_TOTAL' : 'ATENDIDA_PARCIAL';
 
       const updatedRequisition = await tx.materialRequisition.update({
-        where: { id: req.id },
+        where: { id_factoryUnitId: { id: req.id, factoryUnitId } },
         data: {
           quantityFulfilled: newFulfilled,
           status: newStatus,
@@ -726,7 +730,7 @@ export class RequisitionService {
     }
 
     const updated = await prisma.materialRequisition.update({
-      where: { id: req.id },
+      where: { id_factoryUnitId: { id: req.id, factoryUnitId } },
       data: { status: 'CANCELADA' },
     });
 

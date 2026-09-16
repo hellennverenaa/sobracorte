@@ -64,7 +64,7 @@ export class StockItemService {
             }
 
             materialRecord = await tx.material.update({
-              where: { id: existingMaterial.id },
+              where: { id_factoryUnitId: { id: existingMaterial.id, factoryUnitId } },
               data: {
                 quantity: { increment: item.quantity },
                 name: item.name ? item.name.trim().toUpperCase() : existingMaterial.name,
@@ -92,9 +92,10 @@ export class StockItemService {
           // Upsert MaterialLocation
           await tx.materialLocation.upsert({
             where: {
-              materialId_locationId: {
+              materialId_locationId_factoryUnitId: {
                 materialId: materialRecord.id,
                 locationId: loc.id,
+                factoryUnitId,
               },
             },
             update: {
@@ -689,4 +690,3 @@ export class StockItemService {
     return Array.from(uniqueColors).sort();
   }
 }
-

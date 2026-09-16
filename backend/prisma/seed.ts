@@ -1,4 +1,4 @@
-import { prismaWithoutTenant } from '../src/prisma';
+import { prismaForInternalUse } from '../src/prisma';
 
 export const FACTORY_UNITS = [
   { code: 'SEST', name: 'Santo Estêvão', active: true },
@@ -27,7 +27,7 @@ async function main() {
   console.log('🌱 Iniciando Seed de Unidades Fabris e Configurações...');
 
   for (const unit of FACTORY_UNITS) {
-    const upserted = await prismaWithoutTenant.factoryUnit.upsert({
+    const upserted = await prismaForInternalUse.factoryUnit.upsert({
       where: { code: unit.code },
       update: { name: unit.name, active: unit.active },
       create: { code: unit.code, name: unit.name, active: unit.active },
@@ -36,11 +36,11 @@ async function main() {
 
     // Provisionar DEFAULT_UNITS para a unidade
     for (const u of DEFAULT_UNITS) {
-      const exists = await prismaWithoutTenant.unitConfig.findFirst({
+      const exists = await prismaForInternalUse.unitConfig.findFirst({
         where: { factoryUnitId: upserted.id, symbol: u.symbol },
       });
       if (!exists) {
-        await prismaWithoutTenant.unitConfig.create({
+        await prismaForInternalUse.unitConfig.create({
           data: {
             name: u.name,
             symbol: u.symbol,
@@ -53,24 +53,24 @@ async function main() {
   }
 
   // Obter SEST como referência de configurações de categorias e origens
-  const sestUnit = await prismaWithoutTenant.factoryUnit.findUnique({
+  const sestUnit = await prismaForInternalUse.factoryUnit.findUnique({
     where: { code: 'SEST' },
     include: { categories: true, origins: true },
   });
 
   if (sestUnit) {
-    const otherUnits = await prismaWithoutTenant.factoryUnit.findMany({
+    const otherUnits = await prismaForInternalUse.factoryUnit.findMany({
       where: { code: { not: 'SEST' } },
     });
 
     for (const targetUnit of otherUnits) {
       // 1. Replicar CategoryConfig
       for (const c of sestUnit.categories) {
-        const exists = await prismaWithoutTenant.categoryConfig.findFirst({
+        const exists = await prismaForInternalUse.categoryConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: c.name },
         });
         if (!exists) {
-          await prismaWithoutTenant.categoryConfig.create({
+          await prismaForInternalUse.categoryConfig.create({
             data: {
               name: c.name,
               sector: c.sector,
@@ -84,11 +84,11 @@ async function main() {
 
       // 2. Replicar OriginConfig
       for (const o of sestUnit.origins) {
-        const exists = await prismaWithoutTenant.originConfig.findFirst({
+        const exists = await prismaForInternalUse.originConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: o.name },
         });
         if (!exists) {
-          await prismaWithoutTenant.originConfig.create({
+          await prismaForInternalUse.originConfig.create({
             data: {
               name: o.name,
               sector: o.sector,
@@ -109,5 +109,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prismaWithoutTenant.$disconnect();
+    await prismaForInternalUse.$disconnect();
   });

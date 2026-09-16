@@ -156,7 +156,7 @@ export class MountingPairService {
       // 2. Debitar saldo do Pé Esquerdo
       const newLeftQty = Math.max(0, Number(leftItem.quantity) - quantity);
       await tx.stockItem.update({
-        where: { id: leftItem.id },
+        where: { id_factoryUnitId: { id: leftItem.id, factoryUnitId } },
         data: { quantity: newLeftQty },
       });
 
@@ -166,9 +166,10 @@ export class MountingPairService {
         const newLeftLocQty = Math.max(0, Number(leftLoc.quantity || 0) - quantity);
         await tx.stockItemLocation.update({
           where: {
-            stockItemId_locationId: {
+            stockItemId_locationId_factoryUnitId: {
               stockItemId: leftItem.id,
               locationId: leftLoc.locationId,
+              factoryUnitId,
             },
           },
           data: { quantity: newLeftLocQty },
@@ -178,7 +179,7 @@ export class MountingPairService {
       // 3. Debitar saldo do Pé Direito
       const newRightQty = Math.max(0, Number(rightItem.quantity) - quantity);
       await tx.stockItem.update({
-        where: { id: rightItem.id },
+        where: { id_factoryUnitId: { id: rightItem.id, factoryUnitId } },
         data: { quantity: newRightQty },
       });
 
@@ -188,9 +189,10 @@ export class MountingPairService {
         const newRightLocQty = Math.max(0, Number(rightLoc.quantity || 0) - quantity);
         await tx.stockItemLocation.update({
           where: {
-            stockItemId_locationId: {
+            stockItemId_locationId_factoryUnitId: {
               stockItemId: rightItem.id,
               locationId: rightLoc.locationId,
+              factoryUnitId,
             },
           },
           data: { quantity: newRightLocQty },

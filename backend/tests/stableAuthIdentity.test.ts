@@ -14,7 +14,10 @@ function clientWith(users: any[]) {
         (user.authOrigin === null || user.authOrigin === 'LEGADO') &&
         (user.usuario === 'USER.TESTE' || user.matriculaDass === 100n)).slice(0, take),
       update: async ({ where, data }: any) => {
-        const user = users.find((candidate) => candidate.id === where.id)!;
+        const selector = where.id_factoryUnitId;
+        const user = users.find((candidate) =>
+          candidate.id === selector.id && candidate.factoryUnitId === selector.factoryUnitId,
+        )!;
         Object.assign(user, data);
         return user;
       },
