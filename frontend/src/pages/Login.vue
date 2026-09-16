@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Lock, User, ArrowRight, AlertTriangle, ExternalLink } from 'lucide-vue-next'
-import { api, authApi } from '@/services/httpClient'
+import { authApi } from '@/services/httpClient'
 import {
   externalLoginMessage,
   getLoginPresentation,
@@ -63,11 +63,11 @@ watch(selectedUnit, (newVal) => {
 
 onMounted(async () => {
   const [factoryResult, externalResult] = await Promise.allSettled([
-    api.get('/factory-units'),
+    authStore.fetchAvailableUnits(),
     authApi.get('/auth/external/units'),
   ])
 
-  factoryCatalogUnavailable.value = factoryResult.status === 'rejected'
+  factoryCatalogUnavailable.value = factoryResult.status === 'rejected' || Boolean(authStore.unitLoadError)
   externalCatalogUnavailable.value = externalResult.status === 'rejected'
   units.value = factoryResult.status === 'fulfilled'
     ? intersectFactoryUnits(factoryResult.value, externalResult.status === 'fulfilled' ? externalResult.value : [])

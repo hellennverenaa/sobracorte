@@ -9,7 +9,11 @@ test('troca global informa progresso, mantém identidade e preserva unidade quan
   const pinia = createPinia();
   const token = `header.${btoa(JSON.stringify({ id: 17, usuario: 'teste', origem: 'DASS' }))}.signature`;
   pinia.state.value.auth = { user: { id: 17, token, role: 'admin', isGlobalAdmin: true, unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [], unitSwitchStatus: '' };
-  api.get = async (url) => ({ data: url === '/factory-units' ? [{ code: 'SEST' }, { code: 'VDC' }] : {} });
+  let unitRequests = 0;
+  api.get = async (url) => {
+    if (url === '/factory-units') unitRequests++;
+    return { data: url === '/factory-units' ? [{ code: 'SEST' }, { code: 'VDC' }] : {} };
+  };
   let complete;
   api.post = () => new Promise((resolve) => { complete = resolve; });
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
@@ -31,6 +35,7 @@ test('troca global informa progresso, mantém identidade e preserva unidade quan
   const remounted = await mountComponent(component, { pinia, router });
   await flushPromises();
   assert.match(remounted.element.textContent, /Unidade ativa: VDC/);
+  assert.equal(unitRequests, 1, 'remontar o layout não deve consultar o catálogo novamente');
   api.post = async () => { throw { response: { data: { error: 'Unidade indisponível' } } }; };
   const nextSelector = remounted.element.querySelector('#global-unit-selector');
   nextSelector.value = 'SEST';

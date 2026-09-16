@@ -31,6 +31,16 @@ export const publicLimiter = rateLimit({
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
 });
 
+// O catálogo não deve consumir o orçamento de tentativas de login.
+const unitCatalogLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
+});
+
 export const authenticatedLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 600,
@@ -68,7 +78,7 @@ const requisitionController = new RequisitionController();
 
 routes.get('/health', (_req, res) => res.json({ status: 'ok' }));
 routes.get('/auth/health', (_req, res) => res.json({ status: 'ok' }));
-routes.get('/factory-units', publicLimiter, async (_req, res) => {
+routes.get('/factory-units', unitCatalogLimiter, async (_req, res) => {
   try {
     const units = await prisma.factoryUnit.findMany({
       where: { active: true },

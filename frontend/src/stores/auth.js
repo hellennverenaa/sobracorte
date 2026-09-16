@@ -4,6 +4,8 @@ import { externalLoginMessage, loginRequest, normalizeUnitCode } from '../servic
 import { canSwitchFactoryUnit, normalizeFactoryUnitCode } from '../services/unitAccess'
 import { requestErrorMessage } from '../utils/domain'
 
+const unitRequests = new WeakMap()
+
 function loadStoredUser() {
   try {
     return JSON.parse(localStorage.getItem('user'))
@@ -80,15 +82,25 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async fetchAvailableUnits() {
+    async fetchAvailableUnits({ force = false } = {}) {
+      if (unitRequests.has(this)) return unitRequests.get(this);
+      if (!force && this.availableUnits.length) return this.availableUnits;
       this.unitLoadError = '';
+      const request = (async () => {
+        try {
+          const response = await api.get('/factory-units');
+          this.availableUnits = response.data?.data || response.data || [];
+          return this.availableUnits;
+        } catch (error) {
+          this.unitLoadError = requestErrorMessage(error, 'Não foi possível carregar as unidades fabris.');
+          return [];
+        }
+      })();
+      unitRequests.set(this, request);
       try {
-        const response = await api.get('/factory-units');
-        this.availableUnits = response.data?.data || response.data || [];
-        return this.availableUnits;
-      } catch (error) {
-        this.unitLoadError = requestErrorMessage(error, 'Não foi possível carregar as unidades fabris.');
-        return [];
+        return await request;
+      } finally {
+        unitRequests.delete(this);
       }
     },
 

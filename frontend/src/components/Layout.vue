@@ -209,7 +209,7 @@ async function handleUnitChange(event) {
             <span v-if="unitSwitchStatus" role="status" aria-live="polite" class="mt-1 text-[10px] text-indigo-700">{{ unitSwitchStatus }}</span>
             <div v-if="authStore.unitLoadError" role="alert" class="mt-1 max-w-64 text-right text-[10px] text-red-600">
               {{ authStore.unitLoadError }}
-              <button type="button" class="ml-1 underline" @click="authStore.fetchAvailableUnits()">Tentar novamente</button>
+              <button type="button" class="ml-1 underline" @click="authStore.fetchAvailableUnits({ force: true })">Tentar novamente</button>
             </div>
             <span v-if="unitSwitchError" role="alert" class="mt-1 max-w-64 text-right text-[10px] font-semibold text-red-600">
               {{ unitSwitchError }}
