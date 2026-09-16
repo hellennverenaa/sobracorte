@@ -3,6 +3,13 @@ import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../
 import { SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit } from '../utils/unitHelper';
 
+export class DuplicateStockItemError extends Error {
+  constructor() {
+    super('Este material já existe no estoque. Para adicionar saldo, utilize a movimentação de entrada do item existente.');
+    this.name = 'DuplicateStockItemError';
+  }
+}
+
 export class StockItemService {
   /**
    * Cadastro em lote com transação ACID e persistência oficial:
@@ -14,7 +21,28 @@ export class StockItemService {
     return await prisma.$transaction(async (tx) => {
       const createdItems = [];
 
+      if (dto.items.some(item => item.sector === 'APOIO')) {
+        // Serializa cadastros da unidade para impedir duplicações simultâneas.
+        await tx.$queryRaw`SELECT id FROM sobra_corte."FactoryUnit" WHERE id = ${factoryUnitId} FOR NO KEY UPDATE`;
+      }
+
       for (const item of dto.items) {
+        if (item.sector === 'APOIO') {
+          const productName = item.productName?.trim().toUpperCase() || null;
+          const existing = await tx.stockItem.findFirst({
+            where: {
+              factoryUnitId,
+              sector: 'APOIO',
+              pieceCode: item.pieceCode.trim().toUpperCase(),
+              description: item.description.trim().toUpperCase(),
+              materialColor: item.materialColor.trim().toUpperCase(),
+              sizeGrade: item.sizeGrade.trim().toUpperCase(),
+              ...(productName ? { productName } : { OR: [{ productName: null }, { productName: '' }] }),
+            },
+            select: { id: true },
+          });
+          if (existing) throw new DuplicateStockItemError();
+        }
         const locationName = item.location.trim().toUpperCase();
 
         // 1. Localizar ou criar a prateleira/localização

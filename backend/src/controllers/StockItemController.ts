@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
-import { StockItemService } from '../services/StockItemService';
+import { DuplicateStockItemError, StockItemService } from '../services/StockItemService';
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
 import { SectorType } from '../generated/prisma';
@@ -49,6 +49,9 @@ export class StockItemController {
       const result = await stockItemService.createBatch(parsed, operatorContext);
       return res.status(201).json(result);
     } catch (error) {
+      if (error instanceof DuplicateStockItemError) {
+        return res.status(409).json({ error: error.message });
+      }
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos dados.',
