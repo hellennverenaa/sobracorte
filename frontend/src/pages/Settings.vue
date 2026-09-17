@@ -1354,14 +1354,14 @@ const sectorCsvPattern = computed(() => {
       title: 'Padrão Exigido para o Arquivo CSV — APOIO (Moldes & Peças Cortadas)',
       columns: [
         { name: 'sku', req: true, desc: 'Código / SKU ou Molde da peça. Ex: MOL-001' },
-        { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: PEGASUS 40' },
+        { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: true, desc: 'Nome / Descrição da peça avulsa. Ex: GASPEA LATERAL' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box no apoio. Ex: AP-01' },
       ],
       headerExample: 'sku;modelo;peca;quantidade;prateleira',
       examples: [
-        'MOL-001;PEGASUS 40;GASPEA LATERAL;50;AP-01',
+        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;50;AP-01',
         'MOL-002;AIR MAX SC;TALONEIRA TRASEIRA;30;AP-02',
         'MOL-003;VOMERO 17;LINGUETA SUPERIOR;40;AP-03',
       ],
@@ -1374,8 +1374,8 @@ const sectorCsvPattern = computed(() => {
     return {
       title: `Padrão Exigido para o Arquivo CSV — ${secLabel}`,
       columns: [
-        { name: 'sku', req: true, desc: 'SKU ou código do produto. Ex: SKU-PEG40-BLK' },
-        { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: PEGASUS 40' },
+        { name: 'sku', req: true, desc: 'SKU ou código do produto. Ex: SKU-RACER-SPD-BLK' },
+        { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: false, desc: `Componente do calçado. Ex: ${pecaEx}` },
         { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41' },
         { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado automaticamente em 1E + 1D)' },
@@ -1384,8 +1384,8 @@ const sectorCsvPattern = computed(() => {
       ],
       headerExample: 'sku;modelo;peca;grade;lado;quantidade;prateleira',
       examples: [
-        `SKU-PEG40-BLK;PEGASUS 40;${pecaEx};41;PAR;20;PR-01`,
-        `SKU-PEG40-BLK;PEGASUS 40;${pecaEx};40;E;15;MO-02`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};41;PAR;20;PR-01`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};40;E;15;MO-02`,
         `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};38;D;10;MO-03`,
       ],
     }

@@ -817,7 +817,7 @@ function getStatusBadge(status) {
       <!-- TABELA DE RESULTADOS (MOVIMENTAÇÕES) -->
       <div v-if="reportType === 'movements'" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-xs">
+          <table class="w-full text-left border-collapse text-xs report-table report-table-movements">
             <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th class="py-3 px-3">Data / Hora</th>
@@ -828,7 +828,6 @@ function getStatusBadge(status) {
                 <th class="py-3 px-2 text-right">Qtd</th>
                 <th class="py-3 px-2 text-center">Localização</th>
                 <th class="py-3 px-3">Motivo / Origem</th>
-                <th class="py-3 px-3">Responsável</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -841,26 +840,25 @@ function getStatusBadge(status) {
                   {{ new Date(item.data).toLocaleDateString('pt-BR') }} {{ new Date(item.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}
                 </td>
                 <td class="py-2.5 px-2 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(item.sector || item.setor)">
+                  <span class="report-print-badge px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(item.sector || item.setor)">
                     {{ getSectorShort(item.sector || item.setor) }}
                   </span>
                 </td>
                 <td class="py-2.5 px-2 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getTypeBadge(item.tipo)">
+                  <span class="report-print-badge px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getTypeBadge(item.tipo)">
                     {{ getTypeShort(item.tipo) }}
                   </span>
                 </td>
                 <td class="py-2.5 px-3 font-mono font-bold text-slate-800">{{ item.codigo || '-' }}</td>
-                <td class="py-2.5 px-3 text-slate-700 font-medium max-w-xs truncate">{{ item.descricao || '-' }}</td>
+                <td class="report-cell-description py-2.5 px-3 text-slate-700 font-medium max-w-xs truncate">{{ item.descricao || '-' }}</td>
                 <td class="py-2.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">
                   {{ Number(item.quantidade).toLocaleString('pt-BR') }} <span class="text-[10px] font-normal text-slate-500">{{ item.unidade }}</span>
                 </td>
                 <td class="py-2.5 px-2 text-center text-slate-600 font-mono text-[11px]">{{ item.prateleira || '-' }}</td>
-                <td class="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ item.motivo || item.origem || '-' }}</td>
-                <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap">{{ item.responsavel || item.operador }}</td>
+                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ item.motivo || item.origem || '-' }}</td>
               </tr>
               <tr v-if="reportData.length === 0">
-                <td colspan="9" class="py-12 text-center text-slate-400 font-medium">
+                <td colspan="8" class="py-12 text-center text-slate-400 font-medium">
                   {{ loading ? 'Carregando dados...' : 'Nenhum registro encontrado para os filtros selecionados.' }}
                 </td>
               </tr>
@@ -882,7 +880,7 @@ function getStatusBadge(status) {
       <!-- TABELA DE RESULTADOS (REQUISIÇÕES FABRIS) -->
       <div v-else class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-xs">
+          <table class="w-full text-left border-collapse text-xs report-table report-table-requisitions">
             <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th class="py-3 px-3">Código</th>
@@ -909,7 +907,7 @@ function getStatusBadge(status) {
                   {{ new Date(req.data).toLocaleDateString('pt-BR') }} {{ new Date(req.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }}
                 </td>
                 <td class="py-2.5 px-2 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(req.setorSolicitante)">
+                  <span class="report-print-badge px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getSectorBadge(req.setorSolicitante)">
                     {{ getSectorShort(req.setorSolicitante) }}
                   </span>
                 </td>
@@ -925,12 +923,12 @@ function getStatusBadge(status) {
                   {{ Number(req.quantidadeAtendida).toLocaleString('pt-BR') }}
                 </td>
                 <td class="py-2.5 px-2 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getStatusBadge(req.status)">
+                  <span class="report-print-badge px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getStatusBadge(req.status)">
                     {{ req.status?.replace('_', ' ') }}
                   </span>
                 </td>
                 <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap">{{ req.solicitante }}</td>
-                <td class="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ req.motivo }}</td>
+                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ req.motivo }}</td>
               </tr>
               <tr v-if="reportData.length === 0">
                 <td colspan="11" class="py-12 text-center text-slate-400 font-medium">
@@ -959,7 +957,7 @@ function getStatusBadge(status) {
 <style>
 @page {
   size: A4 portrait;
-  margin: 0.8cm;
+  margin: 0.7cm;
 }
 
 @media print {
@@ -1006,6 +1004,65 @@ function getStatusBadge(status) {
   table {
     width: 100% !important;
     border-collapse: collapse !important;
+  }
+
+  .report-table {
+    font-size: 11.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .report-table thead th {
+    padding: 4px 3px !important;
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+  }
+
+  .report-table tbody td {
+    padding: 4px 3px !important;
+    font-size: 11.5px !important;
+    vertical-align: top !important;
+  }
+
+  .report-table-movements {
+    table-layout: fixed !important;
+  }
+
+  .report-table-movements th:nth-child(1),
+  .report-table-movements td:nth-child(1) { width: 12%; }
+  .report-table-movements th:nth-child(2),
+  .report-table-movements td:nth-child(2) { width: 8%; }
+  .report-table-movements th:nth-child(3),
+  .report-table-movements td:nth-child(3) { width: 8%; }
+  .report-table-movements th:nth-child(4),
+  .report-table-movements td:nth-child(4) { width: 13%; }
+  .report-table-movements th:nth-child(5),
+  .report-table-movements td:nth-child(5) { width: 21%; }
+  .report-table-movements th:nth-child(6),
+  .report-table-movements td:nth-child(6) { width: 8%; }
+  .report-table-movements th:nth-child(7),
+  .report-table-movements td:nth-child(7) { width: 12%; }
+  .report-table-movements th:nth-child(8),
+  .report-table-movements td:nth-child(8) { width: 18%; }
+
+  .report-print-badge {
+    display: inline !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #000 !important;
+    font-size: inherit !important;
+    font-weight: 600 !important;
+    white-space: normal !important;
+  }
+
+  .report-cell-description,
+  .report-cell-origin {
+    max-width: none !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
   }
 
   thead {

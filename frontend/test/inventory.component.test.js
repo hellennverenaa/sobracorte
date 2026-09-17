@@ -92,9 +92,11 @@ test(`estoque restringe destinos de ${role} e registra saída pela API oficial`,
   assert.equal(options.some(text => text.includes('GERAL')), role === 'admin');
   assert.ok(options.every(text => !text.includes('OUTRO-SETOR')));
   assert.doesNotMatch(dialog.textContent, /Autorização Admin Master/);
+  assert.doesNotMatch(dialog.textContent, /Motivo \/ Origem da Sobra/);
   const exit = [...dialog.querySelectorAll('button')].find(button => button.textContent.trim() === 'SAÍDA');
   exit.click();
   await flushPromises();
+  assert.doesNotMatch(dialog.textContent, /Motivo \/ Origem da Sobra/);
   const submit = [...dialog.querySelectorAll('button')].find((button) => button.textContent.includes('Confirmar SAIDA'));
   assert.equal(submit.disabled, false);
   submit.click();
