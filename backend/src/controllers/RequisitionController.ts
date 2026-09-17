@@ -1,3 +1,4 @@
+import { requestStockAccess, assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { RequisitionService } from '../services/RequisitionService';
 import { 
@@ -21,9 +22,11 @@ export class RequisitionController {
       }
 
       const parsed = CheckStockAvailabilitySchema.parse(req.body);
+      assertStockSectorAccess(requestStockAccess(req), parsed.requestSector);
       const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Dados de verificação inválidos.',
@@ -45,8 +48,10 @@ export class RequisitionController {
       }
 
       const parsed = CreateRequisitionPayloadSchema.parse(req.body);
+      for (const item of ('items' in parsed ? parsed.items : [parsed])) assertStockSectorAccess(requestStockAccess(req), item.requestSector);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
@@ -55,6 +60,7 @@ export class RequisitionController {
       const result = await requisitionService.createRequisition(parsed, operatorContext);
       return res.status(201).json(result);
     } catch (error: any) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos dados.',
@@ -78,16 +84,16 @@ export class RequisitionController {
       const parsed = RequisitionFilterSchema.parse(req.query);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
-        role: req.user?.role || null,
-        assignedSector: req.user?.assignedSector || null,
       };
 
       const result = await requisitionService.listRequisitions(parsed, operatorContext);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Parâmetros de filtro inválidos.',
@@ -111,6 +117,7 @@ export class RequisitionController {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
@@ -119,6 +126,7 @@ export class RequisitionController {
       const result = await requisitionService.cancelRequisition(id, operatorContext);
       return res.json(result);
     } catch (error: any) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao cancelar requisição:', error);
       return res.status(400).json({ error: error.message || 'Erro ao cancelar requisição.' });
     }
@@ -137,6 +145,7 @@ export class RequisitionController {
       const parsed = FulfillRequisitionSchema.parse(req.body);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.effectiveContext?.matriculaDass ? String(req.effectiveContext.matriculaDass) : (req.user?.matricula ? String(req.user.matricula) : null),
         operatorName: req.effectiveContext?.nome || req.user?.nome || req.user?.usuario || null,
@@ -147,6 +156,7 @@ export class RequisitionController {
       const result = await requisitionService.fulfillRequisition(id, parsed, operatorContext);
       return res.json({ success: true, requisition: result });
     } catch (error: any) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Dados de atendimento inválidos.',
@@ -176,6 +186,7 @@ export class RequisitionController {
       const result = await requisitionService.getPendingCount(req.tenant.id, userSec);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar contagem de pendências:', error);
       return res.status(500).json({ error: 'Erro interno ao consultar pendências.' });
     }

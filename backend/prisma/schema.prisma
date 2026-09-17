@@ -436,6 +436,15 @@ model StockMovement {
   itemName              String?
   itemCategory          String?
   itemUnit              String?
+  itemModelName         String?
+  itemSizeGrade         String?
+  itemFootSide          String?
+  itemColor             String?
+  // Identificadores históricos: preservados mesmo após exclusão do item.
+  sourceStockItemId     Int?
+  destinationStockItemId Int?
+  sourceSector          SectorType?
+  destinationSector     SectorType?
   
   origem                String?      // Motivo cadastrado (Consumo, Refugo, Casamento, Transferência)
   reason                String?      // Observação detalhada da ação

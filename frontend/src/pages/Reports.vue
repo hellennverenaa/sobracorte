@@ -7,7 +7,7 @@ import { useReports } from '@/composables/useReports'
 import ReportStatus from '@/components/ReportStatus.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
-import { SECTOR_OPTIONS } from '@/utils/domain'
+import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatNumber, formatDate } from '@/utils/format'
 import {
   FileSpreadsheet,
@@ -37,6 +37,7 @@ import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
 const reportDomain = useReports({
+  authStore,
   autoLoad: false,
   api,
   unitCode: () => authStore.user?.unit?.code || 'default',
@@ -97,17 +98,20 @@ const canExport = computed(() => {
 const { notification, showNotification } = useToast(3500)
 
 // --- OPÇÕES DOS SELECTS ---
-const sectors = SECTOR_OPTIONS.map((sector) => ({
+const sectors = computed(() => SECTOR_OPTIONS.filter(sector =>
+  authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizeSector(authStore.user?.assignedSector)
+).map((sector) => ({
   value: sector.id,
   label: sector.id === 'TODOS' ? 'Todos os Setores (Geral)' : sector.label,
-}))
+})))
 
 const operationTypes = [
   { value: 'TODOS', label: 'Todas as Operações' },
   { value: 'ENTRADA', label: 'Entradas de Sobras' },
-  { value: 'SAIDA', label: 'Saídas / Reaproveitamento (Inclui Casamentos)' },
+  { value: 'SAIDA', label: 'Saídas (Inclui Casamentos e Requisições)' },
   { value: 'TRANSFERENCIA', label: 'Transferências entre Prateleiras' },
   { value: 'CASAMENTO_PAR', label: 'Casamento de Pares (Multi-Setor)' },
+  { value: 'SAIDA_REQUISICAO', label: 'Saídas por Requisição' },
   { value: 'REFUGO', label: 'Refugos / Descartes' },
 ]
 
@@ -348,7 +352,7 @@ function setCurrentPage(page) {
 
 // --- FORMATADORES DE RÓTULOS ---
 function getSectorLabel(val) {
-  const found = sectors.find(s => s.value === val)
+  const found = sectors.value.find(s => s.value === val)
   return found ? found.label : val
 }
 
@@ -374,6 +378,7 @@ function getTypeShort(tipo) {
   const map = {
     ENTRADA: 'ENTRADA',
     SAIDA: 'SAÍDA',
+    SAIDA_REQUISICAO: 'SAÍDA REQ.',
     TRANSFERENCIA: 'TRANSF.',
     CASAMENTO_PAR: 'CASAM. PAR',
     REFUGO: 'REFUGO'
@@ -412,6 +417,7 @@ function getTypeBadge(type) {
   const map = {
     ENTRADA: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     SAIDA: 'bg-blue-50 text-blue-700 border-blue-200',
+    SAIDA_REQUISICAO: 'bg-blue-50 text-blue-700 border-blue-200',
     TRANSFERENCIA: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     CASAMENTO_PAR: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
     REFUGO: 'bg-red-50 text-red-700 border-red-200',

@@ -12,13 +12,18 @@ import {
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
-const pairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
+const allPairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
   { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Pés Órfãos', icon: Footprints },
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Solas', icon: Layers },
   { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais e Solas', icon: Box },
 ];
 
-const activeSector = ref<SectorType>('MONTAGEM');
+const pairSectors = computed(() => allPairSectors.filter(sector => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizedAssignedSector.value));
+const normalizedAssignedSector = computed(() => {
+  const sector = authStore.user?.assignedSector;
+  return sector === 'EXPEDICAO' || sector === 'CABEDAIS' ? 'DISTRIBUICAO' : sector;
+});
+const activeSector = ref<SectorType>((authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? 'MONTAGEM' : normalizedAssignedSector.value) as SectorType);
 const searchQuery = ref('');
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);
@@ -32,7 +37,7 @@ const canOperateMatchingSector = computed(() => {
   if (!authStore.user) return false;
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
-  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return true;
+  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
   const userSec = authStore.user.assignedSector.toUpperCase().trim();
   const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
   const curSec = activeSector.value.toUpperCase().trim();
@@ -54,6 +59,7 @@ function clearSearch() {
 }
 
 function selectSectorTab(sector: SectorType) {
+  if (!pairSectors.value.some(option => option.id === sector)) return;
   activeSector.value = sector;
   loadPairs();
 }

@@ -1,5 +1,8 @@
+import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
+import { pairCompatibilitySql } from '../services/pairCompatibilitySql';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { normalizeUnit } from '../utils/unitHelper';
 
 export class DashboardController {
   /**
@@ -9,6 +12,8 @@ export class DashboardController {
   async getSummary(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
+      const assignedSector = assignedStockSector(requestStockAccess(req));
+      const scope = sectorAccessWhere(requestStockAccess(req));
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
       const [
@@ -60,25 +65,25 @@ export class DashboardController {
         // 🚀 SQL Window Function: Top 5 Materiais Acumulados particionados por Unidade de Medida
         topRankedMaterialsByUnit,
       ] = await Promise.all([
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE' } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'CORTE', quantity: { lte: 10 } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { lte: 10 } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { not: 'CORTE' }, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE' } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE', quantity: { lte: 10 } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' }, quantity: { lte: 10 } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' }, type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' }, type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
         prisma.stockItem.groupBy({
           by: ['type'],
-          where: { factoryUnitId, sector: 'CORTE' },
-          _sum: { quantity: true },
+          where: { factoryUnitId, AND: [scope], sector: 'CORTE' },
+          _count: { _all: true },
         }),
         prisma.stockMovement.groupBy({
           by: ['sector', 'origem'],
           where: {
-            factoryUnitId,
+            factoryUnitId, AND: [scope],
             sector: { not: 'CORTE' },
             type: 'ENTRADA',
             origem: { not: null },
@@ -89,7 +94,7 @@ export class DashboardController {
         prisma.stockMovement.groupBy({
           by: ['origem'],
           where: {
-            factoryUnitId,
+            factoryUnitId, AND: [scope],
             sector: 'CORTE', type: 'ENTRADA',
             origem: { not: null },
           },
@@ -98,33 +103,33 @@ export class DashboardController {
         }),
         prisma.stockItem.count({
           where: {
-            factoryUnitId, sector: 'CORTE',
+            factoryUnitId, AND: [scope], sector: 'CORTE',
             quantity: { gt: 0 },
             updatedAt: { lte: thirtyDaysAgo }
           }
         }),
         prisma.stockItem.count({
           where: {
-            factoryUnitId,
+            factoryUnitId, AND: [scope],
             quantity: { gt: 0 },
             updatedAt: { lte: thirtyDaysAgo }
           }
         }),
         // Quantidades por setor
         prisma.stockItem.aggregate({
-          where: { factoryUnitId, sector: 'CORTE' },
+          where: { factoryUnitId, AND: [scope], sector: 'CORTE' },
           _sum: { quantity: true }
         }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO' } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'APOIO' }, _sum: { quantity: true } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO' } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'PRE_FABRICADO' }, _sum: { quantity: true } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } }, _sum: { quantity: true } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } } }),
-        prisma.stockItem.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 } }, _sum: { quantity: true } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, type: 'CASAMENTO_PAR' }, _sum: { quantity: true } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'SAIDA_REQUISICAO', origem: { contains: 'Atendimento de Requisição (Pé' } }, _sum: { quantity: true } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'APOIO' } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, AND: [scope], sector: 'APOIO' }, _sum: { quantity: true } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'PRE_FABRICADO' } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, AND: [scope], sector: 'PRE_FABRICADO' }, _sum: { quantity: true } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, AND: [scope], sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } }, _sum: { quantity: true } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', quantity: { gt: 0 } } }),
+        prisma.stockItem.aggregate({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', quantity: { gt: 0 } }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, AND: [scope], type: 'CASAMENTO_PAR' }, _sum: { quantity: true } }),
+        prisma.stockMovement.aggregate({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', type: 'SAIDA_REQUISICAO', origem: { contains: 'Atendimento de Requisição (Pé' } }, _sum: { quantity: true } }),
         // Consulta Otimizada de Pares Formáveis Agrupados por Setor (Montagem, Pré-Fabricado, Distribuição)
         prisma.$queryRaw<Array<{ sector: string; totalFormable: number }>>`
           SELECT 
@@ -132,13 +137,9 @@ export class DashboardController {
             COALESCE(SUM(LEAST(e.quantity, d.quantity)), 0) AS "totalFormable"
           FROM sobra_corte."StockItem" e
           INNER JOIN sobra_corte."StockItem" d
-            ON e."factoryUnitId" = d."factoryUnitId"
-            AND e.sector = d.sector
-            AND COALESCE(e."sku", e."pieceCode", e."productName", '') = COALESCE(d."sku", d."pieceCode", d."productName", '')
-            AND e."sizeGrade" = d."sizeGrade"
-            AND COALESCE(e."color", '') = COALESCE(d."color", '')
-            AND COALESCE(e."type", '') = COALESCE(d."type", '')
-          WHERE e."factoryUnitId" = ${factoryUnitId}
+            ON ${pairCompatibilitySql}
+          WHERE e."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN e.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE e.sector::text END) = ${assignedSector}::text)
+            AND e.sector IN ('MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO')
             AND e."footSide" = 'E'
             AND d."footSide" = 'D'
             AND e.quantity > 0
@@ -149,38 +150,38 @@ export class DashboardController {
         prisma.stockItem.groupBy({
           by: ['sector', 'footSide'],
           where: {
-            factoryUnitId,
+            factoryUnitId, AND: [scope],
             footSide: { in: ['E', 'D'] },
             quantity: { gt: 0 },
           },
           _sum: { quantity: true },
         }),
         // Entradas por setor
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: 'ENTRADA' } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: 'ENTRADA' }, _sum: { quantity: true } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'APOIO', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'PRE_FABRICADO', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', type: 'ENTRADA' } }),
         // Saídas por setor
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'PRE_FABRICADO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', type: { in: ['SAIDA', 'REFUGO', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] } } }),
         // Parados >30d por setor
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'PRE_FABRICADO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
-        prisma.stockItem.count({ where: { factoryUnitId, sector: 'MONTAGEM', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'APOIO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'PRE_FABRICADO', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
+        prisma.stockItem.count({ where: { factoryUnitId, AND: [scope], sector: 'MONTAGEM', quantity: { gt: 0 }, updatedAt: { lte: thirtyDaysAgo } } }),
         // Agrupamento de maiores entradas acumuladas
         prisma.stockMovement.groupBy({
-          by: ['stockItemId'],
-          where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' },
+          by: ['stockItemId', 'itemUnit'],
+          where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: 'ENTRADA' },
           _sum: { quantity: true },
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10
         }),
         prisma.stockMovement.groupBy({
-          by: ['stockItemId', 'sector'],
-          where: { factoryUnitId, sector: { not: 'CORTE' }, type: 'ENTRADA', stockItemId: { not: null } },
+          by: ['stockItemId', 'sector', 'itemUnit'],
+          where: { factoryUnitId, AND: [scope], sector: { not: 'CORTE' }, type: 'ENTRADA', stockItemId: { not: null } },
           _sum: { quantity: true },
           orderBy: { _sum: { quantity: 'desc' } },
           take: 10
@@ -241,7 +242,7 @@ export class DashboardController {
               LEFT JOIN sobra_corte."UnitConfig" u 
                 ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
                 AND u."factoryUnitId" = m."factoryUnitId"
-              WHERE m."factoryUnitId" = ${factoryUnitId} AND m.sector = 'CORTE'
+              WHERE m."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN m.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE m.sector::text END) = ${assignedSector}::text) AND m.sector = 'CORTE'
                 AND m.quantity > 0
 
               UNION ALL
@@ -275,7 +276,7 @@ export class DashboardController {
               LEFT JOIN sobra_corte."UnitConfig" u 
                 ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
                 AND u."factoryUnitId" = s."factoryUnitId"
-              WHERE s."factoryUnitId" = ${factoryUnitId} AND s.sector <> 'CORTE'
+              WHERE s."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN s.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE s.sector::text END) = ${assignedSector}::text) AND s.sector <> 'CORTE'
                 AND s.quantity > 0
             ) base
           ) ranked
@@ -304,7 +305,7 @@ export class DashboardController {
           ORDER BY u.id
           LIMIT 1
         ) u ON TRUE
-        WHERE s."factoryUnitId" = ${factoryUnitId} AND s.quantity > 0
+        WHERE s."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN s.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE s.sector::text END) = ${assignedSector}::text) AND s.quantity > 0
         GROUP BY s.sector, UPPER(TRIM(COALESCE(u.symbol, s.unit, CASE WHEN s.sector = 'CORTE' THEN 'M²' ELSE 'UND' END)))
         ORDER BY s.sector, unit
       `;
@@ -315,7 +316,7 @@ export class DashboardController {
       const totalParadosSemGiro = stagnantMaterialsCount + stagnantStockItemsCount;
       const distribuicaoPorSetorUnidade = (distribuicaoPorSetorUnidadeRaw || []).map(d => ({
         sector: String(d.sector),
-        unit: String(d.unit || 'UND').toUpperCase().trim(),
+        unit: normalizeUnit(d.unit, d.sector),
         totalQuantity: Number(d.totalQuantity) || 0,
         itemsCount: Number(d.itemsCount) || 0,
       }));
@@ -390,28 +391,40 @@ export class DashboardController {
         corteStockExitsAgg,
         apoioStockExitsAgg,
       ] = await Promise.all([
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: 'ENTRADA' } }),
-        prisma.stockMovement.count({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
-        prisma.stockMovement.aggregate({ where: { factoryUnitId, sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: 'ENTRADA' } }),
+        prisma.stockMovement.count({ where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } } }),
+        prisma.stockMovement.groupBy({ by: ['itemUnit'], where: { factoryUnitId, AND: [scope], sector: 'CORTE', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
+        prisma.stockMovement.groupBy({ by: ['itemUnit'], where: { factoryUnitId, AND: [scope], sector: 'APOIO', type: { in: ['SAIDA', 'REFUGO', 'SAIDA_REQUISICAO'] } }, _sum: { quantity: true } }),
       ]);
 
       const corteTotalEntries = corteStockEntries;
       const corteTotalExits = corteStockExits;
-      const corteTotalExitsVolume = Number(corteStockExitsAgg._sum?.quantity) || 0;
-      const apoioTotalExitsVolume = Number(apoioStockExitsAgg._sum?.quantity) || 0;
-      const montagemTotalEntries = Number(montagemEntriesCount._sum?.quantity) || 0;
-      const montagemTotalExits = Number(montagemExitsCount._sum?.quantity) || 0;
+      const exitVolumes = (groups: typeof corteStockExitsAgg, sector: string) => {
+        const totals: Record<string, number> = {};
+        for (const group of groups) {
+          const unit = normalizeUnit(group.itemUnit, sector);
+          totals[unit] = (totals[unit] || 0) + Number(group._sum.quantity || 0);
+        }
+        return totals;
+      };
+      const corteExitsByUnit = exitVolumes(corteStockExitsAgg, 'CORTE');
+      const apoioExitsByUnit = exitVolumes(apoioStockExitsAgg, 'APOIO');
+      const singleExitVolume = (totals: Record<string, number>) => Object.keys(totals).length === 1 ? Object.values(totals)[0] : null;
+      const corteTotalExitsVolume = singleExitVolume(corteExitsByUnit);
+      const apoioTotalExitsVolume = singleExitVolume(apoioExitsByUnit);
+      const montagemTotalEntries = montagemEntriesCount;
+      const montagemTotalExits = montagemExitsCount;
 
       const setores = {
         corte: {
           itemsCount: totalMaterialsCount,
           totalQuantity: singleUnitTotal('CORTE'),
           quantitiesByUnit: quantitiesBySector('CORTE'),
-          unit: 'M²',
+          unit: Object.keys(quantitiesBySector('CORTE')).length === 1 ? Object.keys(quantitiesBySector('CORTE'))[0] : null,
           totalEntries: corteTotalEntries,
           totalExits: corteTotalExits,
           totalExitsVolume: corteTotalExitsVolume,
+          exitsByUnit: corteExitsByUnit,
           taxaReaproveitamento: corteTotalEntries > 0 ? Math.min(100, Math.round((corteTotalExits / corteTotalEntries) * 100)) : 0,
           totalParadosSemGiro: stagnantMaterialsCount,
         },
@@ -423,6 +436,7 @@ export class DashboardController {
           totalEntries: apoioEntriesCount,
           totalExits: apoioExitsCount,
           totalExitsVolume: apoioTotalExitsVolume,
+          exitsByUnit: apoioExitsByUnit,
           taxaReaproveitamento: apoioEntriesCount > 0 ? Math.min(100, Math.round((apoioExitsCount / apoioEntriesCount) * 100)) : 0,
           totalParadosSemGiro: apoioStagnantCount,
         },
@@ -495,8 +509,8 @@ export class DashboardController {
 
       // 4. Mesclagem e ordenação da Origem das Sobras (StockMovement + Movement legado)
       // 4. Mesclagem e ordenação da Origem das Sobras (Global e por Setor)
-      const globalOrigemMap = new Map<string, { quantity: number; count: number }>();
-      const sectorOrigemMap: Record<string, Map<string, { quantity: number; count: number }>> = {
+      const globalOrigemMap = new Map<string, { count: number }>();
+      const sectorOrigemMap: Record<string, Map<string, { count: number }>> = {
         CORTE: new Map(),
         APOIO: new Map(),
         PRE_FABRICADO: new Map(),
@@ -509,14 +523,13 @@ export class DashboardController {
       for (const item of legacyOrigem) {
         if (item.origem) {
           const norm = item.origem.trim();
-          const qty = Number(item._sum?.quantity) || 0;
           const count = Number(item._count?._all) || 1;
 
-          const gPrev = globalOrigemMap.get(norm) || { quantity: 0, count: 0 };
-          globalOrigemMap.set(norm, { quantity: gPrev.quantity + qty, count: gPrev.count + count });
+          const gPrev = globalOrigemMap.get(norm) || { count: 0 };
+          globalOrigemMap.set(norm, { count: gPrev.count + count });
 
-          const cPrev = sectorOrigemMap.CORTE.get(norm) || { quantity: 0, count: 0 };
-          sectorOrigemMap.CORTE.set(norm, { quantity: cPrev.quantity + qty, count: cPrev.count + count });
+          const cPrev = sectorOrigemMap.CORTE.get(norm) || { count: 0 };
+          sectorOrigemMap.CORTE.set(norm, { count: cPrev.count + count });
         }
       }
 
@@ -524,46 +537,43 @@ export class DashboardController {
       for (const item of stockOrigem) {
         if (item.origem) {
           const norm = item.origem.trim();
-          const qty = Number(item._sum?.quantity) || 0;
           const count = Number(item._count?._all) || 1;
           const sec = item.sector || 'CORTE';
 
-          const gPrev = globalOrigemMap.get(norm) || { quantity: 0, count: 0 };
-          globalOrigemMap.set(norm, { quantity: gPrev.quantity + qty, count: gPrev.count + count });
+          const gPrev = globalOrigemMap.get(norm) || { count: 0 };
+          globalOrigemMap.set(norm, { count: gPrev.count + count });
 
           if (!sectorOrigemMap[sec]) {
             sectorOrigemMap[sec] = new Map();
           }
-          const sPrev = sectorOrigemMap[sec].get(norm) || { quantity: 0, count: 0 };
-          sectorOrigemMap[sec].set(norm, { quantity: sPrev.quantity + qty, count: sPrev.count + count });
+          const sPrev = sectorOrigemMap[sec].get(norm) || { count: 0 };
+          sectorOrigemMap[sec].set(norm, { count: sPrev.count + count });
         }
       }
 
       // Cálculo percentual global
-      const totalGlobalQty = Array.from(globalOrigemMap.values()).reduce((acc, v) => acc + v.quantity, 0);
+      const totalGlobalEntries = Array.from(globalOrigemMap.values()).reduce((acc, v) => acc + v.count, 0);
       const origemSobras = Array.from(globalOrigemMap.entries())
         .map(([origem, val]) => ({
           origem,
           name: origem,
           count: val.count,
-          percentage: totalGlobalQty > 0 ? (val.quantity / totalGlobalQty) * 100 : 0,
-          _sum: { quantity: val.quantity },
+          percentage: totalGlobalEntries > 0 ? (val.count / totalGlobalEntries) * 100 : 0,
         }))
-        .sort((a, b) => b._sum.quantity - a._sum.quantity);
+        .sort((a, b) => b.count - a.count);
 
       // Cálculo percentual por setor
-      const origensPorSetor: Record<string, Array<{ origem: string; name: string; count: number; percentage: number; _sum: { quantity: number } }>> = {};
+      const origensPorSetor: Record<string, Array<{ origem: string; name: string; count: number; percentage: number }>> = {};
       for (const [sec, map] of Object.entries(sectorOrigemMap)) {
-        const totalSecQty = Array.from(map.values()).reduce((acc, v) => acc + v.quantity, 0);
+        const totalSectorEntries = Array.from(map.values()).reduce((acc, v) => acc + v.count, 0);
         origensPorSetor[sec] = Array.from(map.entries())
           .map(([origem, val]) => ({
             origem,
             name: origem,
             count: val.count,
-            percentage: totalSecQty > 0 ? (val.quantity / totalSecQty) * 100 : 0,
-            _sum: { quantity: val.quantity },
+            percentage: totalSectorEntries > 0 ? (val.count / totalSectorEntries) * 100 : 0,
           }))
-          .sort((a, b) => b._sum.quantity - a._sum.quantity);
+          .sort((a, b) => b.count - a.count);
       }
 
       // 5. Hidratação dos Top 5 Entradas de Sobras (Corte + Multi-Setor)
@@ -573,13 +583,13 @@ export class DashboardController {
       const [materialsList, stockItemsList] = await Promise.all([
         materialIds.length > 0
           ? prisma.stockItem.findMany({
-              where: { factoryUnitId, sector: 'CORTE', id: { in: materialIds } },
+              where: { factoryUnitId, AND: [scope], sector: 'CORTE', id: { in: materialIds } },
               select: { id: true, code: true, name: true, unit: true, type: true }
             })
           : [],
         stockItemIds.length > 0
           ? prisma.stockItem.findMany({
-              where: { factoryUnitId, id: { in: stockItemIds } },
+              where: { factoryUnitId, AND: [scope], id: { in: stockItemIds } },
               select: { id: true, code: true, name: true, pieceCode: true, description: true, productName: true, sku: true, unit: true, sector: true }
             })
           : []
@@ -607,7 +617,7 @@ export class DashboardController {
             name: mat.name || '-',
             sector: 'CORTE',
             totalQuantity: Number(leg._sum?.quantity) || 0,
-            unit: mat.unit || 'm²',
+            unit: normalizeUnit(leg.itemUnit, 'CORTE'),
             origin: 'Corte / Produção'
           });
         }
@@ -623,14 +633,14 @@ export class DashboardController {
             name: item.name || item.description || item.productName || item.sku || 'Componente',
             sector: stk.sector || item.sector || 'APOIO',
             totalQuantity: Number(stk._sum?.quantity) || 0,
-            unit: item.unit || 'un',
+            unit: normalizeUnit(stk.itemUnit, stk.sector),
             origin: 'Geração no Setor'
           });
         }
       }
 
       // Ordenar decrescente pela quantidade acumulada de entradas
-      topSobrasEntrada.sort((a, b) => b.totalQuantity - a.totalQuantity);
+      topSobrasEntrada.sort((a, b) => a.unit.localeCompare(b.unit) || b.totalQuantity - a.totalQuantity);
 
       // 6. Estruturação do Top 5 particionado por Setor e por Unidade via Window Function (Multi-Setor)
       const topMateriaisPorSetorEUnidade: Record<string, Record<string, Array<{
@@ -766,6 +776,7 @@ export class DashboardController {
         unidadesPorSetor,
       });
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro analítico ao processar resumo consolidado do dashboard:', error);
       return res.status(500).json({ error: 'Erro interno ao carregar indicadores do dashboard.' });
     }

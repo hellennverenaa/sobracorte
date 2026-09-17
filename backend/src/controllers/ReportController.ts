@@ -1,3 +1,4 @@
+import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
@@ -49,7 +50,7 @@ export class ReportController {
     try {
       const factoryUnitId = req.tenant!.id;
       const { page, limit, skip } = getPagination(req);
-      const where = { factoryUnitId };
+      const where = { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) };
       const stockItems = await prisma.stockItem.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -135,6 +136,7 @@ export class ReportController {
         },
       });
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro no relatório de estoque:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de inventário' });
     }
@@ -161,7 +163,7 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
       const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
       const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
       const rawSearch = search ? String(search).trim() : null;
@@ -208,14 +210,14 @@ export class ReportController {
 
       if (rawType !== 'TODOS') {
         if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
-        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'].includes(rawType)) {
+          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] };
+        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'].includes(rawType)) {
           stockWhere.type = rawType;
         } else {
           stockWhere.type = 'NEVER_MATCH';
         }
       } else {
-        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'] };
+        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'] };
       }
 
       if (rawOrigin && rawOrigin !== 'TODOS') {
@@ -234,7 +236,9 @@ export class ReportController {
         movementTextFilters.push({ OR: [
           { itemCode: { contains: rawSearch, mode: 'insensitive' } },
           { itemName: { contains: rawSearch, mode: 'insensitive' } },
-          { stockItem: {
+          { itemModelName: { contains: rawSearch, mode: 'insensitive' } },
+          { itemModelName: null, stockItem: { productName: { contains: rawSearch, mode: 'insensitive' } } },
+          { itemCode: null, itemName: null, stockItem: {
             OR: [
               { code: { contains: rawSearch, mode: 'insensitive' } },
               { description: { contains: rawSearch, mode: 'insensitive' } },
@@ -259,7 +263,7 @@ export class ReportController {
           include: { stockItem: true },
         }),
         prisma.location.findMany({
-          where: { factoryUnitId },
+          where: { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) },
           select: { id: true, name: true },
         }),
         prisma.stockMovement.count({ where: stockWhere }),
@@ -274,6 +278,7 @@ export class ReportController {
           by: ['type', 'sector', 'itemUnit'],
           where: stockWhere,
           _sum: { quantity: true },
+          _count: { _all: true },
         }),
       ]);
 
@@ -281,12 +286,12 @@ export class ReportController {
 
       const formattedStock = stockMovements.map((m) => {
         const item = m.stockItem;
-        const code = item?.sku || item?.pieceCode || item?.code || item?.productName || m.itemCode || '-';
-        const modelName = item?.productName || '';
-        const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || m.itemName || 'Componente Multi-Setor';
+        const code = m.itemCode ?? (item?.sku || item?.pieceCode || item?.code || item?.productName || '-');
+        const modelName = m.itemModelName ?? item?.productName ?? '';
+        const desc = m.itemName ?? (item?.description || item?.name || item?.productName || item?.sku || 'Componente Multi-Setor');
 
-        const srcLoc = (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null) || m.sourceLocationName;
-        const dstLoc = (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null) || m.destinationLocationName;
+        const srcLoc = m.sourceLocationName ?? (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null);
+        const dstLoc = m.destinationLocationName ?? (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null);
         const locFormatted = srcLoc && dstLoc ? `${srcLoc} ➔ ${dstLoc}` : (dstLoc || srcLoc || '-');
 
         return {
@@ -299,11 +304,16 @@ export class ReportController {
           codigo: code,
           nomeModelo: modelName,
           descricao: desc,
-          tipoMaterial: item?.type || item?.sector || m.itemCategory || m.sector,
-          gradeTamanho: item?.sizeGrade || '-',
-          ladoPe: item?.footSide || '-',
+          tipoMaterial: m.itemCategory ?? item?.type ?? m.sector,
+          gradeTamanho: m.itemSizeGrade ?? item?.sizeGrade ?? '-',
+          ladoPe: m.itemFootSide ?? item?.footSide ?? '-',
+          cor: m.itemColor ?? item?.materialColor ?? item?.color ?? '',
+          itemOrigemId: m.sourceStockItemId,
+          itemDestinoId: m.destinationStockItemId,
+          setorOrigem: m.sourceSector,
+          setorDestino: m.destinationSector,
           quantidade: m.quantity,
-          unidade: item?.unit || m.itemUnit || 'UND',
+          unidade: m.itemUnit ?? item?.unit ?? 'UND',
           prateleira: locFormatted,
           origem: m.origem || 'Geração no Setor',
           motivo: m.reason || m.origem || '-',
@@ -313,8 +323,8 @@ export class ReportController {
           material: {
             codigo: code,
             descricao: desc,
-            tipo: item?.type || item?.sector || m.itemCategory || m.sector,
-            unidade: item?.unit || m.itemUnit || 'UND',
+            tipo: m.itemCategory ?? item?.type ?? m.sector,
+            unidade: m.itemUnit ?? item?.unit ?? 'UND',
           },
           nomeMaterial: desc,
         };
@@ -338,6 +348,7 @@ export class ReportController {
       const entrada = typeStats('ENTRADA');
       const saida = typeStats('SAIDA');
       const casamento = typeStats('CASAMENTO_PAR');
+      const requisicao = typeStats('SAIDA_REQUISICAO');
       const refugo = typeStats('REFUGO');
       const transferencia = typeStats('TRANSFERENCIA');
       const volumeByUnit = new Map<string, { entrada: number; saida: number; refugo: number; transferencia: number }>();
@@ -351,15 +362,28 @@ export class ReportController {
         if (group.type === 'TRANSFERENCIA') current.transferencia += quantity;
         volumeByUnit.set(unit, current);
       }
+      const unitSubtotal = (field: 'type' | 'sector', key: string) => {
+        const units = new Map<string, { quantidadeTotal: number }>();
+        for (const group of movementUnitGroups.filter(group => group[field] === key)) {
+          const unit = normalizeUnit(group.itemUnit, group.sector);
+          const current = units.get(unit) || { quantidadeTotal: 0 };
+          current.quantidadeTotal += Number(group._sum.quantity ?? 0);
+          units.set(unit, current);
+        }
+        return {
+          quantidadeTotal: units.size === 1 ? [...units.values()][0].quantidadeTotal : null,
+          porUnidade: Object.fromEntries(units),
+        };
+      };
       const volumePorUnidade = Object.fromEntries(volumeByUnit);
       const singleReportUnit = volumeByUnit.size === 1;
-      const volumeTotalSaida = saida.quantity + casamento.quantity;
-      const saidaCount = saida.count + casamento.count;
+      const volumeTotalSaida = saida.quantity + casamento.quantity + requisicao.quantity;
+      const saidaCount = saida.count + casamento.count + requisicao.count;
       const volumeEntradaCorte = movementGroups
         .filter((group) => group.type === 'ENTRADA' && group.sector === 'CORTE')
         .reduce((sum, group) => sum + Number(group._sum.quantity ?? 0), 0);
       const volumeSaidaCorte = movementGroups
-        .filter((group) => (group.type === 'SAIDA' || group.type === 'CASAMENTO_PAR') && group.sector === 'CORTE')
+        .filter((group) => (group.type === 'SAIDA' || group.type === 'CASAMENTO_PAR' || group.type === 'SAIDA_REQUISICAO') && group.sector === 'CORTE')
         .reduce((sum, group) => sum + Number(group._sum.quantity ?? 0), 0);
       const totals = {
         totalRegistros: total,
@@ -383,11 +407,11 @@ export class ReportController {
         volumePorUnidade,
         porTipo: Object.fromEntries([...groupsByType].map(([key, value]) => [key, {
           totalRegistros: value.count,
-          quantidadeTotal: value.quantity,
+          ...unitSubtotal('type', key),
         }])),
         porSetor: Object.fromEntries([...groupsBySector].map(([key, value]) => [key, {
           totalRegistros: value.count,
-          quantidadeTotal: value.quantity,
+          ...unitSubtotal('sector', key),
         }])),
       };
 
@@ -397,6 +421,7 @@ export class ReportController {
         totals,
       });
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro no relatório analítico de movimentações:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de movimentações.' });
     }
@@ -419,7 +444,7 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
       const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
       const rawSearch = search ? String(search).trim() : null;
 
@@ -531,6 +556,7 @@ export class ReportController {
         },
       });
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro no relatório de requisições:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de requisições.' });
     }
@@ -542,7 +568,7 @@ export class ReportController {
   async exportInventory(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
-      const targetSector = req.query.sector ? String(req.query.sector).toUpperCase().trim() : 'TODOS';
+      const targetSector = assignedStockSector(requestStockAccess(req)) || (req.query.sector ? String(req.query.sector).toUpperCase().trim() : 'TODOS');
       const rawSearch = req.query.search ? String(req.query.search).trim() : null;
 
       const dateStr = new Date().toISOString().split('T')[0];
@@ -626,7 +652,7 @@ export class ReportController {
         const stockWhere: any = {
           factoryUnitId,
           ...(targetSector !== 'TODOS' && {
-            sector: (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') ? 'DISTRIBUICAO' : targetSector,
+            sector: ['DISTRIBUICAO', 'EXPEDICAO', 'CABEDAIS'].includes(targetSector) ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : targetSector,
           }),
           ...(targetSector === 'TODOS' && { sector: { not: 'CORTE' } }),
           ...(rawSearch && {
@@ -684,6 +710,7 @@ export class ReportController {
 
       return res.end();
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao exportar inventário por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar inventário.' });
@@ -715,7 +742,7 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
       const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
       const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
       const rawSearch = search ? String(search).trim() : null;
@@ -757,14 +784,14 @@ export class ReportController {
 
       if (rawType !== 'TODOS') {
         if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR'] };
-        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'].includes(rawType)) {
+          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] };
+        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'].includes(rawType)) {
           stockWhere.type = rawType;
         } else {
           stockWhere.type = 'NEVER_MATCH';
         }
       } else {
-        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO'] };
+        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'] };
       }
 
       if (rawOrigin && rawOrigin !== 'TODOS') {
@@ -783,7 +810,9 @@ export class ReportController {
         movementTextFilters.push({ OR: [
           { itemCode: { contains: rawSearch, mode: 'insensitive' } },
           { itemName: { contains: rawSearch, mode: 'insensitive' } },
-          { stockItem: {
+          { itemModelName: { contains: rawSearch, mode: 'insensitive' } },
+          { itemModelName: null, stockItem: { productName: { contains: rawSearch, mode: 'insensitive' } } },
+          { itemCode: null, itemName: null, stockItem: {
             OR: [
               { code: { contains: rawSearch, mode: 'insensitive' } },
               { description: { contains: rawSearch, mode: 'insensitive' } },
@@ -800,7 +829,7 @@ export class ReportController {
       }
 
       const locationsList = await prisma.location.findMany({
-        where: { factoryUnitId },
+        where: { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) },
         select: { id: true, name: true },
       });
       const locationMap = new Map(locationsList.map((l) => [l.id, l.name]));
@@ -828,6 +857,12 @@ export class ReportController {
         'MOTIVO_OPERACAO',
         'RESPONSAVEL',
         'MATRICULA',
+        'MODELO',
+        'COR',
+        'ITEM_ORIGEM',
+        'ITEM_DESTINO',
+        'SETOR_ORIGEM',
+        'SETOR_DESTINO',
       ]));
 
       const batchSize = 500;
@@ -852,11 +887,11 @@ export class ReportController {
 
           for (const m of batch) {
             const item = m.stockItem;
-            const code = item?.sku || item?.pieceCode || item?.code || item?.productName || m.itemCode || '-';
-            const desc = item?.description || item?.name || (item?.productName ? `${item.productName}${item.color ? ' - ' + item.color : ''}` : '') || item?.sku || m.itemName || 'Componente Multi-Setor';
+            const code = m.itemCode ?? (item?.sku || item?.pieceCode || item?.code || item?.productName || '-');
+            const desc = m.itemName ?? (item?.description || item?.name || item?.productName || item?.sku || 'Componente Multi-Setor');
 
-            const srcLoc = (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null) || m.sourceLocationName;
-            const dstLoc = (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null) || m.destinationLocationName;
+            const srcLoc = m.sourceLocationName ?? (m.sourceLocationId ? locationMap.get(m.sourceLocationId) : null);
+            const dstLoc = m.destinationLocationName ?? (m.destinationLocationId ? locationMap.get(m.destinationLocationId) : null);
             const locFormatted = srcLoc && dstLoc ? `${srcLoc} ➔ ${dstLoc}` : (dstLoc || srcLoc || '-');
 
             const dateObj = new Date(m.createdAt);
@@ -870,16 +905,22 @@ export class ReportController {
               m.type,
               code,
               desc,
-              item?.type || item?.sector || m.itemCategory || m.sector,
-              item?.sizeGrade || '-',
-              item?.footSide || '-',
+              m.itemCategory ?? item?.type ?? m.sector,
+              m.itemSizeGrade ?? item?.sizeGrade ?? '-',
+              m.itemFootSide ?? item?.footSide ?? '-',
               decimalString(m.quantity),
-              item?.unit || m.itemUnit || 'UND',
+              m.itemUnit ?? item?.unit ?? 'UND',
               locFormatted,
               m.origem || 'Geração no Setor',
               m.reason || m.origem || '-',
               m.operatorName || 'Operador DASS',
               m.operatorId || '-',
+              m.itemModelName ?? item?.productName ?? '',
+              m.itemColor ?? item?.materialColor ?? item?.color ?? '',
+              m.sourceStockItemId ?? '',
+              m.destinationStockItemId ?? '',
+              m.sourceSector ?? '',
+              m.destinationSector ?? '',
             ]));
           }
 
@@ -890,6 +931,7 @@ export class ReportController {
 
       return res.end();
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao exportar movimentações por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar movimentações.' });
@@ -917,7 +959,7 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
       const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
       const rawSearch = search ? String(search).trim() : null;
 
@@ -1032,6 +1074,7 @@ export class ReportController {
 
       return res.end();
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao exportar requisições por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar requisições.' });

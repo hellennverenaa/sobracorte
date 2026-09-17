@@ -1,3 +1,6 @@
+import { assertStockSectorAccess } from '../auth/stockAccess';
+import { pairCompatibilitySql } from './pairCompatibilitySql';
+import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { Prisma } from '../generated/prisma';
 import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
@@ -63,13 +66,7 @@ export class MountingPairService {
         LEAST(e.quantity, d.quantity) AS "formablePairs"
       FROM sobra_corte."StockItem" e
       INNER JOIN sobra_corte."StockItem" d
-        ON e."factoryUnitId" = d."factoryUnitId"
-        AND e.sector = d.sector
-        AND COALESCE(e."sku", e."productName", '') = COALESCE(d."sku", d."productName", '')
-        AND COALESCE(e."productName", '') = COALESCE(d."productName", '')
-        AND e."sizeGrade" = d."sizeGrade"
-        AND COALESCE(e."color", '') = COALESCE(d."color", '')
-        AND COALESCE(e."type", '') = COALESCE(d."type", '')
+        ON ${pairCompatibilitySql}
       WHERE e."factoryUnitId" = ${factoryUnitId}
         AND (e.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND e.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
         AND (d.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND d.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
@@ -115,6 +112,8 @@ export class MountingPairService {
       })));
       const [left, right] = items;
       if (!left || !right) throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
+      assertStockSectorAccess(context, left.sector);
+      assertStockSectorAccess(context, right.sector);
       if (!['PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(left.sector)) throw new Error('O setor não permite casamento de pares.');
       if (normalizeStockSector(left.sector) !== normalizeStockSector(dto.sector)) throw new Error('Os itens não pertencem ao setor informado para o casamento.');
       assertCompatiblePair(left, right);
@@ -127,8 +126,8 @@ export class MountingPairService {
             data: {
               factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'CASAMENTO_PAR',
               quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
-              itemCode: item.sku || item.code, itemName: item.description || item.productName,
-              itemCategory: item.type || item.componentType, itemUnit: item.unit,
+              ...movementSnapshot(item),
+              sourceStockItemId: item.id, sourceSector: item.sector,
               origem: `Casamento de Pares no setor ${item.sector}`,
               reason: `Casamento de Par - Pé ${item.footSide} casado com ID ${item.id === left.id ? right.id : left.id}. Obs: ${dto.reason}`,
               operatorId: operatorId || null, operatorName: operatorName || 'Operador',

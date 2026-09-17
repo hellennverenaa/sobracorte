@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
 import { createApp } from "../src/app";
-import { publicLimiter, authenticatedLimiter, mutationLimiter } from "../src/routes";
+import { publicLimiter, authenticatedLimiter, mutationLimiter, checkUserLimiter } from "../src/routes";
 
 const testApp = createApp({
   corsOrigins: ["http://localhost:3000"],
@@ -82,4 +82,5 @@ test("Rate Limiters possuem limites e configurações apropriadas", () => {
   assert.ok(publicLimiter, "publicLimiter deve estar definido");
   assert.ok(authenticatedLimiter, "authenticatedLimiter deve estar definido");
   assert.ok(mutationLimiter, "mutationLimiter deve estar definido");
+  assert.ok(checkUserLimiter, "checkUserLimiter deve estar definido");
 });

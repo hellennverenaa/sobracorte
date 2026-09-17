@@ -1,3 +1,4 @@
+import { requestStockAccess, assignedStockSector } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { StockMovementService } from '../services/StockMovementService';
 import { CreateStockMovementSchema, MovementHistoryFilterSchema } from '../types/stock.dto';
@@ -18,16 +19,16 @@ export class StockMovementController {
       const parsed = CreateStockMovementSchema.parse(req.body);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
-        role: req.user?.role || null,
-        assignedSector: req.user?.assignedSector || null,
       };
 
       const result = await stockMovementService.createMovement(parsed, operatorContext);
       return res.status(201).json(result);
     } catch (error) {
+      if ((error as any)?.status === 403) return res.status(403).json({ error: (error as Error).message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação da movimentação.',
@@ -58,8 +59,10 @@ export class StockMovementController {
       }
 
       const parsed = MovementHistoryFilterSchema.parse(req.query);
+      parsed.sector = assignedStockSector(requestStockAccess(req)) || parsed.sector;
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
@@ -68,6 +71,7 @@ export class StockMovementController {
       const result = await stockMovementService.getHistory(parsed, operatorContext);
       return res.json(result);
     } catch (error) {
+      if ((error as any)?.status === 403) return res.status(403).json({ error: (error as Error).message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos filtros de histórico.',

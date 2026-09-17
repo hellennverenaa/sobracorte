@@ -1,3 +1,4 @@
+import { StockAccessError } from './auth/stockAccess';
 import { Router } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
@@ -24,7 +25,7 @@ const routes = Router();
 
 export const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 60,
+  limit: 120,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
@@ -34,7 +35,7 @@ export const publicLimiter = rateLimit({
 // O catálogo não deve consumir o orçamento de tentativas de login.
 const unitCatalogLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 60,
+  limit: 120,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
@@ -43,7 +44,7 @@ const unitCatalogLimiter = rateLimit({
 
 export const authenticatedLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 600,
+  limit: 1200,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   keyGenerator: (req) => `${req.tenant?.id || 'public'}:${String(req.user?.usuario || 'anon').toUpperCase()}`,
@@ -53,12 +54,31 @@ export const authenticatedLimiter = rateLimit({
 
 export const mutationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 120,
+  limit: 300,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   keyGenerator: (req) => `${req.tenant?.id || 'public'}:${String(req.user?.usuario || 'anon').toUpperCase()}`,
   skip: () => process.env.NODE_ENV === 'test',
   message: { error: 'Limite de alterações atingido. Tente novamente em alguns minutos.' },
+});
+
+// A sincronização da sessão ocorre no login, na restauração/renovação do
+// token e na troca de unidade. Ela grava a identidade local, mas não deve
+// consumir o orçamento das mutações de estoque e configurações.
+export const checkUserLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const identityId = req.effectiveContext?.identityId;
+    if (identityId) return `identity:${identityId}`;
+    const origin = String(req.user?.origem || req.user?.authOrigin || 'LEGADO').toUpperCase();
+    const authUserId = String(req.user?.authUserId ?? req.user?.id ?? req.user?.usuario ?? 'anon').toUpperCase();
+    return `provider:${origin}:${authUserId}`;
+  },
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Limite de sincronizações atingido. Tente novamente em alguns minutos.' },
 });
 
 const upload = multer({
@@ -126,7 +146,7 @@ routes.patch('/factory-unit/current/settings', requireAuth, mutationLimiter, req
 
 // Rota legada desabilitada: credenciais são emitidas somente pelo provedor oficial.
 routes.post('/auth/login', publicLimiter, authController.login);
-routes.post('/auth/check-user', requireAuth, mutationLimiter, authController.checkUser);
+routes.post('/auth/check-user', requireAuth, checkUserLimiter, authController.checkUser);
 
 // 📦 ROTAS MULTI-SETOR (5 SETORES - ROUND-TRIP ÚNICO & CHÃO DE FÁBRICA)
 routes.post('/inventory/batch', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider']), requireSectorMatch((req: any) => req.body?.sector || (Array.isArray(req.body?.items) ? req.body.items[0]?.sector : undefined)), stockItemController.createBatch);
@@ -153,12 +173,12 @@ routes.patch('/requisitions/:id/cancel', requireAuth, mutationLimiter, requireRe
 
 // 📊 DASHBOARD & INDICADORES ANALÍTICOS CONSOLIDADOS (SINGLE ROUND-TRIP)
 routes.get('/dashboard/summary', requireAuth, authenticatedLimiter, dashboardController.getSummary);
-routes.get('/reports/inventory', requireAuth, authenticatedLimiter, reportController.inventory);
-routes.get('/reports/inventory/export', requireAuth, authenticatedLimiter, reportController.exportInventory);
-routes.get('/reports/movements', requireAuth, authenticatedLimiter, reportController.movements);
-routes.get('/reports/movements/export', requireAuth, authenticatedLimiter, reportController.exportMovements);
-routes.get('/reports/requisitions', requireAuth, authenticatedLimiter, reportController.requisitions);
-routes.get('/reports/requisitions/export', requireAuth, authenticatedLimiter, reportController.exportRequisitions);
+routes.get('/reports/inventory', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.inventory);
+routes.get('/reports/inventory/export', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.exportInventory);
+routes.get('/reports/movements', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.movements);
+routes.get('/reports/movements/export', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.exportMovements);
+routes.get('/reports/requisitions', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.requisitions);
+routes.get('/reports/requisitions/export', requireAuth, authenticatedLimiter, requireRole(['admin_setor', 'lider']), reportController.exportRequisitions);
 
 routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), async (req, res) => {
   try {
@@ -244,6 +264,7 @@ routes.put('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), a
     if (error instanceof UserConcurrencyConflictError) {
       return res.status(409).json({ error: error.message });
     }
+    if (error instanceof StockAccessError) return res.status(400).json({ error: error.message });
     if (error instanceof UnauthorizedRoleAssignmentError) {
       return res.status(403).json({ error: error.message });
     }
@@ -259,18 +280,14 @@ routes.delete('/users/:id', requireAuth, mutationLimiter, requireRole(['admin'])
   }
 
   try {
-    const target = await prisma.userRoleBinding.findFirst({
-      where: { id, factoryUnitId: req.tenant!.id },
-      include: { identity: { select: { usuario: true } } },
+    await userService.removeUser(prisma, id, req.tenant!.id, {
+      usuario: req.effectiveContext!.usuario, isGlobalAdmin: Boolean(req.isGlobalAdmin),
     });
-    if (!target) return res.status(404).json({ error: 'Usuário não encontrado' });
-    if (target.identity.usuario === req.user?.usuario) {
-      return res.status(409).json({ error: 'Não é possível remover o próprio usuário.' });
-    }
-
-    await prisma.userRoleBinding.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } } });
     return res.json({ message: 'Usuário removido com sucesso.' });
-  } catch {
+  } catch (error) {
+    if (error instanceof UserNotFoundError) return res.status(404).json({ error: error.message });
+    if (error instanceof UnauthorizedRoleAssignmentError) return res.status(403).json({ error: error.message });
+    if (error instanceof UserConcurrencyConflictError) return res.status(409).json({ error: error.message });
     return res.status(500).json({ error: 'Erro interno ao remover usuário' });
   }
 });

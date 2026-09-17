@@ -141,6 +141,22 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       storedIdentity = null;
       storedBinding = null;
     });
+    await t.test('consulta sem setor atribuído e exportação por leitor/movimentador falham fechadas', async () => {
+      storedIdentity = { id: 7, nativeUnitId: 1, authOrigin: 'LEGADO', authUserId: claims.usuario, usuario: claims.usuario, nome: 'Operador', matriculaDass: 100n };
+      try {
+        const headers = { Authorization: `Bearer ${issue()}` };
+        for (const assignedSector of [null, 'TODOS']) {
+          storedBinding = { id: 7, identityId: 7, factoryUnitId: 1, role: 'admin_setor', assignedSector };
+          assert.equal((await fetch(`${url}/inventory/search`, { headers })).status, 403);
+        }
+        for (const role of ['leitor', 'movimentador']) {
+          storedBinding = { id: 7, identityId: 7, factoryUnitId: 1, role, assignedSector: 'CORTE' };
+          for (const path of ['inventory', 'movements', 'requisitions', 'inventory/export', 'movements/export', 'requisitions/export']) {
+            assert.equal((await fetch(`${url}/reports/${path}`, { headers })).status, 403);
+          }
+        }
+      } finally { storedIdentity = null; storedBinding = null; }
+    });
     await t.test('cookie válido funciona apenas sem Authorization; Bearer inválido não usa cookie', async () => {
       assert.equal((await check({ Cookie: `token=${issue()}` })).status, 200);
       for (const authorization of ['Bearer invalid', 'Basic abc', 'Bearer']) {

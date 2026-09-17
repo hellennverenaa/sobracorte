@@ -1,3 +1,4 @@
+import { assignedStockSector } from '../auth/stockAccess';
 import { SectorType } from '../generated/prisma';
 import { UserRole, canAssignRole } from '../auth/roles';
 
@@ -58,6 +59,8 @@ export class UserService {
     }
 
     return await prisma.$transaction(async (tx: any) => {
+      await tx.$queryRaw`SELECT id FROM sobra_corte."UserRoleBinding"
+        WHERE id = ${targetUserId} AND "factoryUnitId" = ${factoryUnitId} FOR UPDATE`;
       // 2. Buscar usuário atual na fábrica
       const currentUser = await tx.userRoleBinding.findFirst({
         where: { id: targetUserId, factoryUnitId },
@@ -68,10 +71,16 @@ export class UserService {
         throw new UserNotFoundError();
       }
 
+      if (currentUser.role === 'admin' && !actor.isGlobalAdmin) {
+        throw new UnauthorizedRoleAssignmentError('Apenas Administradores Globais podem alterar um Admin Master.');
+      }
+
       // 3. Trava de concorrência otimista (caso o papel tenha sido alterado entre a abertura da tela e a confirmação)
       if (expectedRole && currentUser.role !== expectedRole) {
         throw new UserConcurrencyConflictError();
       }
+
+      if (newRole !== 'admin') assignedStockSector({ role: newRole, assignedSector: newSector });
 
       const normalizedCurrentSector = currentUser.assignedSector || null;
       const normalizedNewSector = newSector || null;
@@ -129,6 +138,24 @@ export class UserService {
         changed: true,
         auditLog,
       };
+    });
+  }
+
+  async removeUser(prisma: any, targetUserId: number, factoryUnitId: number, actor: { usuario: string; isGlobalAdmin: boolean }) {
+    return prisma.$transaction(async (tx: any) => {
+      await tx.$queryRaw`SELECT id FROM sobra_corte."UserRoleBinding"
+        WHERE id = ${targetUserId} AND "factoryUnitId" = ${factoryUnitId} FOR UPDATE`;
+      const target = await tx.userRoleBinding.findFirst({
+        where: { id: targetUserId, factoryUnitId }, include: { identity: { select: { usuario: true } } },
+      });
+      if (!target) throw new UserNotFoundError();
+      if (target.role === 'admin' && !actor.isGlobalAdmin) {
+        throw new UnauthorizedRoleAssignmentError('Apenas Administradores Globais podem remover um Admin Master.');
+      }
+      if (target.identity.usuario === actor.usuario) {
+        throw new UserConcurrencyConflictError('Não é possível remover o próprio usuário.');
+      }
+      return tx.userRoleBinding.delete({ where: { id_factoryUnitId: { id: targetUserId, factoryUnitId } } });
     });
   }
 

@@ -1,8 +1,10 @@
+import { assertStockSectorAccess, assertGeneralStockAccess, isStockMaster, assignedStockSector } from '../auth/stockAccess';
+import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit } from '../utils/unitHelper';
-import { lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem } from './stockIdentity';
+import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem } from './stockIdentity';
 export { DuplicateStockItemError } from './stockIdentity';
 
 export class StockItemService {
@@ -19,6 +21,7 @@ export class StockItemService {
       await lockStockIdentityWrites(tx, factoryUnitId);
 
       for (const item of dto.items) {
+        assertStockSectorAccess(context, item.sector);
         const locationName = item.location.trim().toUpperCase();
 
         // 1. Localizar ou criar a prateleira/localização
@@ -35,10 +38,14 @@ export class StockItemService {
           loc = await tx.location.create({
             data: {
               name: locationName,
+              sector: normalizeStockSector(item.sector) as SectorType,
               factoryUnitId,
             },
           });
         }
+
+        assertStockLocationSector(loc, item.sector);
+        assertGeneralStockAccess(context, loc);
 
         if (item.sector === 'CORTE') {
           // CORTE também persiste no modelo unificado.
@@ -86,10 +93,8 @@ export class StockItemService {
               sector: 'CORTE',
               type: 'ENTRADA',
               quantity: item.quantity,
-              itemCode: materialRecord.code,
-              itemName: materialRecord.name,
-              itemCategory: materialRecord.type,
-              itemUnit: materialRecord.unit,
+              ...movementSnapshot(materialRecord),
+              destinationStockItemId: materialRecord.id, destinationSector: materialRecord.sector,
               destinationLocationId: loc.id,
               destinationLocationName: loc.name,
               origem: 'Saldo Inicial / Entrada no Setor',
@@ -201,10 +206,8 @@ export class StockItemService {
               quantity: item.quantity,
               destinationLocationId: loc.id,
               destinationLocationName: loc.name,
-              itemCode: stockItem.sku || stockItem.pieceCode || null,
-              itemName: stockItem.description || stockItem.productName || null,
-              itemCategory: stockItem.componentType || stockItem.type || null,
-              itemUnit: stockItem.unit || 'UND',
+              ...movementSnapshot(stockItem),
+              destinationStockItemId: stockItem.id, destinationSector: stockItem.sector,
               origem: 'Saldo Inicial / Entrada no Setor',
               reason: item.observation || 'Entrada em lote via terminal de chão de fábrica',
               operatorId: operatorId || null,
@@ -318,7 +321,7 @@ export class StockItemService {
       }
     };
 
-    let targetSector = sector || 'CORTE';
+    let targetSector = assignedStockSector(context) || sector || 'CORTE';
     if (targetSector === 'EXPEDICAO' || targetSector === ('CABEDAIS' as any)) {
       targetSector = 'DISTRIBUICAO';
     }
@@ -340,7 +343,7 @@ export class StockItemService {
       categories,
     ] = await Promise.all([
       // Contagem e lista paginada na tabela oficial Material (4.000+ matérias-primas)
-      prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }),
+      (isStockMaster(context) || targetSector === 'CORTE') ? prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }) : 0,
       targetSector === 'CORTE'
         ? prisma.stockItem.findMany({
             where: { ...buildMaterialWhere(), sector: 'CORTE' },
@@ -351,7 +354,7 @@ export class StockItemService {
           })
         : [],
       // Demais setores na tabela StockItem
-      prisma.stockItem.count({ where: buildSectorWhere('APOIO') }),
+      (isStockMaster(context) || targetSector === 'APOIO') ? prisma.stockItem.count({ where: buildSectorWhere('APOIO') }) : 0,
       targetSector === 'APOIO'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('APOIO'),
@@ -361,7 +364,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      prisma.stockItem.count({ where: buildSectorWhere('PRE_FABRICADO') }),
+      (isStockMaster(context) || targetSector === 'PRE_FABRICADO') ? prisma.stockItem.count({ where: buildSectorWhere('PRE_FABRICADO') }) : 0,
       targetSector === 'PRE_FABRICADO'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('PRE_FABRICADO'),
@@ -371,7 +374,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }),
+      (isStockMaster(context) || targetSector === 'DISTRIBUICAO') ? prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }) : 0,
       (targetSector === 'DISTRIBUICAO' || (targetSector as string) === 'EXPEDICAO')
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('DISTRIBUICAO'),
@@ -381,7 +384,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      prisma.stockItem.count({ where: buildSectorWhere('MONTAGEM') }),
+      (isStockMaster(context) || targetSector === 'MONTAGEM') ? prisma.stockItem.count({ where: buildSectorWhere('MONTAGEM') }) : 0,
       targetSector === 'MONTAGEM'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('MONTAGEM'),
@@ -394,28 +397,22 @@ export class StockItemService {
       prisma.location.findMany({
         where: {
           factoryUnitId,
-          ...(context.role !== 'admin'
-            ? {
-                OR: [
-                  ...(targetSector === 'DISTRIBUICAO'
-                    ? [{ sector: 'DISTRIBUICAO' as SectorType }, { sector: 'EXPEDICAO' as SectorType }]
-                    : targetSector === 'CORTE'
-                    ? [{ sector: 'CORTE' as SectorType }, { sector: null }]
-                    : [{ sector: targetSector as SectorType }]),
-                ],
-              }
-            : {}),
+          OR: [
+            { sector: targetSector as SectorType },
+            ...(isStockMaster(context) ? [{ sector: null }] : []),
+            ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
+          ],
         },
         select: { id: true, name: true, sector: true },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
-        where: { factoryUnitId },
+        where: { factoryUnitId, ...(!isStockMaster(context) ? { OR: [{ sector: targetSector as SectorType }, { sector: null }, ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : [])] } : {}) },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
       }),
       prisma.categoryConfig.findMany({
-        where: { factoryUnitId },
+        where: { factoryUnitId, ...(!isStockMaster(context) ? { OR: [{ sector: targetSector as SectorType }, { sector: null }, ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : [])] } : {}) },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
       }),
@@ -443,7 +440,7 @@ export class StockItemService {
         locations: mat.locations ? mat.locations.map((l: any) => ({
           locationId: l.locationId,
           quantity: l.quantity,
-          location: { id: l.location.id, name: l.location.name },
+          location: { id: l.location.id, name: l.location.name, sector: l.location.sector },
         })) : [],
         locationDisplay: locationStr,
       };

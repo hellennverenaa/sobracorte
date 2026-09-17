@@ -1,7 +1,9 @@
+import { StockAccessContext, assertStockSectorAccess, assertGeneralStockAccess } from '../auth/stockAccess';
+import { movementSnapshot } from '../services/movementSnapshot';
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit, isDiscreteUnit } from '../utils/unitHelper';
-import { lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
+import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
 
 export interface AvailableLocation {
   id: number;
@@ -43,7 +45,7 @@ export interface ValidatedImportItem {
   productName?: string;
 }
 
-export interface ImportExecutionContext {
+export interface ImportExecutionContext extends StockAccessContext {
   factoryUnitId: number;
   operatorId?: string | null;
   operatorName?: string | null;
@@ -457,6 +459,13 @@ export async function executeImportTransaction(
 
   return await prisma.$transaction(async (tx: any) => {
     await lockStockIdentityWrites(tx, factoryUnitId);
+    for (const item of items) {
+      const location = await tx.location.findFirst({ where: { id: item.locationId, factoryUnitId } });
+      if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
+      assertStockSectorAccess(context, item.sector);
+      assertStockLocationSector(location, item.sector);
+      assertGeneralStockAccess(context, location);
+    }
     let insertedCount = 0;
     let movementsCreatedCount = 0;
 
@@ -507,10 +516,8 @@ export async function executeImportTransaction(
             sector: 'CORTE',
             type: 'ENTRADA',
             quantity: item.quantity,
-            itemCode: materialRecord.code,
-            itemName: materialRecord.name,
-            itemCategory: materialRecord.type,
-            itemUnit: materialRecord.unit,
+            ...movementSnapshot(materialRecord),
+              destinationStockItemId: materialRecord.id, destinationSector: materialRecord.sector,
             destinationLocationId: item.locationId,
             destinationLocationName: item.locationName,
             origem: 'Saldo Inicial / Implantação',
@@ -606,10 +613,8 @@ export async function executeImportTransaction(
             quantity: item.quantity,
             destinationLocationId: item.locationId,
             destinationLocationName: item.locationName,
-            itemCode: stockItem.sku || stockItem.pieceCode || stockItem.code || null,
-            itemName: stockItem.description || stockItem.productName || stockItem.name || null,
-            itemCategory: stockItem.componentType || stockItem.type || null,
-            itemUnit: stockItem.unit || 'UND',
+            ...movementSnapshot(stockItem),
+              destinationStockItemId: stockItem.id, destinationSector: stockItem.sector,
             origem: 'Saldo Inicial / Implantação',
             reason: item.observation || 'Importação inicial via planilha CSV',
             operatorId: operatorId || null,

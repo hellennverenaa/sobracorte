@@ -1,7 +1,8 @@
+import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
-import { DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
+import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -21,6 +22,8 @@ function checkSettingsPermission(req: Request, targetSector?: string): { allowed
     return { allowed: false, status: 403, error: 'Acesso não autorizado às configurações do sistema.' };
   }
   if (role === 'admin_setor') {
+    try { assignedStockSector(requestStockAccess(req)); }
+    catch (error) { return { allowed: false, status: 403, error: (error as Error).message }; }
     if (targetSector && assignedSector && assignedSector !== 'TODOS') {
       let userSec = assignedSector.toUpperCase().trim();
       let tgtSec = targetSector.toUpperCase().trim();
@@ -47,11 +50,8 @@ export class SettingsController {
       let targetSector = rawSector ? rawSector.toUpperCase().trim() : undefined;
       if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
 
-      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
-      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
-
-      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
-        targetSector = userAssignedSec;
+      if (assignedStockSector(requestStockAccess(req))) {
+        targetSector = assignedStockSector(requestStockAccess(req))!;
       }
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
@@ -70,7 +70,7 @@ export class SettingsController {
 
       const categoriesWithCount = await Promise.all(
         categories.map(async (cat) => {
-          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, type: cat.name } });
+          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)), type: cat.name } });
           return {
             ...cat,
             linkedCount: stockCount,
@@ -79,6 +79,7 @@ export class SettingsController {
       );
       res.json(categoriesWithCount);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar categorias:', error);
       res.status(500).json({ error: 'Erro ao buscar categorias' });
     }
@@ -138,6 +139,7 @@ export class SettingsController {
       });
       res.status(201).json(category);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa categoria já existe.' });
       }
@@ -162,7 +164,7 @@ export class SettingsController {
         targetSector = req.user.assignedSector;
       }
 
-      const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
+      const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
       if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
       if (defaultUnitId) {
         const unit = await prisma.unitConfig.findFirst({
@@ -185,7 +187,7 @@ export class SettingsController {
           }
         }
         const cat = await tx.categoryConfig.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) },
           data: {
             name: newName,
             sector: targetSector !== undefined ? (targetSector as any) : undefined,
@@ -221,6 +223,7 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }
@@ -237,7 +240,7 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
+      const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
@@ -274,11 +277,12 @@ export class SettingsController {
         await tx.location.updateMany({
           where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
         });
-        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } } });
+        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) } });
       });
 
       res.json({ message: 'Categoria excluída com sucesso.' });
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }
@@ -296,7 +300,7 @@ export class SettingsController {
 
       const unitsWithCount = await Promise.all(
         units.map(async (unit) => {
-          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, unit: unit.symbol } });
+          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)), unit: unit.symbol } });
           return {
             ...unit,
             linkedCount: stockCount,
@@ -306,6 +310,7 @@ export class SettingsController {
 
       res.json(unitsWithCount);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar unidades:', error);
       res.status(500).json({ error: 'Erro ao buscar unidades de medida' });
     }
@@ -370,6 +375,7 @@ export class SettingsController {
       });
       res.status(201).json(unit);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
       }
@@ -425,6 +431,7 @@ export class SettingsController {
 
       res.json({ message: 'Unidade desativada com sucesso.' });
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao desativar unidade:', error);
       res.status(500).json({ error: 'Erro ao desativar unidade de medida' });
     }
@@ -436,14 +443,10 @@ export class SettingsController {
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
       if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
-      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
-      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
-
       const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
+      if (assignedStockSector(requestStockAccess(req))) {
         whereClause.OR = [
-          { sector: userAssignedSec as any },
-          { sector: null }
+          sectorAccessWhere(requestStockAccess(req))
         ];
       } else if (targetSector) {
         whereClause.OR = [
@@ -467,7 +470,7 @@ export class SettingsController {
         locations.map(async (loc) => {
           const stockLocs = await prisma.stockItemLocation.findMany(
             {
-              where: { factoryUnitId: req.tenant!.id, locationId: loc.id },
+              where: { factoryUnitId: req.tenant!.id, locationId: loc.id, stockItem: sectorAccessWhere(requestStockAccess(req)) },
               select: { quantity: true }
             });
           const totalLinked = stockLocs.length;
@@ -482,6 +485,7 @@ export class SettingsController {
 
       res.json(locationsWithStats);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar localizações:', error);
       res.status(500).json({ error: 'Erro ao buscar localizações' });
     }
@@ -581,6 +585,7 @@ export class SettingsController {
       });
       res.status(201).json(location);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa localização já existe.' });
       }
@@ -600,7 +605,7 @@ export class SettingsController {
       const { name, categoryIds, sector } = req.body;
 
       const existing = await prisma.location.findFirst({
-        where: { id, factoryUnitId: req.tenant!.id }
+        where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) }
       });
       if (!existing) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
@@ -637,6 +642,14 @@ export class SettingsController {
       }
 
       const updated = await prisma.$transaction(async (tx) => {
+        await lockStockIdentityWrites(tx, req.tenant!.id);
+        if (targetSector !== undefined && targetSector !== null) {
+          const links = await tx.stockItemLocation.findMany({
+            where: { factoryUnitId: req.tenant!.id, locationId: id },
+            include: { stockItem: { select: { sector: true } } },
+          });
+          for (const link of links) assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
+        }
         if (finalCategoryIds !== undefined) {
           // Remove vínculos antigos
           await tx.locationCategory.deleteMany({
@@ -655,7 +668,7 @@ export class SettingsController {
         }
 
         const loc = await tx.location.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) },
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,
@@ -687,6 +700,10 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof Error && error.message.includes('Movimentações entre setores não são permitidas')) {
+        return res.status(400).json({ error: 'Não é possível vincular a localização a um setor diferente dos itens já alocados nela.' });
+      }
       console.error('Erro ao atualizar localização:', error);
       res.status(500).json({ error: 'Erro ao atualizar localização' });
     }
@@ -701,7 +718,7 @@ export class SettingsController {
 
       const id = Number(req.params.id);
       const location = await prisma.location.findFirst({
-        where: { id, factoryUnitId: req.tenant!.id }
+        where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) }
       });
       if (!location) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
@@ -737,11 +754,12 @@ export class SettingsController {
 
         await tx.locationCategory.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
         await tx.stockItemLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
-        await tx.location.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } });
+        await tx.location.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) } });
       });
 
       res.json({ message: 'Localização excluída com sucesso.' });
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }
@@ -756,14 +774,10 @@ export class SettingsController {
       let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
       if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
 
-      const userRole = req.effectiveContext?.effectiveRole || req.user?.role;
-      const userAssignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
-
       const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (userRole === 'admin_setor' && userAssignedSec && userAssignedSec !== 'TODOS') {
+      if (assignedStockSector(requestStockAccess(req))) {
         whereClause.OR = [
-          { sector: userAssignedSec as any },
-          { sector: null }
+          sectorAccessWhere(requestStockAccess(req))
         ];
       } else if (targetSector) {
         whereClause.OR = [
@@ -779,7 +793,7 @@ export class SettingsController {
 
       const originsWithCount = await Promise.all(
         origins.map(async (orig) => {
-          const stockMovCount = await prisma.stockMovement.count({ where: { factoryUnitId: req.tenant!.id, origem: orig.name } });
+          const stockMovCount = await prisma.stockMovement.count({ where: { factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)), origem: orig.name } });
           return {
             ...orig,
             linkedCount: stockMovCount,
@@ -789,6 +803,7 @@ export class SettingsController {
 
       res.json(originsWithCount);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar origens:', error);
       res.status(500).json({ error: 'Erro ao buscar origens' });
     }
@@ -838,6 +853,7 @@ export class SettingsController {
       });
       res.status(201).json(origin);
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa origem já existe.' });
       }
@@ -855,7 +871,7 @@ export class SettingsController {
 
       const id = Number(req.params.id);
       const origin = await prisma.originConfig.findFirst({
-        where: { id, factoryUnitId: req.tenant!.id }
+        where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) }
       });
       if (!origin) {
         return res.status(404).json({ error: 'Origem não encontrada.' });
@@ -887,11 +903,12 @@ export class SettingsController {
             reason: `Exclusão de Origem de Sobra: ${origin.name}${totalActive > 0 ? ` (com ${totalActive} registros vinculados)` : ''}`
           }
         }),
-        prisma.originConfig.deleteMany({ where: { id, factoryUnitId: req.tenant!.id } })
+        prisma.originConfig.delete({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } })
       ]);
 
       res.json({ message: 'Origem excluída com sucesso.' });
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });
       }

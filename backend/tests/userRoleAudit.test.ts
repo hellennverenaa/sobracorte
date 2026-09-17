@@ -49,6 +49,7 @@ test('UserService.updateUserRole detecta conflito de concorrência quando expect
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
+        $queryRaw: async () => [],
         userRoleBinding: {
           findFirst: async () => ({
             id: 10,
@@ -89,6 +90,7 @@ test('UserService.updateUserRole é idempotente quando dados não são alterados
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
+        $queryRaw: async () => [],
         userRoleBinding: {
           findFirst: async () => ({
             id: 10,
@@ -133,6 +135,7 @@ test('UserService.updateUserRole atualiza usuário e persiste auditoria em RoleC
   const mockPrisma = {
     $transaction: async (cb: any) => {
       const tx = {
+        $queryRaw: async () => [],
         userRoleBinding: {
           findFirst: async () => ({
             id: 10,

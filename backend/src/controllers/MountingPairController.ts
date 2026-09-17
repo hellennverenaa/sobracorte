@@ -1,3 +1,4 @@
+import { requestStockAccess, assignedStockSector, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { MountingPairService } from '../services/MountingPairService';
 import { ExecuteMatchSchema } from '../types/stock.dto';
@@ -19,9 +20,9 @@ export class MountingPairController {
       let sectorParam = (req.query.sector as string)?.toUpperCase();
       if (sectorParam === 'EXPEDICAO' || sectorParam === 'CABEDAIS') sectorParam = 'DISTRIBUICAO';
       const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'];
-      const sector: SectorType = validSectors.includes(sectorParam as SectorType)
+      const sector: SectorType = assignedStockSector(requestStockAccess(req)) || (validSectors.includes(sectorParam as SectorType)
         ? (sectorParam as SectorType)
-        : 'MONTAGEM';
+        : 'MONTAGEM');
 
       const searchParam = (req.query.q as string) || (req.query.search as string) || '';
       const pairs = await mountingPairService.findMatchingPairs(req.tenant.id, sector, searchParam);
@@ -31,6 +32,7 @@ export class MountingPairController {
         pairs,
       });
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar pares casáveis:', error);
       return res.status(500).json({ error: 'Erro interno ao consultar pares casáveis.' });
     }
@@ -48,6 +50,7 @@ export class MountingPairController {
       const parsed = ExecuteMatchSchema.parse(req.body);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
@@ -56,6 +59,7 @@ export class MountingPairController {
       const result = await mountingPairService.executeMatch(parsed, operatorContext);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos parâmetros de casamento.',

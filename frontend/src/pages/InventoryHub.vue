@@ -98,7 +98,7 @@ const canDelete = computed(() => {
   if (role === 'admin' || authStore.user?.isGlobalAdmin === true) return true;
   if (role === 'admin_setor') {
     const userSec = authStore.user?.assignedSector;
-    if (!userSec || userSec === 'TODOS') return true;
+    if (!userSec || userSec === 'TODOS') return false;
     const normUserSec = userSec === 'EXPEDICAO' || userSec === 'CABEDAIS' ? 'DISTRIBUICAO' : userSec;
     const normActiveTab = activeTab.value === 'EXPEDICAO' || (activeTab.value as string) === 'CABEDAIS' ? 'DISTRIBUICAO' : activeTab.value;
     return normUserSec === normActiveTab;
@@ -148,7 +148,7 @@ const visibleTabs = computed(() => {
   if (isSectorLocked.value && userSector.value) {
     return allTabs.filter(t => t.id === userSector.value);
   }
-  return allTabs;
+  return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? allTabs : [];
 });
 
 async function selectTab(tab: SectorType) {
@@ -221,47 +221,30 @@ const itemAllocatedLocations = computed(() => {
     .map((locLink: any) => ({
       id: locLink.locationId || locLink.location.id,
       name: locLink.location.name,
+      sector: locLink.location.sector,
       quantity: locLink.quantity || 0,
     }));
 });
 
+const transferSourceLocations = computed(() => itemAllocatedLocations.value.filter(loc => {
+  if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
+  return normalizeSector(loc.sector) === normalizeSector(selectedItem.value?.sector || activeTab.value);
+}));
+
 // Prateleiras de destino disponíveis para transferência (exclui a prateleira de origem)
 const availableDestinationLocations = computed(() => {
   const currentItemSector = selectedItem.value?.sector || activeTab.value;
-  const isAdminMaster = authStore.user?.role === 'admin';
 
   return stockStore.filterLocations.filter((loc) => {
     // Exclui a prateleira de origem atual
     if (loc.id === selectedLocationId.value) return false;
 
-    // Se for admin_master, exibe todas as prateleiras da fábrica
-    if (isAdminMaster) return true;
-
-    // Para líderes e operadores: exibe SOMENTE prateleiras do próprio setor
-    if (!loc.sector) {
-      return currentItemSector === 'CORTE';
-    }
+    // Todos os perfis usam somente localizações compatíveis com o setor.
+    if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
     const normLocSector = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
     const normItemSector = currentItemSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : currentItemSector;
     return normLocSector === normItemSector;
   });
-});
-
-// Identifica se a prateleira de destino selecionada é de outro setor (exclusivo para Admin Master)
-const selectedDestinationLocation = computed(() => {
-  if (!destinationLocationId.value) return null;
-  return stockStore.filterLocations.find((l) => l.id === destinationLocationId.value) || null;
-});
-
-const isCrossSectorTransfer = computed(() => {
-  if (movementType.value !== 'TRANSFERENCIA') return false;
-  if (!selectedDestinationLocation.value) return false;
-  const currentItemSector = selectedItem.value?.sector || activeTab.value;
-  const destSec = selectedDestinationLocation.value.sector;
-  if (!destSec) return false;
-  const normLocSector = destSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : destSec;
-  const normItemSector = currentItemSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : currentItemSector;
-  return normLocSector !== normItemSector;
 });
 
 // Saldo disponível na prateleira de origem selecionada
@@ -289,8 +272,10 @@ const isFormInvalid = computed(() => {
   const qty = Number(movementQuantity.value);
   if (!qty || isNaN(qty) || qty <= 0) return true;
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
+  if (!selectedLocationId.value) return true;
+  if (movementType.value === 'ENTRADA' && !stockStore.filterLocations.some(loc => loc.id === selectedLocationId.value)) return true;
+  if (movementType.value === 'TRANSFERENCIA' && !transferSourceLocations.value.some(loc => loc.id === selectedLocationId.value)) return true;
   if (movementType.value === 'TRANSFERENCIA' && (!destinationLocationId.value || destinationLocationId.value === selectedLocationId.value)) return true;
-  if (isCrossSectorTransfer.value && !movementObservation.value?.trim()) return true;
   if (movementType.value === 'ENTRADA' && !movementReason.value?.trim()) return true;
   return false;
 });
@@ -309,6 +294,7 @@ const formValidationHint = computed(() => {
   }
 
   if (movementType.value === 'TRANSFERENCIA') {
+    if (!selectedLocationId.value) return 'Não há localização de origem permitida para esta transferência.';
     if (availableDestinationLocations.value.length === 0) {
       const currentItemSector = selectedItem.value?.sector || activeTab.value;
       return `Não há outra prateleira cadastrada no setor ${currentItemSector} para transferir.`;
@@ -318,9 +304,6 @@ const formValidationHint = computed(() => {
     }
     if (destinationLocationId.value === selectedLocationId.value) {
       return 'A prateleira de destino deve ser diferente da origem.';
-    }
-    if (isCrossSectorTransfer.value && !movementObservation.value?.trim()) {
-      return 'Para transferência intersetorial, a justificativa nas observações é obrigatória.';
     }
   }
 
@@ -333,6 +316,9 @@ const formValidationHint = computed(() => {
 
 function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
   movementType.value = type;
+  if (type === 'ENTRADA' && !stockStore.filterLocations.some(loc => loc.id === selectedLocationId.value)) {
+    selectedLocationId.value = stockStore.filterLocations[0]?.id || null;
+  }
   movementReason.value = type === 'ENTRADA'
     ? (movementReason.value || stockStore.filterOrigins[0]?.name || 'Entrada Adicional')
     : '';
@@ -349,6 +335,7 @@ function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
 
   // Na transferência, se houver apenas uma prateleira de destino válida, pré-seleciona
   if (type === 'TRANSFERENCIA') {
+    if (!transferSourceLocations.value.some(loc => loc.id === selectedLocationId.value)) selectedLocationId.value = transferSourceLocations.value[0]?.id || null;
     if (!destinationLocationId.value && availableDestinationLocations.value.length === 1) {
       destinationLocationId.value = availableDestinationLocations.value[0].id;
     }
@@ -370,7 +357,7 @@ const canOperateCurrentSector = computed(() => {
   if (!authStore.user) return false;
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
-  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return true;
+  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
   const userSec = authStore.user.assignedSector.toUpperCase().trim();
   const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
   const tabSec = activeTab.value.toUpperCase().trim();
@@ -1097,7 +1084,7 @@ onMounted(() => {
               <!-- Nota explicativa da Transferência -->
               <div v-if="movementType === 'TRANSFERENCIA'" class="p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 text-blue-800 text-xs mt-2">
                 <Info class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <span>A transferência física redistribui o saldo entre prateleiras sem alterar o saldo total em estoque na fábrica.</span>
+                <span>A transferência física redistribui o saldo entre prateleiras do mesmo setor, sem alterar o saldo total do item.</span>
               </div>
             </div>
 
@@ -1162,7 +1149,7 @@ onMounted(() => {
                 aria-label="Prateleira de origem"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option v-for="loc in (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : stockStore.filterLocations)" :key="loc.id" :value="loc.id">
+                <option v-for="loc in (movementType === 'TRANSFERENCIA' ? transferSourceLocations : (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : stockStore.filterLocations))" :key="loc.id" :value="loc.id">
                   {{ loc.name }} {{ loc.quantity !== undefined ? `(Saldo: ${formatNumber(loc.quantity)} ${getItemUnitBadge(selectedItem)})` : '' }}
                 </option>
               </select>
@@ -1193,17 +1180,7 @@ onMounted(() => {
                   </option>
                 </select>
 
-                <!-- Alerta de Transferência Intersetorial (Autorização Admin Master) -->
-                <div
-                  v-if="isCrossSectorTransfer"
-                  class="p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2 text-amber-900 text-xs"
-                >
-                  <AlertCircle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span class="font-bold block">⚠️ Transferência Intersetorial (Autorização Admin Master)</span>
-                    <span>O item sairá do setor <strong>{{ selectedItem?.sector || activeTab }}</strong> para o setor <strong>{{ selectedDestinationLocation?.sector }}</strong>. A justificativa detalhada nas observações é obrigatória.</span>
-                  </div>
-                </div>
+
               </div>
             </div>
 

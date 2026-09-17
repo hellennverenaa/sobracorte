@@ -1,3 +1,4 @@
+import type { StockTransactionClient } from '../prisma';
 import { Prisma, SectorType, FootSide } from '../generated/prisma';
 import { normalizeStockColor, normalizeStockSector, normalizeStockText, stockIdentity } from './stockIdentity';
 import { normalizeUnit } from '../utils/unitHelper';
@@ -12,7 +13,7 @@ type RequestIdentity = {
   footSide?: string | null;
 };
 
-export async function findRequisitionStock(tx: Prisma.TransactionClient, factoryUnitId: number, req: RequestIdentity, side?: FootSide) {
+export async function findRequisitionStock(tx: StockTransactionClient, factoryUnitId: number, req: RequestIdentity, side?: FootSide) {
   const sector = normalizeStockSector(req.requestSector);
   const AND: Prisma.StockItemWhereInput[] = [];
   const exact = (field: string, value?: string | null) => {

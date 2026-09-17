@@ -94,6 +94,7 @@ test('seleção exata respeita APOIO, grade, cor, SKU e modelo; pares incompatí
   assert.equal((await findRequisitionStock(tx, 1, { ...req, color: 'AZULBRANCO' })).length, 0);
   assert.throws(() => assertCompatiblePair(item(), { ...item(2, 'D'), productName: 'OUTRO' }), /mesmo produto/);
   assert.throws(() => assertCompatiblePair(item(), { ...item(2, 'D'), type: 'OUTRO' }), /mesmo produto/);
+  await assert.rejects(debitStockItem({} as any, { ...item(), locations: item().locations.map((link: any) => ({ ...link, location: { name: 'OUTRO', sector: 'APOIO' } })) }, 1), /outro setor/);
   let written = false;
   const bad = { ...item(), quantity: 132 };
   await assert.rejects(debitStockItem({ stockItem: { updateMany: async () => { written = true; } } } as any, bad, 1), /diverge/);

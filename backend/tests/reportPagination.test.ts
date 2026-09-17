@@ -62,7 +62,7 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     stockItem.groupBy = async () => [{ sector: 'CORTE', _count: { _all: 251 }, _sum: { quantity: 1000 } }];
 
     const inventoryCapture = responseCapture();
-    await controller.inventory({ tenant: { id: 7 }, query: { page: '2', limit: '999' } } as any, inventoryCapture.res);
+    await controller.inventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '999' } } as any, inventoryCapture.res);
     assert.equal(inventoryQuery.skip, 200);
     assert.equal(inventoryQuery.take, 200);
     assert.equal(inventoryCapture.result.body.items.length, 1);
@@ -83,7 +83,7 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     ];
     location.findMany = async () => [];
     const movementCapture = responseCapture();
-    await controller.movements({ tenant: { id: 7 }, query: { page: '2', limit: '50' } } as any, movementCapture.res);
+    await controller.movements({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '50' } } as any, movementCapture.res);
     assert.equal(movementCapture.result.body.items.length, 0);
     assert.equal(movementCapture.result.body.pagination.total, 101);
     assert.equal(movementCapture.result.body.totals.qtdOperacoesEntrada, 100);
@@ -101,7 +101,7 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
       { status: 'ATENDIDA_TOTAL', _count: { _all: 10 } },
     ];
     const requisitionCapture = responseCapture();
-    await controller.requisitions({ tenant: { id: 7 }, query: {} } as any, requisitionCapture.res);
+    await controller.requisitions({ user: { role: 'admin' }, tenant: { id: 7 }, query: {} } as any, requisitionCapture.res);
     assert.equal(requisitionCapture.result.body.pagination.total, 60);
     assert.equal(requisitionCapture.result.body.totals.totalPendentes, 50);
     assert.equal(requisitionCapture.result.body.totals.quantidadeSolicitada, 80);
@@ -157,7 +157,7 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
   };
 
   try {
-    await controller.exportInventory({ tenant: { id: 7 }, query: {} } as any, res);
+    await controller.exportInventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: {} } as any, res);
     const csv = chunks.join('');
     assert.equal((csv.match(/"CORTE";/g) ?? []).length, 501);
     assert.equal((csv.match(/"APOIO";/g) ?? []).length, 2);

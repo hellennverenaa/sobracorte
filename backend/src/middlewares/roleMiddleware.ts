@@ -1,3 +1,4 @@
+import { assignedStockSector, assertStockSectorAccess, requestStockAccess } from '../auth/stockAccess';
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { vars } from "../config/dotenv"
@@ -80,6 +81,11 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     req.isGlobalAdmin = isGlobalAdmin;
     req.effectiveContext = effectiveContext;
 
+    if (req.path !== '/auth/check-user') {
+      try { assignedStockSector(requestStockAccess(req)); }
+      catch (error) { return res.status(403).json({ error: (error as Error).message }); }
+    }
+
     // ── Ativa o contexto de tenant para toda a cadeia de execução downstream.
     // A partir daqui, toda query do Prisma em modelos multi-tenant terá
     // `factoryUnitId` injetado automaticamente pelo $extends em prisma.ts.
@@ -135,20 +141,12 @@ export const requireSectorMatch = (getSector: (req: Request) => string | undefin
       return next();
     }
 
-    const targetSector = getSector(req);
-    const userAssignedSector = effective?.assignedSector;
-
-    if (userAssignedSector && targetSector) {
-      let normalizedTarget = targetSector.toUpperCase().trim();
-      let normalizedUser = userAssignedSector.toUpperCase().trim();
-      if (normalizedTarget === 'CABEDAIS' || normalizedTarget === 'EXPEDICAO') normalizedTarget = 'DISTRIBUICAO';
-      if (normalizedUser === 'CABEDAIS' || normalizedUser === 'EXPEDICAO') normalizedUser = 'DISTRIBUICAO';
-
-      if (normalizedTarget !== normalizedUser) {
-        return res.status(403).json({
-          error: `Acesso negado: Seu perfil tem permissão de operação apenas no setor ${userAssignedSector}.`,
-        });
-      }
+    try {
+      const targetSector = getSector(req);
+      assignedStockSector(requestStockAccess(req));
+      if (targetSector) assertStockSectorAccess(requestStockAccess(req), targetSector);
+    } catch (error) {
+      return res.status(403).json({ error: (error as Error).message });
     }
 
     next();

@@ -172,7 +172,7 @@ function onCategoryChange() {
 const availableLocations = computed(() => {
   const currentSec = activeSector.value;
   const sectorLocs = dbLocations.value.filter(loc => {
-    if (!loc.sector) return true;
+    if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
     const locSec = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
     return locSec === currentSec;
   });

@@ -32,7 +32,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
         return record;
       },
     },
-    location: { findUnique: async () => ({ id: 1, name: 'A' }) },
+    location: { findUnique: async () => ({ id: 1, name: 'A', sector: null }), findFirst: async () => ({ id: 1, name: 'A', sector: null }) },
     stockItemLocation: { create: async () => ({}), upsert: async () => ({}) },
     stockMovement: { create: async () => ({}) },
   };
@@ -46,7 +46,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   };
   const item = { sector: 'APOIO', pieceCode: '121212', productName: 'RACER SPEEDZONE', description: 'LINGUETA', materialColor: 'SINTETICO', sizeGrade: '40', quantity: 100, location: 'A' };
   const service = new StockItemService();
-  const create = (items: any[], factoryUnitId = 1) => service.createBatch(BatchCreateStockItemSchema.parse({ items }), { factoryUnitId });
+  const create = (items: any[], factoryUnitId = 1) => service.createBatch(BatchCreateStockItemSchema.parse({ items }), { factoryUnitId, role: 'admin' });
   await create([item]);
   await assert.rejects(create([{ ...item, description: ' lingueta ', quantity: 11, location: 'B' }]), DuplicateStockItemError);
   assert.equal(records.length, 1);
@@ -75,13 +75,13 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
       await create([different]);
     }
     const row: any = { ...fixture, rowNumber: 2, code: 'code' in fixture ? fixture.code : fixture.sku, name: 'name' in fixture ? fixture.name : fixture.productName, unit: fixture.unit || 'UND', type: fixture.type || fixture.sector, quantity: 10, locationId: 1, locationName: 'A' };
-    await assert.rejects(executeImportTransaction(prisma, [row], { factoryUnitId: 1 }), DuplicateStockItemError);
+    await assert.rejects(executeImportTransaction(prisma, [row], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   }
-  await assert.rejects(executeImportTransaction(prisma, [{ rowNumber: 2, sector: 'APOIO', code: item.pieceCode, name: item.description, productName: item.productName, color: item.materialColor, sizeGrade: item.sizeGrade, unit: 'UND', type: 'APOIO', quantity: 1, locationId: 1, locationName: 'A' }], { factoryUnitId: 1 }), DuplicateStockItemError);
+  await assert.rejects(executeImportTransaction(prisma, [{ rowNumber: 2, sector: 'APOIO', code: item.pieceCode, name: item.description, productName: item.productName, color: item.materialColor, sizeGrade: item.sizeGrade, unit: 'UND', type: 'APOIO', quantity: 1, locationId: 1, locationName: 'A' }], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   await assert.rejects(create([{ ...fixtures[2], sector: 'EXPEDICAO', quantity: 10, location: 'A' }]), DuplicateStockItemError);
   const beforeImport = records.length;
   const repeatedRow: any = { rowNumber: 2, sector: 'CORTE', code: 'CSV-NOVO', name: 'TECIDO', unit: 'M2', type: 'TECIDO', quantity: 1, locationId: 1, locationName: 'A' };
-  await assert.rejects(executeImportTransaction(prisma, [repeatedRow, { ...repeatedRow, rowNumber: 3 }], { factoryUnitId: 1 }), DuplicateStockItemError);
+  await assert.rejects(executeImportTransaction(prisma, [repeatedRow, { ...repeatedRow, rowNumber: 3 }], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   assert.equal(records.length, beforeImport, 'repetição dentro do CSV deve reverter o lote');
   const emptyModel = { ...item, pieceCode: 'SEM-MODELO', productName: '' };
   await create([emptyModel]);
@@ -91,10 +91,10 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   coloredRecord.color = ' A Z U L ';
   await assert.rejects(create([{ ...fixtures[4], quantity: 1, location: 'A' }]), DuplicateStockItemError);
 
-  let status;
-  let body;
+  let status: number | undefined;
+  let body: any;
   const res: any = { status(code: number) { status = code; return this; }, json(value: any) { body = value; return this; } };
-  await new StockItemController().createBatch({ tenant: { id: 1 }, body: { items: [item] } } as any, res);
+  await new StockItemController().createBatch({ user: { role: 'admin' }, tenant: { id: 1 }, body: { items: [item] } } as any, res);
   assert.equal(status, 409);
   assert.match(body.error, /já existe no estoque/);
   const originalCategoryLookup = prisma.categoryConfig.findFirst;
@@ -105,61 +105,117 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   assert.match(body.error, /categoria criaria itens duplicados/);
 });
 
-test('transferências totais e parciais reutilizam o equivalente e recusam destinos ambíguos', async t => {
-  let source: any;
-  let destination: any;
-  let destinationBalance = 20;
-  let ambiguous = false;
-  let compatible = true;
+test('transferências ficam no setor para todos os perfis, sem alterar o item nem permitir locais incompatíveis', async t => {
+  let sourceSector: string | null = 'DISTRIBUICAO';
+  let destinationSector: string | null = 'MONTAGEM';
+  let mutations = 0;
+  let balances = new Map([[1, 100], [2, 0]]);
   let movement: any;
-  let destinationLocationBalance = 20;
+  const source = { id: 1, factoryUnitId: 1, sector: 'DISTRIBUICAO', sku: 'SKU', productName: 'MODELO',
+    unit: 'UND', type: 'CABEDAL', quantity: 100, locations: [{ locationId: 1 }] };
   const originalTransaction = prisma.$transaction;
   t.after(() => { (prisma as any).$transaction = originalTransaction; });
   const tx = {
     $queryRaw: async () => [],
     stockItem: {
       findFirst: async () => source,
-      findMany: async () => ambiguous ? [destination, { ...destination, id: 3 }] : [destination],
-      updateMany: async ({ data }: any) => { source.quantity -= data.quantity.decrement; return { count: 1 }; },
-      update: async ({ data }: any) => { destinationBalance += data.quantity.increment; return destination; },
-      create: async () => { throw new Error('Não deve criar outro item no destino'); },
+      update: async () => { throw new Error('Transferência não pode alterar o item'); },
+      updateMany: async () => { throw new Error('Transferência não pode baixar o saldo total'); },
+      create: async () => { throw new Error('Transferência não pode criar outro item'); },
     },
-    location: { findFirst: async ({ where }: any) => ({ id: where.id, name: where.id === 1 ? 'ORIGEM' : 'DESTINO', sector: where.id === 1 ? 'DISTRIBUICAO' : 'MONTAGEM' }) },
+    location: { findFirst: async ({ where }: any) => {
+      assert.equal(where.factoryUnitId, 1);
+      return { id: where.id, name: where.id === 1 ? 'ORIGEM' : 'DESTINO', sector: where.id === 1 ? sourceSector : destinationSector };
+    } },
     stockItemLocation: {
-      updateMany: async () => ({ count: 1 }),
+      updateMany: async ({ where, data }: any) => {
+        if ((balances.get(where.locationId) || 0) < where.quantity.gte) return { count: 0 };
+        mutations++;
+        balances.set(where.locationId, balances.get(where.locationId)! - data.quantity.decrement);
+        return { count: 1 };
+      },
       upsert: async ({ create }: any) => {
-        assert.equal(create.stockItemId, 2);
-        destinationLocationBalance += create.quantity;
+        assert.equal(create.stockItemId, 1);
+        mutations++;
+        balances.set(create.locationId, (balances.get(create.locationId) || 0) + create.quantity);
       },
     },
-    stockMovement: { create: async ({ data }: any) => { movement = data; return { id: 1, ...data }; } },
+    stockMovement: { create: async ({ data }: any) => { mutations++; movement = data; return { id: 1, ...data }; } },
   };
-  (prisma as any).$transaction = async (callback: any) => callback(tx);
-  const reset = () => {
-    source = { id: 1, factoryUnitId: 1, sector: 'DISTRIBUICAO', sku: 'SKU', productName: 'MODELO', color: 'AZUL', sizeGrade: '40', footSide: 'E', type: 'CABEDAL', unit: 'UND', quantity: 100, locations: [{ locationId: 1 }] };
-    destination = { ...source, id: 2, sector: 'MONTAGEM', unit: compatible ? 'UND' : 'KG' };
-  };
-  const transfer = (quantity: number) => new StockMovementService().createMovement({ stockItemId: 1, type: 'TRANSFERENCIA', quantity, locationId: 1, destinationLocationId: 2, origem: '', reason: '' }, { factoryUnitId: 1, role: 'admin' });
-  for (const quantity of [10, 100]) {
-    reset();
-    const previous = destinationBalance;
-    const previousLocation = destinationLocationBalance;
-    await transfer(quantity);
-    assert.equal(source.quantity, 100 - quantity);
-    assert.equal(destinationBalance, previous + quantity);
-    assert.equal(destinationLocationBalance, previousLocation + quantity);
-    assert.equal(movement.stockItemId, 2);
-    assert.equal(movement.sourceLocationId, 1);
-    assert.equal(movement.destinationLocationId, 2);
+  (prisma as any).$transaction = (callback: any) => callback(tx);
+  const service = new StockMovementService();
+  const transfer = (quantity: number, role = 'admin', overrides: any = {}) => service.createMovement({
+    stockItemId: 1, sector: 'DISTRIBUICAO', type: 'TRANSFERENCIA', quantity, locationId: 1, destinationLocationId: 2,
+    ...overrides,
+  }, { factoryUnitId: 1, role, assignedSector: 'DISTRIBUICAO' });
+  for (const role of ['admin', 'admin_setor', 'lider', 'movimentador']) {
+    for (const quantity of [10, 100]) await assert.rejects(transfer(quantity, role), /outro setor/);
   }
-  ambiguous = true;
-  reset();
-  await assert.rejects(transfer(10), /duplicados no setor de destino/);
-  ambiguous = false;
-  compatible = false;
-  reset();
-  await assert.rejects(transfer(10), /unidade de medida incompatível/);
-  reset();
-  source.sku = null;
-  await assert.rejects(transfer(10), /campos de identificação necessários/);
+  assert.equal(mutations, 0, 'recusa deve preceder qualquer alteração de saldo ou histórico');
+  destinationSector = 'DISTRIBUICAO'; sourceSector = 'MONTAGEM';
+  for (const type of ['ENTRADA', 'SAIDA', 'REFUGO', 'TRANSFERENCIA']) {
+    await assert.rejects(transfer(10, 'admin', { type }), /outro setor/);
+  }
+  assert.equal(mutations, 0);
+  sourceSector = null;
+  await assert.rejects(transfer(10, 'admin_setor'), /Admin Master/);
+  sourceSector = 'DISTRIBUICAO'; destinationSector = null;
+  await assert.rejects(transfer(10, 'admin_setor'), /Admin Master/);
+  assert.equal(mutations, 0);
+  destinationSector = 'DISTRIBUICAO';
+  await assert.rejects(transfer(10, 'admin', { sector: 'MONTAGEM' }), /não pertence ao setor/);
+  await assert.rejects(transfer(10, 'admin', { destinationLocationId: 1 }), /devem ser diferentes/);
+  for (const sector of ['DISTRIBUICAO', 'EXPEDICAO', null]) {
+    destinationSector = sector;
+    for (const quantity of [10, 100]) {
+      balances = new Map([[1, 100], [2, 0]]);
+      await transfer(quantity);
+      assert.equal(source.quantity, 100);
+      assert.equal(source.type, 'CABEDAL');
+      assert.equal(source.sector, 'DISTRIBUICAO');
+      assert.equal(balances.get(1), 100 - quantity);
+      assert.equal(balances.get(2), quantity);
+      assert.equal(movement.stockItemId, 1);
+      assert.equal(movement.sourceStockItemId, 1);
+      assert.equal(movement.destinationStockItemId, 1);
+      assert.equal(movement.sourceSector, 'DISTRIBUICAO');
+      assert.equal(movement.destinationSector, 'DISTRIBUICAO');
+      assert.equal(movement.sourceLocationId, 1);
+      assert.equal(movement.destinationLocationId, 2);
+    }
+  }
+});
+
+test('cadastro e importação recusam localização de outro setor antes de gravar', async t => {
+  const original = prisma.$transaction;
+  t.after(() => { (prisma as any).$transaction = original; });
+  let writes = 0;
+  const tx = { $queryRaw: async () => [], location: {
+    findUnique: async () => ({ id: 1, name: 'A', sector: 'MONTAGEM' }),
+    findFirst: async () => ({ id: 1, name: 'A', sector: 'MONTAGEM' }),
+  }, stockItem: { create: async () => { writes++; } } };
+  (prisma as any).$transaction = (callback: any) => callback(tx);
+  await assert.rejects(new StockItemService().createBatch(BatchCreateStockItemSchema.parse({ items: [{
+    sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1, location: 'A',
+  }] }), { factoryUnitId: 1, role: 'admin' }), /outro setor/);
+  await assert.rejects(executeImportTransaction(prisma, [{ sector: 'CONSUMO', locationId: 1 }] as any, { factoryUnitId: 1, role: 'admin' }), /outro setor/);
+  assert.equal(writes, 0);
+});
+
+
+test('alterar o setor da localização não pode deslocar itens já alocados para outro setor', async t => {
+  const originalTx = prisma.$transaction;
+  const originalFind = prisma.location.findFirst;
+  t.after(() => { (prisma as any).$transaction = originalTx; (prisma.location as any).findFirst = originalFind; });
+  (prisma.location as any).findFirst = async () => ({ id: 1, name: 'ORIGEM', sector: 'DISTRIBUICAO' });
+  let writes = 0;
+  (prisma as any).$transaction = (callback: any) => callback({ $queryRaw: async () => [],
+    stockItemLocation: { findMany: async () => [{ stockItem: { sector: 'DISTRIBUICAO' } }] },
+    location: { update: async () => { writes++; } },
+  });
+  let status: number | undefined;
+  const res: any = { status(value: number) { status = value; return this; }, json() {} };
+  await new SettingsController().updateLocation({ tenant: { id: 1 }, user: { role: 'admin' }, params: { id: '1' }, body: { sector: 'MONTAGEM' } } as any, res);
+  assert.equal(status, 400);
+  assert.equal(writes, 0);
 });

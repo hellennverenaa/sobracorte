@@ -864,7 +864,7 @@ const settingsPersisted = usePersistedFilters('settings', {
 }, () => authStore.user?.unit?.code || 'default')
 
 // --- PERMISSÕES ---
-const canManageSettings = computed(() => authStore.user?.role === 'admin' || authStore.user?.role === 'admin_setor')
+const canManageSettings = computed(() => authStore.can('gerenciar_configuracoes'))
 const isMasterAdmin = computed(() => authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin))
 
 function formatSectorName(sec) {

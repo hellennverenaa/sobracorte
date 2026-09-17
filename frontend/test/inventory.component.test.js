@@ -48,19 +48,20 @@ test('formulário de entrada alterado exige confirmação para cancelar', async 
   mounted.unmount();
 });
 
-test('estoque registra saída usando API oficial e atualiza a listagem', async () => {
+for (const role of ['admin', 'admin_setor']) {
+test(`estoque restringe destinos de ${role} e registra saída pela API oficial`, async () => {
   const component = await loadComponent('src/pages/InventoryHub.vue');
   const { createPinia } = await import('pinia');
   const { createRouter, createMemoryHistory } = await import('vue-router');
   const pinia = createPinia();
-  pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  pinia.state.value.auth = { user: { role, assignedSector: 'CORTE', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
   localStorage.clear();
   let reads = 0;
   let movement;
   api.get = async (url) => {
     if (url !== '/inventory/search') return { data: {} };
     reads++;
-    return { data: { metrics: {}, sectors: { corte: { total: 1, data: [{ id: 23, sector: 'CORTE', code: 'MAT-1', name: 'Material', quantity: 5, unit: 'M2', locations: [{ locationId: 1, quantity: 5, location: { id: 1, name: 'A1' } }] }] } }, pagination: { page: 1, total: 1, totalPages: 1, limit: 50 }, filterOptions: { locations: [{ id: 1, name: 'A1', sector: 'CORTE' }] } } };
+    return { data: { metrics: {}, sectors: { corte: { total: 1, data: [{ id: 23, sector: 'CORTE', code: 'MAT-1', name: 'Material', quantity: 5, unit: 'M2', locations: [{ locationId: 1, quantity: 5, location: { id: 1, name: 'A1', sector: 'CORTE' } }] }] } }, pagination: { page: 1, total: 1, totalPages: 1, limit: 50 }, filterOptions: { locations: [{ id: 1, name: 'A1', sector: 'CORTE' }, { id: 2, name: 'A2', sector: 'CORTE' }, { id: 3, name: 'OUTRO-SETOR', sector: 'MONTAGEM' }, { id: 4, name: 'GERAL', sector: null }] } } };
   };
   api.post = async (url, payload) => { movement = { url, payload }; return { data: {} }; };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/inventory', component }, { path: '/:pathMatch(.*)*', component: { template: '<div />' } }] });
@@ -80,6 +81,20 @@ test('estoque registra saída usando API oficial e atualiza a listagem', async (
   await flushPromises();
   const dialog = mounted.element.querySelector('[aria-label="Movimentação de estoque"]');
   assert.ok(dialog);
+  const transfer = [...dialog.querySelectorAll('button')].find(button => button.textContent.trim() === 'TRANSFERÊNCIA');
+  assert.ok(transfer);
+  transfer.click();
+  await flushPromises();
+  const destination = dialog.querySelector('select[aria-label="Prateleira de destino"]');
+  assert.ok(destination);
+  const options = [...destination.options].map(option => option.textContent);
+  assert.ok(options.some(text => text.includes('A2')));
+  assert.equal(options.some(text => text.includes('GERAL')), role === 'admin');
+  assert.ok(options.every(text => !text.includes('OUTRO-SETOR')));
+  assert.doesNotMatch(dialog.textContent, /Autorização Admin Master/);
+  const exit = [...dialog.querySelectorAll('button')].find(button => button.textContent.trim() === 'SAÍDA');
+  exit.click();
+  await flushPromises();
   const submit = [...dialog.querySelectorAll('button')].find((button) => button.textContent.includes('Confirmar SAIDA'));
   assert.equal(submit.disabled, false);
   submit.click();
@@ -93,3 +108,5 @@ test('estoque registra saída usando API oficial e atualiza a listagem', async (
   assert.equal(Boolean(mounted.element.querySelector('[aria-label="Movimentação de estoque"]')), false);
   mounted.unmount();
 });
+
+}

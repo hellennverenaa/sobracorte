@@ -7,7 +7,7 @@ import { useDashboard } from '@/composables/useDashboard'
 import DashboardStatus from '@/components/DashboardStatus.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
-import { SECTOR_OPTIONS } from '@/utils/domain'
+import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatNumber, formatDate } from "@/utils/format"
 import {
   Activity, Clock, RefreshCw, Layers, Scissors, Box,
@@ -19,13 +19,15 @@ import {
 // --- ESTADO DO FILTRO RÁPIDO (domínio persistido por unidade) ---
 const authStore = useAuthStore()
 const dashboardDomain = useDashboard({
+  authStore,
   unitCode: () => authStore.user?.unit?.code || 'default',
 })
 const selectedSector = dashboardDomain.selectedSector
 const sectorIcons = { TODOS: Layers, CORTE: Scissors, APOIO: Box, PRE_FABRICADO: Package, DISTRIBUICAO: Layers, MONTAGEM: Footprints }
-const sectorFilterOptions = SECTOR_OPTIONS
-  .filter((sector) => sector.id !== 'CONSUMO')
-  .map((sector) => ({ ...sector, icon: sectorIcons[sector.id] || Layers }))
+const sectorFilterOptions = computed(() => SECTOR_OPTIONS
+  .filter(sector => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizeSector(authStore.user?.assignedSector))
+  .filter(sector => sector.id !== 'CONSUMO')
+  .map(sector => ({ ...sector, icon: sectorIcons[sector.id] || Layers })))
 
 // --- ESTADOS DE DADOS (CARREGADOS EM 1 ÚNICA REQUISIÇÃO) ---
 const realStats = ref({
@@ -350,37 +352,39 @@ const currentFilteredPairsCard = computed(() => {
   }
 
   if (selectedSector.value === 'CORTE') {
-    const totalExitsVolume = Number(setoresData.value.corte?.totalExitsVolume) || 0;
+    const exitsByUnit = setoresData.value.corte?.exitsByUnit || {};
+    const exitUnits = Object.keys(exitsByUnit);
     const totalExits = Number(setoresData.value.corte?.totalExits) || 0;
 
     return {
       type: 'CORTE',
-      title: 'Sobras Reaproveitadas (Corte)',
+      title: 'Saídas de Sobras (Corte)',
       badge: 'Eliminação de Sobras',
       badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      mainCount: totalExitsVolume,
-      mainUnit: 'm² eliminados',
+      mainCount: exitUnits.length === 1 ? exitsByUnit[exitUnits[0]] : totalExits,
+      mainUnit: exitUnits.length === 1 ? `${exitUnits[0]} de saídas` : 'registros de saída',
       icon: Scissors,
       iconBg: 'bg-emerald-50 text-emerald-600',
       borderClass: 'border-b-emerald-600',
-      corteInfo: { totalExitsVolume, totalExits },
+      corteInfo: { exitsByUnit, totalExits },
     };
   }
 
   // APOIO
-  const totalExitsVolume = Number(setoresData.value.apoio?.totalExitsVolume) || 0;
+  const exitsByUnit = setoresData.value.apoio?.exitsByUnit || {};
+  const exitUnits = Object.keys(exitsByUnit);
   const totalExits = Number(setoresData.value.apoio?.totalExits) || 0;
   return {
     type: 'APOIO',
-    title: 'Peças Reaproveitadas (Apoio)',
+    title: 'Saídas de Peças (Apoio)',
     badge: 'Eliminação de Sobras',
     badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
-    mainCount: totalExitsVolume,
-    mainUnit: 'un reaproveitadas',
+    mainCount: exitUnits.length === 1 ? exitsByUnit[exitUnits[0]] : totalExits,
+    mainUnit: exitUnits.length === 1 ? `${exitUnits[0]} de saídas` : 'registros de saída',
     icon: Box,
     iconBg: 'bg-sky-50 text-sky-600',
     borderClass: 'border-b-sky-500',
-    apoioInfo: { totalExitsVolume, totalExits },
+    apoioInfo: { exitsByUnit, totalExits },
   };
 });
 
@@ -463,13 +467,11 @@ const currentTopMateriais = computed(() => {
     const filtered = topSobrasEntrada.value.filter(item => {
       const matchSector = currentSector === 'TODOS' || item.sector === currentSector || (currentSector === 'CORTE' && !item.sector)
       const itemUnit = String(item.unit || '').toUpperCase().trim()
-      const matchUnit = itemUnit === unit || (unit === 'M²' && (itemUnit === 'M2' || item.sector === 'CORTE'))
+      const matchUnit = itemUnit === unit || (unit === 'M²' && itemUnit === 'M2')
       return matchSector && matchUnit
     })
     if (filtered.length > 0) return filtered.slice(0, 5)
 
-    const sectorFiltered = topSobrasEntrada.value.filter(item => currentSector === 'TODOS' || item.sector === currentSector)
-    if (sectorFiltered.length > 0) return sectorFiltered.slice(0, 5)
   }
 
   return []
@@ -496,9 +498,9 @@ const filteredOrigemChartData = computed(() => {
     list = origensPorSetorData.value[selectedSector.value] || []
   }
 
-  const total = list.reduce((acc, item) => acc + (Number(item.value ?? item._sum?.quantity) || 0), 0)
+  const total = list.reduce((acc, item) => acc + (Number(item.count) || 0), 0)
   return list.map((item, i) => {
-    const value = Number(item.value ?? item._sum?.quantity) || 0
+    const value = Number(item.count) || 0
     return {
       origem: item.origem || item.name || 'Outros',
       label: item.origem || item.name || 'Outros',
@@ -595,10 +597,10 @@ async function loadData() {
     }))
 
     // 4. Distribuição por Categoria
-    const totalDist = catDistRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    const totalDist = catDistRaw.reduce((acc, item) => acc + (Number(item._count?._all) || 0), 0)
     pieChartData.value = catDistRaw.map(item => {
       const label = String(item.type || 'outros')
-      const value = Number(item._sum?.quantity) || 0
+      const value = Number(item._count?._all) || 0
       return {
         label:   label.charAt(0).toUpperCase() + label.slice(1),
         value,
@@ -608,9 +610,9 @@ async function loadData() {
     }).sort((a, b) => b.value - a.value).slice(0, 5)
 
     // 5. Origem das Sobras (Global e Setorizada)
-    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item._sum?.quantity) || 0), 0)
+    const totalOrigem = origemRaw.reduce((acc, item) => acc + (Number(item.count) || 0), 0)
     origemChartData.value = origemRaw.map((item, i) => {
-      const value = Number(item._sum?.quantity) || 0
+      const value = Number(item.count) || 0
       return {
         origem:  item.origem || item.name || 'Outros',
         label:   item.origem || item.name || 'Outros',
@@ -987,7 +989,7 @@ onUnmounted(() => {
           <!-- 2. Origem das Entradas de Sobra Reativa ao Setor -->
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-col items-center justify-between relative overflow-hidden h-full">
             <h3 class="font-bold text-slate-800 w-full text-left mb-3 flex items-center gap-2 text-xs uppercase tracking-wider">
-              <MapPin class="w-4 h-4 text-violet-500" /> Origem das Entradas
+              <MapPin class="w-4 h-4 text-violet-500" /> Origem das Entradas (registros)
             </h3>
 
             <div class="relative w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-full shadow-sm my-2 border-4 border-slate-50 transition-transform hover:scale-105 shrink-0"
@@ -1026,7 +1028,7 @@ onUnmounted(() => {
                 </div>
                 <div class="flex items-center gap-2 shrink-0 ml-2">
                   <span class="text-slate-400 text-[9px] font-bold bg-slate-200 px-1 py-0.5 rounded">{{ slice.percent.toFixed(1) }}%</span>
-                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(slice.value) }}</span>
+                  <span class="font-bold text-slate-800 text-[11px]">{{ formatNumber(slice.value) }} registros</span>
                 </div>
               </div>
             </div>

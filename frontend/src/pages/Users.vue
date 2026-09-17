@@ -27,8 +27,10 @@ const roleOptions = [
   { value: "leitor", label: "Leitor", description: "Acesso de consulta ao estoque e abertura de solicitações", icon: Eye, color: "text-gray-600 bg-gray-100" },
 ];
 
+const assignableRoles = computed(() => roleOptions.filter(option => option.value !== 'admin' || auth.user?.isGlobalAdmin));
+const canManageUser = user => user.role !== 'admin' || auth.user?.isGlobalAdmin === true;
+
 const sectorOptions = [
-  { value: null, label: "Todos os Setores (Irrestrito / Master)" },
   { value: "CORTE", label: "Corte" },
   { value: "APOIO", label: "Apoio" },
   { value: "PRE_FABRICADO", label: "Pré-Fabricado" },
@@ -69,6 +71,10 @@ const openAuditModal = async () => {
 
 const saveUserRole = async () => {
   if (!editingUser.value) return;
+  if (editingUser.value.role !== 'admin' && !editingUser.value.assignedSector) {
+    showNotification("error", "Selecione um setor específico para este perfil.");
+    return;
+  }
 
   try {
     const payload = {
@@ -98,6 +104,7 @@ const saveUserRole = async () => {
 };
 
 const openEditModal = (user) => {
+  if (!canManageUser(user)) return;
   editingUser.value = {
     ...user,
     assignedSector: user.assignedSector || null,
@@ -107,6 +114,7 @@ const openEditModal = (user) => {
 };
 
 const deleteUser = (userTarget) => {
+  if (typeof userTarget === 'object' && !canManageUser(userTarget)) return;
   const userId = typeof userTarget === 'object' ? userTarget.id : userTarget;
   const userName = typeof userTarget === 'object' ? (userTarget.nome || userTarget.usuario) : 'este usuário';
 
@@ -277,15 +285,15 @@ onMounted(() => {
                   <div class="flex justify-center gap-2">
                     <button @click="openEditModal(user)"
                       class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Permissão e Setor"
-                      :disabled="user.usuario === (auth.user?.usuario || auth.user?.nome)"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === (auth.user?.usuario || auth.user?.nome) }">
+                      :disabled="!canManageUser(user) || user.usuario === (auth.user?.usuario || auth.user?.nome)"
+                      :class="{ 'opacity-50 cursor-not-allowed': !canManageUser(user) || user.usuario === (auth.user?.usuario || auth.user?.nome) }">
                       <Edit class="w-5 h-5" />
                     </button>
 
                     <button @click="deleteUser(user)"
                       class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover Usuário"
-                      :disabled="user.usuario === (auth.user?.usuario || auth.user?.nome)"
-                      :class="{ 'opacity-50 cursor-not-allowed': user.usuario === (auth.user?.usuario || auth.user?.nome) }">
+                      :disabled="!canManageUser(user) || user.usuario === (auth.user?.usuario || auth.user?.nome)"
+                      :class="{ 'opacity-50 cursor-not-allowed': !canManageUser(user) || user.usuario === (auth.user?.usuario || auth.user?.nome) }">
                       <Trash2 class="w-5 h-5" />
                     </button>
                   </div>
@@ -315,7 +323,7 @@ onMounted(() => {
           <div>
             <label class="block font-bold text-gray-700 uppercase mb-2">Nível de Acesso *</label>
             <div class="space-y-2">
-              <label v-for="option in roleOptions" :key="option.value"
+              <label v-for="option in assignableRoles" :key="option.value"
                 class="flex items-start p-2.5 border rounded-lg cursor-pointer transition-all hover:bg-gray-50"
                 :class="{ 'border-blue-500 bg-blue-50 ring-1 ring-blue-500': editingUser.role === option.value }">
                 <input type="radio" v-model="editingUser.role" :value="option.value"
@@ -341,7 +349,7 @@ onMounted(() => {
               class="w-full px-3 py-2 border rounded-lg uppercase text-sm font-medium focus:ring-2 focus:ring-blue-500 bg-white"
               :disabled="editingUser.role === 'admin'"
             >
-              <option :value="null">TODOS OS SETORES / IRRESTRITO (MASTER)</option>
+              <option :value="null" :disabled="editingUser.role !== 'admin'">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : 'SELECIONE UM SETOR' }}</option>
               <option value="CORTE">CORTE</option>
               <option value="APOIO">APOIO</option>
               <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>

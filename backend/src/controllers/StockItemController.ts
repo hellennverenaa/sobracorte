@@ -1,3 +1,4 @@
+import { StockAccessError, requestStockAccess, assignedStockSector, assertStockSectorAccess } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { DuplicateStockItemError, StockItemService } from '../services/StockItemService';
@@ -20,28 +21,10 @@ export class StockItemController {
 
       const parsed = BatchCreateStockItemSchema.parse(req.body);
 
-      const role = req.effectiveContext?.effectiveRole || req.user?.role;
-      const assignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
-      const isGlobal = req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin;
-
-      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
-        let userSec = String(assignedSec).toUpperCase().trim();
-        if (userSec === 'CABEDAIS' || userSec === 'EXPEDICAO') userSec = 'DISTRIBUICAO';
-
-        const forbiddenItem = parsed.items.find(item => {
-          let itemSec = item.sector ? String(item.sector).toUpperCase().trim() : '';
-          if (itemSec === 'CABEDAIS' || itemSec === 'EXPEDICAO') itemSec = 'DISTRIBUICAO';
-          return itemSec && itemSec !== userSec;
-        });
-
-        if (forbiddenItem) {
-          return res.status(403).json({
-            error: `Acesso negado: O lote contém item pertencente ao setor ${forbiddenItem.sector}, mas seu perfil está restrito ao setor ${assignedSec}.`,
-          });
-        }
-      }
+      for (const item of parsed.items) assertStockSectorAccess(requestStockAccess(req), item.sector);
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
@@ -50,6 +33,7 @@ export class StockItemController {
       const result = await stockItemService.createBatch(parsed, operatorContext);
       return res.status(201).json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }
@@ -81,19 +65,13 @@ export class StockItemController {
         targetSector = 'DISTRIBUICAO' as SectorType;
       }
 
-      // Se o usuário tiver assignedSector e não for admin master, força o setor vinculado
-      if (req.user?.role !== 'admin' && !req.isGlobalAdmin && req.user?.assignedSector) {
-        let userSec = String(req.user.assignedSector).toUpperCase().trim();
-        if (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') userSec = 'DISTRIBUICAO';
-        targetSector = userSec as SectorType;
-      }
+      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
       const operatorContext = {
+        ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
         operatorId: req.user?.matricula ? String(req.user.matricula) : null,
         operatorName: req.user?.nome || req.user?.usuario || null,
-        role: req.user?.role || null,
-        assignedSector: req.user?.assignedSector || null,
       };
 
       const params = {
@@ -106,6 +84,7 @@ export class StockItemController {
       const result = await stockItemService.searchUnified(params, operatorContext);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro na busca unificada de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar dados de estoque.' });
     }
@@ -126,18 +105,14 @@ export class StockItemController {
         targetSector = 'DISTRIBUICAO' as SectorType;
       }
 
-      // Se o usuário tiver assignedSector e não for admin master, força o setor vinculado
-      if (req.user?.role !== 'admin' && !req.isGlobalAdmin && req.user?.assignedSector) {
-        let userSec = String(req.user.assignedSector).toUpperCase().trim();
-        if (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') userSec = 'DISTRIBUICAO';
-        targetSector = userSec as SectorType;
-      }
+      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
       const query = q ? String(q) : '';
 
       const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar sugestões de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
     }
@@ -163,6 +138,7 @@ export class StockItemController {
       const result = await stockItemService.getCombinations(targetSector, query, req.tenant.id);
       return res.json(result);
     } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar combinações de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar combinações.' });
     }
@@ -202,19 +178,7 @@ export class StockItemController {
             throw new Error('STOCK_ITEM_NOT_FOUND');
           }
 
-          // Validação de permissão setorial para admin_setor
-          if (req.user?.role === 'admin_setor') {
-            const userSec = req.user?.assignedSector;
-            if (userSec && userSec !== 'TODOS') {
-              const normUserSec = userSec === 'EXPEDICAO' || userSec === 'CABEDAIS' ? 'DISTRIBUICAO' : userSec;
-              const normItemSec = item.sector === 'EXPEDICAO' || item.sector === 'CABEDAIS' ? 'DISTRIBUICAO' : item.sector;
-              if (normUserSec !== normItemSec) {
-                const err: any = new Error('FORBIDDEN_SECTOR');
-                err.status = 403;
-                throw err;
-              }
-            }
-          }
+          assertStockSectorAccess(requestStockAccess(req), item.sector);
 
           const totalQty = Number(item.quantity || 0);
           const hasLocationBalance = item.locations.some((l: any) => Number(l.quantity || 0) > 0.0001);

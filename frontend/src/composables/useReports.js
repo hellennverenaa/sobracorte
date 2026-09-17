@@ -26,6 +26,11 @@ export function useReports(options = {}) {
   const requestApi = options.api || defaultApi
   const persisted = usePersistedFilters('reports', REPORT_DEFAULT_FILTERS, options.unitCode || (() => options.authStore?.user?.unit?.code || 'default'))
   const filters = persisted.filters
+  function restrictSector() {
+    const user = options.authStore?.user;
+    if (user && user.role !== 'admin' && !user.isGlobalAdmin) filters.value.sector = normalizeSector(user.assignedSector);
+  }
+  restrictSector()
   const reportType = ref('movements')
   const loading = ref(false)
   const error = ref(null)
@@ -38,6 +43,7 @@ export function useReports(options = {}) {
   const isEmpty = computed(() => hasSearched.value && !loading.value && !error.value && reportData.value.length === 0)
 
   async function generateReport(page = 1) {
+    restrictSector();
     loading.value = true; error.value = null; hasSearched.value = true; currentPage.value = page
     try {
       const dates = getDatesFromPeriod(filters.value.periodo, filters.value)
@@ -62,7 +68,7 @@ export function useReports(options = {}) {
     } finally { loading.value = false }
   }
 
-  function resetFilters() { persisted.resetFilters() }
+  function resetFilters() { persisted.resetFilters(); restrictSector() }
   function setReportType(type) { reportType.value = type; return generateReport(1) }
   onMounted(() => { if (options.autoLoad !== false) generateReport(1).catch(() => {}) })
   return { filters, resetFilters, reportType, loading, error, reportData, currentPage, pageSize, pagination, totals, reportTotals: totals, hasSearched, isEmpty, totalPages: computed(() => pagination.value.totalPages || 1), generateReport, retry: () => generateReport(currentPage.value), setReportType }

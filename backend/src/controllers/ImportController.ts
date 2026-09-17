@@ -1,3 +1,4 @@
+import { requestStockAccess, assignedStockSector, assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { parseCsvRFC4180 } from '../import/csvParser';
@@ -20,22 +21,10 @@ export class ImportController {
         return res.status(400).json({ error: 'Formato de arquivo inválido. Apenas arquivos no formato .csv são aceitos.' });
       }
 
-      const role = req.effectiveContext?.effectiveRole || req.user?.role;
-      const assignedSec = req.effectiveContext?.assignedSector || req.user?.assignedSector;
-      const isGlobal = req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin;
-
-      const rawSector = String(req.body.sector || req.query.sector || assignedSec || 'CORTE');
+      const access = requestStockAccess(req);
+      const rawSector = String(req.body.sector || req.query.sector || assignedStockSector(access) || 'CORTE');
       const defaultSector = normalizeSector(rawSector);
-
-      // Trava RBAC para admin_setor: apenas permite importar para o seu setor designado
-      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
-        const userSec = normalizeSector(assignedSec);
-        if (defaultSector !== userSec) {
-          return res.status(403).json({
-            error: `Acesso negado. Você só tem permissão para importar materiais no setor ${userSec}.`,
-          });
-        }
-      }
+      assertStockSectorAccess(access, defaultSector);
 
       // 1. Parsing conforme RFC 4180
       const parsed = parseCsvRFC4180(req.file.buffer);
@@ -69,22 +58,14 @@ export class ImportController {
         throw validationErr;
       }
 
-      // Validação linha a linha de setor para admin_setor
-      if (!isGlobal && role === 'admin_setor' && assignedSec && assignedSec !== 'TODOS') {
-        const userSec = normalizeSector(assignedSec);
-        const forbiddenItem = validatedItems.find(item => item.sector !== userSec);
-        if (forbiddenItem) {
-          return res.status(403).json({
-            error: `Acesso negado: A linha ${forbiddenItem.rowNumber} contém material do setor ${forbiddenItem.sector}, mas seu perfil só permite importar no setor ${userSec}.`,
-          });
-        }
-      }
+      for (const item of validatedItems) assertStockSectorAccess(access, item.sector);
 
       // 4. Execução Transacional Atômica (Persistência + Amarração + Movimentações)
       const operatorId = req.user?.matricula ? String(req.user.matricula) : null;
       const operatorName = req.user?.nome || req.user?.usuario || 'Sistema / Importação';
 
       const result = await executeImportTransaction(prisma, validatedItems, {
+        ...requestStockAccess(req),
         factoryUnitId,
         operatorId,
         operatorName,
@@ -100,6 +81,7 @@ export class ImportController {
       });
 
     } catch (error: unknown) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }

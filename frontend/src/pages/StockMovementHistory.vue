@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
+import { normalizeSector } from '@/utils/domain';
 import { formatDate } from '@/utils/format';
 import { 
   History, RefreshCw, User, Download
@@ -11,8 +12,9 @@ import {
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
+const lockedSector = computed(() => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? '' : normalizeSector(authStore.user?.assignedSector || ''));
 const filters = reactive({
-  sector: '' as SectorType | '',
+  sector: lockedSector.value as SectorType | '',
   type: '',
   operatorId: '',
   page: 1,
@@ -32,7 +34,7 @@ async function loadHistory() {
 }
 
 function exportCSV() {
-  if (authStore.user?.role === 'leitor') return;
+  if (!authStore.can('exportar_dados')) return;
   if (!stockStore.history.data || stockStore.history.data.length === 0) return;
 
   const headers = ['ID', 'Data/Hora', 'Setor', 'Tipo', 'Detalhes', 'Quantidade', 'Operador', 'Matrícula', 'Motivo/Origem'];
@@ -63,6 +65,8 @@ function getTypeBadge(type: string) {
   switch (type) {
     case 'ENTRADA':
       return { label: 'ENTRADA', class: 'bg-green-100 text-green-800 border-green-200' };
+    case 'SAIDA_REQUISICAO':
+      return { label: 'SAÍDA POR REQUISIÇÃO', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
     case 'SAIDA':
       return { label: 'SAÍDA', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
     case 'REFUGO':
@@ -86,12 +90,24 @@ function formatItemDetails(item: any, mov?: any) {
   if (mov && mov.sector === 'CONFIGURACOES') {
     return mov.origem || 'Configurações de Domínio';
   }
+  if (mov?.itemModelName != null) {
+    const details = [mov.itemCode, mov.itemName, mov.itemModelName && `[${mov.itemModelName}]`,
+      mov.itemCategory && `[${mov.itemCategory}]`, mov.itemColor && `(${mov.itemColor})`,
+      mov.itemSizeGrade && `Gr. ${mov.itemSizeGrade}`, mov.itemFootSide && `Pé ${mov.itemFootSide}`];
+    return details.filter(Boolean).join(' - ') || '-';
+  }
   if (!item) {
     if (mov && (mov.itemName || mov.itemCode)) {
       return `${mov.itemCode ? mov.itemCode + ' - ' : ''}${mov.itemName || 'Item Histórico'}${mov.itemCategory ? ' [' + mov.itemCategory + ']' : ''}`;
     }
     return '-';
   }
+  item = { ...item,
+    sector: mov?.sourceSector ?? mov?.sector ?? item.sector,
+    sku: mov?.itemCode ?? item.sku, code: mov?.itemCode ?? item.code, pieceCode: mov?.itemCode ?? item.pieceCode,
+    name: mov?.itemName ?? item.name, description: mov?.itemName ?? item.description,
+    type: mov?.itemCategory ?? item.type,
+  };
   switch (item.sector) {
     case 'CORTE':
       return `${item.code || mov?.itemCode || ''} - ${item.name || mov?.itemName || ''}`;
@@ -131,7 +147,7 @@ onMounted(() => {
         <div class="flex items-center gap-2">
           <!-- Botão de Exportação Avançada (Oculto para perfil leitor) -->
           <button
-            v-if="authStore.user?.role !== 'leitor'"
+            v-if="authStore.can('exportar_dados')"
             @click="exportCSV"
             class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded flex items-center gap-1.5 shadow-sm text-xs font-bold transition-colors cursor-pointer"
             title="Exportar dados filtrados para CSV"
@@ -156,16 +172,17 @@ onMounted(() => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
           <select
             v-model="filters.sector"
+            :disabled="!!lockedSector"
             @change="loadHistory"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
           >
-            <option value="">TODOS OS SETORES</option>
-            <option value="CORTE">CORTE</option>
-            <option value="APOIO">APOIO</option>
-            <option value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
-            <option value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
-            <option value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
-            <option value="CONFIGURACOES">CONFIGURAÇÕES (DOMÍNIO)</option>
+            <option v-if="!lockedSector" value="">TODOS OS SETORES</option>
+            <option v-if="!lockedSector || lockedSector === 'CORTE'" value="CORTE">CORTE</option>
+            <option v-if="!lockedSector || lockedSector === 'APOIO'" value="APOIO">APOIO</option>
+            <option v-if="!lockedSector || lockedSector === 'PRE_FABRICADO'" value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
+            <option v-if="!lockedSector || lockedSector === 'DISTRIBUICAO'" value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
+            <option v-if="!lockedSector || lockedSector === 'MONTAGEM'" value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
+            <option v-if="!lockedSector || lockedSector === 'CONFIGURACOES'" value="CONFIGURACOES">CONFIGURAÇÕES (DOMÍNIO)</option>
           </select>
         </div>
 
@@ -176,7 +193,7 @@ onMounted(() => {
             @change="loadHistory"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium"
           >
-            <option value="">TODOS OS TIPOS</option>
+            <option v-if="!lockedSector" value="">TODOS OS TIPOS</option>
             <option value="ENTRADA">ENTRADA</option>
             <option value="SAIDA">SAÍDA / CONSUMO</option>
             <option value="REFUGO">REFUGO</option>

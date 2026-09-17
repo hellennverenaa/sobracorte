@@ -194,3 +194,6 @@ export const prisma = new PrismaClient({ adapter }).$extends({
 //     requisições de usuários finais. Isso causaria cross-tenant data leak.
 //
 export const prismaForInternalUse = new PrismaClient({ adapter });
+
+/** Tipo da transação com as mesmas extensões de tenant do cliente da aplicação. */
+export type StockTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

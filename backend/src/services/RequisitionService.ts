@@ -1,3 +1,5 @@
+import { assertStockSectorAccess, assignedStockSector } from '../auth/stockAccess';
+import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { 
   CreateRequisitionPayloadDTO, 
@@ -94,6 +96,7 @@ export class RequisitionService {
 
     // 1. TRAVA DE SALDO ZERO: Validar disponibilidade de todos os itens antes de abrir
     for (const item of rawItems) {
+      assertStockSectorAccess(context, item.requestSector);
       const stockInfo = await this.checkStockAvailability(
         {
           requestSector: item.requestSector as SectorType,
@@ -175,14 +178,7 @@ export class RequisitionService {
     const { status, requestSector, search, page = 1, limit = 20 } = filter;
     const skip = (page - 1) * limit;
 
-    // Se o usuário não for admin master e tiver setor atribuído (e não for 'TODOS'), restringir ao seu setor
-    let effectiveSector = requestSector;
-    if (context.role !== 'admin' && context.assignedSector && context.assignedSector !== 'TODOS') {
-      const normalizedUserSector = (context.assignedSector === 'CABEDAIS' || context.assignedSector === 'EXPEDICAO')
-        ? 'DISTRIBUICAO'
-        : context.assignedSector;
-      effectiveSector = normalizedUserSector as any;
-    }
+    const effectiveSector = assignedStockSector(context) || requestSector;
 
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
@@ -276,8 +272,8 @@ export class RequisitionService {
             data: {
               factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'SAIDA_REQUISICAO',
               quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
-              itemCode: item.sku || item.pieceCode || item.code, itemName: item.description || item.name || item.productName,
-              itemCategory: item.type || item.componentType, itemUnit: item.unit,
+              ...movementSnapshot(item),
+              sourceStockItemId: item.id, sourceSector: item.sector,
               origem: req.footSide === 'PAR' ? `Atendimento de Requisição (Pé ${item.footSide === 'E' ? 'Esquerdo' : 'Direito'})` : 'Atendimento de Requisição',
               reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ' - ' + dto.observation : ''}`,
               operatorId: operatorId || null, operatorName: operatorName || 'Operador',
@@ -302,6 +298,7 @@ export class RequisitionService {
       await lockStockIdentityWrites(tx, factoryUnitId);
       const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
       if (!req) throw new Error('Requisição não encontrada.');
+      assertStockSectorAccess(context, req.requestSector);
       if (req.status !== 'PENDENTE') throw new Error('Apenas requisições pendentes podem ser canceladas.');
       return tx.materialRequisition.update({
         where: { id_factoryUnitId: { id, factoryUnitId }, status: 'PENDENTE', quantityFulfilled: 0 },

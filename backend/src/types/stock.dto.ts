@@ -257,6 +257,7 @@ export type RequisitionFilterDTO = z.infer<typeof RequisitionFilterSchema>;
 export type FulfillRequisitionDTO = z.infer<typeof FulfillRequisitionSchema>;
 
 export interface OperatorContext {
+  isGlobalAdmin?: boolean;
   factoryUnitId: number;
   operatorId?: string | null;
   operatorName?: string | null;

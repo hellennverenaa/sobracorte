@@ -250,6 +250,8 @@ export const useAuthStore = defineStore('auth', {
 
       if (role === 'admin' || this.user?.isGlobalAdmin) return true;
 
+      if (!['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'CABEDAIS', 'MONTAGEM', 'CONSUMO'].includes(this.user?.assignedSector)) return false;
+
       if (action === 'gerenciar_usuarios') return false;
 
       if (action === 'baixar_relatorios' || action === 'exportar_dados') {

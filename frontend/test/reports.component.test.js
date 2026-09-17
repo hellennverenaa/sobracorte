@@ -76,3 +76,28 @@ test('Reports limpar filtros inicia consulta controlada pela página e permite r
   assert.equal(attempts, 3)
   mounted.unmount()
 })
+
+test('Reports restringe seletor e consultas ao setor atribuído, inclusive após limpar filtros', async () => {
+  const component = await loadComponent('src/pages/Reports.vue');
+  const { createPinia } = await import('pinia');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'lider', assignedSector: 'APOIO', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  const calls = [];
+  api.get = async path => {
+    if (path === '/settings/origins') return { data: [] };
+    if (path.startsWith('/reports/')) calls.push(path);
+    return { data: { items: [], pagination: { page: 1, total: 0, totalPages: 1 }, totals: {} } };
+  };
+  const router = await routerFor(component);
+  const mounted = await mountComponent(component, { router, pinia });
+  await flushPromises();
+  const sector = mounted.element.querySelector('select[aria-label="Setor industrial"]');
+  assert.equal(sector.options.length, 1);
+  assert.equal(sector.value, 'APOIO');
+  const clear = [...mounted.element.querySelectorAll('button')].find(button => /Limpar Filtros/i.test(button.textContent));
+  clear.click();
+  await flushPromises();
+  assert.ok(calls.length >= 2);
+  assert.ok(calls.every(path => new URL(path, 'http://localhost').searchParams.get('sector') === 'APOIO'));
+  mounted.unmount();
+});

@@ -8,7 +8,11 @@ export function useDashboard(options = {}) {
   const unitCode = options.unitCode || (() => options.authStore?.user?.unit?.code || 'default')
   const persisted = usePersistedFilters('dashboard', { sector: 'TODOS', topUnit: 'M²' }, unitCode)
   const selectedSector = computed({
-    get: () => normalizeSector(persisted.filters.value.sector),
+    get: () => {
+      const user = options.authStore?.user;
+      return user && user.role !== 'admin' && !user.isGlobalAdmin
+        ? normalizeSector(user.assignedSector) : normalizeSector(persisted.filters.value.sector);
+    },
     set: (value) => { persisted.filters.value.sector = normalizeSector(value) },
   })
   const selectedTopUnit = computed({
