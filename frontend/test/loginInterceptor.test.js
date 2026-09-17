@@ -2,49 +2,52 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadComponent } from './componentsHarness.js';
 
-test('erros de login e falhas internas chegam à tela sem refresh ou reload', async (t) => {
-  const { attachInterceptors } = await loadComponent('src/services/interceptors/interceptor.ts');
-  const originalWindow = globalThis.window;
-  let reloads = 0;
-  let refreshRequests = 0;
-  let rejectResponse;
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true, value: { location: { reload: () => { reloads++; } } },
-  });
+function tokenFor(payload) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `header.${encoded}.signature`;
+}
+
+test('cliente HTTP renova uma sessão uma vez e repete requisições concorrentes', async (t) => {
+  const { api } = await loadComponent('src/services/httpClient.ts', { mockHttpClient: false });
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const refreshedToken = tokenFor({ usuario: 'OPERADOR01', nome: 'Operador', setor: 'Corte' });
+  let protectedRequests = 0;
+
+  localStorage.setItem('user', JSON.stringify({
+    id: 1,
+    usuario: 'OPERADOR01',
+    token: 'expired-token',
+    unit: { code: 'UNIDADE_01' },
+  }));
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    if (String(url).endsWith('/auth/me')) {
+      return new Response(JSON.stringify({ data: { token: refreshedToken }, tokenExpirationTime: 'later' }), { status: 200 });
+    }
+    if (String(url).endsWith('/auth/check-user')) {
+      return new Response(JSON.stringify({ user: { id: 1, role: 'lider', assignedSector: 'CORTE' }, unit: { code: 'UNIDADE_01' } }), { status: 200 });
+    }
+    protectedRequests += 1;
+    if (protectedRequests <= 2) return new Response(JSON.stringify({ error: 'Sessão expirada' }), { status: 401 });
+    return new Response(JSON.stringify({ items: [] }), { status: 200 });
+  };
+
   t.after(() => {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    globalThis.fetch = originalFetch;
     localStorage.clear();
     sessionStorage.clear();
   });
-  const api = { interceptors: {
-    request: { use() {} }, response: { use(_resolve, reject) { rejectResponse = reject; } },
-  } };
-  const refreshFailure = new Error('Refresh de teste recusado');
-  attachInterceptors(api, { post: async () => { refreshRequests++; throw refreshFailure; } });
 
-  for (const hasSession of [false, true]) {
-    if (hasSession) localStorage.setItem('user', JSON.stringify({ token: 'fixture', unit: { code: 'SEST' } }));
-    else localStorage.clear();
-    const original = { config: { url: '/auth/check-user', headers: {} }, response: { status: 401 } };
-    await assert.rejects(rejectResponse(original), (error) => error === original);
-    assert.equal(reloads, 0);
-    assert.equal(refreshRequests, 0);
-    assert.equal(Boolean(localStorage.getItem('user')), hasSession);
-  }
+  const [first, second] = await Promise.all([
+    api.get('/inventory/search'),
+    api.get('/dashboard/summary'),
+  ]);
 
-  localStorage.clear();
-  const withoutSession = { config: { url: '/inventory/search', headers: {} }, response: { status: 401 } };
-  await assert.rejects(rejectResponse(withoutSession), (error) => error === withoutSession);
-  const serverError = { config: { url: '/auth/check-user', headers: {} }, response: { status: 500 } };
-  await assert.rejects(rejectResponse(serverError), (error) => error === serverError);
-  await assert.rejects(rejectResponse({ response: { status: 401 } }));
-  assert.equal(reloads, 0);
-  assert.equal(refreshRequests, 0);
-
-  // Requests protegidas de uma sessão existente continuam tentando renovar.
-  localStorage.setItem('user', JSON.stringify({ token: 'fixture', unit: { code: 'SEST' } }));
-  await assert.rejects(rejectResponse({ config: { url: '/inventory/search', headers: {} }, response: { status: 401 } }), (error) => error === refreshFailure);
-  assert.equal(refreshRequests, 1);
-  assert.equal(reloads, 1);
-  assert.equal(Boolean(localStorage.getItem('user')), false);
+  assert.deepEqual(first.data, { items: [] });
+  assert.deepEqual(second.data, { items: [] });
+  assert.equal(calls.filter(({ url }) => url.endsWith('/auth/me')).length, 1);
+  const retried = calls.filter(({ url }) => url.endsWith('/inventory/search') || url.endsWith('/dashboard/summary')).slice(-2);
+  assert.ok(retried.every(({ init }) => init.headers.get('authorization') === `Bearer ${refreshedToken}`));
+  assert.equal(JSON.parse(localStorage.getItem('user')).assignedSector, 'CORTE');
 });

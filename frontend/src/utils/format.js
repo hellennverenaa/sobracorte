@@ -1,6 +1,6 @@
 /**
  * Utilitários de formatação compartilhados entre as páginas do SobraCorte v2.0.
- * Elimina a redeclaração de formatNumber, formatDate e formatDateShort em cada componente.
+ * Elimina a redeclaração de formatNumber e formatDate em cada componente.
  */
 
 /**
@@ -30,21 +30,5 @@ export function formatDate(date) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  });
-}
-
-/**
- * Formata uma data ISO ou objeto Date para DD/MM/YYYY (sem hora).
- * @param {string|Date|null|undefined} date
- * @returns {string}
- */
-export function formatDateShort(date) {
-  if (!date) return '-';
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
   });
 }

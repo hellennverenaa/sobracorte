@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { api as defaultApi } from '@/services/httpClient'
 import { usePersistedFilters } from './usePersistedFilters'
 import { normalizeSector } from '@/utils/domain'
@@ -6,6 +6,62 @@ import { normalizeSector } from '@/utils/domain'
 export const REPORT_DEFAULT_FILTERS = {
   sector: 'TODOS', tipoMovimento: 'TODOS', status: 'TODOS', periodo: 'last_30_days',
   dataInicio: '', dataFim: '', origin: 'TODOS', search: '',
+}
+
+const DEFAULT_REPORT_TOTALS = {
+  totalRegistros: 0,
+  qtdOperacoesEntrada: 0,
+  qtdOperacoesSaida: 0,
+  qtdOperacoesRefugo: 0,
+  volumeTotalEntrada: 0,
+  volumeTotalSaida: 0,
+  volumeEntradas: 0,
+  volumeSaidas: 0,
+  totalRefugos: 0,
+  totalCasamentosPares: 0,
+  totalTransferencias: 0,
+  volumeEntradaCorte: 0,
+  volumeEntradaOutros: 0,
+  volumeSaidaCorte: 0,
+  volumeSaidaOutros: 0,
+  volumePorUnidade: {},
+  totalAtendidas: 0,
+  totalPendentes: 0,
+  totalCanceladas: 0,
+  taxaAtendimento: 0,
+}
+
+function normalizeReportTotals(data, reportType) {
+  const totals = data?.totals || data || {}
+  if (reportType === 'requisitions') {
+    return {
+      ...DEFAULT_REPORT_TOTALS,
+      totalRegistros: totals.totalRegistros ?? 0,
+      totalAtendidas: totals.totalAtendidas ?? 0,
+      totalPendentes: totals.totalPendentes ?? 0,
+      totalCanceladas: totals.totalCanceladas ?? 0,
+      taxaAtendimento: totals.taxaAtendimento ?? 0,
+    }
+  }
+  return {
+    ...DEFAULT_REPORT_TOTALS,
+    totalRegistros: totals.totalRegistros ?? 0,
+    qtdOperacoesEntrada: totals.qtdOperacoesEntrada ?? 0,
+    qtdOperacoesSaida: totals.qtdOperacoesSaida ?? 0,
+    qtdOperacoesRefugo: totals.qtdOperacoesRefugo ?? 0,
+    volumeTotalEntrada: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
+    volumeTotalSaida: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
+    volumeEntradas: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
+    volumeSaidas: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
+    totalRefugos: totals.totalRefugos ?? 0,
+    totalCasamentosPares: totals.totalCasamentosPares ?? 0,
+    totalTransferencias: totals.totalTransferencias ?? 0,
+    volumeEntradaCorte: totals.volumeEntradaCorte ?? 0,
+    volumeEntradaOutros: totals.volumeEntradaOutros ?? 0,
+    volumeSaidaCorte: totals.volumeSaidaCorte ?? 0,
+    volumeSaidaOutros: totals.volumeSaidaOutros ?? 0,
+    volumePorUnidade: totals.volumePorUnidade || {},
+  }
 }
 
 export function getDatesFromPeriod(period, filters = {}, now = new Date()) {
@@ -38,13 +94,11 @@ export function useReports(options = {}) {
   const currentPage = ref(1)
   const pageSize = options.pageSize || 50
   const pagination = ref({ page: 1, limit: pageSize, total: 0, totalPages: 1 })
-  const totals = ref({})
-  const hasSearched = ref(false)
-  const isEmpty = computed(() => hasSearched.value && !loading.value && !error.value && reportData.value.length === 0)
+  const reportTotals = ref({ ...DEFAULT_REPORT_TOTALS })
 
   async function generateReport(page = 1) {
     restrictSector();
-    loading.value = true; error.value = null; hasSearched.value = true; currentPage.value = page
+    loading.value = true; error.value = null; currentPage.value = page
     try {
       const dates = getDatesFromPeriod(filters.value.periodo, filters.value)
       if (filters.value.periodo === 'custom' && !dates) throw new Error('Selecione as datas de início e fim para o período personalizado.')
@@ -59,7 +113,7 @@ export function useReports(options = {}) {
       const data = response.data || {}
       reportData.value = data.items || []
       pagination.value = { ...pagination.value, ...(data.pagination || {}), page, limit: pageSize }
-      totals.value = data.totals || data
+      reportTotals.value = normalizeReportTotals(data, reportType.value)
       return data
     } catch (cause) {
       error.value = cause
@@ -71,7 +125,7 @@ export function useReports(options = {}) {
   function resetFilters() { persisted.resetFilters(); restrictSector() }
   function setReportType(type) { reportType.value = type; return generateReport(1) }
   onMounted(() => { if (options.autoLoad !== false) generateReport(1).catch(() => {}) })
-  return { filters, resetFilters, reportType, loading, error, reportData, currentPage, pageSize, pagination, totals, reportTotals: totals, hasSearched, isEmpty, totalPages: computed(() => pagination.value.totalPages || 1), generateReport, retry: () => generateReport(currentPage.value), setReportType }
+  return { filters, resetFilters, reportType, loading, error, reportData, currentPage, pagination, reportTotals, generateReport, setReportType }
 }
 
 export default useReports

@@ -45,6 +45,88 @@ function paginationResponse(page: number, limit: number, total: number) {
   };
 }
 
+function buildMovementWhere(req: Request): Record<string, any> {
+  const factoryUnitId = req.tenant!.id;
+  const { dataInicio, dataFim, startDate, endDate, sector, tipoMovimento, movementType, operatorId, origin, origem, search } = req.query;
+  const rawStart = dataInicio || startDate;
+  const rawEnd = dataFim || endDate;
+  const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
+  const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
+  const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
+  const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
+  const rawSearch = search ? String(search).trim() : null;
+  const rawOperator = operatorId ? String(operatorId).trim() : null;
+
+  let start: Date | null = null;
+  let end: Date | null = null;
+  if (rawStart && rawEnd) {
+    start = new Date(String(rawStart));
+    start.setHours(0, 0, 0, 0);
+    end = new Date(String(rawEnd));
+    end.setHours(23, 59, 59, 999);
+  } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
+    start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    start.setHours(0, 0, 0, 0);
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  }
+
+  const stockWhere: Record<string, any> = { factoryUnitId };
+  if (start && end) stockWhere.createdAt = { gte: start, lte: end };
+  if (rawSector === 'CORTE') {
+    stockWhere.sector = 'CORTE';
+  } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
+    const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+    if (sec === 'DISTRIBUICAO') stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
+    else if (sec === 'CONFIGURACOES') stockWhere.sector = 'NEVER_MATCH';
+    else stockWhere.sector = sec;
+  } else {
+    stockWhere.sector = { not: 'CONFIGURACOES' };
+  }
+
+  if (rawType !== 'TODOS') {
+    if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
+      stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] };
+    } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'].includes(rawType)) {
+      stockWhere.type = rawType;
+    } else {
+      stockWhere.type = 'NEVER_MATCH';
+    }
+  } else {
+    stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'] };
+  }
+
+  if (rawOrigin && rawOrigin !== 'TODOS') stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
+
+  const movementTextFilters: Record<string, any>[] = [];
+  if (rawOperator && rawOperator !== 'TODOS') {
+    movementTextFilters.push({ OR: [
+      { operatorName: { contains: rawOperator, mode: 'insensitive' } },
+      { operatorId: { contains: rawOperator, mode: 'insensitive' } },
+    ] });
+  }
+  if (rawSearch) {
+    movementTextFilters.push({ OR: [
+      { itemCode: { contains: rawSearch, mode: 'insensitive' } },
+      { itemName: { contains: rawSearch, mode: 'insensitive' } },
+      { itemModelName: { contains: rawSearch, mode: 'insensitive' } },
+      { itemModelName: null, stockItem: { productName: { contains: rawSearch, mode: 'insensitive' } } },
+      { itemCode: null, itemName: null, stockItem: {
+        OR: [
+          { code: { contains: rawSearch, mode: 'insensitive' } },
+          { description: { contains: rawSearch, mode: 'insensitive' } },
+          { name: { contains: rawSearch, mode: 'insensitive' } },
+          { sku: { contains: rawSearch, mode: 'insensitive' } },
+          { productName: { contains: rawSearch, mode: 'insensitive' } },
+          { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
+        ],
+      } },
+    ] });
+  }
+  if (movementTextFilters.length > 0) stockWhere.AND = movementTextFilters;
+  return stockWhere;
+}
+
 export class ReportController {
   async inventory(req: Request, res: Response) {
     try {
@@ -146,113 +228,7 @@ export class ReportController {
     try {
       const factoryUnitId = req.tenant!.id;
       const { page, limit, skip } = getPagination(req);
-      const {
-        dataInicio,
-        dataFim,
-        startDate,
-        endDate,
-        sector,
-        tipoMovimento,
-        movementType,
-        operatorId,
-        origin,
-        origem,
-        search,
-      } = req.query;
-
-      const rawStart = dataInicio || startDate;
-      const rawEnd = dataFim || endDate;
-      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
-      const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
-      const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
-      const rawSearch = search ? String(search).trim() : null;
-      const rawOperator = operatorId ? String(operatorId).trim() : null;
-
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (rawStart && rawEnd) {
-        start = new Date(String(rawStart));
-        start.setHours(0, 0, 0, 0);
-        end = new Date(String(rawEnd));
-        end.setHours(23, 59, 59, 999);
-      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
-        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        start.setHours(0, 0, 0, 0);
-        end = new Date();
-        end.setHours(23, 59, 59, 999);
-      }
-
-      // --- FILTROS PRISMA PARA STOCKMOVEMENT ---
-      const stockWhere: Record<string, any> = {
-        factoryUnitId,
-      };
-
-      if (start && end) {
-        stockWhere.createdAt = { gte: start, lte: end };
-      }
-
-      if (rawSector === 'CORTE') {
-        stockWhere.sector = 'CORTE';
-      } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
-        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
-        if (sec === 'DISTRIBUICAO') {
-          stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
-        } else if (sec === 'CONFIGURACOES') {
-          stockWhere.sector = 'NEVER_MATCH';
-        } else {
-          stockWhere.sector = sec;
-        }
-      } else {
-        stockWhere.sector = { not: 'CONFIGURACOES' };
-      }
-
-      if (rawType !== 'TODOS') {
-        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] };
-        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'].includes(rawType)) {
-          stockWhere.type = rawType;
-        } else {
-          stockWhere.type = 'NEVER_MATCH';
-        }
-      } else {
-        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'] };
-      }
-
-      if (rawOrigin && rawOrigin !== 'TODOS') {
-        stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
-      }
-
-      const movementTextFilters: Record<string, any>[] = [];
-      if (rawOperator && rawOperator !== 'TODOS') {
-        movementTextFilters.push({ OR: [
-          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
-          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ] });
-      }
-
-      if (rawSearch) {
-        movementTextFilters.push({ OR: [
-          { itemCode: { contains: rawSearch, mode: 'insensitive' } },
-          { itemName: { contains: rawSearch, mode: 'insensitive' } },
-          { itemModelName: { contains: rawSearch, mode: 'insensitive' } },
-          { itemModelName: null, stockItem: { productName: { contains: rawSearch, mode: 'insensitive' } } },
-          { itemCode: null, itemName: null, stockItem: {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { description: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-              { sku: { contains: rawSearch, mode: 'insensitive' } },
-              { productName: { contains: rawSearch, mode: 'insensitive' } },
-              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          } },
-        ] });
-      }
-      if (movementTextFilters.length > 0) {
-        stockWhere.AND = movementTextFilters;
-      }
+      const stockWhere = buildMovementWhere(req);
 
       const [stockMovements, locationsList, total, quantityTotals, movementGroups, movementUnitGroups] = await Promise.all([
         prisma.stockMovement.findMany({
@@ -725,108 +701,7 @@ export class ReportController {
   async exportMovements(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
-      const {
-        dataInicio,
-        dataFim,
-        startDate,
-        endDate,
-        sector,
-        tipoMovimento,
-        movementType,
-        operatorId,
-        origin,
-        origem,
-        search,
-      } = req.query;
-
-      const rawStart = dataInicio || startDate;
-      const rawEnd = dataFim || endDate;
-      const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
-      const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
-      const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
-      const rawSearch = search ? String(search).trim() : null;
-      const rawOperator = operatorId ? String(operatorId).trim() : null;
-
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (rawStart && rawEnd) {
-        start = new Date(String(rawStart));
-        start.setHours(0, 0, 0, 0);
-        end = new Date(String(rawEnd));
-        end.setHours(23, 59, 59, 999);
-      } else if (rawPeriod === 'last_30_days' || rawPeriod === 'ultimos_30_dias') {
-        start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        start.setHours(0, 0, 0, 0);
-        end = new Date();
-        end.setHours(23, 59, 59, 999);
-      }
-
-      // --- FILTROS PARA STOCKMOVEMENT ---
-      const stockWhere: Record<string, any> = { factoryUnitId };
-      if (start && end) stockWhere.createdAt = { gte: start, lte: end };
-
-      if (rawSector === 'CORTE') {
-        stockWhere.sector = 'CORTE';
-      } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
-        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
-        if (sec === 'DISTRIBUICAO') {
-          stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
-        } else if (sec === 'CONFIGURACOES') {
-          stockWhere.sector = 'NEVER_MATCH';
-        } else {
-          stockWhere.sector = sec;
-        }
-      } else {
-        stockWhere.sector = { not: 'CONFIGURACOES' };
-      }
-
-      if (rawType !== 'TODOS') {
-        if (rawType === 'SAIDA' || rawType === 'SAIDAS') {
-          stockWhere.type = { in: ['SAIDA', 'CASAMENTO_PAR', 'SAIDA_REQUISICAO'] };
-        } else if (['ENTRADA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'].includes(rawType)) {
-          stockWhere.type = rawType;
-        } else {
-          stockWhere.type = 'NEVER_MATCH';
-        }
-      } else {
-        stockWhere.type = { in: ['ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'CASAMENTO_PAR', 'REFUGO', 'SAIDA_REQUISICAO'] };
-      }
-
-      if (rawOrigin && rawOrigin !== 'TODOS') {
-        stockWhere.origem = { contains: rawOrigin, mode: 'insensitive' };
-      }
-
-      const movementTextFilters: Record<string, any>[] = [];
-      if (rawOperator && rawOperator !== 'TODOS') {
-        movementTextFilters.push({ OR: [
-          { operatorName: { contains: rawOperator, mode: 'insensitive' } },
-          { operatorId: { contains: rawOperator, mode: 'insensitive' } },
-        ] });
-      }
-
-      if (rawSearch) {
-        movementTextFilters.push({ OR: [
-          { itemCode: { contains: rawSearch, mode: 'insensitive' } },
-          { itemName: { contains: rawSearch, mode: 'insensitive' } },
-          { itemModelName: { contains: rawSearch, mode: 'insensitive' } },
-          { itemModelName: null, stockItem: { productName: { contains: rawSearch, mode: 'insensitive' } } },
-          { itemCode: null, itemName: null, stockItem: {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { description: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-              { sku: { contains: rawSearch, mode: 'insensitive' } },
-              { productName: { contains: rawSearch, mode: 'insensitive' } },
-              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          } },
-        ] });
-      }
-      if (movementTextFilters.length > 0) {
-        stockWhere.AND = movementTextFilters;
-      }
+      const stockWhere = buildMovementWhere(req);
 
       const locationsList = await prisma.location.findMany({
         where: { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) },

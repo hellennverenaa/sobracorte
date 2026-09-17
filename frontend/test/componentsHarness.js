@@ -25,7 +25,7 @@ export const api = {
 };
 globalThis.__componentTestApi = api;
 
-export async function loadComponent(path) {
+export async function loadComponent(path, { mockHttpClient = true } = {}) {
   const output = join(temporaryDirectory, `${moduleCount++}.mjs`);
   await build({
     entryPoints: [resolve(path)], outfile: output, bundle: true, format: 'esm', platform: 'node',
@@ -33,13 +33,15 @@ export async function loadComponent(path) {
     plugins: [{
       name: 'vue-dom-tests',
       setup(builder) {
-        builder.onResolve({ filter: /^(vue|pinia|vue-router|axios|lucide-vue-next)$/ }, (args) => ({
+        builder.onResolve({ filter: /^(vue|pinia|vue-router|lucide-vue-next)$/ }, (args) => ({
           path: new URL(import.meta.resolve(args.path)).pathname, external: true,
         }));
-        builder.onResolve({ filter: /services\/httpClient$/ }, () => ({ path: 'http-client', namespace: 'test' }));
-        builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-          contents: 'export const api = globalThis.__componentTestApi; export const authApi = api;', loader: 'js',
-        }));
+        if (mockHttpClient) {
+          builder.onResolve({ filter: /services\/httpClient$/ }, () => ({ path: 'http-client', namespace: 'test' }));
+          builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
+            contents: 'export const api = globalThis.__componentTestApi; export const authApi = api;', loader: 'js',
+          }));
+        }
         builder.onResolve({ filter: /^@\// }, (args) => {
           const base = resolve('src', args.path.slice(2));
           return { path: [base, `${base}.js`, `${base}.ts`].find(existsSync) || base };

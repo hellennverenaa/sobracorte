@@ -3,36 +3,28 @@ import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import { useReports } from '@/composables/useReports'
+import { getDatesFromPeriod, useReports } from '@/composables/useReports'
 import ReportStatus from '@/components/ReportStatus.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
 import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
-import { formatNumber, formatDate } from '@/utils/format'
 import {
   FileSpreadsheet,
   Printer,
   Search,
   Calendar,
-  Filter,
   FileBarChart,
   CheckCircle,
-  XCircle,
   Layers,
   Repeat,
   Footprints,
   Trash2,
   ArrowDownRight,
   ArrowUpRight,
-  MapPin,
-  UserCheck,
   RotateCcw,
   ClipboardList,
-  Clock,
-  Ban,
   RefreshCw
 } from 'lucide-vue-next'
-import { exportToCSV } from '@/utils/export'
 import { api } from '@/services/httpClient'
 
 const authStore = useAuthStore()
@@ -44,33 +36,13 @@ const reportDomain = useReports({
 })
 
 // --- TIPO DE RELATÓRIO ATIVO ---
-const { reportType, filters, loading, reportData, currentPage, pagination, hasSearched } = reportDomain
+const { reportType, filters, loading, error: reportError, reportData, currentPage, pagination, reportTotals } = reportDomain
 const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisitions !== false)
 
 // --- ESTADOS REATIVOS ---
-const loadError = ref('')
-const reportTotals = ref({
-  totalRegistros: 0,
-  qtdOperacoesEntrada: 0,
-  qtdOperacoesSaida: 0,
-  qtdOperacoesRefugo: 0,
-  volumeTotalEntrada: 0,
-  volumeTotalSaida: 0,
-  volumeEntradas: 0,
-  volumeSaidas: 0,
-  totalRefugos: 0,
-  totalCasamentosPares: 0,
-  totalTransferencias: 0,
-  volumeEntradaCorte: 0,
-  volumeEntradaOutros: 0,
-  volumeSaidaCorte: 0,
-  volumeSaidaOutros: 0,
-  volumePorUnidade: {},
-  totalAtendidas: 0,
-  totalPendentes: 0,
-  totalCanceladas: 0,
-  taxaAtendimento: 0,
-})
+const loadError = computed(() => reportError.value
+  ? requestErrorMessage(reportError.value, 'Erro ao conectar com a base de dados de relatórios.')
+  : '')
 
 // --- HELPERS DE VOLUME & UNIDADES ---
 const currentUnitSuffix = computed(() => {
@@ -139,7 +111,6 @@ const originsList = ref([
 
 async function fetchOrigins() {
   try {
-    loadError.value = ''
     const res = await api.get('/settings/origins')
     if (Array.isArray(res.data)) {
       originsList.value = [
@@ -160,104 +131,29 @@ onMounted(() => {
   generateReport(1)
 })
 
-// --- CÁLCULO DE DATAS ISO PARA BACKEND ---
-function getDatesFromPeriod(period) {
-  const now = new Date()
-  let start = new Date()
-  let end = new Date()
-
-  if (period === 'last_30_days') {
-    start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    start.setHours(0, 0, 0, 0)
-    end.setHours(23, 59, 59, 999)
-  } else if (period === 'hoje') {
-    start.setHours(0, 0, 0, 0)
-    end.setHours(23, 59, 59, 999)
-  } else if (period === 'semana') {
-    const day = now.getDay()
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
-    start = new Date(now.setDate(diff))
-    start.setHours(0, 0, 0, 0)
-    end = new Date()
-    end.setHours(23, 59, 59, 999)
-  } else if (period === 'mes_atual') {
-    start.setDate(1)
-    start.setHours(0, 0, 0, 0)
-    end = new Date()
-    end.setHours(23, 59, 59, 999)
-  } else if (period === 'ano_atual') {
-    start.setMonth(0, 1)
-    start.setHours(0, 0, 0, 0)
-    end = new Date()
-    end.setHours(23, 59, 59, 999)
-  } else if (period === 'all') {
-    return {
-      start: null,
-      end: null
-    }
-  } else if (period === 'custom') {
-    if (!filters.value.dataInicio || !filters.value.dataFim) return null
-    start = new Date(filters.value.dataInicio + 'T00:00:00')
-    end = new Date(filters.value.dataFim + 'T23:59:59')
-  }
-
-  return {
-    start: start ? start.toISOString() : null,
-    end: end ? end.toISOString() : null
-  }
-}
-
 // --- CONSULTA ANALÍTICA AO BACKEND ---
 async function generateReport(page = 1) {
   try {
-    const dates = getDatesFromPeriod(filters.value.periodo)
+    const dates = getDatesFromPeriod(filters.value.periodo, filters.value)
     if (filters.value.periodo === 'custom' && !dates) {
       showNotification('error', 'Selecione as datas de início e fim para o período personalizado.')
       return
     }
     const data = await reportDomain.generateReport(page)
-    const totals = data?.totals || data || {}
-    if (reportType.value === 'requisitions') {
-      reportTotals.value = {
-        ...reportTotals.value,
-        totalRegistros: totals.totalRegistros || 0,
-        totalAtendidas: totals.totalAtendidas || 0,
-        totalPendentes: totals.totalPendentes || 0,
-        totalCanceladas: totals.totalCanceladas || 0,
-        taxaAtendimento: totals.taxaAtendimento || 0,
-      }
-    } else {
-      reportTotals.value = {
-        ...reportTotals.value,
-        totalRegistros: totals.totalRegistros || 0,
-        qtdOperacoesEntrada: totals.qtdOperacoesEntrada || 0,
-        qtdOperacoesSaida: totals.qtdOperacoesSaida || 0,
-        qtdOperacoesRefugo: totals.qtdOperacoesRefugo || 0,
-        volumeTotalEntrada: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
-        volumeTotalSaida: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
-        volumeEntradas: totals.volumeTotalEntrada ?? totals.volumeEntradas ?? 0,
-        volumeSaidas: totals.volumeTotalSaida ?? totals.volumeSaidas ?? 0,
-        totalRefugos: totals.totalRefugos || 0,
-        totalCasamentosPares: totals.totalCasamentosPares || 0,
-        totalTransferencias: totals.totalTransferencias || 0,
-        volumeEntradaCorte: totals.volumeEntradaCorte || 0,
-        volumeEntradaOutros: totals.volumeEntradaOutros || 0,
-        volumeSaidaCorte: totals.volumeSaidaCorte || 0,
-        volumeSaidaOutros: totals.volumeSaidaOutros || 0,
-        volumePorUnidade: totals.volumePorUnidade || {},
-      }
-    }
+    return data
   } catch (error) {
     console.error("Erro ao gerar relatório:", error)
-    loadError.value = requestErrorMessage(error, 'Erro ao conectar com a base de dados de relatórios.')
-    showNotification('error', loadError.value)
+    showNotification('error', requestErrorMessage(error, 'Erro ao conectar com a base de dados de relatórios.'))
   }
 }
 
-function switchReportType(type) {
-  reportType.value = type
+async function switchReportType(type) {
   reportData.value = []
-  generateReport(1)
+  try {
+    await reportDomain.setReportType(type)
+  } catch (error) {
+    showNotification('error', requestErrorMessage(error, 'Erro ao conectar com a base de dados de relatórios.'))
+  }
 }
 
 function resetFilters() {
@@ -273,7 +169,7 @@ async function downloadExcel() {
   isExporting.value = true
 
   try {
-    const dates = getDatesFromPeriod(filters.value.periodo)
+    const dates = getDatesFromPeriod(filters.value.periodo, filters.value)
     if (filters.value.periodo === 'custom' && !dates) {
       showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
       isExporting.value = false
