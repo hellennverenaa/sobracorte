@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { SectorType } from '../generated/prisma';
+import { normalizeSector } from '../utils/sectorHelper';
 
 export interface StockAccessContext {
   role?: string | null;
@@ -9,16 +10,12 @@ export interface StockAccessContext {
 export class StockAccessError extends Error {
   readonly status = 403;
 }
-export function normalizeAccessSector(sector: string) {
-  const value = sector.trim().toUpperCase();
-  return value === 'CABEDAIS' || value === 'EXPEDICAO' ? 'DISTRIBUICAO' : value;
-}
 export function isStockMaster(context: StockAccessContext) {
   return context.role === 'admin' || context.isGlobalAdmin === true;
 }
 export function assignedStockSector(context: StockAccessContext): SectorType | null {
   if (isStockMaster(context)) return null;
-  const sector = normalizeAccessSector(context.assignedSector || '');
+  const sector = normalizeSector(context.assignedSector || '');
   if (!['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM', 'CONSUMO'].includes(sector)) {
     throw new StockAccessError('Acesso negado: seu perfil precisa de um setor específico atribuído.');
   }
@@ -26,7 +23,7 @@ export function assignedStockSector(context: StockAccessContext): SectorType | n
 }
 export function assertStockSectorAccess(context: StockAccessContext, sector: string | null | undefined) {
   const assigned = assignedStockSector(context);
-  if (assigned && (!sector || normalizeAccessSector(sector) !== assigned)) {
+  if (assigned && (!sector || normalizeSector(sector) !== assigned)) {
     throw new StockAccessError(`Acesso negado: seu perfil está restrito ao setor ${assigned}.`);
   }
 }

@@ -2,6 +2,8 @@
  * Utilitário canônico de normalização e compatibilidade de unidades de medida (Ponto 05).
  */
 
+import { normalizeSector } from './sectorHelper';
+
 export const CANONICAL_UNITS = {
   METRO_QUADRADO: 'M²',
   METRO: 'M',
@@ -18,8 +20,8 @@ export const CANONICAL_UNITS = {
 
 export function isDiscreteSector(sector?: string | null): boolean {
   if (!sector) return false;
-  const s = String(sector).toUpperCase().trim();
-  return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(s);
+  const s = normalizeSector(sector);
+  return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(s);
 }
 
 /** Unidades que representam peças, volumes ou pares indivisíveis. */

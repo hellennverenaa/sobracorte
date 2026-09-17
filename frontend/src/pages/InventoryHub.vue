@@ -29,7 +29,7 @@ const router = useRouter();
 const stockStore = useStockStore();
 const authStore = useAuthStore();
 
-const validSectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'];
+const validSectors: SectorType[] = SECTOR_OPTIONS.filter(option => option.id !== 'TODOS').map(option => option.id as SectorType);
 
 const userSector = computed(() => {
   const s = authStore.user?.assignedSector;
@@ -47,8 +47,7 @@ function getSectorFromRoute(): SectorType {
   if (isSectorLocked.value && userSector.value) {
     return userSector.value;
   }
-  const rawSec = (route.query.sector as string)?.toUpperCase();
-  const sec = rawSec === 'EXPEDICAO' || rawSec === 'CABEDAIS' ? 'DISTRIBUICAO' : rawSec;
+  const sec = normalizeSector(route.query.sector);
   if (sec && validSectors.includes(sec as SectorType)) {
     return sec as SectorType;
   }
@@ -99,8 +98,8 @@ const canDelete = computed(() => {
   if (role === 'admin_setor') {
     const userSec = authStore.user?.assignedSector;
     if (!userSec || userSec === 'TODOS') return false;
-    const normUserSec = userSec === 'EXPEDICAO' || userSec === 'CABEDAIS' ? 'DISTRIBUICAO' : userSec;
-    const normActiveTab = activeTab.value === 'EXPEDICAO' || (activeTab.value as string) === 'CABEDAIS' ? 'DISTRIBUICAO' : activeTab.value;
+    const normUserSec = normalizeSector(userSec);
+    const normActiveTab = normalizeSector(activeTab.value);
     return normUserSec === normActiveTab;
   }
   return false;
@@ -139,6 +138,7 @@ const allTabs = [
   { id: 'PRE_FABRICADO' as SectorType, countKey: 'totalPreFabricado', icon: Layers },
   { id: 'DISTRIBUICAO' as SectorType, countKey: 'totalExpedicao', icon: Box },
   { id: 'MONTAGEM' as SectorType, countKey: 'totalMontagem', icon: Footprints },
+  { id: 'CONSUMO' as SectorType, countKey: 'totalConsumo', icon: Box },
 ].map((tab) => {
   const sector = SECTOR_OPTIONS.find((option) => option.id === tab.id);
   return { ...tab, label: sector?.shortLabel || sector?.label || tab.id };
@@ -478,8 +478,7 @@ watch(
       return;
     }
     if (newSec) {
-      const rawUpper = (newSec as string).toUpperCase();
-      const secUpper = (rawUpper === 'EXPEDICAO' || rawUpper === 'CABEDAIS' ? 'DISTRIBUICAO' : rawUpper) as SectorType;
+      const secUpper = normalizeSector(newSec) as SectorType;
       if (validSectors.includes(secUpper) && secUpper !== activeTab.value) {
         activeTab.value = secUpper;
         stockStore.setActiveSector(secUpper);
@@ -623,13 +622,13 @@ onMounted(() => {
         </button>
       </div>
 
-      <!-- Tabela Padrão Materials.vue -->
+      <!-- Inventário por setor -->
       <div class="px-4 pb-4">
         <div class="overflow-x-auto bg-white rounded-b shadow border-b border-l border-r border-gray-200">
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
               <!-- Headers CORTE -->
-              <tr v-if="activeTab === 'CORTE'">
+              <tr v-if="activeTab === 'CORTE' || activeTab === 'CONSUMO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição / Material</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Tipo</th>
@@ -692,12 +691,12 @@ onMounted(() => {
                 class="hover:bg-gray-50 border-b last:border-b-0 transition-colors"
               >
                 <!-- Colunas CORTE -->
-                <template v-if="activeTab === 'CORTE'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code }}</td>
-                  <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.name }}</td>
+                <template v-if="activeTab === 'CORTE' || activeTab === 'CONSUMO'">
+                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code || item.sku }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.name || item.productName }}</td>
                   <td class="px-4 py-3 text-center">
                     <span class="px-2 py-0.5 text-xs bg-gray-100 rounded-full font-bold text-gray-600 border border-gray-200">
-                      {{ item.type }}
+                      {{ item.type || '—' }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">

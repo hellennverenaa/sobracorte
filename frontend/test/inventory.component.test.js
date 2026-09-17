@@ -2,6 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadComponent, mountComponent, api, flushPromises } from './componentsHarness.js';
 
+test('Consumo abre pela rota e exibe código, descrição e unidade do insumo', async () => {
+  const component = await loadComponent('src/pages/InventoryHub.vue');
+  const { createPinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'leitor', assignedSector: 'CONSUMO', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  localStorage.clear();
+  let sector;
+  api.get = async (url, config) => {
+    if (url !== '/inventory/search') return { data: [] };
+    sector = config.params.sector;
+    return { data: { metrics: { totalConsumo: 1 }, sectors: { consumo: { total: 1, data: [
+      { id: 7, sector: 'CONSUMO', code: 'INS-KG', name: 'COLA SINTÉTICA', quantity: 1.5, unit: 'KG', locationDisplay: 'C1' },
+    ] } }, pagination: { page: 1, total: 1, totalPages: 1, limit: 50 } } };
+  };
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/inventory', component }] });
+  await router.push('/inventory?sector=CONSUMO');
+  const mounted = await mountComponent(component, { pinia, router });
+  await flushPromises();
+  assert.equal(sector, 'CONSUMO');
+  assert.match(mounted.element.textContent, /INS-KG/);
+  assert.match(mounted.element.textContent, /COLA SINTÉTICA/);
+  assert.match(mounted.element.textContent, /KG/);
+  assert.match(mounted.element.textContent, /Consumo/);
+  mounted.unmount();
+});
+
 test('store de estoque mantém carregamento enquanto outra operação estiver pendente', async () => {
   const { createPinia, setActivePinia } = await import('pinia');
   setActivePinia(createPinia());
@@ -19,6 +46,62 @@ test('store de estoque mantém carregamento enquanto outra operação estiver pe
   await history;
   assert.equal(store.loading, false);
   assert.equal(store.pendingOperations, 0);
+});
+
+test('resposta atrasada de outra unidade não sobrescreve estoque, pares ou histórico atuais', async () => {
+  const { createPinia, setActivePinia } = await import('pinia');
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  pinia.state.value.auth = { user: { unit: { code: 'SEST' } } };
+  const { useStockStore } = await loadComponent('src/stores/stockStore.ts');
+  const store = useStockStore();
+  const pending = [];
+  api.get = () => new Promise(resolve => pending.push(resolve));
+  const old = [store.fetchInventory(), store.fetchMatchingPairs(), store.fetchHistory()];
+  pinia.state.value.auth.user.unit.code = 'SAJ';
+  const current = [store.fetchInventory(), store.fetchMatchingPairs(), store.fetchHistory()];
+  pending[3]({ data: { metrics: {}, sectors: { corte: { data: [{ code: 'SAJ' }] } } } });
+  pending[4]({ data: { pairs: [{ sku: 'SAJ' }], totalMatchingPairsCount: 1 } });
+  pending[5]({ data: { data: [{ itemCode: 'SAJ' }] } });
+  await Promise.all(current);
+  assert.equal(store.loading, true);
+  pending[0]({ data: { metrics: {}, sectors: { corte: { data: [{ code: 'SEST' }] } } } });
+  pending[1]({ data: { pairs: [{ sku: 'SEST' }] } });
+  pending[2]({ data: { data: [{ itemCode: 'SEST' }] } });
+  await Promise.all(old);
+  assert.equal(store.sectors.corte.data[0].code, 'SAJ');
+  assert.equal(store.matchingPairs[0].sku, 'SAJ');
+  assert.equal(store.history.data[0].itemCode, 'SAJ');
+  assert.equal(store.pendingOperations, 0);
+});
+
+test('App limpa estoque na troca de unidade e invalida resposta mesmo ao voltar à unidade inicial', async () => {
+  const { createPinia, setActivePinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const component = await loadComponent('src/App.vue');
+  const { useStockStore } = await loadComponent('src/stores/stockStore.ts');
+  const pinia = createPinia();
+  setActivePinia(pinia);
+  pinia.state.value.auth = { user: { unit: { code: 'SEST' } } };
+  const store = useStockStore();
+  store.sectors.corte.data = [{ code: 'OLD' }];
+  let finish;
+  api.get = () => new Promise(resolve => { finish = resolve; });
+  const pending = store.fetchInventory();
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
+  await router.push('/');
+  const mounted = await mountComponent(component, { pinia, router });
+  pinia.state.value.auth.user.unit.code = 'SAJ';
+  await flushPromises();
+  assert.deepEqual([...store.sectors.corte.data], []);
+  assert.equal(store.pendingOperations, 1);
+  pinia.state.value.auth.user.unit.code = 'SEST';
+  await flushPromises();
+  finish({ data: { metrics: {}, sectors: { corte: { data: [{ code: 'OLD.RESPONSE' }] } } } });
+  await pending;
+  assert.deepEqual([...store.sectors.corte.data], []);
+  assert.equal(store.pendingOperations, 0);
+  mounted.unmount();
 });
 
 test('formulário de entrada alterado exige confirmação para cancelar', async () => {

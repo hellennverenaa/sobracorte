@@ -1,10 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
+import PageState from '@/components/PageState.vue'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useDashboard } from '@/composables/useDashboard'
-import DashboardStatus from '@/components/DashboardStatus.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
 import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
@@ -665,7 +665,10 @@ onUnmounted(() => {
     <ToastNotification :notification="notification" />
     <div class="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-6 transition-colors duration-500">
       <div class="max-w-7xl mx-auto space-y-4 sm:space-y-5">
-        <DashboardStatus :loading="isLoading" :error="loadError" :empty="dashboardEmpty" :last-updated="currentTime" @retry="loadData" />
+        <PageState :loading="isLoading" :error="loadError" :empty="dashboardEmpty" empty-message="Nenhum indicador disponível." @retry="loadData" />
+        <p v-if="currentTime && !loadError" class="text-[10px] text-slate-400" aria-live="polite">
+          Última atualização: {{ new Date(currentTime).toLocaleString('pt-BR') }}
+        </p>
 
         <!-- CABEÇALHO DO PAINEL ANALÍTICO -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 gap-3 sm:gap-4">

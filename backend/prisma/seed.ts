@@ -2,7 +2,7 @@ import { prismaForInternalUse } from '../src/prisma';
 
 export const FACTORY_UNITS = [
   { code: 'SEST', name: 'Santo Estêvão', active: true },
-  { code: 'STJ', name: 'Santo Antônio de Jesus', active: true },
+  { code: 'SAJ', name: 'Santo Antônio de Jesus', active: true },
   { code: 'ITB', name: 'Itaberaba', active: true },
   { code: 'VDC', name: 'Vitória da Conquista', active: true },
   { code: 'ITP', name: 'Itapipoca', active: true },
@@ -23,11 +23,14 @@ export const DEFAULT_UNITS = [
   { name: 'Caixa', symbol: 'cx' },
 ] as const;
 
-async function main() {
+export async function seedFactoryUnits(client = prismaForInternalUse) {
+  if (await client.factoryUnit.findUnique({ where: { code: 'STJ' } })) {
+    throw new Error('Aplique a migration de renomeação STJ/SAJ antes do seed; não criar uma segunda unidade.');
+  }
   console.log('🌱 Iniciando Seed de Unidades Fabris e Configurações...');
 
   for (const unit of FACTORY_UNITS) {
-    const upserted = await prismaForInternalUse.factoryUnit.upsert({
+    const upserted = await client.factoryUnit.upsert({
       where: { code: unit.code },
       update: { name: unit.name, active: unit.active },
       create: { code: unit.code, name: unit.name, active: unit.active },
@@ -36,11 +39,11 @@ async function main() {
 
     // Provisionar DEFAULT_UNITS para a unidade
     for (const u of DEFAULT_UNITS) {
-      const exists = await prismaForInternalUse.unitConfig.findFirst({
+      const exists = await client.unitConfig.findFirst({
         where: { factoryUnitId: upserted.id, symbol: u.symbol },
       });
       if (!exists) {
-        await prismaForInternalUse.unitConfig.create({
+        await client.unitConfig.create({
           data: {
             name: u.name,
             symbol: u.symbol,
@@ -53,24 +56,24 @@ async function main() {
   }
 
   // Obter SEST como referência de configurações de categorias e origens
-  const sestUnit = await prismaForInternalUse.factoryUnit.findUnique({
+  const sestUnit = await client.factoryUnit.findUnique({
     where: { code: 'SEST' },
     include: { categories: true, origins: true },
   });
 
   if (sestUnit) {
-    const otherUnits = await prismaForInternalUse.factoryUnit.findMany({
+    const otherUnits = await client.factoryUnit.findMany({
       where: { code: { not: 'SEST' } },
     });
 
     for (const targetUnit of otherUnits) {
       // 1. Replicar CategoryConfig
       for (const c of sestUnit.categories) {
-        const exists = await prismaForInternalUse.categoryConfig.findFirst({
+        const exists = await client.categoryConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: c.name },
         });
         if (!exists) {
-          await prismaForInternalUse.categoryConfig.create({
+          await client.categoryConfig.create({
             data: {
               name: c.name,
               sector: c.sector,
@@ -84,11 +87,11 @@ async function main() {
 
       // 2. Replicar OriginConfig
       for (const o of sestUnit.origins) {
-        const exists = await prismaForInternalUse.originConfig.findFirst({
+        const exists = await client.originConfig.findFirst({
           where: { factoryUnitId: targetUnit.id, name: o.name },
         });
         if (!exists) {
-          await prismaForInternalUse.originConfig.create({
+          await client.originConfig.create({
             data: {
               name: o.name,
               sector: o.sector,
@@ -103,11 +106,12 @@ async function main() {
   console.log('🚀 Seed concluído com sucesso!');
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Erro durante o Seed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prismaForInternalUse.$disconnect();
-  });
+
+if (require.main === module) {
+  seedFactoryUnits()
+    .catch((error) => {
+      console.error('Falha no seed.', { name: error instanceof Error ? error.name : 'UnknownError' });
+      process.exitCode = 1;
+    })
+    .finally(async () => { await prismaForInternalUse.$disconnect(); });
+}

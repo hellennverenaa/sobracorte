@@ -31,5 +31,3 @@ export function useDashboard(options = {}) {
     resetFilters,
   }
 }
-
-export default useDashboard

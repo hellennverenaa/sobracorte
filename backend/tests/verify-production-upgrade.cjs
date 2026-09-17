@@ -1,13 +1,16 @@
 // Read-only acceptance check: DATABASE_URL is the restored production source.
-// Usage: node tests/verify-production-upgrade.cjs <isolated-migrated-database>
+// Usage: node tests/verify-production-upgrade.cjs <isolated-database> <upgrade|pre-cutover|post-cutover>
 const assert = require('node:assert/strict');
 const { Client } = require('pg');
 const { readdirSync } = require('node:fs');
+const { run } = require('../scripts/stock-unification.cjs');
 require('dotenv').config({ quiet: true });
 
 async function main() {
   const sourceUrl = new URL(process.env.DATABASE_URL);
   const targetName = process.argv[2];
+  const stage = process.argv[3];
+  assert.ok(['upgrade', 'pre-cutover', 'post-cutover'].includes(stage), 'Specify upgrade, pre-cutover or post-cutover');
   assert.match(targetName || '', /^sobracorte_[a-z0-9_]+$/);
   assert.notEqual(sourceUrl.pathname, `/${targetName}`);
   const targetUrl = new URL(sourceUrl);
@@ -29,6 +32,10 @@ async function main() {
         ON o.id=m."originId" AND o."factoryUnitId"=m."factoryUnitId"`,
     };
     const ignored = { Material: ['categoryId', 'unitId'], Movement: ['originId', 'originName', 'locationId'] };
+    const sourceColumns = (await source.query(`SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = 'sobra_corte' AND table_name IN ('Material', 'Movement')`)).rows;
+    if (!sourceColumns.some(row => row.table_name === 'Material' && row.column_name === 'categoryId')) delete sourceQueries.Material;
+    if (!sourceColumns.some(row => row.table_name === 'Movement' && row.column_name === 'originId')) delete sourceQueries.Movement;
     const tableKeys = {
       FactoryUnit: ['id'], Material: ['id'], Movement: ['id'], User: ['id'],
       MaterialLocation: ['materialId', 'locationId'], LocationCategory: ['locationId', 'categoryId'],
@@ -36,6 +43,9 @@ async function main() {
       MaterialDeletionAudit: ['id'], RoleChangeAudit: ['id'],
     };
     for (const [table, keys] of Object.entries(tableKeys)) {
+      // Configurações e auditorias compartilhadas podem mudar legitimamente
+      // depois do cutover. A preservação desse estágio usa o legado congelado.
+      if (stage === 'post-cutover' && !['Material', 'Movement', 'User', 'MaterialLocation', 'MaterialDeletionAudit'].includes(table)) continue;
       const original = (await source.query(sourceQueries[table] || `SELECT * FROM sobra_corte."${table}"`)).rows;
       const migrated = (await target.query(`SELECT * FROM sobra_corte."${table}"`)).rows;
       const key = row => JSON.stringify(keys.map(k => row[k]));
@@ -59,8 +69,11 @@ async function main() {
     }
     const units = (await target.query('SELECT code FROM sobra_corte."FactoryUnit"')).rows.map(row => row.code);
     assert.ok(units.includes('SAJ') && !units.includes('STJ'), 'SAJ must not be duplicated as STJ');
-    for (const table of ['StockItem', 'StockItemLocation', 'StockMovement', 'MaterialRequisition']) {
-      assert.equal(Number((await target.query(`SELECT count(*) FROM sobra_corte."${table}"`)).rows[0].count), 0);
+    if (stage === 'upgrade') {
+      for (const table of ['StockItem', 'StockItemLocation', 'StockMovement', 'MaterialRequisition']) {
+        assert.equal(Number((await target.query(`SELECT count(*) FROM sobra_corte."${table}"`)).rows[0].count), 0,
+          `${table}: stage upgrade precedes canonical backfill`);
+      }
     }
     for (const client of [source, target]) {
       const failures = await client.query('SELECT count(*) FROM sobra_corte._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL');
@@ -70,7 +83,11 @@ async function main() {
     const local = readdirSync('prisma/migrations', { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name);
     for (const name of local) assert.ok(applied.has(name), `Pending migration: ${name}`);
     for (const name of applied) assert.ok(local.includes(name), `Missing historical file: ${name}`);
-    console.log('Acceptance passed: data preserved, SAJ preserved, no pending or failed migrations.');
+    await source.query('COMMIT');
+    await target.query('COMMIT');
+    if (stage !== 'upgrade') await run(target, stage === 'pre-cutover' ? 'reconcile' : 'integrity');
+    await run(target, 'identity-audit');
+    console.log(`Acceptance passed for ${stage}: preservation and corresponding data gates verified.`);
   } finally {
     await Promise.allSettled([source.end(), target.end()]);
   }

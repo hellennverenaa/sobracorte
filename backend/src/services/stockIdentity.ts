@@ -1,5 +1,7 @@
 import type { StockTransactionClient } from '../prisma';
 import { Prisma, SectorType, FootSide } from '../generated/prisma';
+import { normalizeSector as normalizeStockSector } from '../utils/sectorHelper';
+export { normalizeSector as normalizeStockSector } from '../utils/sectorHelper';
 
 export class DuplicateStockItemError extends Error {
   constructor(message = 'Este material já existe no estoque. Para adicionar saldo, utilize a movimentação de entrada do item existente.') {
@@ -8,9 +10,6 @@ export class DuplicateStockItemError extends Error {
   }
 }
 
-export function normalizeStockSector(sector: string) {
-  return sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : sector;
-}
 
 /** Localizações gerais (sem setor) continuam compartilhadas. */
 export function assertStockLocationSector(location: { sector?: string | null }, sector: string) {
@@ -18,9 +17,6 @@ export function assertStockLocationSector(location: { sector?: string | null }, 
     throw new Error('A localização pertence a outro setor. Movimentações entre setores não são permitidas.');
   }
 }
-
-
-
 export function normalizeStockText(value: unknown) {
   return String(value ?? '').trim().toUpperCase();
 }

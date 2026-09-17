@@ -1,6 +1,6 @@
 import { assertStockSectorAccess, assignedStockSector } from '../auth/stockAccess';
 import { movementSnapshot } from './movementSnapshot';
-import { prisma } from '../prisma';
+import { prisma, type StockTransactionClient } from '../prisma';
 import { 
   CreateRequisitionPayloadDTO, 
   RequisitionItemInputDTO,
@@ -32,11 +32,11 @@ export class RequisitionService {
   /**
    * Gera o próximo código sequencial de requisição para a unidade fabril (ex: REQ-2026-0001)
    */
-  private async generateNextCode(factoryUnitId: number): Promise<string> {
+  private async generateNextCode(tx: StockTransactionClient, factoryUnitId: number): Promise<string> {
     const currentYear = new Date().getFullYear();
     const prefix = `REQ-${currentYear}-`;
 
-    const count = await prisma.materialRequisition.count({
+    const count = await tx.materialRequisition.count({
       where: {
         factoryUnitId,
         code: {
@@ -58,13 +58,14 @@ export class RequisitionService {
       requestSector: SectorType; sku?: string | null; modelName?: string | null;
       description: string; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
     },
-    factoryUnitId: number
+    factoryUnitId: number,
+    client: StockTransactionClient = prisma,
   ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number }; ambiguous?: boolean }> {
-    const items = await findRequisitionStock(prisma, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
+    const items = await findRequisitionStock(client, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
     let selected = items;
     let pairsDetail;
     if (req.footSide === 'PAR') {
-      const rightItems = await findRequisitionStock(prisma, factoryUnitId, req, 'D');
+      const rightItems = await findRequisitionStock(client, factoryUnitId, req, 'D');
       if (items.length > 1 || rightItems.length > 1) return { quantity: 0, locations: [], ambiguous: true };
       if (!items.length || !rightItems.length) return { quantity: 0, locations: [], pairsDetail: { esq: Number(items[0]?.quantity || 0), dir: Number(rightItems[0]?.quantity || 0) } };
       try { assertCompatiblePair(items[0], rightItems[0]); }
@@ -94,36 +95,38 @@ export class RequisitionService {
       throw new Error('A requisição deve conter pelo menos 1 item.');
     }
 
-    // 1. TRAVA DE SALDO ZERO: Validar disponibilidade de todos os itens antes de abrir
-    for (const item of rawItems) {
-      assertStockSectorAccess(context, item.requestSector);
-      const stockInfo = await this.checkStockAvailability(
-        {
-          requestSector: item.requestSector as SectorType,
-          sku: item.sku || null,
-          modelName: item.modelName || null,
-          description: item.description,
-          sizeGrade: item.sizeGrade || null,
-          color: item.color || null,
-          footSide: item.footSide || null,
-        },
-        factoryUnitId
-      );
-
-      if (stockInfo.ambiguous) throw new Error('Há materiais ambíguos no estoque. Especifique a identificação completa ou regularize duplicatas.');
-      if (stockInfo.quantity <= 0) {
-        const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
-        throw new Error(
-          `MATERIAL INDISPONÍVEL EM SOBRAS DASS (${itemLabel}). Favor acionar a programação regular de corte/compra.`
-        );
-      }
-    }
-
-    // 2. Gerar código único compartilhado para a requisição
-    const code = await this.generateNextCode(factoryUnitId);
-
-    // 3. Persistir todos os itens dentro de uma transação
     const createdItems = await prisma.$transaction(async (tx) => {
+      // O mesmo lock das baixas protege disponibilidade, código e criação.
+      await lockStockIdentityWrites(tx, factoryUnitId);
+      // 1. Validar disponibilidade sob o lock, sem reservar saldo.
+      for (const item of rawItems) {
+        assertStockSectorAccess(context, item.requestSector);
+        const stockInfo = await this.checkStockAvailability(
+          {
+            requestSector: item.requestSector as SectorType,
+            sku: item.sku || null,
+            modelName: item.modelName || null,
+            description: item.description,
+            sizeGrade: item.sizeGrade || null,
+            color: item.color || null,
+            footSide: item.footSide || null,
+          },
+          factoryUnitId,
+          tx,
+        );
+
+        if (stockInfo.ambiguous) throw new Error('Há materiais ambíguos no estoque. Especifique a identificação completa ou regularize duplicatas.');
+        if (stockInfo.quantity <= 0) {
+          const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
+          throw new Error(
+            `MATERIAL INDISPONÍVEL EM SOBRAS DASS (${itemLabel}). Favor acionar a programação regular de corte/compra.`
+          );
+        }
+      }
+
+      // 2. Gerar código compartilhado e persistir todas as linhas atomicamente.
+      const code = await this.generateNextCode(tx, factoryUnitId);
+
       const results = [];
       for (const item of rawItems) {
         let sec = item.requestSector;
@@ -164,7 +167,7 @@ export class RequisitionService {
     );
 
     return {
-      code,
+      code: createdItems[0].code,
       totalItems: enriched.length,
       items: enriched,
     };
@@ -205,7 +208,7 @@ export class RequisitionService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
     ]);
 

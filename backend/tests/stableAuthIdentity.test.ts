@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syncUser } from '../src/controllers/AuthController';
+import { syncUser, LegacyIdentityConflictError } from '../src/controllers/AuthController';
+
+function matchesLegacyWhere(user: any, where: any): boolean {
+  return Object.entries(where).every(([field, value]: [string, any]) => {
+    if (field === 'AND') return value.every((condition: any) => matchesLegacyWhere(user, condition));
+    if (field === 'OR') return value.some((condition: any) => matchesLegacyWhere(user, condition));
+    return (user[field] ?? null) === value;
+  });
+}
 
 function clientWith(legacyUsers: any[] = []) {
   const identities: any[] = [];
@@ -11,12 +19,14 @@ function clientWith(legacyUsers: any[] = []) {
     client: {
       user: {
         findMany: async ({ where, take }: any) => legacyUsers.filter((user) =>
-          user.factoryUnitId === where.factoryUnitId &&
-          (user.authOrigin === null || user.authOrigin === 'LEGADO') &&
-          (user.usuario === 'USER.TESTE' || user.matriculaDass === 100n)
+          matchesLegacyWhere(user, where)
         ).slice(0, take),
       },
       authIdentity: {
+        findUnique: async ({ where }: any) => identities.find(candidate =>
+          candidate.nativeUnitId === where.nativeUnitId_authOrigin_authUserId.nativeUnitId &&
+          candidate.authOrigin === where.nativeUnitId_authOrigin_authUserId.authOrigin &&
+          candidate.authUserId === where.nativeUnitId_authOrigin_authUserId.authUserId) || null,
         upsert: async ({ where, update, create }: any) => {
           const key = where.nativeUnitId_authOrigin_authUserId;
           let identity = identities.find((candidate) =>
@@ -33,6 +43,9 @@ function clientWith(legacyUsers: any[] = []) {
         },
       },
       userRoleBinding: {
+        findUnique: async ({ where }: any) => bindings.find(candidate =>
+          candidate.identityId === where.identityId_factoryUnitId.identityId &&
+          candidate.factoryUnitId === where.identityId_factoryUnitId.factoryUnitId) || null,
         upsert: async ({ where, create }: any) => {
           const key = where.identityId_factoryUnitId;
           let binding = bindings.find((candidate) =>
@@ -53,6 +66,24 @@ const external = {
   usuario: 'USER.TESTE', matricula: '100', unidade: 'SEST', origem: 'EXTERNO',
   id: 'provider-1', nome: 'Nome externo',
 } as any;
+
+test('fallback legado não herda permissões de outro identificador estável com mesma matrícula/usuário', async () => {
+  const state = clientWith([
+    { factoryUnitId: 1, authOrigin: 'LEGADO', authUserId: 'other-provider-id', usuario: 'USER.TESTE', matriculaDass: 100n, role: 'admin' },
+  ]);
+  const result = await syncUser({ ...external, origem: 'LEGADO' }, 1, 1, false, state.client);
+  assert.equal(result.binding.role, 'leitor');
+  assert.equal(result.binding.assignedSector, null);
+});
+
+test('fallback legado reconhece a chave estável mesmo após mudança cadastral', async () => {
+  const state = clientWith([
+    { factoryUnitId: 1, authOrigin: 'LEGADO', authUserId: external.id, usuario: 'OLD.NAME', matriculaDass: 200n, role: 'lider', assignedSector: 'CORTE' },
+  ]);
+  const result = await syncUser({ ...external, origem: 'LEGADO' }, 1, 1, false, state.client);
+  assert.equal(result.binding.role, 'lider');
+  assert.equal(result.binding.assignedSector, 'CORTE');
+});
 
 test('identidades de origens diferentes não colidem nem herdam RBAC legado', async () => {
   const state = clientWith([
@@ -79,14 +110,24 @@ test('sincronização cadastral preserva papel e setor do vínculo local', async
   assert.equal(second.binding.assignedSector, 'APOIO');
 });
 
-test('perfil legado ambíguo não concede RBAC', async () => {
+test('perfil legado ambíguo rejeita bootstrap sem criar identidade ou vínculo', async () => {
   const state = clientWith([
     { id: 1, factoryUnitId: 1, authOrigin: null, usuario: 'USER.TESTE', matriculaDass: 100n, role: 'admin', assignedSector: null },
     { id: 2, factoryUnitId: 1, authOrigin: 'LEGADO', usuario: 'USER.TESTE', matriculaDass: 100n, role: 'lider', assignedSector: 'CORTE' },
   ]);
-  const result = await syncUser({ ...external, origem: 'LEGADO' }, 1, 1, false, state.client);
-  assert.equal(result.binding.role, 'leitor');
-  assert.equal(result.binding.assignedSector, null);
+  await assert.rejects(syncUser({ ...external, origem: 'LEGADO' }, 1, 1, false, state.client), LegacyIdentityConflictError);
+  assert.equal(state.identities.length, 0);
+  assert.equal(state.bindings.length, 0);
+});
+
+test('vínculo legado já migrado sincroniza sem consultar User', async () => {
+  const state = clientWith([{ factoryUnitId: 1, authOrigin: 'LEGADO', usuario: 'USER.TESTE', role: 'lider', assignedSector: 'CORTE' }]);
+  const user = { ...external, origem: 'LEGADO' };
+  await syncUser(user, 1, 1, false, state.client);
+  state.client.user.findMany = async () => { throw new Error('User não deve ser consultado'); };
+  const result = await syncUser({ ...user, nome: 'Atualizado' }, 1, 1, false, state.client);
+  assert.equal(result.binding.role, 'lider');
+  assert.equal(result.binding.assignedSector, 'CORTE');
 });
 
 test('admin global sincroniza identidade nativa sem criar vínculo na unidade visitada', async () => {
@@ -105,4 +146,18 @@ test('bootstrap concorrente é idempotente para identidade e vínculo', async ()
   ]);
   assert.equal(state.identities.length, 1);
   assert.equal(state.bindings.length, 1);
+});
+
+test('conflito único concorrente recarrega o vínculo sem alterar suas permissões', async () => {
+  const state = clientWith();
+  const first = await syncUser(external, 1, 1, false, state.client);
+  first.binding.role = 'lider';
+  first.binding.assignedSector = 'CORTE';
+  state.client.userRoleBinding.upsert = async () => { throw Object.assign(new Error('concurrent insert'), { code: 'P2002' }); };
+  const result = await syncUser(external, 1, 1, false, state.client);
+  assert.equal(result.binding.id, first.binding.id);
+  assert.equal(result.binding.role, 'lider');
+  assert.equal(result.binding.assignedSector, 'CORTE');
+  state.client.userRoleBinding.findUnique = async () => null;
+  await assert.rejects(syncUser(external, 1, 1, false, state.client), (error: any) => error.code === 'P2002');
 });

@@ -21,6 +21,11 @@ test('Corte permite quantidades com casas decimais', () => {
   assert.equal(parsed.quantity, 12.75);
 });
 
+test('Corte aceita frações em unidades contínuas e recusa em unidades discretas', () => {
+  for (const unit of ['KG', 'M2', 'M', 'L']) assert.equal(CorteItemSchema.parse({ sector: 'CORTE', code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }).quantity, 1.5);
+  for (const unit of ['UN', 'UND', 'PC', 'PAR', 'CX', 'RL']) assert.throws(() => CorteItemSchema.parse({ sector: 'CORTE', code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }), /inteiro/);
+});
+
 test('Apoio aceita apenas números inteiros e rejeita decimais', () => {
   const valid = ApoioItemSchema.parse({
     sector: 'APOIO',
@@ -294,6 +299,5 @@ test('decimalHelper realiza conversão e arredondamento determinístico com Pris
   assert.equal(decimalNumber(null), 0);
   assert.equal(decimalNumber('invalid'), 0);
 });
-
 
 

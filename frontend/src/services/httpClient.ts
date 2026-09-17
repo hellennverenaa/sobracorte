@@ -177,7 +177,10 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
       if (!refreshPromise) refreshPromise = refreshSession(options.authApi, client).finally(() => { refreshPromise = null })
       try {
         await refreshPromise
-        return request<T>(url, { ...config, _retry: true })
+        const retryHeaders = new Headers(config.headers || {})
+        const refreshedUser = getStoredUser()
+        if (refreshedUser?.token) retryHeaders.set('Authorization', `Bearer ${refreshedUser.token}`)
+        return request<T>(url, { ...config, headers: Object.fromEntries(retryHeaders.entries()), _retry: true })
       } catch (refreshError) {
         localStorage.removeItem('user')
         sessionStorage.removeItem('expirationTime')

@@ -5,9 +5,12 @@ import { assignedStockSector, assertStockSectorAccess, assertGeneralStockAccess,
 import { StockMovementService } from '../src/services/StockMovementService';
 import { StockItemService } from '../src/services/StockItemService';
 import { SettingsController } from '../src/controllers/SettingsController';
+import { StockItemController } from '../src/controllers/StockItemController';
 import { ReportController } from '../src/controllers/ReportController';
 import { executeImportTransaction } from '../src/import/materialImport';
 import { UserService, UnauthorizedRoleAssignmentError } from '../src/services/UserService';
+import { normalizeSector } from '../src/utils/sectorHelper';
+import { normalizeStockSector } from '../src/services/stockIdentity';
 
 function replace(t: any, object: any, methods: Record<string, any>) {
   for (const [key, method] of Object.entries(methods)) {
@@ -20,6 +23,55 @@ function response() {
   return { get status() { return status; }, get body() { return body; },
     res: { status(value: number) { status = value; return this; }, json(value: any) { body = value; return this; } } as any };
 }
+
+test('autocomplete de combinações força setor local em todos os perfis comuns', async t => {
+  const queries: any[] = [];
+  replace(t, prisma.stockItem, { findMany: async ({ where }: any) => { queries.push(where); return [{ color: 'LOCAL' }]; } });
+  for (const role of ['admin_setor', 'lider', 'movimentador', 'leitor']) {
+    const result = response();
+    await new StockItemController().combinations({ tenant: { id: 1 }, user: { role, assignedSector: 'CORTE' }, query: { sector: 'APOIO' } } as any, result.res);
+    assert.equal(result.status, 200);
+    assert.equal(queries.at(-1).sector, 'CORTE');
+    assert.equal(queries.at(-1).factoryUnitId, 1);
+  }
+  const master = response();
+  await new StockItemController().combinations({ tenant: { id: 1 }, user: { role: 'admin' }, query: { sector: 'APOIO' } } as any, master.res);
+  assert.equal(master.status, 200);
+  assert.equal(queries.at(-1).sector, 'APOIO');
+});
+
+test('normalização de aliases é a mesma para autorização e identidade de estoque', () => {
+  for (const value of ['Expedição', ' expedicao ', 'CABEDAIS', 'distribuição']) {
+    assert.equal(normalizeSector(value), 'DISTRIBUICAO');
+    assert.equal(normalizeStockSector(value), 'DISTRIBUICAO');
+    assert.equal(assignedStockSector({ role: 'leitor', assignedSector: value }), 'DISTRIBUICAO');
+  }
+  assert.throws(() => assignedStockSector({ role: 'leitor', assignedSector: 'DESCONHECIDO' }), StockAccessError);
+});
+
+test('inventário de Consumo pagina e busca seus próprios itens sem retornar Montagem', async t => {
+  const queries: any[] = [];
+  replace(t, prisma.stockItem, {
+    count: async ({ where }: any) => where.sector === 'CONSUMO' ? 1 : 0,
+    findMany: async (query: any) => {
+      queries.push(query);
+      return [{ id: 1, sector: 'CONSUMO', code: 'COLA', name: 'COLA', quantity: 1.5, unit: 'KG', locations: [] }];
+    },
+  });
+  for (const model of [prisma.location, prisma.originConfig, prisma.categoryConfig]) replace(t, model, { findMany: async () => [] });
+  const result = await new StockItemService().searchUnified({ sector: 'CONSUMO', q: 'COLA', page: 2, limit: 1 },
+    { factoryUnitId: 1, role: 'leitor', assignedSector: 'CONSUMO' });
+  assert.equal(result.pagination.total, 1);
+  assert.equal(result.metrics.totalConsumo, 1);
+  assert.equal(result.metrics.totalItems, 1);
+  assert.equal(result.sectors.consumo.data[0].code, 'COLA');
+  assert.deepEqual(result.sectors.montagem.data, []);
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0].where.sector, 'CONSUMO');
+  assert.ok(queries[0].where.OR.some((filter: any) => filter.name?.contains === 'COLA'));
+  assert.equal(queries[0].skip, 1);
+  assert.equal(queries[0].take, 1);
+});
 
 test('perfis comuns exigem setor específico; Geral/Livre é exclusivo de Master', () => {
   for (const role of ['admin_setor', 'lider', 'movimentador', 'leitor']) {

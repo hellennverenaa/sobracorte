@@ -47,6 +47,7 @@ const FILTER_OPS = new Set([
   "aggregate",
   "groupBy",
   "updateMany",
+  "updateManyAndReturn",
   "deleteMany",
 ]);
 
@@ -116,7 +117,7 @@ function rejectForeignTenantInWhere(where: unknown, tenantId: number, model: str
 export function applyTenantGuard(model: string | undefined, operation: string, args: AnyArgs, tenantId: number): AnyArgs {
   if (FILTER_OPS.has(operation)) {
     rejectForeignTenantInWhere(args.where, tenantId, model, operation);
-    if (operation === 'updateMany' && args.data?.factoryUnitId !== undefined) {
+    if ((operation === 'updateMany' || operation === 'updateManyAndReturn') && args.data?.factoryUnitId !== undefined) {
       ensureTenantValue(args.data.factoryUnitId, tenantId, model, operation);
     }
     return { ...args, where: { ...args.where, factoryUnitId: tenantId } };

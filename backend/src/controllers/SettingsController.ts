@@ -1,5 +1,6 @@
 import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
+import { normalizeSector } from '../utils/sectorHelper';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
@@ -25,10 +26,8 @@ function checkSettingsPermission(req: Request, targetSector?: string): { allowed
     try { assignedStockSector(requestStockAccess(req)); }
     catch (error) { return { allowed: false, status: 403, error: (error as Error).message }; }
     if (targetSector && assignedSector && assignedSector !== 'TODOS') {
-      let userSec = assignedSector.toUpperCase().trim();
-      let tgtSec = targetSector.toUpperCase().trim();
-      if (userSec === 'CABEDAIS' || userSec === 'EXPEDICAO') userSec = 'DISTRIBUICAO';
-      if (tgtSec === 'CABEDAIS' || tgtSec === 'EXPEDICAO') tgtSec = 'DISTRIBUICAO';
+      const userSec = normalizeSector(assignedSector);
+      const tgtSec = normalizeSector(targetSector);
       if (userSec !== tgtSec) {
         return {
           allowed: false,

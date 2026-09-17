@@ -4,6 +4,7 @@ import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit, isDiscreteUnit } from '../utils/unitHelper';
 import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
+import { normalizeSector as normalizeSectorAlias } from '../utils/sectorHelper';
 
 export interface AvailableLocation {
   id: number;
@@ -62,9 +63,8 @@ export interface ImportExecutionResult {
 const UNIDADES_VALIDAS = new Set(['M2', 'M', 'UN', 'KG', 'PAR', 'CX', 'RL', 'G', 'UND', 'M²', 'CM', 'L', 'ROLO']);
 
 export function normalizeSector(rawSector?: string, defaultSector: string = 'CORTE'): SectorType {
-  const sec = (rawSector || defaultSector).toUpperCase().trim();
-  if (sec === 'CABEDAIS' || sec === 'EXPEDICAO') return 'DISTRIBUICAO';
-  if (sec === 'DISTRIBUICAO' || sec === 'DISTRIBUIÇÃO') return 'DISTRIBUICAO';
+  const sec = normalizeSectorAlias(rawSector || defaultSector);
+  if (sec === 'DISTRIBUICAO') return 'DISTRIBUICAO';
   if (sec === 'PRE_FABRICADO' || sec === 'PRE-FABRICADO' || sec === 'PREFABRICADO' || sec === 'SOLAS' || sec === 'SOLA') return 'PRE_FABRICADO';
   if (sec === 'MONTAGEM' || sec === 'PES_ORFAOS' || sec === 'PES_PRONTOS') return 'MONTAGEM';
   if (sec === 'APOIO' || sec === 'MOLDES' || sec === 'MOLDE' || sec === 'PECAS_CORTADAS') return 'APOIO';
@@ -83,14 +83,7 @@ export function normalizeFootSide(rawSide?: string): 'E' | 'D' | 'PAR' | null {
 
 export function matchLocationSector(locSector: SectorType | null, itemSector: SectorType): boolean {
   if (locSector === null) return true; // Localização geral compartilhada
-  if (locSector === itemSector) return true;
-  if (
-    (locSector === 'DISTRIBUICAO' || locSector === 'EXPEDICAO') &&
-    (itemSector === 'DISTRIBUICAO' || itemSector === 'EXPEDICAO')
-  ) {
-    return true;
-  }
-  return false;
+  return normalizeSectorAlias(locSector) === normalizeSectorAlias(itemSector);
 }
 
 /**
@@ -302,8 +295,8 @@ export function validateImportBatch(
 
     // 3. Validação de casas decimais para setores discretos
     const isDiscreteSector = ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(itemSector);
-    const isDiscreteConsumption = itemSector === 'CONSUMO' && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
-    if ((isDiscreteSector || isDiscreteConsumption) && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
+    const isDiscreteMaterial = ['CORTE', 'CONSUMO'].includes(itemSector) && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
+    if ((isDiscreteSector || isDiscreteMaterial) && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
       errors.push({
         row: row.rowNumber,
         column: 'quantidade',

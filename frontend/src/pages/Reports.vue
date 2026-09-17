@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import Layout from '@/components/Layout.vue'
+import PageState from '@/components/PageState.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { getDatesFromPeriod, useReports } from '@/composables/useReports'
-import ReportStatus from '@/components/ReportStatus.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
 import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
@@ -341,7 +341,7 @@ function formatReportReason(value) {
 <template>
   <Layout>
     <ToastNotification :notification="notification" />
-    <ReportStatus :loading="loading && !reportData.length" :error="loadError" :empty="false" @retry="() => generateReport(currentPage)" />
+    <PageState :loading="loading && !reportData.length" :error="loadError" :empty="false" @retry="() => generateReport(currentPage)" />
 
     <div id="printable-report" class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0 report-container">
 

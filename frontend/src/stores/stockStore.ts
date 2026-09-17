@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia';
 import { api } from '@/services/httpClient';
 import { requestErrorMessage } from '@/utils/domain';
+import { useAuthStore } from '@/stores/auth';
 
-export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
+export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM' | 'CONSUMO';
 
 export interface MatchingPair {
   sku: string;
@@ -24,6 +25,9 @@ export interface StockState {
   activeSector: SectorType;
   searchQuery: string;
   pendingOperations: number;
+  inventoryRequestId: number;
+  matchingPairsRequestId: number;
+  historyRequestId: number;
   error: string | null;
   pagination: {
     total: number;
@@ -39,6 +43,7 @@ export interface StockState {
     totalExpedicao: number;
     totalDistribuicao?: number;
     totalMontagem: number;
+    totalConsumo: number;
   };
   sectors: {
     corte: { total: number; data: any[] };
@@ -47,6 +52,7 @@ export interface StockState {
     expedicao: { total: number; data: any[] };
     distribuicao?: { total: number; data: any[] };
     montagem: { total: number; data: any[] };
+    consumo: { total: number; data: any[] };
   };
   filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterOrigins: Array<{ id: number; name: string }>;
@@ -67,6 +73,9 @@ export const useStockStore = defineStore('stock', {
     activeSector: 'CORTE',
     searchQuery: '',
     pendingOperations: 0,
+    inventoryRequestId: 0,
+    matchingPairsRequestId: 0,
+    historyRequestId: 0,
     error: null,
     pagination: {
       total: 0,
@@ -81,6 +90,7 @@ export const useStockStore = defineStore('stock', {
       totalPreFabricado: 0,
       totalExpedicao: 0,
       totalMontagem: 0,
+      totalConsumo: 0,
     },
     sectors: {
       corte: { total: 0, data: [] },
@@ -88,6 +98,7 @@ export const useStockStore = defineStore('stock', {
       preFabricado: { total: 0, data: [] },
       expedicao: { total: 0, data: [] },
       montagem: { total: 0, data: [] },
+      consumo: { total: 0, data: [] },
     },
     filterLocations: [],
     filterOrigins: [],
@@ -118,6 +129,8 @@ export const useStockStore = defineStore('stock', {
           return state.sectors.distribuicao || state.sectors.expedicao || { total: 0, data: [] };
         case 'MONTAGEM':
           return state.sectors.montagem;
+        case 'CONSUMO':
+          return state.sectors.consumo;
         default:
           return { total: 0, data: [] };
       }
@@ -125,10 +138,25 @@ export const useStockStore = defineStore('stock', {
   },
 
   actions: {
+    resetUnitData() {
+      // Não zerar operações em curso: seus finally ainda vão decrementar.
+      const pending = this.pendingOperations;
+      const inventoryRequestId = this.inventoryRequestId + 1;
+      const matchingPairsRequestId = this.matchingPairsRequestId + 1;
+      const historyRequestId = this.historyRequestId + 1;
+      this.$reset();
+      this.pendingOperations = pending;
+      this.inventoryRequestId = inventoryRequestId;
+      this.matchingPairsRequestId = matchingPairsRequestId;
+      this.historyRequestId = historyRequestId;
+    },
     /**
      * Busca unificada Round-Trip Único (GET /inventory/search)
      */
     async fetchInventory(params?: { q?: string; sector?: SectorType; page?: number; limit?: number }) {
+      const auth = useAuthStore();
+      const unitCode = auth.user?.unit?.code;
+      const requestId = ++this.inventoryRequestId;
       this.pendingOperations++;
       this.error = null;
       try {
@@ -141,6 +169,7 @@ export const useStockStore = defineStore('stock', {
         };
 
         const response = await api.get('/inventory/search', { params: queryParams });
+        if (requestId !== this.inventoryRequestId || unitCode !== auth.user?.unit?.code) return;
         const data = response.data;
 
         this.metrics = data.metrics;
@@ -152,6 +181,7 @@ export const useStockStore = defineStore('stock', {
         this.filterOrigins = data.filterOptions?.origins || [];
         this.filterCategories = data.filterOptions?.categories || [];
       } catch (err: any) {
+        if (requestId !== this.inventoryRequestId || unitCode !== auth.user?.unit?.code) return;
         console.error('Erro ao carregar estoque:', err);
         this.error = requestErrorMessage(err, 'Erro ao carregar dados do estoque.');
       } finally {
@@ -183,15 +213,20 @@ export const useStockStore = defineStore('stock', {
      * Busca de pares prontos para casar multi-setor (GET /inventory/mounting/matching-pairs)
      */
     async fetchMatchingPairs(sector: SectorType = 'MONTAGEM', search: string = '') {
+      const auth = useAuthStore();
+      const unitCode = auth.user?.unit?.code;
+      const requestId = ++this.matchingPairsRequestId;
       this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.get('/inventory/mounting/matching-pairs', {
           params: { sector, q: search },
         });
+        if (requestId !== this.matchingPairsRequestId || unitCode !== auth.user?.unit?.code) return;
         this.matchingPairs = response.data.pairs || [];
         this.matchingPairsCount = response.data.totalMatchingPairsCount || 0;
       } catch (err: any) {
+        if (requestId !== this.matchingPairsRequestId || unitCode !== auth.user?.unit?.code) return;
         console.error('Erro ao buscar pares casáveis:', err);
         this.error = requestErrorMessage(err, 'Erro ao consultar pares casáveis.');
       } finally {
@@ -259,12 +294,17 @@ export const useStockStore = defineStore('stock', {
      * Consulta do Histórico de Auditoria (GET /inventory/movements/history)
      */
     async fetchHistory(params?: any) {
+      const auth = useAuthStore();
+      const unitCode = auth.user?.unit?.code;
+      const requestId = ++this.historyRequestId;
       this.pendingOperations++;
       this.error = null;
       try {
         const response = await api.get('/inventory/movements/history', { params });
+        if (requestId !== this.historyRequestId || unitCode !== auth.user?.unit?.code) return;
         this.history = response.data;
       } catch (err: any) {
+        if (requestId !== this.historyRequestId || unitCode !== auth.user?.unit?.code) return;
         console.error('Erro ao buscar histórico:', err);
         this.error = requestErrorMessage(err, 'Erro ao buscar histórico de auditoria.');
       } finally {

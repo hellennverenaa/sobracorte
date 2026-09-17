@@ -1,4 +1,5 @@
--- Reexecutável. Deve rodar durante janela sem gravações, antes do cutover.
+-- Executado exclusivamente pelo stock-unification.cjs, sob locks e transação.
+-- Nunca sobrescreve registros existentes; divergências abortam o lote completo.
 INSERT INTO sobra_corte."StockItem" (
   "factoryUnitId", "legacyMaterialId", "sector", "componentType", "code", "name",
   "quantity", "unit", "type", "observation", "minStock", "createdAt", "updatedAt"
@@ -6,17 +7,14 @@ INSERT INTO sobra_corte."StockItem" (
 SELECT m."factoryUnitId", m.id, 'CORTE', 'MATERIA_PRIMA', m.code, m.name,
        m.quantity, m.unit, m.type, m.observation, m."minStock", m."createdAt", m."updatedAt"
 FROM sobra_corte."Material" m
-ON CONFLICT ("factoryUnitId", "legacyMaterialId") DO UPDATE SET
-  code = EXCLUDED.code, name = EXCLUDED.name, quantity = EXCLUDED.quantity,
-  unit = EXCLUDED.unit, type = EXCLUDED.type, observation = EXCLUDED.observation,
-  "minStock" = EXCLUDED."minStock", "updatedAt" = EXCLUDED."updatedAt";
+ON CONFLICT ("factoryUnitId", "legacyMaterialId") DO NOTHING;
 
 INSERT INTO sobra_corte."StockItemLocation" ("stockItemId", "locationId", "factoryUnitId", quantity)
 SELECT si.id, ml."locationId", ml."factoryUnitId", COALESCE(ml.quantity, 0)
 FROM sobra_corte."MaterialLocation" ml
 JOIN sobra_corte."StockItem" si
   ON si."factoryUnitId" = ml."factoryUnitId" AND si."legacyMaterialId" = ml."materialId"
-ON CONFLICT ("stockItemId", "locationId") DO UPDATE SET quantity = EXCLUDED.quantity;
+ON CONFLICT ("stockItemId", "locationId") DO NOTHING;
 
 INSERT INTO sobra_corte."StockMovement" (
   "factoryUnitId", "legacyMovementId", "stockItemId", sector, type, quantity,
@@ -38,10 +36,4 @@ FROM sobra_corte."Movement" mv
 LEFT JOIN sobra_corte."StockItem" si
   ON si."factoryUnitId" = mv."factoryUnitId" AND si."legacyMaterialId" = mv."materialId"
 WHERE lower(mv.type) IN ('entrada', 'saida', 'transferencia', 'refugo')
-ON CONFLICT ("factoryUnitId", "legacyMovementId") DO UPDATE SET
-  "stockItemId" = EXCLUDED."stockItemId", type = EXCLUDED.type, quantity = EXCLUDED.quantity,
-  "destinationLocationName" = EXCLUDED."destinationLocationName",
-  "itemCode" = EXCLUDED."itemCode", "itemName" = EXCLUDED."itemName",
-  "itemCategory" = EXCLUDED."itemCategory", "itemUnit" = EXCLUDED."itemUnit",
-  origem = EXCLUDED.origem, reason = EXCLUDED.reason, "operatorId" = EXCLUDED."operatorId",
-  "operatorName" = EXCLUDED."operatorName";
+ON CONFLICT ("factoryUnitId", "legacyMovementId") DO NOTHING;

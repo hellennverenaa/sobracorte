@@ -5,6 +5,12 @@ import { normalizeRegistration, registrationToBigInt } from '../auth/tenant';
 
 type AuthenticatedUser = NonNullable<Express.Request['user']>;
 
+export class LegacyIdentityConflictError extends Error {
+  constructor() {
+    super('Identidade legada ambígua. Solicite a revisão do vínculo de acesso ao administrador.');
+  }
+}
+
 function serializeUser<T extends { matriculaDass: bigint | null }>(user: T) {
   return { ...user, matriculaDass: user.matriculaDass === null ? null : Number(user.matriculaDass) };
 }
@@ -34,32 +40,52 @@ export async function syncUser(
     matriculaDass: registrationToBigInt(normalizeRegistration(user.matricula)),
   };
   const identityKey = { nativeUnitId, authOrigin, authUserId };
+  const existingIdentity = await client.authIdentity.findUnique({
+    where: { nativeUnitId_authOrigin_authUserId: identityKey },
+  });
+  const existingBinding = !isGlobalAdmin && existingIdentity
+    ? await client.userRoleBinding.findUnique({
+        where: { identityId_factoryUnitId: { identityId: existingIdentity.id, factoryUnitId: nativeUnitId } },
+      })
+    : null;
 
   // Outra origem nunca usa matrícula ou usuário para herdar RBAC legado.
   // Administradores globais não criam vínculo na unidade visitada. Evite
   // consultar usuários legados da unidade nativa sob o tenant ativo, pois
   // essa consulta cruzada é bloqueada pelo TenantGuard.
-  const legacyCandidates = !isGlobalAdmin && authOrigin === 'LEGADO' ? await client.user.findMany({
+  // Transitório até identity:audit aprovar o banco real: vínculos existentes
+  // nunca dependem de User nem herdam alterações posteriores do legado.
+  const legacyCandidates = !existingBinding && !isGlobalAdmin && authOrigin === 'LEGADO' ? await client.user.findMany({
     where: {
       factoryUnitId: nativeUnitId,
-      OR: [{ authOrigin: null }, { authOrigin: 'LEGADO' }],
-      AND: [{ OR: [
-        ...(commonData.matriculaDass ? [{ matriculaDass: commonData.matriculaDass }] : []),
-        { usuario },
-      ] }],
+      AND: [
+        { OR: [{ authOrigin: null }, { authOrigin: '' }, { authOrigin: 'LEGADO' }] },
+        { OR: [
+          { authUserId },
+          { AND: [
+            { OR: [{ authUserId: null }, { authUserId: '' }] },
+            { OR: [
+              ...(commonData.matriculaDass ? [{ matriculaDass: commonData.matriculaDass }] : []),
+              { usuario },
+            ] },
+          ] },
+        ] },
+      ],
     },
     take: 2,
   }) : [];
+  if (legacyCandidates.length > 1) throw new LegacyIdentityConflictError();
 
-  // Upserts tornam o bootstrap idempotente sob chamadas concorrentes. O
-  // update vazio do vínculo preserva papel e setor atribuídos localmente.
+  // O update vazio preserva permissões, mas pode fazer Prisma emular o
+  // upsert. Um conflito concorrente só é aceito recarregando a mesma chave.
   const identity = await client.authIdentity.upsert({
     where: { nativeUnitId_authOrigin_authUserId: identityKey },
     update: { usuario, ...commonData },
     create: { ...identityKey, usuario, ...commonData },
   });
+  const bindingKey = { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: nativeUnitId } };
   const binding = isGlobalAdmin ? null : await client.userRoleBinding.upsert({
-    where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: nativeUnitId } },
+    where: bindingKey,
     update: {},
     create: {
       identityId: identity.id,
@@ -69,6 +95,11 @@ export async function syncUser(
         : deriveInitialRole({ usuario, funcao: user.funcao }),
       assignedSector: legacyCandidates.length === 1 ? legacyCandidates[0].assignedSector : null,
     },
+  }).catch(async (error: { code?: string }) => {
+    if (error.code !== 'P2002') throw error;
+    const concurrentBinding = await client.userRoleBinding.findUnique({ where: bindingKey });
+    if (!concurrentBinding) throw error;
+    return concurrentBinding;
   });
   return { identity, binding };
 }
@@ -115,6 +146,7 @@ export class AuthController {
         isGlobalAdmin: Boolean(req.isGlobalAdmin),
       });
     } catch (error) {
+      if (error instanceof LegacyIdentityConflictError) return res.status(409).json({ error: error.message });
       console.error('Erro ao sincronizar usuário autenticado.', error);
       return res.status(500).json({ error: 'Erro interno ao processar usuário.' });
     }

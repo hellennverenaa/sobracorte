@@ -5,7 +5,7 @@ import { DuplicateStockItemError, StockItemService } from '../services/StockItem
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
 import { SectorType } from '../generated/prisma';
-import { lockStockIdentityWrites } from '../services/stockIdentity';
+import { lockStockIdentityWrites, normalizeStockSector } from '../services/stockIdentity';
 
 const stockItemService = new StockItemService();
 
@@ -60,10 +60,7 @@ export class StockItemController {
       const { q, search, sector, page, limit } = req.query;
       const searchQuery = q || search;
 
-      let targetSector = sector ? (String(sector).toUpperCase() as SectorType) : undefined;
-      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
-        targetSector = 'DISTRIBUICAO' as SectorType;
-      }
+      let targetSector = sector ? normalizeStockSector(String(sector)) as SectorType : undefined;
 
       targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
@@ -132,6 +129,8 @@ export class StockItemController {
       if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
         targetSector = 'DISTRIBUICAO' as SectorType;
       }
+
+      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
       const query = q ? String(q) : '';
 

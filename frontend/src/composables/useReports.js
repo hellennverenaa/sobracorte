@@ -127,5 +127,3 @@ export function useReports(options = {}) {
   onMounted(() => { if (options.autoLoad !== false) generateReport(1).catch(() => {}) })
   return { filters, resetFilters, reportType, loading, error, reportData, currentPage, pagination, reportTotals, generateReport, setReportType }
 }
-
-export default useReports

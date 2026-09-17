@@ -20,7 +20,7 @@ test('TenantGuard injeta unidade em leituras, lotes e criações sem aceitar uni
     applyTenantGuard('Material', 'createMany', { data: [{ code: 'A' }, { code: 'B', factoryUnitId: tenantOne }] }, tenantOne),
     { data: [{ code: 'A', factoryUnitId: tenantOne }, { code: 'B', factoryUnitId: tenantOne }] },
   );
-  for (const operation of ['findMany', 'create', 'createMany', 'updateMany', 'deleteMany']) {
+  for (const operation of ['findMany', 'create', 'createMany', 'updateMany', 'updateManyAndReturn', 'deleteMany']) {
     const args = operation === 'create'
       ? { data: { factoryUnitId: tenantTwo } }
       : operation === 'createMany'
@@ -30,6 +30,14 @@ test('TenantGuard injeta unidade em leituras, lotes e criações sem aceitar uni
   }
   assert.throws(() => applyTenantGuard('Material', 'updateMany', {
     where: { code: 'TEC-001' }, data: { factoryUnitId: tenantTwo },
+  }, tenantOne), TenantGuardError);
+  assert.deepEqual(applyTenantGuard('StockItem', 'updateManyAndReturn', {
+    where: { sector: 'CORTE' }, data: { observation: 'local' },
+  }, tenantOne), {
+    where: { sector: 'CORTE', factoryUnitId: tenantOne }, data: { observation: 'local' },
+  });
+  assert.throws(() => applyTenantGuard('StockItem', 'updateManyAndReturn', {
+    data: { factoryUnitId: tenantTwo },
   }, tenantOne), TenantGuardError);
 });
 

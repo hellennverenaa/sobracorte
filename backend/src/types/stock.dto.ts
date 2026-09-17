@@ -46,6 +46,10 @@ export const CorteItemSchema = z.object({
   minStock: z.coerce.number().min(0).default(0),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
+}).superRefine((item, ctx) => {
+  if (isDiscreteUnit(normalizeUnit(item.unit, 'CORTE')) && !Number.isInteger(item.quantity)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantity'], message: 'Quantidade para unidade discreta deve ser um número inteiro.' });
+  }
 });
 
 // 🔹 2. APOIO: Peças Cortadas / Moldes

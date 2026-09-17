@@ -306,6 +306,16 @@ export class StockItemService {
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
           };
+        case 'CONSUMO':
+          return {
+            ...base,
+            OR: searchTerms.flatMap(term => [
+              { code: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+              { name: { contains: term, mode: 'insensitive' } },
+              { productName: { contains: term, mode: 'insensitive' } },
+            ]),
+          };
         case 'MONTAGEM':
           return {
             ...base,
@@ -321,10 +331,7 @@ export class StockItemService {
       }
     };
 
-    let targetSector = assignedStockSector(context) || sector || 'CORTE';
-    if (targetSector === 'EXPEDICAO' || targetSector === ('CABEDAIS' as any)) {
-      targetSector = 'DISTRIBUICAO';
-    }
+    const targetSector = normalizeStockSector(assignedStockSector(context) || sector || 'CORTE') as SectorType;
 
     // Execução paralela de buscas e contagens por setor (Zero N+1 Queries)
     const [
@@ -338,11 +345,13 @@ export class StockItemService {
       expedicaoItems,
       montagemCount,
       montagemItems,
+      consumoCount,
+      consumoItems,
       locations,
       origins,
       categories,
     ] = await Promise.all([
-      // Contagem e lista paginada na tabela oficial Material (4.000+ matérias-primas)
+      // Corte também usa o estoque canônico.
       (isStockMaster(context) || targetSector === 'CORTE') ? prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }) : 0,
       targetSector === 'CORTE'
         ? prisma.stockItem.findMany({
@@ -390,6 +399,14 @@ export class StockItemService {
             where: buildSectorWhere('MONTAGEM'),
             skip,
             take: limit,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            include: { locations: { include: { location: true } } },
+          })
+        : [],
+      (isStockMaster(context) || targetSector === 'CONSUMO') ? prisma.stockItem.count({ where: buildSectorWhere('CONSUMO') }) : 0,
+      targetSector === 'CONSUMO'
+        ? prisma.stockItem.findMany({
+            where: buildSectorWhere('CONSUMO'), skip, take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             include: { locations: { include: { location: true } } },
           })
@@ -473,6 +490,8 @@ export class StockItemService {
         ? preFabCount
         : isDistribuicao
         ? expedicaoCount
+        : targetSector === 'CONSUMO'
+        ? consumoCount
         : montagemCount;
 
     const formattedActiveItems =
@@ -485,6 +504,8 @@ export class StockItemService {
               ? preFabItems
               : isDistribuicao
               ? expedicaoItems
+              : targetSector === 'CONSUMO'
+              ? consumoItems
               : montagemItems
           );
 
@@ -498,13 +519,14 @@ export class StockItemService {
       },
       metrics: {
         totalItems:
-          corteCount + apoioCount + preFabCount + expedicaoCount + montagemCount,
+          corteCount + apoioCount + preFabCount + expedicaoCount + montagemCount + consumoCount,
         totalCorte: corteCount,
         totalApoio: apoioCount,
         totalPreFabricado: preFabCount,
         totalDistribuicao: expedicaoCount,
         totalExpedicao: expedicaoCount,
         totalMontagem: montagemCount,
+        totalConsumo: consumoCount,
       },
       sectors: {
         corte: { total: corteCount, data: targetSector === 'CORTE' ? formattedActiveItems : [] },
@@ -513,6 +535,7 @@ export class StockItemService {
         distribuicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
         expedicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
+        consumo: { total: consumoCount, data: targetSector === 'CONSUMO' ? formattedActiveItems : [] },
       },
       filterOptions: {
         locations: locations.map((l) => ({ id: l.id, name: l.name, sector: l.sector })),
