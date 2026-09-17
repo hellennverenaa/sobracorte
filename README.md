@@ -15,7 +15,7 @@ O [plano de evolução arquitetural](PLANO_EVOLUCAO_ARQUITETURAL.md) governa a r
 - **Node.js & TypeScript / Express**: API RESTful arquitetada em controllers e rotas modulares.
 - **Prisma ORM**: Modelagem de dados relacional com suporte a múltiplos schemas PostgreSQL (`sobra_corte`, `autenticacao`, `public`).
 - **PostgreSQL**: Banco de dados relacional com índices de performance otimizados para consultas de grande volume.
-- **Axios / Multer**: Processamento de arquivos multipart (upload e validação de planilhas CSV).
+- **Fetch / Multer**: Comunicação HTTP e processamento de arquivos multipart (upload e validação de planilhas CSV).
 
 ### Frontend
 
@@ -82,8 +82,8 @@ GLOBAL_ADMIN_IDENTITIES="SEST:12345,SAJ:67890"
 Crie também `frontend/.env`:
 
 ```env
-VITE_AUTH_API_URL="http://localhost:2399/api"
-VITE_SOBRACORTE_API_URL="http://localhost:2399/api/sobracorte"
+VITE_AUTH_API_URL="/api"
+VITE_SOBRACORTE_API_URL="/api/sobracorte"
 VITE_PORTAL_UNIX_URL="http://10.100.1.43/unix/"
 VITE_DASS_IDENTITIES_URL="http://10.100.1.43/identities/"
 VITE_DEV_PORT=3000
@@ -96,7 +96,6 @@ Na VPS, mantenha os mesmos nomes de arquivo e altere somente os valores. As vari
 Na raiz do `sobracorte`:
 
 ```bash
-npm install
 npm --prefix backend ci
 npm --prefix frontend ci
 ```

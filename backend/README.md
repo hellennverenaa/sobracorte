@@ -27,10 +27,11 @@ npm install
 1. Crie um arquivo `.env` na raiz do backend. O mesmo nome é usado localmente e na VPS:
 
 ```env
-DATABASE_URL="postgresql://SEU_USUARIO:SUA_SENHA@localhost:5432/sobracorte?schema=sobra_corte"
+DATABASE_URL="postgresql://SEU_USUARIO:SUA_SENHA@localhost:5432/postgres?schema=sobra_corte"
 PRIVATE_KEY="mesma_chave_usada_pelo_dass_auth_service"
 CORS_ORIGINS="http://localhost:3000"
 PORT=3333
+GLOBAL_ADMIN_IDENTITIES=""
 ```
 
 1. Aplique apenas as migrations versionadas e inicie o servidor:
@@ -75,7 +76,7 @@ Instruções estritas para colocar a API no ar no servidor oficial de Produção
 
 ### 1. Pré-requisitos
 
-- Node.js (v18 ou superior)
+- Node.js (20.19+, 22.12+ ou 24+)
 - Banco de Dados PostgreSQL (versão 13+)
 - PM2 instalado globalmente (`npm install -g pm2`)
 

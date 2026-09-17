@@ -25,7 +25,6 @@ export default defineConfig(({ mode }) => {
   }
 
   const gatewayTarget = env.VITE_GATEWAY_URL || "http://127.0.0.1:2399";
-  const backendTarget = env.VITE_BACKEND_URL || `http://127.0.0.1:${env.VITE_BACKEND_PORT || "3333"}`;
 
   return {
     plugins: [vue()],
@@ -45,26 +44,6 @@ export default defineConfig(({ mode }) => {
           target: gatewayTarget,
           changeOrigin: true,
           secure: false,
-        },
-        "/unix": {
-          target: "http://10.100.1.43",
-          changeOrigin: true,
-          secure: false,
-        },
-        // Proxy para o serviço de Login Oficial da Dass (Portal Unix)
-        "/auth-proxy": {
-          target: "http://10.100.1.43:2399",
-          changeOrigin: true,
-          secure: false,
-          cookieDomainRewrite: "localhost",
-          rewrite: (path) => path.replace(/^\/auth-proxy/, ""),
-        },
-        // Proxy para o Backend local do SobraCorte (Porta 3000)
-        "/sobracorte-api": {
-          target: backendTarget,
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/sobracorte-api/, ""),
         },
       },
     },
