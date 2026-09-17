@@ -91,7 +91,7 @@ test('perfil legado ambíguo não concede RBAC', async () => {
 
 test('admin global sincroniza identidade nativa sem criar vínculo na unidade visitada', async () => {
   const state = clientWith();
-  const result = await syncUser(external, 1, 2, true, state.client);
+  const result = await syncUser({ ...external, origem: 'LEGADO' }, 1, 2, true, state.client);
   assert.equal(result.identity.nativeUnitId, 1);
   assert.equal(result.binding, null);
   assert.equal(state.bindings.length, 0);

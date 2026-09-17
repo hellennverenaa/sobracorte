@@ -36,7 +36,10 @@ export async function syncUser(
   const identityKey = { nativeUnitId, authOrigin, authUserId };
 
   // Outra origem nunca usa matrícula ou usuário para herdar RBAC legado.
-  const legacyCandidates = authOrigin === 'LEGADO' ? await client.user.findMany({
+  // Administradores globais não criam vínculo na unidade visitada. Evite
+  // consultar usuários legados da unidade nativa sob o tenant ativo, pois
+  // essa consulta cruzada é bloqueada pelo TenantGuard.
+  const legacyCandidates = !isGlobalAdmin && authOrigin === 'LEGADO' ? await client.user.findMany({
     where: {
       factoryUnitId: nativeUnitId,
       OR: [{ authOrigin: null }, { authOrigin: 'LEGADO' }],
