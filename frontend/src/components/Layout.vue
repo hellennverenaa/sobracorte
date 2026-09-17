@@ -8,7 +8,8 @@ import {
 } from 'lucide-vue-next'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
-import { confirmPendingChanges } from '@/composables/useUnsavedChanges'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { confirmPendingChanges, unsavedChangesDialog, resolveUnsavedChanges, registerUnsavedChangesHost } from '@/composables/useUnsavedChanges'
 import { ROLE_LABELS } from '@/utils/domain'
 
 const authStore = useAuthStore()
@@ -23,9 +24,10 @@ const unitSwitchStatus = computed({
   set: (value) => { authStore.unitSwitchStatus = value },
 })
 let notificationInterval = null
+let releaseUnsavedChangesHost = null
 
 async function logout() {
-  if (!confirmPendingChanges()) return
+  if (!(await confirmPendingChanges())) return
   if (notificationInterval) {
     clearInterval(notificationInterval)
     notificationInterval = null
@@ -61,6 +63,7 @@ async function fetchPendingCount() {
 }
 
 onMounted(() => {
+  releaseUnsavedChangesHost = registerUnsavedChangesHost()
   if (authStore.user?.isGlobalAdmin) {
     authStore.fetchAvailableUnits()
   }
@@ -69,6 +72,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  releaseUnsavedChangesHost?.()
+  releaseUnsavedChangesHost = null
   if (notificationInterval) {
     clearInterval(notificationInterval)
     notificationInterval = null
@@ -98,7 +103,7 @@ const visibleMenuItems = computed(() => {
 async function handleUnitChange(event) {
   const targetCode = event.target.value
   if (!targetCode || targetCode === authStore.user?.unit?.code) return
-  if (!confirmPendingChanges()) {
+  if (!(await confirmPendingChanges())) {
     event.target.value = authStore.user?.unit?.code || ''
     return
   }
@@ -237,5 +242,16 @@ async function handleUnitChange(event) {
         <slot />
       </div>
     </main>
+
+    <ConfirmModal
+      :show="unsavedChangesDialog.show"
+      :title="unsavedChangesDialog.title"
+      :message="unsavedChangesDialog.message"
+      confirm-text="Descartar alterações"
+      cancel-text="Continuar editando"
+      variant="warning"
+      @confirm="resolveUnsavedChanges(true)"
+      @cancel="resolveUnsavedChanges(false)"
+    />
   </div>
 </template>

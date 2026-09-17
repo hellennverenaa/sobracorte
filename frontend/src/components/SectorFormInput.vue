@@ -100,8 +100,8 @@ const formData = reactive({
 const savedForm = ref(JSON.stringify(formData));
 const { confirmDiscard } = useUnsavedChanges(() => JSON.stringify(formData) !== savedForm.value);
 defineExpose({ confirmDiscard });
-function cancelForm() {
-  if (!isSubmitting.value && confirmDiscard()) emit('cancel');
+async function cancelForm() {
+  if (!isSubmitting.value && await confirmDiscard()) emit('cancel');
 }
 
 const isUnitLocked = computed(() => {

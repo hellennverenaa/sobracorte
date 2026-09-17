@@ -133,12 +133,12 @@ const { confirmDiscard } = useUnsavedChanges(() => (
   isCreateDirty() || isFulfillDirty()
 ));
 
-function closeCreateModal() {
-  if (!isSubmitting.value && confirmDiscard()) showCreateModal.value = false;
+async function closeCreateModal() {
+  if (!isSubmitting.value && await confirmDiscard()) showCreateModal.value = false;
 }
 
-function closeFulfillModal() {
-  if (!isFulfilling.value && confirmDiscard()) showFulfillModal.value = false;
+async function closeFulfillModal() {
+  if (!isFulfilling.value && await confirmDiscard()) showFulfillModal.value = false;
 }
 
 function closeDetailsModal() {

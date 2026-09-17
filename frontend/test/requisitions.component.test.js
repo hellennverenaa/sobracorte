@@ -59,17 +59,13 @@ test('página de requisições consulta a inbox ao montar', async () => {
   await flushPromises()
   assert.ok(calls.includes('/requisitions'))
   assert.match(mounted.element.textContent, /Nenhuma requisição de reposição encontrada/)
-
   const open = [...mounted.element.querySelectorAll('button')].find(button => button.textContent.includes('Nova Solicitação'))
   open.click()
   await flushPromises()
   const close = mounted.element.querySelector('[aria-label="Fechar nova solicitação"]')
-  let confirmations = 0
-  const originalConfirm = window.confirm
-  window.confirm = () => { confirmations += 1; return false }
   close.click()
   await flushPromises()
-  assert.equal(confirmations, 0, 'formulário inicial não deve ser considerado sujo')
+  assert.equal(Boolean(mounted.element.querySelector('[aria-label="Fechar nova solicitação"]')), false, 'formulário inicial não deve ser considerado sujo')
 
   open.click()
   await flushPromises()
@@ -78,11 +74,21 @@ test('página de requisições consulta a inbox ao montar', async () => {
   sku.dispatchEvent(new Event('input', { bubbles: true }))
   await flushPromises()
   mounted.element.querySelector('[aria-label="Fechar nova solicitação"]').click()
-  assert.ok(mounted.element.querySelector('[role="dialog"]'))
-  window.confirm = () => true
+  await flushPromises()
+  assert.ok(mounted.element.querySelector('[aria-label="Fechar nova solicitação"]'))
+  const keepEditing = [...mounted.element.querySelectorAll('[role="dialog"] button')]
+    .find(button => button.textContent.includes('Continuar editando'))
+  assert.ok(keepEditing)
+  keepEditing.click()
+  await flushPromises()
+  assert.ok(mounted.element.querySelector('[aria-label="Fechar nova solicitação"]'))
   mounted.element.querySelector('[aria-label="Fechar nova solicitação"]').click()
   await flushPromises()
-  assert.equal(Boolean(mounted.element.querySelector('[role="dialog"]')), false)
-  window.confirm = originalConfirm
+  const discard = [...mounted.element.querySelectorAll('[role="dialog"] button')]
+    .find(button => button.textContent.includes('Descartar alterações'))
+  assert.ok(discard)
+  discard.click()
+  await flushPromises()
+  assert.equal(Boolean(mounted.element.querySelector('[aria-label="Fechar nova solicitação"]')), false)
   mounted.unmount()
 })

@@ -1254,12 +1254,12 @@ const { confirmDiscard } = useUnsavedChanges(() => (
   showEditLocationModal.value && JSON.stringify(editingLocation.value) !== editLocationInitial.value
 ))
 
-function changeTab(tab) {
-  if (tab === activeTab.value || confirmDiscard()) activeTab.value = tab
+async function changeTab(tab) {
+  if (tab === activeTab.value || await confirmDiscard()) activeTab.value = tab
 }
 
-function closeEditLocationModal() {
-  if (confirmDiscard()) showEditLocationModal.value = false
+async function closeEditLocationModal() {
+  if (await confirmDiscard()) showEditLocationModal.value = false
 }
 
 useModalFocus(() => showEditLocationModal.value, editLocationDialog, closeEditLocationModal)

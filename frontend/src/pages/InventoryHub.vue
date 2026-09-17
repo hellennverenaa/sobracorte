@@ -57,8 +57,8 @@ function getSectorFromRoute(): SectorType {
 
 const showEntryForm = ref(false);
 const entryForm = ref<any>(null);
-function toggleEntryForm() {
-  if (showEntryForm.value && entryForm.value?.confirmDiscard && !entryForm.value.confirmDiscard()) return;
+async function toggleEntryForm() {
+  if (showEntryForm.value && entryForm.value?.confirmDiscard && !(await entryForm.value.confirmDiscard())) return;
   showEntryForm.value = !showEntryForm.value;
 }
 const { activeTab, search, currentPage, selectedLocationFilter, loadData } = useInventoryQuery(stockStore, authStore, route, getSectorFromRoute());
@@ -84,8 +84,8 @@ const movementDialog = ref(null);
 const movementSnapshot = ref('');
 const movementValues = () => JSON.stringify([movementType.value, movementQuantity.value, selectedLocationId.value, destinationLocationId.value, movementReason.value, movementObservation.value]);
 const { confirmDiscard } = useUnsavedChanges(() => showMovementModal.value && movementValues() !== movementSnapshot.value);
-function closeMovementModal() {
-  if (!movementLoading.value && confirmDiscard()) showMovementModal.value = false;
+async function closeMovementModal() {
+  if (!movementLoading.value && await confirmDiscard()) showMovementModal.value = false;
 }
 useModalFocus(() => showMovementModal.value, movementDialog, closeMovementModal);
 
@@ -507,7 +507,7 @@ onMounted(() => {
     <ToastNotification :notification="notification" />
     <PageState :loading="stockStore.loading" :error="stockStore.error || ''" @retry="loadData(currentPage)" />
 
-    <div class="flex flex-col h-full">
+    <div class="flex flex-col min-h-full">
       <!-- Top Bar com Botão Novo Item e Atualizar -->
       <div class="flex flex-col sm:flex-row gap-3 items-center justify-between mx-4 my-4">
         <div>
@@ -624,8 +624,8 @@ onMounted(() => {
       </div>
 
       <!-- Tabela Padrão Materials.vue -->
-      <div class="flex-1 overflow-auto px-4 pb-4">
-        <div class="bg-white rounded-b shadow border-b border-l border-r border-gray-200">
+      <div class="px-4 pb-4">
+        <div class="overflow-x-auto bg-white rounded-b shadow border-b border-l border-r border-gray-200">
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
               <!-- Headers CORTE -->

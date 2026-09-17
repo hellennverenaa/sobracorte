@@ -19,7 +19,7 @@ test('Reports consulta no servidor e preserva total da paginação', async () =>
     if (path === '/settings/origins') return { data: [] }
     return {
       data: {
-        items: [{ id: 'movement-1', data: new Date().toISOString(), setor: 'CORTE', tipo: 'ENTRADA', quantidade: 2, unidade: 'M²', responsavel: 'Operador' }],
+        items: [{ id: 'movement-1', data: new Date().toISOString(), setor: 'CORTE', tipo: 'ENTRADA', quantidade: 2, unidade: 'M²', responsavel: 'Operador', prateleira: 'PRAT-A1', motivo: 'Casamento de Par - Pé D. Obs: detalhe operacional' }],
         pagination: { page: 1, limit: 50, total: 101, totalPages: 3 },
         totals: { totalRegistros: 101, qtdOperacoesEntrada: 1 },
       },
@@ -29,6 +29,11 @@ test('Reports consulta no servidor e preserva total da paginação', async () =>
   await flushPromises()
   assert.ok(calls.some((path) => path.startsWith('/reports/movements?')))
   assert.match(mounted.element.textContent, /Total: 101 registros/)
+  assert.match(mounted.element.textContent, /Casamento de Par - Pé D\./)
+  assert.doesNotMatch(mounted.element.textContent, /detalhe operacional/)
+  const locationCell = [...mounted.element.querySelectorAll('.report-table-movements td')]
+    .find((cell) => cell.textContent.includes('PRAT-A1'))
+  assert.ok(locationCell?.classList.contains('print:hidden'))
   assert.ok(mounted.element.querySelector('select[aria-label="Setor industrial"]'))
   assert.ok(mounted.element.querySelector('button[aria-label="Próxima página"]'))
   mounted.unmount()

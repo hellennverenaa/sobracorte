@@ -41,9 +41,11 @@ test('formulário de entrada alterado exige confirmação para cancelar', async 
   window.confirm = () => false;
   const cancel = [...mounted.element.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Cancelar');
   cancel.click();
+  await flushPromises();
   assert.equal(cancelled, 0);
   window.confirm = () => true;
   cancel.click();
+  await flushPromises();
   assert.equal(cancelled, 1);
   mounted.unmount();
 });

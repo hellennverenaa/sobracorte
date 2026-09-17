@@ -434,6 +434,12 @@ function getStatusBadge(status) {
   }
   return map[status] || 'bg-slate-100 text-slate-700 border-slate-300'
 }
+
+function formatReportReason(value) {
+  const text = String(value || '').trim()
+  if (!text) return '-'
+  return text.replace(/(?:^|\s)Obs(?:ervação)?\s*:\s*.*$/i, '').trim() || '-'
+}
 </script>
 
 <template>
@@ -826,7 +832,7 @@ function getStatusBadge(status) {
                 <th class="py-3 px-3">Código / SKU</th>
                 <th class="py-3 px-3">Descrição do Material</th>
                 <th class="py-3 px-2 text-right">Qtd</th>
-                <th class="py-3 px-2 text-center">Localização</th>
+                <th class="py-3 px-2 text-center print:hidden">Localização</th>
                 <th class="py-3 px-3">Motivo / Origem</th>
               </tr>
             </thead>
@@ -854,8 +860,8 @@ function getStatusBadge(status) {
                 <td class="py-2.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">
                   {{ Number(item.quantidade).toLocaleString('pt-BR') }} <span class="text-[10px] font-normal text-slate-500">{{ item.unidade }}</span>
                 </td>
-                <td class="py-2.5 px-2 text-center text-slate-600 font-mono text-[11px]">{{ item.prateleira || '-' }}</td>
-                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ item.motivo || item.origem || '-' }}</td>
+                <td class="py-2.5 px-2 text-center text-slate-600 font-mono text-[11px] print:hidden">{{ item.prateleira || '-' }}</td>
+                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ formatReportReason(item.motivo || item.origem) }}</td>
               </tr>
               <tr v-if="reportData.length === 0">
                 <td colspan="8" class="py-12 text-center text-slate-400 font-medium">
@@ -928,7 +934,7 @@ function getStatusBadge(status) {
                   </span>
                 </td>
                 <td class="py-2.5 px-3 text-slate-700 whitespace-nowrap">{{ req.solicitante }}</td>
-                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ req.motivo }}</td>
+                <td class="report-cell-origin py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-xs">{{ formatReportReason(req.motivo) }}</td>
               </tr>
               <tr v-if="reportData.length === 0">
                 <td colspan="11" class="py-12 text-center text-slate-400 font-medium">
@@ -1007,19 +1013,19 @@ function getStatusBadge(status) {
   }
 
   .report-table {
-    font-size: 11.5px !important;
-    line-height: 1.2 !important;
-  }
-
-  .report-table thead th {
-    padding: 4px 3px !important;
     font-size: 10.5px !important;
     line-height: 1.15 !important;
   }
 
+  .report-table thead th {
+    padding: 3px 2px !important;
+    font-size: 9.5px !important;
+    line-height: 1.15 !important;
+  }
+
   .report-table tbody td {
-    padding: 4px 3px !important;
-    font-size: 11.5px !important;
+    padding: 3px 2px !important;
+    font-size: 10.5px !important;
     vertical-align: top !important;
   }
 
@@ -1028,21 +1034,21 @@ function getStatusBadge(status) {
   }
 
   .report-table-movements th:nth-child(1),
-  .report-table-movements td:nth-child(1) { width: 12%; }
+  .report-table-movements td:nth-child(1) { width: 14%; }
   .report-table-movements th:nth-child(2),
-  .report-table-movements td:nth-child(2) { width: 8%; }
+  .report-table-movements td:nth-child(2) { width: 9%; }
   .report-table-movements th:nth-child(3),
-  .report-table-movements td:nth-child(3) { width: 8%; }
+  .report-table-movements td:nth-child(3) { width: 10%; }
   .report-table-movements th:nth-child(4),
-  .report-table-movements td:nth-child(4) { width: 13%; }
+  .report-table-movements td:nth-child(4) { width: 15%; }
   .report-table-movements th:nth-child(5),
   .report-table-movements td:nth-child(5) { width: 21%; }
   .report-table-movements th:nth-child(6),
   .report-table-movements td:nth-child(6) { width: 8%; }
   .report-table-movements th:nth-child(7),
-  .report-table-movements td:nth-child(7) { width: 12%; }
+  .report-table-movements td:nth-child(7) { width: 0; }
   .report-table-movements th:nth-child(8),
-  .report-table-movements td:nth-child(8) { width: 18%; }
+  .report-table-movements td:nth-child(8) { width: 23%; }
 
   .report-print-badge {
     display: inline !important;
