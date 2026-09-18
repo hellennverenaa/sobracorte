@@ -1,114 +1,107 @@
-# SobraCorte - API & Gerenciamento de Estoque (DASS)
+# SobraCorte API
 
-Sistema backend para o controle de almoxarifado, movimentações de estoque, auditoria e geração de relatórios do projeto SobraCorte.
+API REST do SobraCorte para inventário multissetorial, movimentações, requisições, relatórios, configurações e controle de acesso por unidade fabril.
 
-## 🛠️ Stack Tecnológica
+## Stack
 
-- **Runtime:** Node.js + Express
-- **Banco de Dados:** PostgreSQL
-- **ORM:** Prisma
-- **Segurança (SecOps):** Helmet, CORS, Express Rate Limit
-- **Autenticação:** JWT (JSON Web Tokens)
+- Node.js e TypeScript;
+- Express 5;
+- PostgreSQL;
+- Prisma 7 com adapter `pg`;
+- JWT, Helmet, CORS e rate limiting;
+- Multer para importações CSV.
 
----
+## Execução local
 
-## 💻 Como Rodar Localmente (Ambiente de Desenvolvimento)
-
-Instruções para programadores que forem testar ou modificar o código localmente:
-
-1. Clone o repositório e instale as dependências:
+Na raiz do repositório:
 
 ```bash
-git clone https://github.com/hellennverenaa/sobracorte.git
-cd sobracorte/backend
-npm install
+npm --prefix backend ci
+cp backend/.env.example backend/.env
+npm run db:deploy
+npm run dev:backend
 ```
 
-1. Crie um arquivo `.env` na raiz do backend. O mesmo nome é usado localmente e na VPS:
+O backend exige `PORT`, `DATABASE_URL`, `PRIVATE_KEY` e `CORS_ORIGINS`. Consulte `.env.example` para os ajustes opcionais do pool e para `GLOBAL_ADMIN_IDENTITIES`.
 
-```env
-DATABASE_URL="postgresql://SEU_USUARIO:SUA_SENHA@localhost:5432/postgres?schema=sobra_corte"
-PRIVATE_KEY="mesma_chave_usada_pelo_dass_auth_service"
-CORS_ORIGINS="http://localhost:3000"
-PORT=3333
-GLOBAL_ADMIN_IDENTITIES=""
-```
+## Autenticação e tenant
 
-1. Aplique apenas as migrations versionadas e inicie o servidor:
+As rotas de negócio exigem `Authorization: Bearer <token>`. O token deve conter uma unidade e uma matrícula válidas. O header opcional `X-Dass-Unit` seleciona a unidade ativa e só pode divergir da unidade nativa para administradores globais autorizados.
+
+O papel e o setor efetivos vêm do vínculo local entre identidade e unidade. Claims externos não concedem permissões locais. Consultas Prisma em modelos multi-tenant recebem automaticamente o filtro `factoryUnitId` e falham quando executadas sem contexto de tenant.
+
+## Endpoints principais
+
+Todos os endpoints abaixo, exceto health checks, catálogo de unidades e login, exigem autenticação.
+
+### Infraestrutura e sessão
+
+- `GET /health`, `/health/live` e `/health/ready`;
+- `GET /factory-units`;
+- `GET /factory-unit/current`;
+- `PATCH /factory-unit/current/settings`;
+- `POST /auth/login`;
+- `POST /auth/check-user`.
+
+### Inventário e movimentos
+
+- `POST /inventory/batch`;
+- `GET /inventory/search`;
+- `GET /inventory/search-suggestions`;
+- `GET /inventory/combinations`;
+- `DELETE /inventory/stock-items/:id`;
+- `POST /inventory/movements`;
+- `GET /inventory/movements/history`;
+- `GET /inventory/mounting/matching-pairs`;
+- `POST /inventory/mounting/execute-match`.
+
+### Requisições
+
+- `POST /requisitions` e `/requisitions/check-availability`;
+- `GET /requisitions` e `/requisitions/pending-count`;
+- `POST /requisitions/:id/fulfill`;
+- `PATCH /requisitions/:id/cancel`.
+
+O módulo pode ser desativado por unidade fabril.
+
+### Dashboard e relatórios
+
+- `GET /dashboard/summary`;
+- `GET /reports/inventory` e `/reports/inventory/export`;
+- `GET /reports/movements` e `/reports/movements/export`;
+- `GET /reports/requisitions` e `/reports/requisitions/export`.
+
+### Administração
+
+- `GET /users` e `/users/audit`;
+- `PUT /users/:id` e `DELETE /users/:id`;
+- `/settings/categories`, `/settings/units`, `/settings/locations` e `/settings/origins`;
+- `POST /import/csv`.
+
+As permissões específicas de cada operação estão declaradas em `src/routes.ts` e são aplicadas no backend.
+
+## Scripts e validação
 
 ```bash
-npx prisma migrate deploy
-npx prisma generate
 npm run dev
-```
-
----
-
-## 📖 Documentação da API (Endpoints Principais)
-
-A API segue a arquitetura REST. Todas as rotas de negócio são protegidas e exigem autenticação.
-
-**Header obrigatório:** `Authorization: Bearer <seu_token_aqui>`
-
-### 🔐 Autenticação & Usuários
-
-- `POST /auth/check-user` - Sincroniza o usuário identificado pelo JWT.
-- `GET /users` - Lista os usuários (Requer nível Admin).
-
-### 📦 Materiais (Estoque)
-
-- `GET /materials` - Lista todos os materiais.
-- `POST /materials` - Cadastra um novo material, gerando a prateleira e saldo inicial.
-- `PUT /materials/:id` - Atualiza dados de um material.
-- `DELETE /materials/:id` - Exclui um material.
-
-### 🔄 Movimentações & Relatórios
-
-- `GET /movements` - Lista o histórico completo de entradas e saídas.
-- `POST /movements` - Registra uma nova entrada (acúmulo) ou saída (uso/venda).
-- `GET /stats` - Retorna os indicadores gerenciais (Top 5, Giro, etc).
-
----
-
-## 🚀 Passo a Passo de Deploy (Equipe de Redes/Infraestrutura)
-
-Instruções estritas para colocar a API no ar no servidor oficial de Produção da DASS.
-
-### 1. Pré-requisitos
-
-- Node.js (20.19+, 22.12+ ou 24+)
-- Banco de Dados PostgreSQL (versão 13+)
-- PM2 instalado globalmente (`npm install -g pm2`)
-
-### 2. Variáveis de Ambiente (Produção)
-
-No servidor da DASS, crie o arquivo `.env` oficial na raiz do backend. A aplicação não seleciona arquivos por ambiente:
-
-```env
-DATABASE_URL="postgresql://usuario:senha@IP_DO_SERVIDOR:5432/sobracorte?schema=sobra_corte"
-PRIVATE_KEY="mesma_chave_usada_pelo_dass_auth_service"
-CORS_ORIGINS="http://ORIGEM_DO_FRONTEND"
-PORT=3333
-```
-
-### 3. Migrations e Banco de Dados (Produção)
-
-⚠️ **Atenção DBA:** aplique somente migrations versionadas e revisadas:
-
-```bash
-npx prisma generate
-npx prisma migrate deploy
-```
-
-### 4. Configuração de Segurança (CORS)
-
-Adicione origens extras na variável `CORS_ORIGINS`, separadas por vírgula e sem caminhos.
-
-### 5. Iniciar Servidor (PM2)
-
-```bash
+npm test
 npm run build
-pm2 start dist/src/server.js --name "sobracorte-api"
-pm2 save
-pm2 startup
+npm run test:identity:db
+npm run test:stock-functional:db
+npm run test:stock-migration:db
+npm run test:tenant:db
 ```
+
+Também existem scripts operacionais de status, backfill, reconciliação e integridade do estoque. Eles requerem acesso explícito ao banco correspondente e não fazem parte da inicialização normal.
+
+## Build e deploy
+
+Use somente migrations versionadas:
+
+```bash
+npm ci
+npx prisma migrate deploy
+npm run build
+```
+
+O artefato do servidor é `dist/src/server.js`. O arquivo `ecosystem.config.cjs` contém a configuração PM2. Nunca substitua `prisma migrate deploy` por `prisma db push` em produção.

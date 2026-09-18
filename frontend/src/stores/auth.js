@@ -21,7 +21,7 @@ function decodeJwtPayload(token) {
   return JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')))
 }
 
-function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
+function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false, accessStatus = undefined) {
   const apiUser = decodeJwtPayload(token)
   const authOrigin = String(apiUser.origem || apiUser.origin || 'LEGADO').toUpperCase()
   const authUserId = String(apiUser.id ?? '')
@@ -43,6 +43,9 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false) {
     authOrigin,
     authUserId,
     isGlobalAdmin,
+    accessStatus: accessStatus || (isGlobalAdmin || syncedUser?.role === 'admin' || syncedUser?.assignedSector
+      ? 'active'
+      : 'pending_sector_assignment'),
   }
 }
 
@@ -118,6 +121,7 @@ export const useAuthStore = defineStore('auth', {
           checkResponse.data.user,
           checkResponse.data.unit,
           checkResponse.data.isGlobalAdmin,
+          checkResponse.data.accessStatus,
         );
         this.user = finalUser;
         localStorage.setItem('user', JSON.stringify(finalUser));
@@ -147,7 +151,7 @@ export const useAuthStore = defineStore('auth', {
         const synced = await api.post('/auth/check-user', null, {
           headers: { Authorization: `Bearer ${token}`, 'X-Dass-Unit': stored.unit.code },
         })
-        this.user = buildSessionUser(token, synced.data.user, synced.data.unit, synced.data.isGlobalAdmin)
+        this.user = buildSessionUser(token, synced.data.user, synced.data.unit, synced.data.isGlobalAdmin, synced.data.accessStatus)
         this.isAuthenticated = true
         localStorage.setItem('user', JSON.stringify(this.user))
         if (this.user.unit?.code) {
@@ -186,6 +190,7 @@ export const useAuthStore = defineStore('auth', {
           userSobraCorte,
           checkResponse.data.unit,
           checkResponse.data.isGlobalAdmin,
+          checkResponse.data.accessStatus,
         )
 
         this.user = finalUser

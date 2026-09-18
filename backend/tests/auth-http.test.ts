@@ -115,6 +115,7 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       assert.equal(body.nativeUnit.code, 'SEST');
       assert.equal(body.unit.code, 'SEST');
       assert.equal(body.isGlobalAdmin, false);
+      assert.equal(body.accessStatus, 'pending_sector_assignment');
     });
     await t.test('RBAC usa somente vínculo local e ignora papel recebido no token', async () => {
       const providerAdmin = { Authorization: `Bearer ${issue({ ...claims, role: 'admin', assignedSector: 'CORTE' })}` };

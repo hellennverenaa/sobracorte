@@ -18,5 +18,8 @@ export function buildRefreshedSessionUser({ user, token, tokenPayload, synced })
     assignedSector: syncedUser.assignedSector,
     unit: synced?.unit,
     isGlobalAdmin: synced?.isGlobalAdmin,
+    accessStatus: synced?.accessStatus || (synced?.isGlobalAdmin || syncedUser.role === 'admin' || syncedUser.assignedSector
+      ? 'active'
+      : 'pending_sector_assignment'),
   }
 }

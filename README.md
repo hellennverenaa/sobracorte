@@ -1,138 +1,127 @@
-# SobraCorte — Sistema Corporativo de Gestão de Resíduos, Inventário e Planejamento (Grupo Dass)
+# SobraCorte
 
-Sistema corporativo voltado ao controle de estoque de materiais, sobras de produção, inventário de insumos de corte/dublagem, rastreabilidade de movimentações e planejamento das linhas de calçados/vestuário do **Grupo Dass**.
+Sistema corporativo do Grupo Dass para gestão de sobras de produção, inventário multissetorial, movimentações, requisições e rastreabilidade por unidade fabril.
 
-## Documentação
+## Visão geral
 
-O [plano de evolução arquitetural](PLANO_EVOLUCAO_ARQUITETURAL.md) governa a refatoração em ciclos na branch `refactor/sobra_corte2.0`. A documentação técnica será consolidada na etapa final.
+O repositório contém duas aplicações:
 
----
+- `backend`: API REST em Node.js, TypeScript, Express, Prisma e PostgreSQL;
+- `frontend`: SPA em Vue 3, Pinia, Vue Router, Vite e Tailwind CSS.
 
-## Tecnologias Utilizadas
+O sistema atende os setores de Corte, Apoio, Pré-Fabricado, Distribuição, Expedição e Montagem. O estoque unificado usa `StockItem`, `StockItemLocation` e `StockMovement`. As tabelas legadas de materiais e movimentos permanecem no esquema para compatibilidade e reconciliação durante a migração.
+
+## Funcionalidades
+
+- dashboard com indicadores por setor e unidade de medida;
+- inventário com busca, filtros, localizações e movimentações;
+- entradas, saídas, transferências, refugo e casamento de pares;
+- requisições de reposição, atendimento parcial ou total e cancelamento;
+- relatórios paginados e exportação CSV de inventário, movimentos e requisições;
+- gestão de categorias, unidades de medida, localizações e origens;
+- importação de estoque por CSV;
+- gestão de usuários, papéis, setores e auditoria de alterações;
+- isolamento de dados por unidade fabril.
+
+## Arquitetura
 
 ### Backend
 
-- **Node.js & TypeScript / Express**: API RESTful arquitetada em controllers e rotas modulares.
-- **Prisma ORM**: Modelagem de dados relacional com suporte a múltiplos schemas PostgreSQL (`sobra_corte`, `autenticacao`, `public`).
-- **PostgreSQL**: Banco de dados relacional com índices de performance otimizados para consultas de grande volume.
-- **Fetch / Multer**: Comunicação HTTP e processamento de arquivos multipart (upload e validação de planilhas CSV).
+A API é organizada em rotas, controllers e serviços. As rotas de negócio exigem JWT emitido pelo serviço de autenticação da Dass.
+
+O tenant ativo é determinado pela unidade do token ou pelo header `X-Dass-Unit`. Apenas administradores globais configurados podem acessar uma unidade diferente da unidade nativa. Uma extensão do Prisma injeta `factoryUnitId` nas operações dos modelos isolados e rejeita consultas fora de um contexto de tenant.
+
+O backend também aplica Helmet, CORS, rate limiting, limites de payload, health checks, snapshots históricos e encerramento gracioso do servidor e do pool PostgreSQL.
 
 ### Frontend
 
-- **Vue 3 (Composition API / `<script setup>`)**: Interface reativa, modular e de alta performance.
-- **Pinia**: Gerenciamento de estado global de autenticação e sessão do usuário.
-- **Vue Router**: Navegação SPA com guardiões de rotas (_Navigation Guards_) baseados em papéis de acesso.
-- **Tailwind CSS**: Estilização moderna, design corporativo sóbrio, utilitários responsivos e micro-animações.
-- **Lucide Icons (`lucide-vue-next`)**: Conjunto de ícones SVG limpos e corporativos.
+A SPA restaura a sessão antes da montagem, protege rotas por papel e setor e envia automaticamente o token e a unidade ativa à API. Em uma resposta `401`, o cliente tenta renovar a sessão uma vez, sincroniza o usuário local e repete a requisição original.
 
----
+As rotas principais são:
 
-## Módulos do Sistema
+| Caminho | Módulo |
+| --- | --- |
+| `/` | Dashboard |
+| `/inventory` | Inventário e movimentações |
+| `/mounting-pairs` | Casamento de pares |
+| `/requisitions` | Requisições |
+| `/stock-history` | Histórico de estoque |
+| `/reports` | Relatórios |
+| `/users` | Gestão de usuários |
+| `/settings` | Configurações |
 
-1. **Dashboard**: Indicadores em tempo real, saldo total de materiais, alertas de estoque crítico, gráfico de distribuição por categoria e top acúmulos.
-2. **Materiais**: Catálogo completo com busca reativa, filtros por categoria, visualização de detalhes, controle de saldo e modal de cadastro/edição (com suporte a trava de unidade por categoria).
-3. **Movimentação**: Registro de entradas e saídas de sobras com identificação da origem (Consumo, Dublagem, etc.) e operador.
-4. **Relatórios**: Central de geração de relatórios filtrados por período, tipo de material e movimentação, com exportação para CSV/Excel e impressão otimizada em PDF.
-5. **Gestão de Usuários**: Painel administrativo para atribuição e atualização de níveis de acesso (RBAC).
-6. **Configurações**:
-   - **Categorias de Material**: Gerenciamento com definição de Unidade Padrão e Trava de Unidade.
-   - **Unidades de Medida**: CRUD dinâmico via API (`GET /settings/units`).
-   - **Localizações**: Cadastro de prateleiras e caixotes vinculados relacionalmente às categorias.
-   - **Origens de Sobra**: Gerenciamento das origens de movimentação.
-   - **Importação CSV**: Importação em lote com orientações visuais, modelo baixável UTF-8 BOM e validação amigável de erros.
+`/materials` e `/movement` existem somente como redirecionamentos de compatibilidade no frontend.
 
----
+## Papéis e acesso
 
-## Controle de Acesso Baseado em Papéis (RBAC Matrix)
+| Papel | Acesso principal |
+| --- | --- |
+| `leitor` | Consulta dashboard, inventário, histórico, pares e requisições habilitadas |
+| `movimentador` | Acesso de leitura e registro de movimentos no setor atribuído |
+| `lider` | Movimentos, criação em lote e relatórios do setor atribuído |
+| `admin_setor` | Gestão operacional e configurações do setor atribuído |
+| `admin` | Administração completa da unidade, incluindo usuários |
 
-O sistema enforca o controle de acesso tanto na barra lateral reativa ([Layout.vue](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/components/Layout.vue)) quanto no guardião de rotas do Vue Router ([router/index.js](file:///home/hellen/Documentos/PROJETOS/sobracorte/frontend/src/router/index.js)):
+Administradores globais têm acesso administrativo às unidades autorizadas pela configuração. O backend é a autoridade final de acesso; as proteções do frontend servem apenas à navegação e à experiência do usuário.
 
-| Nível / Cargo    | Dashboard (`/`) | Materiais (`/materials`) | Movimentação (`/movement`) | Relatórios (`/reports`) | Usuários (`/users`) | Configurações (`/settings`) |
-| :--------------- | :-------------: | :----------------------: | :------------------------: | :---------------------: | :-----------------: | :-------------------------: |
-| **Leitor**       |  ✅ Visualiza   |    ✅ Apenas Leitura     |        ❌ Bloqueado        |      ❌ Bloqueado       |    ❌ Bloqueado     |        ❌ Bloqueado         |
-| **Movimentador** |  ✅ Visualiza   |    ✅ Apenas Leitura     |   ✅ Lança Movimentação    |      ❌ Bloqueado       |    ❌ Bloqueado     |        ❌ Bloqueado         |
-| **Líder**        |  ✅ Visualiza   | ✅ Criar/Editar/Excluir  |   ✅ Lança Movimentação    |   ✅ Gera Relatórios    |    ❌ Bloqueado     |        ❌ Bloqueado         |
-| **Admin Master** | ✅ Acesso Total |     ✅ Acesso Total      |      ✅ Acesso Total       |     ✅ Acesso Total     | ✅ Gestão Completa  |     ✅ Painel Completo      |
+## Requisitos
 
----
+- Node.js `20.19+`, `22.12+` ou `24+`;
+- PostgreSQL 13 ou superior;
+- serviço de autenticação Dass e API Gateway disponíveis para o fluxo integrado.
 
-## Instruções para Configuração e Execução Local
+## Configuração local
 
-### 1. Clonar o Repositório
-
-```bash
-git clone <URL_DO_REPOSITORIO>
-cd sobracorte
-```
-
-### 2. Configurar Variáveis de Ambiente
-
-O projeto usa sempre o arquivo `.env`, tanto localmente quanto na VPS. Crie `backend/.env`:
-
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=sobra_corte"
-PORT=3333
-PRIVATE_KEY="mesmo JWT_SECRET configurado no dass_auth_service"
-CORS_ORIGINS="http://localhost:3000"
-GLOBAL_ADMIN_IDENTITIES="SEST:12345,SAJ:67890"
-```
-
-`GLOBAL_ADMIN_IDENTITIES` aceita identidades `UNIDADE:MATRÍCULA` sem duplicatas. Use uma string vazia quando não houver administradores globais.
-
-Crie também `frontend/.env`:
-
-```env
-VITE_AUTH_API_URL="/api"
-VITE_SOBRACORTE_API_URL="/api/sobracorte"
-VITE_PORTAL_UNIX_URL="http://10.100.1.43/unix/"
-VITE_DASS_IDENTITIES_URL="http://10.100.1.43/identities/"
-VITE_DEV_PORT=3000
-```
-
-Na VPS, mantenha os mesmos nomes de arquivo e altere somente os valores. As variáveis do frontend são incorporadas ao bundle durante `npm run build`.
-
-### 3. Instalar Dependências
-
-Na raiz do `sobracorte`:
+Instale as dependências e crie os arquivos de ambiente:
 
 ```bash
 npm --prefix backend ci
 npm --prefix frontend ci
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
-### 4. Preparar o banco local
+As variáveis obrigatórias estão documentadas nos arquivos `.env.example`. `GLOBAL_ADMIN_IDENTITIES` aceita uma lista separada por vírgulas no formato `UNIDADE:MATRICULA`. `VITE_GATEWAY_URL` é opcional e usa `http://127.0.0.1:2399` por padrão no desenvolvimento.
+
+## Banco de dados
+
+Aplique somente as migrations versionadas:
 
 ```bash
 npm run db:deploy
 ```
 
-Esse comando aplica somente migrations SQL versionadas. O `build` gera o cliente Prisma automaticamente.
+Não use `prisma db push` em produção. Scripts de backfill, reconciliação e integridade do estoque estão disponíveis no `backend/package.json` e devem seguir o procedimento de migração do ambiente.
 
-### 5. Executar em Modo de Desenvolvimento
+## Desenvolvimento
 
-Com o `dass_auth_service` e o `api-gateway` do ambiente já ativos, execute apenas:
+Com o serviço de autenticação e o gateway ativos:
 
 ```bash
 npm run dev:backend
 npm run dev:frontend
 ```
 
-O auth existente fica em `2400`, o gateway em `2399`, o backend em `3333` e o frontend em `3000`. O navegador acessa `/api/auth` e `/api/sobracorte` pelo gateway existente.
+Portas padrão: autenticação `2400`, gateway `2399`, backend `3333` e frontend `3000`.
 
----
-
-## Implantação e Deploy em Produção
-
-Para detalhes do backend e das variáveis obrigatórias, consulte o [README do backend](backend/README.md).
-
-### Comando Seguro de Migração em Produção:
+## Validação
 
 ```bash
-cd backend
-export DATABASE_URL="postgresql://usuario:senha@ip_servidor:5432/sobra_corte?schema=sobra_corte"
-npx prisma migrate deploy
-npx prisma generate
+npm test
+npm --prefix frontend test
+npm run build
 ```
 
-> [!CAUTION]
-> Em produção e no ambiente de testes, aplique somente as migrations versionadas com `npx prisma migrate deploy`.
+Os testes que dependem de PostgreSQL possuem comandos específicos no `backend/package.json` e requerem um banco de teste preparado.
+
+## Produção
+
+Antes de iniciar uma nova versão do backend:
+
+```bash
+npm --prefix backend ci
+npm run db:deploy
+npm --prefix backend run build
+```
+
+O processo PM2 pode ser iniciado com `backend/ecosystem.config.cjs`. Consulte também o [README do backend](backend/README.md) e o [guia de segurança](backend/SECURITY.md).

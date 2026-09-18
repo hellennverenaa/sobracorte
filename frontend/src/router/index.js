@@ -11,6 +11,8 @@ import Profile from '@/pages/Profile.vue'
 import Users from '@/pages/Users.vue'
 import Reports from '@/pages/Reports.vue'
 import Settings from '@/pages/Settings.vue'
+import AccessPending from '@/pages/AccessPending.vue'
+import { hasPendingSectorAssignment } from '@/services/unitAccess'
 
 const routes = [
   { 
@@ -75,6 +77,12 @@ const routes = [
     component: Profile, 
     meta: { requiresAuth: true } 
   },
+  {
+    path: '/access-pending',
+    name: 'AccessPending',
+    component: AccessPending,
+    meta: { requiresAuth: true, allowsPendingAccess: true }
+  },
   { 
     path: '/users', 
     name: 'Users', 
@@ -125,6 +133,12 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.path === '/login' && authStore.isAuthenticated) {
+    return next(hasPendingSectorAssignment(authStore.user) ? '/access-pending' : '/')
+  }
+
+  if (authStore.isAuthenticated && hasPendingSectorAssignment(authStore.user)) {
+    if (!to.meta.allowsPendingAccess) return next('/access-pending')
+  } else if (to.path === '/access-pending') {
     return next('/')
   }
 

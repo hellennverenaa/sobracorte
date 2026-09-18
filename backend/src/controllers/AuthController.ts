@@ -122,6 +122,9 @@ export class AuthController {
         role: req.isGlobalAdmin ? 'admin' : (result.binding?.role || 'leitor'),
         assignedSector: result.binding?.assignedSector || null,
       };
+      const accessStatus = req.isGlobalAdmin || effectiveUser.role === 'admin' || effectiveUser.assignedSector
+        ? 'active'
+        : 'pending_sector_assignment';
       const effectiveContext = {
         userId: result.identity.id,
         identityId: result.identity.id,
@@ -144,6 +147,7 @@ export class AuthController {
         nativeUnit,
         unit: req.tenant,
         isGlobalAdmin: Boolean(req.isGlobalAdmin),
+        accessStatus,
       });
     } catch (error) {
       if (error instanceof LegacyIdentityConflictError) return res.status(409).json({ error: error.message });
