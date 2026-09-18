@@ -10,7 +10,18 @@ async function main() {
   const client = new Client({ connectionString: url.toString() });
   try {
     await client.connect();
-    const results = await client.query(readFileSync(join(__dirname, 'unit-catalog-audit.sql'), 'utf8'));
+    const { rows: tables } = await client.query(`
+      SELECT to_regclass('sobra_corte."UnitConfig"') AS unit_config,
+             to_regclass('sobra_corte."CategoryConfig"') AS category_config,
+             to_regclass('sobra_corte."StockItem"') AS stock_item
+    `);
+    if (!tables[0].category_config || !tables[0].stock_item) {
+      throw new Error('Schema de estoque/configurações não encontrado.');
+    }
+    const auditFile = tables[0].unit_config
+      ? 'unit-catalog-audit.sql'
+      : 'unit-catalog-audit-post.sql';
+    const results = await client.query(readFileSync(join(__dirname, auditFile), 'utf8'));
     const rows = results.find(result => result.command === 'SELECT').rows;
     const counts = {};
     for (const row of rows) counts[row.issue] = (counts[row.issue] || 0) + 1;

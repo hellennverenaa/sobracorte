@@ -18,10 +18,13 @@ em um clone isolado. No backend apontado para esse clone, execute:
 npm run stock:units:audit
 ```
 
-A auditoria é somente leitura e deve ser executada antes da remoção de UnitConfig.
-Ela resume aliases e referências de categorias e lista cada inconsistência por
-ID. Símbolos desconhecidos, frações incompatíveis e conflitos de unitLock legado
-bloqueiam a migration. Revise cada ocorrência; não arredonde ou deduza equivalências.
+A auditoria é somente leitura. Antes da remoção de `UnitConfig`, ela resume aliases
+e referências legadas de categorias e lista cada inconsistência por ID. Depois da
+migração, o mesmo comando detecta automaticamente o schema atual e verifica
+`StockItem`, `StockItemLocation` e `CategoryConfig` sem consultar a tabela removida.
+Símbolos desconhecidos, frações incompatíveis e categorias bloqueadas sem unidade
+definida bloqueiam a validação. Revise cada ocorrência; não arredonde ou deduza
+equivalências.
 
 A migration é transacional: normaliza apenas símbolos, transfere os padrões de
 categorias para códigos, transforma unitLock m2/m em padrão bloqueado e remove

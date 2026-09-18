@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeUnit, areUnitsCompatible, isDiscreteSector, isDiscreteUnit, requiresIntegerQuantity } from '../src/utils/unitHelper';
-import { validateImportBatch } from '../src/import/materialImport';
+import { ImportValidationError, validateImportBatch } from '../src/import/materialImport';
 import { ParsedCsvRow } from '../src/import/csvParser';
 
 test('unitHelper: normalizeUnit padroniza variações e aliases de unidades de medida', () => {
@@ -88,7 +88,11 @@ test('unitHelper: Corte segue a unidade para quantidades contínuas', () => {
 test('importação rejeita Consumo e aliases sem redirecioná-los para Corte', () => {
   const locations = [{ id: 1, name: 'C-01', sector: 'CORTE' as any }];
   for (const sector of ['CONSUMO', 'INSUMOS', 'QUIMICOS']) {
-    assert.throws(() => validateImportBatch(['setor', 'codigo', 'descricao'], [{ rowNumber: 2, cells: [sector, 'I', 'ITEM'] } as ParsedCsvRow], 'CORTE', locations), /Setor inválido ou descontinuado/);
+    assert.throws(
+      () => validateImportBatch(['setor', 'codigo', 'descricao'], [{ rowNumber: 2, cells: [sector, 'I', 'ITEM'] } as ParsedCsvRow], 'CORTE', locations),
+      (error) => error instanceof ImportValidationError
+        && error.errors.some(({ message }) => /Setor inválido ou descontinuado/.test(message)),
+    );
   }
 });
 
