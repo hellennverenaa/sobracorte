@@ -182,6 +182,19 @@ test('HTTP real cobre Consumo, relatórios/exportações, snapshots e 404 das AP
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
     const base = `http://127.0.0.1:${(server.address() as import('node:net').AddressInfo).port}`;
     const get = (path: string) => fetch(`${base}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    const post = (path: string, payload: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const catalog = await (await get('/settings/units')).json();
+    assert.equal(catalog.length, 10);
+    assert.ok(catalog.every((unit: any) => typeof unit.integerOnly === 'boolean' && !('id' in unit) && !('linkedCount' in unit)));
+    assert.equal((await post('/settings/units', { name: 'Livre', symbol: 'FOLHA' })).status, 404);
+    assert.equal((await fetch(`${base}/settings/units/1`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })).status, 404);
+    const categoryResponse = await post('/settings/categories', { name: 'LOCKED', sector: 'CORTE', defaultUnitCode: 'm2', unitLocked: true });
+    assert.equal(categoryResponse.status, 201);
+    assert.equal((await categoryResponse.json()).defaultUnitCode, 'M²');
+    const rejected = await post('/inventory/batch', { items: [{ ...corte('LOCKED-INVALID', 1, 'KG'), type: 'LOCKED' }] });
+    assert.equal(rejected.status, 400);
+    assert.match(JSON.stringify(await rejected.json()), /bloqueada/);
+
     for (const path of ['/dashboard/summary', '/inventory/search?sector=CONSUMO', '/inventory/search-suggestions?sector=CONSUMO', '/inventory/combinations?sector=CORTE', '/inventory/mounting/matching-pairs', '/inventory/movements/history', '/requisitions', '/requisitions/pending-count', '/reports/inventory', '/reports/movements', '/reports/requisitions', '/reports/inventory/export', '/reports/movements/export', '/reports/requisitions/export']) assert.equal((await get(path)).status, 200, path);
     for (const path of ['/materials', '/movements', '/stats', '/reports/data', '/dashboard/origem-sobras', '/dashboard/distribuicao', '/dashboard/top-materiais']) assert.equal((await get(path)).status, 404, path);
     const report = await (await get('/reports/inventory?page=1&limit=1')).json();
@@ -215,4 +228,29 @@ test('HTTP real cobre Consumo, relatórios/exportações, snapshots e 404 das AP
     vars.GLOBAL_ADMIN_IDENTITIES = previousAdmins;
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
+}));
+
+test('quantidades seguem o catálogo nas entradas, transferências e requisições', options, async () => inUnit(async context => {
+  for (const unit of ['UN', 'PAR', 'CX', 'ROLO', 'M', 'M²', 'CM', 'L', 'G', 'KG']) {
+    const code = `UNIT-${unit}`;
+    const [item] = await create(context, corte(code, 10, unit));
+    const location = await prisma.location.findFirstOrThrow({ where: { name: 'C1' } });
+    const discrete = ['UN', 'PAR', 'CX', 'ROLO'].includes(unit);
+    for (const quantity of [0, -1, 1.0001, ...(discrete ? [1.01] : [])]) {
+      for (const type of ['ENTRADA', 'SAIDA', 'TRANSFERENCIA'] as const) await assert.rejects(movements.createMovement({ stockItemId: item.id, type, quantity, locationId: location.id, origem: '', reason: '' }, context));
+    }
+    await balance(item.id, 10);
+    if (discrete) await assert.rejects(requests.createRequisition(requestFor(code, 1.01), context), /inteiro/);
+    const quantity = discrete ? 1 : 1.01;
+    await movements.createMovement({ stockItemId: item.id, type: 'ENTRADA', quantity, locationId: location.id, origem: '', reason: '' }, context);
+    const request = (await requests.createRequisition(requestFor(code, quantity), context)).items[0];
+    await assert.rejects(requests.fulfillRequisition(request.id, { quantity: 0.0001, observation: '' }, context));
+    if (discrete) await assert.rejects(requests.fulfillRequisition(request.id, { quantity: 0.5, observation: '' }, context), /inteiro/);
+    await requests.fulfillRequisition(request.id, { quantity, observation: '' }, context);
+    await balance(item.id, 10);
+  }
+  await prisma.categoryConfig.create({ data: { name: 'LOCKED', sector: 'CORTE', factoryUnitId: context.factoryUnitId, defaultUnitCode: 'M²', unitLocked: true } });
+  const location = await prisma.location.findFirstOrThrow({ where: { name: 'C1' } });
+  await assert.rejects(executeImportTransaction(prisma, [{ rowNumber: 2, sector: 'CORTE', code: 'LOCKED-CSV', name: 'Test', unit: 'KG', type: 'LOCKED', quantity: 1, locationId: location.id, locationName: 'C1' }], context), /bloqueada/);
+  assert.equal(await prisma.stockItem.count({ where: { code: 'LOCKED-CSV' } }), 0);
 }));

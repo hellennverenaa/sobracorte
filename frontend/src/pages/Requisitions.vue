@@ -5,6 +5,7 @@ import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import { useToast } from '@/composables/useToast';
+import { useSettings } from '@/composables/useSettings';
 import { useRequisitions } from '@/composables/useRequisitions';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useModalFocus } from '@/composables/useModalFocus';
@@ -24,6 +25,7 @@ const route = useRoute();
 const router = useRouter();
 
 interface RequisitionItem {
+  unit?: string;
   id: string;
   code: string;
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
@@ -65,6 +67,7 @@ interface StagedRequisitionItem {
   footSide?: 'E' | 'D' | 'PAR' | null;
   quantityRequested: number;
   reason: string;
+  unit?: string;
   stockAvailable: number;
   locations: string[];
   pairsDetail?: { esq: number; dir: number };
@@ -108,7 +111,7 @@ const formItem = ref({
   description: '',
   type: '',
   color: '',
-  unit: 'UND',
+  unit: 'UN',
   sizeGrade: '',
   footSide: null as 'E' | 'D' | 'PAR' | null,
   quantityRequested: 1,
@@ -171,6 +174,13 @@ const fulfillingItem = ref<RequisitionItem | null>(null);
 const fulfillQuantity = ref(1);
 const fulfillObservation = ref('');
 const isFulfilling = ref(false);
+const { units: measurementUnits, fetchUnits } = useSettings();
+onMounted(fetchUnits);
+function integerQuantity(unit: string | undefined, sector: string) {
+  return sector !== 'CORTE' || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
+}
+const requestIntegerOnly = computed(() => integerQuantity(formItem.value.unit, currentSector.value));
+const fulfillIntegerOnly = computed(() => integerQuantity(fulfillingItem.value?.unit, fulfillingItem.value?.requestSector || ''));
 const fulfillInitial = ref('');
 
 // Modal de Detalhes
@@ -219,6 +229,7 @@ async function checkCurrentItemAvailability() {
       footSide: formItem.value.footSide || undefined,
     });
 
+    if (res.data?.unit) formItem.value.unit = res.data.unit;
     availabilityResult.value = {
       checked: true,
       quantity: res.data?.quantity || 0,
@@ -291,7 +302,7 @@ function onSectorChange() {
     description: '',
     type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
     color: '',
-    unit: currentSector.value === 'CORTE' ? 'M²' : 'UND',
+    unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
     footSide: null,
     quantityRequested: 1,
@@ -351,6 +362,9 @@ function addCurrentItem() {
     }
   }
 
+  if (!Number.isFinite(formItem.value.quantityRequested) || !/^\d+(?:\.\d{1,3})?$/.test(String(formItem.value.quantityRequested)) || (requestIntegerOnly.value && !Number.isInteger(formItem.value.quantityRequested))) {
+    showToast('Quantidade inválida: peças exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
+  }
   if (formItem.value.quantityRequested <= 0) {
     showToast('A quantidade solicitada deve ser maior que zero.', 'error');
     return;
@@ -395,7 +409,7 @@ function addCurrentItem() {
     description: '',
     type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
     color: '',
-    unit: currentSector.value === 'CORTE' ? 'M²' : 'UND',
+    unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
     footSide: null,
     quantityRequested: 1,
@@ -497,6 +511,9 @@ function openFulfill(item: RequisitionItem) {
 
 async function executeFulfill() {
   if (!fulfillingItem.value) return;
+  if (!Number.isFinite(fulfillQuantity.value) || !/^\d+(?:\.\d{1,3})?$/.test(String(fulfillQuantity.value)) || (fulfillIntegerOnly.value && !Number.isInteger(fulfillQuantity.value))) {
+    showToast('Quantidade inválida: peças exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
+  }
   if (fulfillQuantity.value <= 0) {
     showToast('A quantidade a atender deve ser maior que zero.', 'error');
     return;
@@ -954,19 +971,15 @@ onMounted(() => {
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block font-bold text-slate-600 uppercase mb-1">Unidade</label>
-                  <input
-                    v-model="formItem.unit"
-                    type="text"
-                    placeholder="M², Metros, Folhas..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+                  <input v-model="formItem.unit" readonly class="w-full border border-slate-200 p-2.5 rounded-xl bg-slate-50" />
                 </div>
                 <div>
                   <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
                   <input
                     v-model.number="formItem.quantityRequested"
                     type="number"
-                    min="1"
+                    :min="requestIntegerOnly ? 1 : 0.001"
+                    :step="requestIntegerOnly ? 1 : 0.001"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1035,7 +1048,8 @@ onMounted(() => {
                   <input
                     v-model.number="formItem.quantityRequested"
                     type="number"
-                    min="1"
+                    :min="requestIntegerOnly ? 1 : 0.001"
+                    :step="requestIntegerOnly ? 1 : 0.001"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1145,7 +1159,8 @@ onMounted(() => {
                   <input
                     v-model.number="formItem.quantityRequested"
                     type="number"
-                    min="1"
+                    :min="requestIntegerOnly ? 1 : 0.001"
+                    :step="requestIntegerOnly ? 1 : 0.001"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1274,7 +1289,8 @@ onMounted(() => {
                   <input
                     v-model.number="formItem.quantityRequested"
                     type="number"
-                    min="1"
+                    :min="requestIntegerOnly ? 1 : 0.001"
+                    :step="requestIntegerOnly ? 1 : 0.001"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1392,7 +1408,8 @@ onMounted(() => {
                   <input
                     v-model.number="formItem.quantityRequested"
                     type="number"
-                    min="1"
+                    :min="requestIntegerOnly ? 1 : 0.001"
+                    :step="requestIntegerOnly ? 1 : 0.001"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
@@ -1589,7 +1606,8 @@ onMounted(() => {
             <input
               v-model.number="fulfillQuantity"
               type="number"
-              min="1"
+              :min="fulfillIntegerOnly ? 1 : 0.001"
+              :step="fulfillIntegerOnly ? 1 : 0.001"
               :max="fulfillingItem.stockAvailable"
               class="w-full border border-slate-200 p-2.5 rounded-xl font-black text-sm outline-none focus:border-emerald-500"
             />

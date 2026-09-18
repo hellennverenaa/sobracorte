@@ -1,3 +1,4 @@
+import { UnitValidationError } from '../utils/unitHelper';
 import { requestStockAccess, assignedStockSector, assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
@@ -81,6 +82,7 @@ export class ImportController {
       });
 
     } catch (error: unknown) {
+      if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });

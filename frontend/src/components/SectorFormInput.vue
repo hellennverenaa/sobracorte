@@ -88,7 +88,7 @@ const formData = reactive({
   color: '',
   code: '',
   name: '',
-  unit: 'M2',
+  unit: activeSector.value === 'CORTE' ? 'M²' : 'UN',
   type: activeSector.value === 'PRE_FABRICADO' ? 'EVA' : (activeSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
   pieceCode: '',
   description: '',
@@ -162,8 +162,8 @@ async function fetchDynamicSettings() {
 
 function onCategoryChange() {
   const selected = dbCategories.value.find(c => c.name === formData.type);
-  if (selected && selected.defaultUnit) {
-    formData.unit = selected.defaultUnit.symbol;
+  if (selected && selected.defaultUnitCode) {
+    formData.unit = selected.defaultUnitCode;
   }
   // Resetar a prateleira quando a categoria for alterada
   formData.location = '';
@@ -249,55 +249,14 @@ function handleSizeGradeInput(event: Event) {
 }
 
 const isIntegerQuantitySector = computed(() => {
-  return activeSector.value !== 'CORTE';
+  return activeSector.value !== 'CORTE' || Boolean(dbUnits.value.find(unit => unit.symbol === formData.unit)?.integerOnly);
 });
-
-function handleQuantityKeypress(event: KeyboardEvent) {
-  const key = event.key;
-  // Permite teclas de controle e navegação (Ctrl+C, Ctrl+V, Backspace, Tab, Enter, etc.)
-  if (event.ctrlKey || event.metaKey || key.length > 1) {
-    return;
-  }
-
-  if (isIntegerQuantitySector.value) {
-    // Setores discretos (Apoio, Pré-Fabricado, Distribuição, Montagem): estritamente dígitos [0-9]
-    if (!/^\d$/.test(key)) {
-      event.preventDefault();
-    }
-  } else {
-    // Setor de Corte: aceita estritamente dígitos [0-9] e no máximo 1 separador decimal (. ou ,)
-    const input = event.target as HTMLInputElement;
-    if (key === '.' || key === ',') {
-      const currentVal = String(input.value || '');
-      if (currentVal.includes('.') || currentVal.includes(',')) {
-        event.preventDefault();
-      }
-    } else if (!/^\d$/.test(key)) {
-      // Bloqueia qualquer letra ou símbolo (ex: s, d, a, f, e, E, +, -, etc.)
-      event.preventDefault();
-    }
-  }
-}
 
 function handleQuantityInput(event: Event) {
   const input = event.target as HTMLInputElement;
   const raw = String(input.value || '');
 
-  if (isIntegerQuantitySector.value) {
-    // Remove qualquer caractere não numérico
-    const clean = raw.replace(/\D/g, '');
-    formData.quantity = clean ? parseInt(clean, 10) : ('' as any);
-    input.value = clean;
-  } else {
-    // Setor Corte: aceita dígitos e no máximo um ponto decimal
-    let clean = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
-    const parts = clean.split('.');
-    if (parts.length > 2) {
-      clean = parts[0] + '.' + parts.slice(1).join('');
-    }
-    formData.quantity = clean ? Number(clean) : 0;
-    input.value = clean;
-  }
+  formData.quantity = raw.replace(/,/g, '.') as any;
 }
 
 function handleColorKeydown(event: KeyboardEvent) {
@@ -329,9 +288,7 @@ function selectSector(sector: SectorType) {
   } else if (sector === 'DISTRIBUICAO') {
     formData.type = 'CABEDAL';
   }
-  if (sector !== 'CORTE' && !Number.isInteger(Number(formData.quantity))) {
-    formData.quantity = Math.max(1, Math.floor(Number(formData.quantity) || 1));
-  }
+
   fetchCombinations(sector);
   errorMessage.value = '';
   successMessage.value = '';
@@ -348,7 +305,7 @@ function resetForm() {
   formData.color = '';
   formData.code = '';
   formData.name = '';
-  formData.unit = dbUnits.value.length > 0 ? dbUnits.value[0].symbol : 'M2';
+  formData.unit = activeSector.value === 'CORTE' ? 'M²' : 'UN';
   formData.type = activeSector.value === 'PRE_FABRICADO' 
     ? 'EVA' 
     : (activeSector.value === 'DISTRIBUICAO' 
@@ -383,6 +340,10 @@ async function handleSubmit() {
     return;
   }
 
+  if (!Number.isFinite(Number(formData.quantity)) || !/^\d+(?:\.\d{1,3})?$/.test(String(formData.quantity))) {
+    errorMessage.value = 'Quantidade inválida: use até três casas decimais.';
+    return;
+  }
   if (isIntegerQuantitySector.value && !Number.isInteger(Number(formData.quantity))) {
     errorMessage.value = `A quantidade inicial para o setor ${activeSector.value} deve ser um número inteiro (sem decimais).`;
     return;
@@ -405,7 +366,7 @@ async function handleSubmit() {
         ...payloadItem,
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim().toUpperCase(),
-        unit: (formData.unit || 'M2').trim().toUpperCase(),
+        unit: (formData.unit || 'M²').trim().toUpperCase(),
         type: (formData.type || 'OUTROS').trim().toUpperCase(),
       };
       break;
@@ -422,7 +383,7 @@ async function handleSubmit() {
         description: formData.description.trim().toUpperCase(),
         materialColor: (formData.materialColor || 'PADRAO').trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        unit: 'UND',
+        unit: 'UN',
       };
       break;
 
@@ -439,7 +400,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UND',
+        unit: 'UN',
       };
       break;
 
@@ -458,7 +419,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UND',
+        unit: 'UN',
       };
       break;
 
@@ -474,7 +435,7 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UND',
+        unit: 'UN',
       };
       break;
   }
@@ -604,10 +565,10 @@ onMounted(async () => {
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
             required
           >
-            <option v-for="unit in dbUnits" :key="unit.id" :value="unit.symbol">
+            <option v-for="unit in dbUnits" :key="unit.symbol" :value="unit.symbol">
               {{ unit.name }} ({{ unit.symbol }})
             </option>
-            <option v-if="dbUnits.length === 0" value="M2">M² (Metro Quadrado)</option>
+            <option v-if="dbUnits.length === 0" value="M²">M² (Metro Quadrado)</option>
           </select>
         </div>
       </div>
@@ -956,9 +917,9 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Quantidade Inicial *</label>
           <input
             v-model="formData.quantity"
+            :step="isIntegerQuantitySector ? 1 : 0.001"
             type="text"
             :inputmode="isIntegerQuantitySector ? 'numeric' : 'decimal'"
-            @keypress="handleQuantityKeypress"
             @input="handleQuantityInput"
             placeholder="Ex: 10"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white font-bold text-sm text-gray-800"

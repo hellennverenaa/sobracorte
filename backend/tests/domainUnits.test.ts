@@ -32,12 +32,12 @@ test('unitHelper: normalizeUnit padroniza variações e aliases de unidades de m
 
   // Unidade por setor
   assert.equal(normalizeUnit('un', 'CORTE'), 'UN');
-  assert.equal(normalizeUnit('und', 'MONTAGEM'), 'UND');
-  assert.equal(normalizeUnit('un', 'MONTAGEM'), 'UND');
+  assert.equal(normalizeUnit('und', 'MONTAGEM'), 'UN');
+  assert.equal(normalizeUnit('un', 'MONTAGEM'), 'UN');
   assert.equal(normalizeUnit('', 'CORTE'), 'UN');
-  assert.equal(normalizeUnit('', 'APOIO'), 'UND');
+  assert.equal(normalizeUnit('', 'APOIO'), 'UN');
   assert.equal(normalizeUnit(null, 'CORTE'), 'UN');
-  assert.equal(normalizeUnit(undefined, 'DISTRIBUICAO'), 'UND');
+  assert.equal(normalizeUnit(undefined, 'DISTRIBUICAO'), 'UN');
 
   // Rolo, Caixa, Litro, Centímetro
   assert.equal(normalizeUnit('rl'), 'ROLO');
@@ -53,7 +53,7 @@ test('unitHelper: normalizeUnit padroniza variações e aliases de unidades de m
 test('unitHelper: areUnitsCompatible valida equivalência semântica de unidades', () => {
   assert.equal(areUnitsCompatible('M2', 'M²'), true);
   assert.equal(areUnitsCompatible('m2', 'M2'), true);
-  assert.equal(areUnitsCompatible('UN', 'UND'), true);
+  assert.equal(areUnitsCompatible('UN', 'UN'), true);
   assert.equal(areUnitsCompatible('KG', 'kg'), true);
   assert.equal(areUnitsCompatible('PAR', 'par'), true);
 
@@ -212,4 +212,35 @@ test('Importação CSV: validateImportBatch normaliza unidades canônicas por se
   assert.equal(result.length, 2);
   assert.equal(result[0].unit, 'M²', 'CORTE deve normalizar m2 para M²');
   assert.equal(result[1].unit, 'UN', 'CONSUMO deve normalizar un para UN');
+});
+
+test('catálogo valida símbolos, quantidades, importação e estoque mínimo sem arredondar', async () => {
+  const { UNIT_CATALOG, validateQuantity, validateUnit } = await import('../src/utils/unitHelper');
+  const { CorteItemSchema } = await import('../src/types/stock.dto');
+  assert.equal(UNIT_CATALOG.length, 10);
+  const textItem = { sector: 'CORTE', code: 'T', name: 'T', unit: 'M²', quantity: '1,01', location: 'C1' };
+  assert.equal(CorteItemSchema.parse(textItem).quantity, 1.01);
+  assert.equal(CorteItemSchema.safeParse({ ...textItem, quantity: '1.00000000000000001' }).success, false);
+  assert.equal(validateUnit('peças'), 'UN');
+  assert.equal(validateUnit('UND'), 'UN');
+  assert.throws(() => validateUnit('FOLHA'), /desconhecida/);
+  for (const unit of UNIT_CATALOG) {
+    validateQuantity(1, unit.symbol);
+    validateQuantity(0, unit.symbol, 'CORTE', true);
+    assert.throws(() => validateQuantity(0, unit.symbol), /positiva/);
+    assert.throws(() => validateQuantity(-1, unit.symbol, 'CORTE', true), /positiva/);
+    assert.throws(() => validateQuantity(1.0001, unit.symbol));
+    assert.throws(() => validateQuantity(Infinity, unit.symbol));
+    if (unit.integerOnly) assert.throws(() => validateQuantity(1.01, unit.symbol), /inteiro/);
+    else validateQuantity(1.01, unit.symbol);
+    const item = { sector: 'CORTE', code: 'TEST', name: 'Test', quantity: 1, unit: unit.symbol, minStock: 1.0001, location: 'C1' };
+    assert.equal(CorteItemSchema.safeParse(item).success, false);
+    assert.equal(CorteItemSchema.safeParse({ ...item, minStock: 1.01 }).success, !unit.integerOnly);
+  }
+  assert.throws(() => validateQuantity(1.01, 'KG', 'APOIO'), /inteiro/);
+  const locations = [{ id: 1, name: 'C1', sector: 'CORTE' as any }];
+  for (const [unit, quantity] of [['UN', '1.01'], ['FOLHA', '1'], ['KG', '1.0001']]) {
+    assert.throws(() => validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira'], [{ rowNumber: 2, cells: ['T','Test',unit,quantity,'C1'] }], 'CORTE', locations));
+  }
+  assert.equal(validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira'], [{ rowNumber: 2, cells: ['T','Test','M²','1,01','C1'] }], 'CORTE', locations)[0].quantity, 1.01);
 });

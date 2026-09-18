@@ -17,7 +17,6 @@ test('SQL bruto de pares e dashboard mantém unidade, setor e joins locais', {
     data: { code: `C7_SQL_${code}_${suffix}`, name: code },
   })));
   const fixtures = await Promise.all(units.map(async (unit, index) => {
-    await prismaForInternalUse.unitConfig.create({ data: { factoryUnitId: unit.id, symbol: 'UND', name: 'Unit' } });
     const location = await prismaForInternalUse.location.create({ data: { factoryUnitId: unit.id, name: index ? 'FOREIGN.LOCATION' : 'LOCAL.LOCATION', sector: 'MONTAGEM' } });
     const items = await Promise.all(['E', 'D'].map(async side => {
       const item = await prismaForInternalUse.stockItem.create({ data: {

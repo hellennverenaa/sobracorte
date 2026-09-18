@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { normalizeStockColor } from '../services/stockIdentity';
-import { isDiscreteUnit, normalizeUnit } from '../utils/unitHelper';
+import { validateQuantity, validateUnit, validateQuantityPrecision } from '../utils/unitHelper';
+
+// Validate textual precision before coercion can discard fractional digits.
+function quantityInput(schema: z.ZodType<number>) {
+  return z.preprocess((raw, ctx) => {
+    if (typeof raw !== 'string') return raw;
+    const value = raw.trim().replace(',', '.');
+    try { validateQuantityPrecision(value); }
+    catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; }
+    return value;
+  }, schema);
+}
 
 export const SectorEnum = z.enum([
   'CORTE',
@@ -40,15 +51,17 @@ export const CorteItemSchema = z.object({
   sector: z.literal('CORTE'),
   code: z.string().trim().min(1, 'Código da matéria-prima é obrigatório'),
   name: z.string().trim().min(1, 'Descrição/Nome é obrigatório'),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UN'),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   type: z.string().trim().default('OUTROS'),
-  minStock: z.coerce.number().min(0).default(0),
+  minStock: quantityInput(z.coerce.number().min(0).default(0)),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 }).superRefine((item, ctx) => {
-  if (isDiscreteUnit(normalizeUnit(item.unit, 'CORTE')) && !Number.isInteger(item.quantity)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantity'], message: 'Quantidade para unidade discreta deve ser um número inteiro.' });
+  for (const field of ['quantity', 'minStock'] as const) {
+    if (!(field in item)) continue;
+    try { validateQuantity(Number((item as any)[field]), item.unit, item.sector, field === 'minStock'); }
+    catch (error) { ctx.addIssue({ code: 'custom', path: [field], message: (error as Error).message }); }
   }
 });
 
@@ -60,8 +73,8 @@ export const ApoioItemSchema = z.object({
   description: z.string().trim().min(1, 'Descrição da peça é obrigatória'),
   materialColor: z.string().trim().min(1, 'Material e Cor são obrigatórios'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
-  quantity: z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UND'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -77,8 +90,8 @@ export const PreFabricadoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UND'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -94,8 +107,8 @@ export const DistribuicaoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UND'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -109,8 +122,8 @@ export const ExpedicaoItemSchema = z.object({
   color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UND'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -123,8 +136,8 @@ export const MontagemItemSchema = z.object({
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
-  quantity: z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero'),
-  unit: z.string().trim().default('UND'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 });
@@ -135,13 +148,15 @@ export const ConsumoItemSchema = z.object({
   code: z.string().trim().optional().default(''),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Descrição do material de consumo é obrigatória'),
-  unit: z.string().trim().default('UN'),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
 }).superRefine((item, ctx) => {
-  if (isDiscreteUnit(normalizeUnit(item.unit, 'CONSUMO')) && !Number.isInteger(item.quantity)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['quantity'], message: 'Quantidade para unidade discreta deve ser um número inteiro.' });
+  for (const field of ['quantity', 'minStock'] as const) {
+    if (!(field in item)) continue;
+    try { validateQuantity(Number((item as any)[field]), item.unit, item.sector, field === 'minStock'); }
+    catch (error) { ctx.addIssue({ code: 'custom', path: [field], message: (error as Error).message }); }
   }
 });
 
@@ -165,7 +180,7 @@ export const BatchCreateStockItemSchema = z.object({
 export const ExecuteMatchSchema = z.object({
   leftStockItemId: z.number().int().positive('ID do Pé Esquerdo é inválido'),
   rightStockItemId: z.number().int().positive('ID do Pé Direito é inválido'),
-  quantity: z.coerce.number().int('Quantidade a casar deve ser um número inteiro').positive('Quantidade a casar deve ser maior que zero'),
+  quantity: quantityInput(z.coerce.number().int('Quantidade a casar deve ser um número inteiro').positive('Quantidade a casar deve ser maior que zero')),
   sector: SectorEnum.optional().default('MONTAGEM'),
   reason: z.string().trim().optional().default('Casamento de par confirmado pelo operador'),
 });
@@ -175,7 +190,7 @@ export const CreateStockMovementSchema = z.object({
   stockItemId: z.number().int().positive('ID do item de estoque é obrigatório'),
   sector: SectorEnum.optional(),
   type: z.enum(['ENTRADA', 'SAIDA', 'REFUGO', 'TRANSFERENCIA']),
-  quantity: z.coerce.number().positive('Quantidade deve ser maior que zero'),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   locationId: z.number().int().positive().optional(),
   destinationLocationId: z.number().int().positive().optional(),
   origem: z.string().trim().optional().default(''),
@@ -208,7 +223,7 @@ export const RequisitionItemInputSchema = z.object({
   color: z.string().trim().optional().transform((val) => val ? normalizeStockColor(val) : undefined),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
-  quantityRequested: z.coerce.number().positive('Quantidade solicitada deve ser maior que zero'),
+  quantityRequested: quantityInput(z.coerce.number().positive('Quantidade solicitada deve ser maior que zero')),
   reason: z.string().trim().min(1, 'Motivo do defeito/avaria é obrigatório').transform((val) => val.toUpperCase()),
 });
 
@@ -238,7 +253,7 @@ export const RequisitionFilterSchema = z.object({
 });
 
 export const FulfillRequisitionSchema = z.object({
-  quantity: z.coerce.number().positive('Quantidade atendida deve ser maior que zero'),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade atendida deve ser maior que zero')),
   locationId: z.number().int().positive().optional(),
   observation: z.string().trim().optional().default(''),
 });

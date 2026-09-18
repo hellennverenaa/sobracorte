@@ -50,6 +50,8 @@ test('página de Settings carrega as coleções ao montar', async () => {
   const mounted = await mountComponent(component, { pinia, router })
   await flushPromises()
   assert.deepEqual(calls.sort(), ['/factory-unit/current', '/requisitions/pending-count', '/settings/categories', '/settings/locations', '/settings/origins', '/settings/units'])
+  assert.equal(mounted.element.textContent.includes('Unidades de Medida'), false)
+  assert.equal(mounted.element.textContent.includes('Adicionar Unidade'), false)
   mounted.unmount()
   api.get = async () => ({ data: [] })
 })

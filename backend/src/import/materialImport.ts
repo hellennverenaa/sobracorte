@@ -2,7 +2,7 @@ import { StockAccessContext, assertStockSectorAccess, assertGeneralStockAccess }
 import { movementSnapshot } from '../services/movementSnapshot';
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
-import { normalizeUnit, isDiscreteUnit } from '../utils/unitHelper';
+import { normalizeUnit, isDiscreteUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
 import { normalizeSector as normalizeSectorAlias } from '../utils/sectorHelper';
 
@@ -111,6 +111,8 @@ export function parseQuantity(raw?: string): { valid: boolean; value: number } {
     normalized = clean.replace(',', '.');
   }
 
+  try { validateQuantityPrecision(normalized); }
+  catch { return { valid: false, value: 0 }; }
   const num = Number(normalized);
   if (isNaN(num) || !isFinite(num) || num < 0) {
     return { valid: false, value: 0 };
@@ -210,7 +212,7 @@ export function validateImportBatch(
         sector: 'CORTE',
         code: codigo,
         name: descricao,
-        unit,
+        unit: normalizeUnit(unit),
         type,
         quantity: 0,
         locationId: defaultCorteLoc.id,
@@ -289,7 +291,7 @@ export function validateImportBatch(
         row: row.rowNumber,
         column: 'quantidade',
         value: rawQtd || '',
-        message: 'A quantidade deve ser um número válido maior ou igual a zero.',
+        message: 'A quantidade deve ser um número válido maior ou igual a zero, com até três casas decimais.',
       });
     }
 
@@ -371,6 +373,8 @@ export function validateImportBatch(
     }
 
     let unit = normalizeUnit(rawUnit, itemSector);
+    try { validateQuantity(parsedQtd.value, unit, itemSector, true); }
+    catch (error) { errors.push({ row: row.rowNumber, column: 'quantidade', value: String(parsedQtd.value), message: (error as Error).message }); continue; }
 
     const type = rawType ? rawType.trim().toUpperCase() : (itemSector === 'CORTE' ? 'GERAL' : itemSector);
     const color = rawColor && rawColor.trim() !== '' ? rawColor.trim().toUpperCase() : undefined;
@@ -453,6 +457,12 @@ export async function executeImportTransaction(
   return await prisma.$transaction(async (tx: any) => {
     await lockStockIdentityWrites(tx, factoryUnitId);
     for (const item of items) {
+      validateQuantity(item.quantity, item.unit, item.sector, true);
+      item.unit = normalizeUnit(item.unit);
+      if (item.sector === 'CORTE') {
+        const category = await tx.categoryConfig.findFirst({ where: { factoryUnitId, name: item.type, OR: [{ sector: 'CORTE' }, { sector: null }] } });
+        if (category?.unitLocked && item.unit !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
+      }
       const location = await tx.location.findFirst({ where: { id: item.locationId, factoryUnitId } });
       if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
       assertStockSectorAccess(context, item.sector);

@@ -1,3 +1,4 @@
+import { UnitValidationError } from '../utils/unitHelper';
 import { StockAccessError, requestStockAccess, assignedStockSector, assertStockSectorAccess } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
@@ -33,6 +34,7 @@ export class StockItemController {
       const result = await stockItemService.createBatch(parsed, operatorContext);
       return res.status(201).json(result);
     } catch (error) {
+      if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
@@ -81,6 +83,7 @@ export class StockItemController {
       const result = await stockItemService.searchUnified(params, operatorContext);
       return res.json(result);
     } catch (error) {
+      if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro na busca unificada de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar dados de estoque.' });
@@ -109,6 +112,7 @@ export class StockItemController {
       const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id);
       return res.json(result);
     } catch (error) {
+      if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar sugestões de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
@@ -137,6 +141,7 @@ export class StockItemController {
       const result = await stockItemService.getCombinations(targetSector, query, req.tenant.id);
       return res.json(result);
     } catch (error) {
+      if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar combinações de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar combinações.' });

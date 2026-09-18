@@ -1,3 +1,4 @@
+import { validateQuantity, normalizeUnit } from '../utils/unitHelper';
 import { assertStockSectorAccess, assignedStockSector } from '../auth/stockAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma, type StockTransactionClient } from '../prisma';
@@ -60,7 +61,7 @@ export class RequisitionService {
     },
     factoryUnitId: number,
     client: StockTransactionClient = prisma,
-  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number }; ambiguous?: boolean }> {
+  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number }; ambiguous?: boolean; unit?: string }> {
     const items = await findRequisitionStock(client, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
     let selected = items;
     let pairsDetail;
@@ -77,7 +78,7 @@ export class RequisitionService {
     }
     const locations = [...new Set(selected.flatMap(item => item.locations.filter(link => Number(link.quantity) > 0)
       .map(link => `${link.location.name} (${link.quantity})`)))];
-    return { quantity: pairsDetail ? Math.min(pairsDetail.esq, pairsDetail.dir) : Number(items[0]?.quantity || 0), locations, ...(pairsDetail ? { pairsDetail } : {}) };
+    return { unit: items[0]?.unit ? normalizeUnit(items[0].unit) : undefined, quantity: pairsDetail ? Math.min(pairsDetail.esq, pairsDetail.dir) : Number(items[0]?.quantity || 0), locations, ...(pairsDetail ? { pairsDetail } : {}) };
   }
 
   /**
@@ -115,6 +116,7 @@ export class RequisitionService {
           tx,
         );
 
+        if (stockInfo.unit) validateQuantity(item.quantityRequested, stockInfo.unit, item.requestSector);
         if (stockInfo.ambiguous) throw new Error('Há materiais ambíguos no estoque. Especifique a identificação completa ou regularize duplicatas.');
         if (stockInfo.quantity <= 0) {
           const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
@@ -160,6 +162,7 @@ export class RequisitionService {
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
+          unit: stockInfo.unit,
           locations: stockInfo.locations,
           pairsDetail: stockInfo.pairsDetail,
         };
@@ -219,6 +222,7 @@ export class RequisitionService {
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
+          unit: stockInfo.unit,
           locations: stockInfo.locations,
           pairsDetail: stockInfo.pairsDetail,
         };

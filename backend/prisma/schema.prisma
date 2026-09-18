@@ -65,7 +65,6 @@ model FactoryUnit {
   users              User[]
   nativeIdentities   AuthIdentity[] @relation("IdentityNativeUnit")
   userRoleBindings   UserRoleBinding[]
-  units              UnitConfig[]
   categories         CategoryConfig[]
   origins            OriginConfig[]
   locationCategories LocationCategory[]
@@ -223,39 +222,21 @@ model RoleChangeAudit {
   @@schema("sobra_corte")
 }
 
-// 📐 TABELA DE CONFIGURAÇÃO: Unidades de Medida Permitidas
-model UnitConfig {
-  id            Int              @id @default(autoincrement())
-  name          String // Ex: "Metro Quadrado", "Quilograma", "Unidade"
-  symbol        String
-  active        Boolean          @default(true)
-  factoryUnitId Int
-  factoryUnit   FactoryUnit      @relation(fields: [factoryUnitId], references: [id])
-  categories    CategoryConfig[]
-
-  @@unique([factoryUnitId, symbol])
-  @@unique([id, factoryUnitId])
-  @@schema("sobra_corte")
-}
-
 // 🏷️ TABELA DE CONFIGURAÇÃO: Valores permitidos para Material.type
 // Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
 model CategoryConfig {
   id            Int         @id @default(autoincrement())
   name          String
   sector        SectorType? // Setor vinculado à categoria (CORTE, APOIO, etc.)
-  unitLock      String      @default("livre") // "m2" | "m" | "livre" (Legado)
   unitLocked    Boolean     @default(false)
-  defaultUnitId Int?
+  defaultUnitCode String?
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
-  defaultUnit   UnitConfig? @relation(fields: [defaultUnitId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     Location[]
   locationLinks LocationCategory[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
-  @@index([factoryUnitId, defaultUnitId])
   @@index([factoryUnitId, sector])
   @@schema("sobra_corte")
 }

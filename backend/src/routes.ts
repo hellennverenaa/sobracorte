@@ -298,8 +298,6 @@ routes.put('/settings/categories/:id', requireAuth, mutationLimiter, requireRole
 routes.delete('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
 
 routes.get('/settings/units', requireAuth, authenticatedLimiter, settingsController.getUnits);
-routes.post('/settings/units', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createUnit);
-routes.delete('/settings/units/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteUnit);
 
 routes.get('/settings/locations',    requireAuth, authenticatedLimiter, settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createLocation);

@@ -4,7 +4,7 @@ import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
-import { requiresIntegerQuantity } from '../utils/unitHelper';
+import { validateQuantity, normalizeUnit } from '../utils/unitHelper';
 
 export class StockMovementService {
   /**
@@ -27,10 +27,7 @@ export class StockMovementService {
       }
 
       assertStockSectorAccess(context, item.sector);
-
-      if (requiresIntegerQuantity(item.unit, item.sector) && !Number.isInteger(quantity)) {
-        throw new Error(`A quantidade para a unidade ${item.unit || 'UN'} deve ser um número inteiro (sem decimais).`);
-      }
+      validateQuantity(quantity, item.unit || "", item.sector);
 
       if (sector && normalizeStockSector(sector) !== normalizeStockSector(item.sector)) {
         throw new Error('O item não pertence ao setor informado para a movimentação.');
@@ -292,7 +289,7 @@ export class StockMovementService {
       page,
       limit,
       totalPages: Math.ceil(total / limit) || 1,
-      data: movements,
+      data: movements.map(movement => ({ ...movement, itemUnit: movement.itemUnit ? normalizeUnit(movement.itemUnit) : movement.itemUnit })),
     };
   }
 }

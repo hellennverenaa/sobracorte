@@ -32,13 +32,6 @@ BEGIN
   CREATE TEMP TABLE sest_functional_added_items (id integer PRIMARY KEY) ON COMMIT DROP;
   SELECT id INTO STRICT unit_id FROM sobra_corte."FactoryUnit" WHERE code = 'SEST' AND active FOR NO KEY UPDATE;
 
-  INSERT INTO sobra_corte."UnitConfig" (name, symbol, active, "factoryUnitId")
-  SELECT name, symbol, true, unit_id FROM (VALUES
-    ('Metro quadrado', 'M²'), ('Metro', 'M'), ('Quilograma', 'KG'),
-    ('Unidade', 'UN'), ('Unidade discreta', 'UND')
-  ) AS units(name, symbol)
-  ON CONFLICT ("factoryUnitId", symbol) DO NOTHING;
-
   FOREACH sector_name IN ARRAY ARRAY['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM', 'CONSUMO'] LOOP
     sector_value := sector_name::sobra_corte."SectorType";
     INSERT INTO sobra_corte."CategoryConfig" (name, sector, "factoryUnitId")
@@ -83,7 +76,7 @@ BEGIN
         WHEN 'DISTRIBUICAO' THEN CASE WHEN product_group % 2 = 1 THEN 'CABEDAL' ELSE 'SOLA_PROCESSADA' END
         ELSE 'TESTE-SEST-' || sector_name END;
       unit_symbol := CASE WHEN sector_name = 'CORTE' THEN (ARRAY['M²', 'M²', 'KG', 'M'])[1 + (j - 1) % 4]
-                          WHEN sector_name = 'CONSUMO' THEN 'UN' ELSE 'UND' END;
+                          WHEN sector_name = 'CONSUMO' THEN 'UN' ELSE 'UN' END;
       item_name := 'TESTE ' || CASE sector_name
         WHEN 'CORTE' THEN (ARRAY['TECIDO RESPIRAVEL', 'COURO NATURAL', 'LAMINADO SINTETICO', 'LINHA DE COSTURA'])[1 + (j - 1) % 4]
         WHEN 'APOIO' THEN (ARRAY['LINGUETA', 'GASPEA', 'LATERAL'])[1 + (j - 1) % 3]

@@ -2,7 +2,7 @@ import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccess
 import { Request, Response } from 'express';
 import { normalizeSector } from '../utils/sectorHelper';
 import { prisma } from '../prisma';
-import { normalizeUnit } from '../utils/unitHelper';
+import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 
 function hasPrismaCode(error: unknown, code: string): boolean {
@@ -63,8 +63,7 @@ export class SettingsController {
 
       const categories = await prisma.categoryConfig.findMany({
         where: whereClause,
-        orderBy: [{ sector: 'asc' }, { name: 'asc' }],
-        include: { defaultUnit: true }
+        orderBy: [{ sector: 'asc' }, { name: 'asc' }]
       });
 
       const categoriesWithCount = await Promise.all(
@@ -91,7 +90,7 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
-      const { name, unitLock, defaultUnitId, unitLocked, sector } = req.body;
+      const { name, defaultUnitCode, unitLocked, sector } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
@@ -102,23 +101,19 @@ export class SettingsController {
         targetSector = req.user.assignedSector;
       }
 
-      if (defaultUnitId) {
-        const unit = await prisma.unitConfig.findFirst({
-          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
-        });
-        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
-      }
+      let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
+      try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
+      catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+      if (unitLocked && !code) return res.status(400).json({ error: 'Selecione uma unidade para bloquear a categoria.' });
       const category = await prisma.$transaction(async (tx) => {
         const cat = await tx.categoryConfig.create({
           data: {
             name: String(name).trim().toUpperCase(),
             sector: targetSector as any,
-            unitLock: unitLock || 'livre',
-            defaultUnitId: defaultUnitId ? Number(defaultUnitId) : null,
+            defaultUnitCode: code || null,
             unitLocked: Boolean(unitLocked),
             factoryUnitId: req.tenant!.id
-          },
-          include: { defaultUnit: true }
+          }
         });
 
         await tx.stockMovement.create({
@@ -155,7 +150,7 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const { name, unitLock, defaultUnitId, unitLocked, sector } = req.body;
+      const { name, defaultUnitCode, unitLocked, sector } = req.body;
 
       let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
       if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
@@ -165,12 +160,10 @@ export class SettingsController {
 
       const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
       if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
-      if (defaultUnitId) {
-        const unit = await prisma.unitConfig.findFirst({
-          where: { id: Number(defaultUnitId), factoryUnitId: req.tenant!.id }, select: { id: true },
-        });
-        if (!unit) return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
-      }
+      let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
+      try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
+      catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+      if ((unitLocked === undefined ? existing.unitLocked : Boolean(unitLocked)) && !(code === undefined ? existing.defaultUnitCode : code)) return res.status(400).json({ error: 'Selecione uma unidade para bloquear a categoria.' });
 
       const updated = await prisma.$transaction(async (tx) => {
         const newName = name ? String(name).trim().toUpperCase() : undefined;
@@ -190,11 +183,9 @@ export class SettingsController {
           data: {
             name: newName,
             sector: targetSector !== undefined ? (targetSector as any) : undefined,
-            unitLock: unitLock !== undefined ? unitLock : undefined,
-            defaultUnitId: defaultUnitId !== undefined ? (defaultUnitId ? Number(defaultUnitId) : null) : undefined,
+            defaultUnitCode: code,
             unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
-          },
-          include: { defaultUnit: true }
+          }
         });
 
         if (newName && newName !== existing.name) {
@@ -290,151 +281,7 @@ export class SettingsController {
     }
   }
 
-  async getUnits(req: Request, res: Response) {
-    try {
-      const units = await prisma.unitConfig.findMany({
-        where: { factoryUnitId: req.tenant!.id, active: true },
-        orderBy: { id: 'desc' }
-      });
-
-      const unitsWithCount = await Promise.all(
-        units.map(async (unit) => {
-          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)), unit: unit.symbol } });
-          return {
-            ...unit,
-            linkedCount: stockCount,
-          };
-        })
-      );
-
-      res.json(unitsWithCount);
-    } catch (error) {
-      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
-      console.error('Erro ao buscar unidades:', error);
-      res.status(500).json({ error: 'Erro ao buscar unidades de medida' });
-    }
-  }
-
-  async createUnit(req: Request, res: Response) {
-    try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
-      const { name, symbol } = req.body;
-      if (!name || !String(name).trim()) {
-        return res.status(400).json({ error: 'O nome da unidade é obrigatório.' });
-      }
-      if (!symbol || !String(symbol).trim()) {
-        return res.status(400).json({ error: 'A sigla da unidade é obrigatória.' });
-      }
-
-      const cleanSymbol = normalizeUnit(String(symbol).trim());
-      const cleanName = String(name).trim().toUpperCase();
-
-      const existing = await prisma.unitConfig.findUnique({
-        where: { factoryUnitId_symbol: { factoryUnitId: req.tenant!.id, symbol: cleanSymbol } },
-      });
-      if (existing) {
-        if (!existing.active) {
-          const reactivated = await prisma.unitConfig.update({
-            where: { id_factoryUnitId: { id: existing.id, factoryUnitId: req.tenant!.id } },
-            data: { name: cleanName, active: true }
-          });
-          return res.status(200).json(reactivated);
-        }
-        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
-      }
-
-      const unit = await prisma.$transaction(async (tx) => {
-        const u = await tx.unitConfig.create({
-          data: {
-            name: cleanName,
-            symbol: cleanSymbol,
-            active: true,
-            factoryUnitId: req.tenant!.id
-          }
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId: req.tenant!.id,
-            sector: 'CONFIGURACOES',
-            type: 'CRIACAO_CONFIGURACAO',
-            quantity: 0,
-            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
-            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
-            origem: 'Configurações - Unidades',
-            reason: `Criação de Unidade: ${cleanName} (${cleanSymbol})`
-          }
-        });
-
-        return u;
-      });
-      res.status(201).json(unit);
-    } catch (error: unknown) {
-      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
-      if (hasPrismaCode(error, 'P2002')) {
-        return res.status(409).json({ error: 'Já existe uma unidade cadastrada com esta sigla.' });
-      }
-      console.error('Erro ao criar unidade:', error);
-      res.status(500).json({ error: 'Erro ao criar unidade de medida' });
-    }
-  }
-
-  async deleteUnit(req: Request, res: Response) {
-    try {
-      const perm = checkSettingsPermission(req);
-      if (!perm.allowed) {
-        return res.status(perm.status || 403).json({ error: perm.error });
-      }
-
-      const id = Number(req.params.id);
-      const unit = await prisma.unitConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id } });
-      if (!unit) {
-        return res.status(404).json({ error: 'Unidade de medida não encontrada.' });
-      }
-
-      const stockCount = await prisma.stockItem.count({
-        where: { factoryUnitId: req.tenant!.id, unit: unit.symbol }
-      });
-      const totalActive = stockCount;
-
-      const isAdmin = req.user?.role === 'admin' || req.isGlobalAdmin;
-
-      if (totalActive > 0 && !isAdmin) {
-        return res.status(400).json({
-          error: `Não é possível desativar: existem ${totalActive} material(is) ou item(ns) usando esta unidade. Apenas o Administrador Master pode gerenciar esta alteração.`
-        });
-      }
-
-      await prisma.$transaction([
-        prisma.stockMovement.create({
-          data: {
-            factoryUnitId: req.tenant!.id,
-            sector: 'CONFIGURACOES',
-            type: 'EXCLUSAO_CONFIGURACAO',
-            quantity: 0,
-            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
-            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
-            origem: 'Configurações - Unidades',
-            reason: `Desativação de Unidade: ${unit.name} (${unit.symbol})${totalActive > 0 ? ` (com ${totalActive} itens vinculados)` : ''}`
-          }
-        }),
-        prisma.unitConfig.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
-          data: { active: false }
-        })
-      ]);
-
-      res.json({ message: 'Unidade desativada com sucesso.' });
-    } catch (error: unknown) {
-      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
-      console.error('Erro ao desativar unidade:', error);
-      res.status(500).json({ error: 'Erro ao desativar unidade de medida' });
-    }
-  }
+  async getUnits(req: Request, res: Response) { res.json(UNIT_CATALOG); }
 
   async getLocations(req: Request, res: Response) {
     try {

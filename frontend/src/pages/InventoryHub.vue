@@ -14,6 +14,7 @@ import { formatNumber } from '@/utils/format';
 import PageState from '@/components/PageState.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useInventoryQuery } from '@/composables/useInventoryQuery';
+import { useSettings } from '@/composables/useSettings';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useModalFocus } from '@/composables/useModalFocus';
 import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
@@ -259,6 +260,13 @@ const maxAvailableBalance = computed(() => {
   return selectedLocationBalance.value;
 });
 
+const { units: measurementUnits, fetchUnits } = useSettings({ notify: message => showToast(message, 'error') });
+onMounted(fetchUnits);
+const movementIntegerOnly = computed(() => selectedItem.value?.sector !== 'CORTE' && selectedItem.value?.sector !== 'CONSUMO' || Boolean(measurementUnits.value.find(unit => unit.symbol === getItemUnitBadge(selectedItem.value))?.integerOnly));
+const movementQuantityInvalid = computed(() => {
+  const qty = Number(movementQuantity.value);
+  return !Number.isFinite(qty) || qty <= 0 || (movementIntegerOnly.value ? !Number.isInteger(qty) : !/^\d+(?:\.\d{1,3})?$/.test(String(qty)));
+});
 // Trava reativa de quantidade excedente
 const isExceedingBalance = computed(() => {
   if (movementType.value === 'ENTRADA') return false;
@@ -270,7 +278,7 @@ const isExceedingBalance = computed(() => {
 // Validação completa para desabilitar o botão
 const isFormInvalid = computed(() => {
   const qty = Number(movementQuantity.value);
-  if (!qty || isNaN(qty) || qty <= 0) return true;
+  if (movementQuantityInvalid.value) return true;
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
   if (!selectedLocationId.value) return true;
   if (movementType.value === 'ENTRADA' && !stockStore.filterLocations.some(loc => loc.id === selectedLocationId.value)) return true;
@@ -289,6 +297,7 @@ const formValidationHint = computed(() => {
     return 'Digite a quantidade a movimentar.';
   }
 
+  if (movementQuantityInvalid.value) return movementIntegerOnly.value ? 'A unidade exige uma quantidade inteira.' : 'Use até três casas decimais.';
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) {
     return `Quantidade excede o saldo da prateleira (máx: ${formatNumber(maxAvailableBalance.value)} ${unit}).`;
   }
@@ -449,11 +458,11 @@ async function handleConfirmMovement() {
 }
 
 function getItemUnitBadge(item: any) {
-  if (!item) return 'UND';
+  if (!item) return 'UN';
   if (item.sector === 'CORTE') {
     return item.unit || 'UN';
   }
-  return item.unit || 'UND';
+  return item.unit || 'UN';
 }
 
 function getItemIdentifier(item: any) {
@@ -1105,8 +1114,8 @@ onMounted(() => {
                   v-model.number="movementQuantity"
                   aria-label="Quantidade da movimentação"
                   type="number"
-                  min="0.01"
-                  step="any"
+                  :min="movementIntegerOnly ? 1 : 0.001"
+                  :step="movementIntegerOnly ? 1 : 0.001"
                   :class="isExceedingBalance ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/40 text-rose-900' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-900 bg-white'"
                   class="w-full border p-2.5 rounded-lg outline-none focus:ring-1 font-bold text-sm"
                   placeholder="0.00"

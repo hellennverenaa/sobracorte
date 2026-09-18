@@ -62,10 +62,10 @@
               
               <div class="w-64 min-w-[180px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
-                <select v-model="newCategory.defaultUnitId"
+                <select v-model="newCategory.defaultUnitCode"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
                   <option value="">Nenhuma (Livre para escolha)</option>
-                  <option v-for="unit in units" :key="unit.id" :value="unit.id">
+                  <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">
                     {{ unit.name }} ({{ unit.symbol }})
                   </option>
                 </select>
@@ -126,8 +126,8 @@
                   </span>
                 </td>
                 <td class="px-6 py-3 text-center">
-                  <span v-if="cat.defaultUnit" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
-                    {{ cat.defaultUnit.name }} ({{ cat.defaultUnit.symbol }})
+                  <span v-if="cat.defaultUnitCode" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
+                    {{ units.find(u => u.symbol === cat.defaultUnitCode)?.name }} ({{ cat.defaultUnitCode }})
                   </span>
                   <span v-else class="text-xs text-gray-400 italic">Livre</span>
                 </td>
@@ -148,75 +148,6 @@
               </tr>
               <tr v-if="filteredCategories.length === 0">
                 <td :colspan="canManageSettings ? 5 : 4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ABA 2: UNIDADES DE MEDIDA                 -->
-      <div v-if="activeTab === 'units'" class="space-y-6">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-            <h2 class="font-bold text-gray-800 flex items-center gap-2">
-              <Ruler class="w-4 h-4 text-purple-500" /> Unidades de Medida
-            </h2>
-            <span class="text-xs text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full font-bold">100% Dinâmico via API</span>
-          </div>
-
-          <!-- Formulário de adição de Unidade (Oculto para perfil leitor) -->
-          <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-purple-50/30">
-            <form @submit.prevent="addUnit" class="flex gap-3 items-end flex-wrap">
-              <div class="flex-1 min-w-[200px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Unidade</label>
-                <input v-model="newUnit.name" required placeholder="Ex: Metro Quadrado, Litro, Caixa..."
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
-              </div>
-              <div class="w-48 min-w-[140px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sigla / Símbolo</label>
-                <input v-model="newUnit.symbol" required placeholder="Ex: m², l, cx, un..."
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400 bg-white font-mono" />
-              </div>
-              <button type="submit" :disabled="loadingUnit"
-                class="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 transition flex items-center gap-2 disabled:opacity-50">
-                <Plus class="w-4 h-4" /> Adicionar Unidade
-              </button>
-            </form>
-          </div>
-
-          <!-- Lista de Unidades -->
-          <div v-if="loadingUnit" class="p-8 text-center text-gray-400">Carregando...</div>
-          <table v-else class="w-full text-left">
-            <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
-              <tr>
-                <th class="px-6 py-3">Nome da Unidade</th>
-                <th class="px-6 py-3 text-center">Sigla / Símbolo</th>
-                <th class="px-6 py-3 text-center">Status</th>
-                <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50">
-              <tr v-for="unit in units" :key="unit.id" class="hover:bg-gray-50/50 transition-colors">
-                <td class="px-6 py-3 text-sm text-gray-800 font-medium">{{ unit.name }}</td>
-                <td class="px-6 py-3 text-center">
-                  <span class="px-2.5 py-1 rounded-md text-xs font-bold font-mono bg-purple-50 text-purple-700 border border-purple-100">
-                    {{ unit.symbol }}
-                  </span>
-                </td>
-                <td class="px-6 py-3 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                    Ativa
-                  </span>
-                </td>
-                <td v-if="canManageSettings" class="px-6 py-3 text-center">
-                  <button @click="deleteUnit(unit)"
-                    class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Desativar unidade">
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="units.length === 0">
-                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma unidade de medida cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -896,7 +827,6 @@ const tabs = computed(() => {
   // 2. Admin Master e Admin de Setor: todas as abas
   return [
     { key: 'categories',   label: 'Categorias',                 icon: Tag },
-    { key: 'units',        label: 'Unidades de Medida',         icon: Ruler },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
     { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
     { key: 'import',       label: 'Importar CSV',               icon: FileSpreadsheet },
@@ -925,7 +855,7 @@ const categoryFilterSector = computed({
 const newCategory = ref({
   name: '',
   sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
-  defaultUnitId: '',
+  defaultUnitCode: '',
   unitLocked: false
 })
 
@@ -944,14 +874,14 @@ async function addCategory() {
     const res = await api.post('/settings/categories', {
       name: newCategory.value.name.trim(),
       sector: newCategory.value.sector || null,
-      defaultUnitId: newCategory.value.defaultUnitId ? Number(newCategory.value.defaultUnitId) : null,
+      defaultUnitCode: newCategory.value.defaultUnitCode ? newCategory.value.defaultUnitCode : null,
       unitLocked: Boolean(newCategory.value.unitLocked)
     })
     showNotification('success', `Categoria "${newCategory.value.name}" criada com sucesso!`)
     newCategory.value = {
       name: '',
       sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
-      defaultUnitId: '',
+      defaultUnitCode: '',
       unitLocked: false
     }
     if (res.data) categories.value.unshift(res.data)
@@ -988,58 +918,6 @@ async function deleteCategory(cat) {
         await fetchCategories()
       } catch (e) {
         const msg = e.response?.data?.error || 'Erro ao excluir categoria.'
-        showNotification('error', msg)
-      }
-    }
-  })
-}
-
-// UNIDADES DE MEDIDA
-const newUnit = ref({ name: '', symbol: '' })
-
-async function addUnit() {
-  if (!newUnit.value.name.trim() || !newUnit.value.symbol.trim()) return
-  try {
-    const res = await api.post('/settings/units', {
-      name: newUnit.value.name.trim(),
-      symbol: newUnit.value.symbol.trim()
-    })
-    showNotification('success', `Unidade "${newUnit.value.name} (${newUnit.value.symbol})" cadastrada!`)
-    newUnit.value = { name: '', symbol: '' }
-    if (res.data) units.value.unshift(res.data)
-    await fetchUnits()
-  } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao criar unidade de medida.'
-    showNotification('error', msg)
-  }
-}
-
-async function deleteUnit(unit) {
-  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
-  const linked = unit.linkedCount || 0
-
-  if (!isAdmin && linked > 0) {
-    showNotification('error', `Não é possível desativar: existem ${linked} material(is) ou item(ns) usando esta unidade. Apenas o Administrador Master pode gerenciar esta alteração.`)
-    return
-  }
-
-  const title = linked > 0 ? '⚠️ Atenção Admin Master: Desativar Unidade' : 'Desativar Unidade de Medida'
-  const message = linked > 0
-    ? `Atenção Admin Master: A unidade "${unit.name} (${unit.symbol})" possui ${linked} material(is)/item(ns) cadastrados. Ao desativar, novos cadastros não poderão selecionar esta unidade, mantendo o histórico existente intacto. Deseja prosseguir?`
-    : `Deseja desativar a unidade "${unit.name} (${unit.symbol})"?`
-
-  openConfirmModal({
-    title,
-    message,
-    confirmText: linked > 0 ? 'Confirmar Desativação (Admin Master)' : 'Desativar Unidade',
-    variant: 'danger',
-    action: async () => {
-      try {
-        await api.delete(`/settings/units/${unit.id}`)
-        showNotification('success', `Unidade de medida desativada.`)
-        await fetchUnits()
-      } catch (e) {
-        const msg = e.response?.data?.error || 'Erro ao desativar unidade.'
         showNotification('error', msg)
       }
     }
@@ -1247,7 +1125,6 @@ const newOriginSector = ref(authStore.user?.assignedSector || '')
 
 const { confirmDiscard } = useUnsavedChanges(() => (
   Boolean(newCategory.value.name.trim()) ||
-  Boolean(newUnit.value.name.trim() || newUnit.value.symbol.trim()) ||
   Boolean(newLocation.value.name.trim()) ||
   Boolean(newOrigin.value.trim()) ||
   Boolean(selectedFile.value) ||

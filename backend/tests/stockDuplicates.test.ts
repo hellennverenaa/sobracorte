@@ -14,6 +14,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   let locked = false;
   const tx = {
     $queryRaw: async () => { locked = true; return [{ id: 1 }]; },
+    categoryConfig: { findFirst: async () => null },
     stockItem: {
       findMany: async ({ where }: any) => {
         assert.equal(locked, true);
@@ -198,7 +199,7 @@ test('cadastro e importação recusam localização de outro setor antes de grav
   await assert.rejects(new StockItemService().createBatch(BatchCreateStockItemSchema.parse({ items: [{
     sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1, location: 'A',
   }] }), { factoryUnitId: 1, role: 'admin' }), /outro setor/);
-  await assert.rejects(executeImportTransaction(prisma, [{ sector: 'CONSUMO', locationId: 1 }] as any, { factoryUnitId: 1, role: 'admin' }), /outro setor/);
+  await assert.rejects(executeImportTransaction(prisma, [{ sector: 'CONSUMO', locationId: 1, quantity: 1, unit: 'KG' }] as any, { factoryUnitId: 1, role: 'admin' }), /outro setor/);
   assert.equal(writes, 0);
 });
 

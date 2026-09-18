@@ -1,0 +1,34 @@
+# Catálogo fixo de unidades
+
+`GET /settings/units` retorna `{ symbol, name, integerOnly, decimalPlaces }`.
+Não existem endpoints de escrita de unidades. Categorias usam `defaultUnitCode`
+(código canônico ou `null`) e `unitLocked`; bloquear exige selecionar uma unidade.
+
+UN, PAR, CX e ROLO exigem inteiros. M, M², CM, L, G e KG aceitam até três
+casas decimais. Setores de peças continuam exigindo inteiros. Aliases conhecidos
+(incluindo UND e peças) são normalizados, sem conversão de quantidades.
+Snapshots históricos são preservados; seus símbolos são normalizados na leitura.
+
+## Migração
+
+Antes da migration `20260918120000_fixed_unit_catalog`, faça backup e restaure
+em um clone isolado. No backend apontado para esse clone, execute:
+
+```sh
+npm run stock:units:audit
+```
+
+A auditoria é somente leitura e deve ser executada antes da remoção de UnitConfig.
+Ela resume aliases e referências de categorias e lista cada inconsistência por
+ID. Símbolos desconhecidos, frações incompatíveis e conflitos de unitLock legado
+bloqueiam a migration. Revise cada ocorrência; não arredonde ou deduza equivalências.
+
+A migration é transacional: normaliza apenas símbolos, transfere os padrões de
+categorias para códigos, transforma unitLock m2/m em padrão bloqueado e remove
+UnitConfig e os campos antigos. Não altera saldos, mínimos ou snapshots.
+Código e schema precisam ser implantados juntos. A implantação e a remoção da
+tabela em produção exigem autorização específica.
+
+Após migrar o clone, execute os builds, os testes afetados e `npm run stock:integrity`.
+Os testes DB usam exclusivamente banco local `sobracorte_cycle7_*`, com
+`DATABASE_URL` e `TEST_DATABASE_URL` iguais.

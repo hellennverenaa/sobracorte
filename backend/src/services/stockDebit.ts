@@ -1,16 +1,14 @@
 import type { StockTransactionClient } from '../prisma';
 import { Prisma } from '../generated/prisma';
 import { assertStockLocationSector } from './stockIdentity';
-import { requiresIntegerQuantity } from '../utils/unitHelper';
+import { validateQuantity } from '../utils/unitHelper';
 
 type ItemWithLocations = Prisma.StockItemGetPayload<{ include: { locations: { include: { location: true } } } }>;
 
 /** A transação chamadora deve bloquear a unidade antes de ler o item. */
 export async function debitStockItem(tx: StockTransactionClient, item: ItemWithLocations, quantity: number, locationId?: number) {
   const amount = new Prisma.Decimal(quantity);
-  if (!amount.isPositive() || amount.decimalPlaces() > 3 || (requiresIntegerQuantity(item.unit, item.sector) && !amount.isInteger())) {
-    throw new Error('Quantidade inválida para o setor ou precisão superior a três casas decimais.');
-  }
+  validateQuantity(quantity, item.unit || "", item.sector);
   const locationTotal = item.locations.reduce((sum, link) => sum.plus(link.quantity), new Prisma.Decimal(0));
   if (!locationTotal.equals(item.quantity) || item.locations.some(link => new Prisma.Decimal(link.quantity).isNegative())) {
     throw new Error('O saldo do item diverge das localizações. Regularize o estoque antes da baixa.');

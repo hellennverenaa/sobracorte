@@ -193,7 +193,6 @@ export class DashboardController {
           name: string;
           quantity: string | number;
           sector: string;
-          unitId: number | null;
           unit: string;
           type: string | null;
           position: number | bigint;
@@ -205,7 +204,6 @@ export class DashboardController {
             ranked.name, 
             ranked.quantity, 
             ranked.sector,
-            ranked."unitId", 
             ranked.unit, 
             ranked.type, 
             ranked.position,
@@ -217,7 +215,6 @@ export class DashboardController {
               base.name,
               base.quantity,
               base.sector,
-              base."unitId",
               base.unit,
               base.type,
               ROW_NUMBER() OVER (
@@ -235,13 +232,9 @@ export class DashboardController {
                 m.name, 
                 m.quantity, 
                 'CORTE'::text AS sector,
-                u.id AS "unitId", 
-                COALESCE(u.symbol, UPPER(TRIM(COALESCE(m.unit, 'M²')))) AS unit, 
+                m.unit AS unit,
                 m.type
               FROM sobra_corte."StockItem" m
-              LEFT JOIN sobra_corte."UnitConfig" u 
-                ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(m.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(m.unit)))
-                AND u."factoryUnitId" = m."factoryUnitId"
               WHERE m."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN m.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE m.sector::text END) = ${assignedSector}::text) AND m.sector = 'CORTE'
                 AND m.quantity > 0
 
@@ -269,13 +262,9 @@ export class DashboardController {
                 END AS name,
                 s.quantity,
                 s.sector::text AS sector,
-                u.id AS "unitId",
-                COALESCE(u.symbol, UPPER(TRIM(COALESCE(s.unit, 'UND')))) AS unit,
+                s.unit AS unit,
                 COALESCE(s.type, s.color, s.sector::text) AS type
               FROM sobra_corte."StockItem" s
-              LEFT JOIN sobra_corte."UnitConfig" u 
-                ON (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
-                AND u."factoryUnitId" = s."factoryUnitId"
               WHERE s."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN s.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE s.sector::text END) = ${assignedSector}::text) AND s.sector <> 'CORTE'
                 AND s.quantity > 0
             ) base
@@ -293,20 +282,12 @@ export class DashboardController {
       }>>`
         SELECT
           s.sector::text AS sector,
-          UPPER(TRIM(COALESCE(u.symbol, s.unit, CASE WHEN s.sector = 'CORTE' THEN 'M²' ELSE 'UND' END))) AS unit,
+          s.unit AS unit,
           SUM(s.quantity) AS "totalQuantity",
           COUNT(*)::integer AS "itemsCount"
         FROM sobra_corte."StockItem" s
-        LEFT JOIN LATERAL (
-          SELECT u.symbol
-          FROM sobra_corte."UnitConfig" u
-          WHERE u."factoryUnitId" = s."factoryUnitId"
-            AND (LOWER(TRIM(u.symbol)) = LOWER(TRIM(s.unit)) OR LOWER(TRIM(u.name)) = LOWER(TRIM(s.unit)))
-          ORDER BY u.id
-          LIMIT 1
-        ) u ON TRUE
         WHERE s."factoryUnitId" = ${factoryUnitId} AND (${assignedSector}::text IS NULL OR (CASE WHEN s.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE s.sector::text END) = ${assignedSector}::text) AND s.quantity > 0
-        GROUP BY s.sector, UPPER(TRIM(COALESCE(u.symbol, s.unit, CASE WHEN s.sector = 'CORTE' THEN 'M²' ELSE 'UND' END)))
+        GROUP BY s.sector, s.unit
         ORDER BY s.sector, unit
       `;
 
@@ -636,7 +617,6 @@ export class DashboardController {
         name: string;
         quantity: number;
         sector: string;
-        unitId: number | null;
         unit: string;
         type: string;
         position: number;
@@ -656,7 +636,6 @@ export class DashboardController {
         name: string;
         quantity: number;
         sector: string;
-        unitId: number | null;
         unit: string;
         type: string;
         position: number;
@@ -683,7 +662,6 @@ export class DashboardController {
           name: row.name,
           quantity: Number(row.quantity) || 0,
           sector: sec,
-          unitId: row.unitId ? Number(row.unitId) : null,
           unit: u,
           type: row.type || '',
           position: Number(row.position) || 1,

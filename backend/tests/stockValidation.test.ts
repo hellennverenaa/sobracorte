@@ -136,7 +136,7 @@ test('Montagem aceita apenas números inteiros e rejeita decimais', () => {
   );
 });
 
-test('Unidade de medida padroniza como UND por padrão nos setores discretos', () => {
+test('Unidade de medida padroniza como UN por padrão nos setores discretos', () => {
   const apoio = ApoioItemSchema.parse({
     sector: 'APOIO',
     pieceCode: 'MOL-01',
@@ -146,7 +146,7 @@ test('Unidade de medida padroniza como UND por padrão nos setores discretos', (
     quantity: 5,
     location: 'PRAT-A',
   });
-  assert.equal(apoio.unit, 'UND');
+  assert.equal(apoio.unit, 'UN');
 
   const preFab = PreFabricadoItemSchema.parse({
     sector: 'PRE_FABRICADO',
@@ -157,7 +157,7 @@ test('Unidade de medida padroniza como UND por padrão nos setores discretos', (
     quantity: 10,
     location: 'PRAT-B',
   });
-  assert.equal(preFab.unit, 'UND');
+  assert.equal(preFab.unit, 'UN');
 
   const dist = DistribuicaoItemSchema.parse({
     sector: 'DISTRIBUICAO',
@@ -168,7 +168,7 @@ test('Unidade de medida padroniza como UND por padrão nos setores discretos', (
     quantity: 8,
     location: 'PRAT-C',
   });
-  assert.equal(dist.unit, 'UND');
+  assert.equal(dist.unit, 'UN');
 
   const mont = MontagemItemSchema.parse({
     sector: 'MONTAGEM',
@@ -178,7 +178,7 @@ test('Unidade de medida padroniza como UND por padrão nos setores discretos', (
     quantity: 3,
     location: 'PRAT-D',
   });
-  assert.equal(mont.unit, 'UND');
+  assert.equal(mont.unit, 'UN');
 });
 
 test('Combinação de cor aceita formatos padronizados (com barra e hífen)', () => {

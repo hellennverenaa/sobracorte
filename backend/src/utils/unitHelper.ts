@@ -10,7 +10,7 @@ export const CANONICAL_UNITS = {
   QUILOGRAMA: 'KG',
   GRAMA: 'G',
   UNIDADE: 'UN',
-  UNIDADE_DISCRETA: 'UND',
+  UNIDADE_DISCRETA: 'UN',
   PAR: 'PAR',
   ROLO: 'ROLO',
   CAIXA: 'CX',
@@ -39,7 +39,7 @@ export function requiresIntegerQuantity(unit?: string | null, sector?: string | 
   if (!unit || String(unit).trim() === '') {
     return isDiscreteSector(sector) || String(sector || '').toUpperCase().trim() === 'CONSUMO';
   }
-  return isDiscreteUnit(normalizeUnit(unit, sector));
+  return isDiscreteSector(sector) || isDiscreteUnit(normalizeUnit(unit, sector));
 }
 
 export const UNIT_ALIASES: Record<string, string> = Object.fromEntries([
@@ -93,4 +93,33 @@ export function areUnitsCompatible(unitA?: string | null, unitB?: string | null,
   }
 
   return false;
+}
+
+export const UNIT_CATALOG = [
+  ['UN', 'Unidade'], ['PAR', 'Par'], ['CX', 'Caixa'], ['ROLO', 'Rolo'],
+  ['M', 'Metro'], ['M²', 'Metro Quadrado'], ['CM', 'Centímetro'],
+  ['L', 'Litro'], ['G', 'Grama'], ['KG', 'Quilograma'],
+].map(([symbol, name]) => ({ symbol, name, integerOnly: isDiscreteUnit(symbol), decimalPlaces: isDiscreteUnit(symbol) ? 0 : 3 }));
+
+export class UnitValidationError extends Error {}
+
+export function validateUnit(raw: string): string {
+  const unit = normalizeUnit(raw);
+  if (!raw?.trim() || !UNIT_CATALOG.some(entry => entry.symbol === unit)) throw new UnitValidationError(`Unidade de medida desconhecida: ${raw}.`);
+  return unit;
+}
+
+export function validateQuantityPrecision(value: string | number): void {
+  const text = String(value).trim();
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) throw new UnitValidationError('Quantidade inválida.');
+  const [coefficient, exponent = '0'] = text.toLowerCase().split('e');
+  const places = Math.max(0, (coefficient.split('.')[1]?.length || 0) - Number(exponent));
+  if (places > 3) throw new UnitValidationError('Quantidade permite até três casas decimais.');
+}
+
+export function validateQuantity(value: number, unit: string, sector?: string | null, allowZero = false): void {
+  validateUnit(unit);
+  if (!Number.isFinite(value) || (allowZero ? value < 0 : value <= 0)) throw new UnitValidationError('Quantidade deve ser positiva; estoque mínimo pode ser zero.');
+  if (requiresIntegerQuantity(unit, sector) && !Number.isInteger(value)) throw new UnitValidationError('Quantidade inválida: para unidade discreta ou setor de peças deve ser um número inteiro.');
+  validateQuantityPrecision(value);
 }

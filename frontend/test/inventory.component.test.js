@@ -11,6 +11,7 @@ test('Consumo abre pela rota e exibe código, descrição e unidade do insumo', 
   localStorage.clear();
   let sector;
   api.get = async (url, config) => {
+    if (url === '/settings/units') return { data: [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }] };
     if (url !== '/inventory/search') return { data: [] };
     sector = config.params.sector;
     return { data: { metrics: { totalConsumo: 1 }, sectors: { consumo: { total: 1, data: [
@@ -144,6 +145,7 @@ test(`estoque restringe destinos de ${role} e registra saída pela API oficial`,
   let reads = 0;
   let movement;
   api.get = async (url) => {
+    if (url === '/settings/units') return { data: [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }] };
     if (url !== '/inventory/search') return { data: {} };
     reads++;
     return { data: { metrics: {}, sectors: { corte: { total: 1, data: [{ id: 23, sector: 'CORTE', code: 'MAT-1', name: 'Material', quantity: 5, unit: 'M2', locations: [{ locationId: 1, quantity: 5, location: { id: 1, name: 'A1', sector: 'CORTE' } }] }] } }, pagination: { page: 1, total: 1, totalPages: 1, limit: 50 }, filterOptions: { locations: [{ id: 1, name: 'A1', sector: 'CORTE' }, { id: 2, name: 'A2', sector: 'CORTE' }, { id: 3, name: 'OUTRO-SETOR', sector: 'MONTAGEM' }, { id: 4, name: 'GERAL', sector: null }] } } };
@@ -197,3 +199,39 @@ test(`estoque restringe destinos de ${role} e registra saída pela API oficial`,
 });
 
 }
+
+test('entrada preserva fração digitada e rejeita unidade discreta sem truncar', async () => {
+  const { createPinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const component = await loadComponent('src/components/SectorFormInput.vue');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  api.get = async url => ({ data: url === '/settings/units' ? [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }, { symbol: 'UN', name: 'Unidade', integerOnly: true, decimalPlaces: 0 }] : [] });
+  let writes = 0;
+  api.post = async () => { writes++; return { data: {} }; };
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
+  await router.push('/');
+  const mounted = await mountComponent(component, { pinia, router });
+  await flushPromises();
+  const quantity = mounted.element.querySelector('input[inputmode="decimal"]');
+  assert.ok(quantity);
+  for (const value of ['1,01', '1.0001']) {
+    quantity.value = value;
+    quantity.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+    assert.equal(quantity.value, value.replace(',', '.'));
+  }
+  const unit = [...mounted.element.querySelectorAll('select')].find(select => [...select.options].some(option => option.value === 'M²'));
+  assert.equal(unit.value, 'M²');
+  unit.value = 'UN';
+  unit.dispatchEvent(new Event('change', { bubbles: true }));
+  quantity.value = '1.01';
+  quantity.dispatchEvent(new Event('input', { bubbles: true }));
+  await flushPromises();
+  assert.equal(quantity.value, '1.01');
+  mounted.element.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+  await flushPromises();
+  assert.match(mounted.element.textContent, /inteiro/);
+  assert.equal(writes, 0);
+  mounted.unmount();
+});

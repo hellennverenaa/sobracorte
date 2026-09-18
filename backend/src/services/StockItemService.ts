@@ -3,7 +3,7 @@ import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
-import { normalizeUnit } from '../utils/unitHelper';
+import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem } from './stockIdentity';
 export { DuplicateStockItemError } from './stockIdentity';
 
@@ -22,6 +22,12 @@ export class StockItemService {
 
       for (const item of dto.items) {
         assertStockSectorAccess(context, item.sector);
+        validateQuantity(item.quantity, item.unit, item.sector);
+        if ('minStock' in item) validateQuantity(item.minStock, item.unit, item.sector, true);
+        if (item.sector === 'CORTE') {
+          const category = await tx.categoryConfig.findFirst({ where: { factoryUnitId, name: item.type, OR: [{ sector: 'CORTE' }, { sector: null }] } });
+          if (category?.unitLocked && normalizeUnit(item.unit) !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
+        }
         const locationName = item.location.trim().toUpperCase();
 
         // 1. Localizar ou criar a prateleira/localização
