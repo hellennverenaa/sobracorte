@@ -21,6 +21,13 @@ function clientWith(legacyUsers: any[] = []) {
         findMany: async ({ where, take }: any) => legacyUsers.filter((user) =>
           matchesLegacyWhere(user, where)
         ).slice(0, take),
+        update: async ({ where, data }: any) => {
+          const key = where.id_factoryUnitId;
+          const user = legacyUsers.find(candidate => candidate.id === key.id && candidate.factoryUnitId === key.factoryUnitId);
+          if (!user) throw new Error('legacy user not found');
+          Object.assign(user, data);
+          return user;
+        },
       },
       authIdentity: {
         findUnique: async ({ where }: any) => identities.find(candidate =>
@@ -41,6 +48,12 @@ function clientWith(legacyUsers: any[] = []) {
           }
           return identity;
         },
+        update: async ({ where, data }: any) => {
+          const identity = identities.find(candidate => candidate.id === where.id);
+          if (!identity) throw new Error('identity not found');
+          Object.assign(identity, data);
+          return identity;
+        },
       },
       userRoleBinding: {
         findUnique: async ({ where }: any) => bindings.find(candidate =>
@@ -55,6 +68,13 @@ function clientWith(legacyUsers: any[] = []) {
             binding = { id: bindings.length + 1, ...create };
             bindings.push(binding);
           }
+          return binding;
+        },
+        update: async ({ where, data }: any) => {
+          const key = where.id_factoryUnitId;
+          const binding = bindings.find(candidate => candidate.id === key.id && candidate.factoryUnitId === key.factoryUnitId);
+          if (!binding) throw new Error('binding not found');
+          Object.assign(binding, data);
           return binding;
         },
       },
@@ -83,6 +103,50 @@ test('fallback legado reconhece a chave estável mesmo após mudança cadastral'
   const result = await syncUser({ ...external, origem: 'LEGADO' }, 1, 1, false, state.client);
   assert.equal(result.binding.role, 'lider');
   assert.equal(result.binding.assignedSector, 'CORTE');
+});
+
+test('primeiro login legado troca a chave migrada por login pelo ID numérico sem duplicar vínculo', async () => {
+  const legacyUser = {
+    id: 10, factoryUnitId: 1, authOrigin: null, authUserId: null,
+    usuario: 'USER.TESTE', matriculaDass: 100n, role: 'admin', assignedSector: null,
+  };
+  const state = clientWith([legacyUser]);
+  state.identities.push({
+    id: 7, nativeUnitId: 1, authOrigin: 'LEGADO', authUserId: 'USER.TESTE',
+    usuario: 'USER.TESTE', matriculaDass: 100n,
+  });
+  state.bindings.push({ id: 4, identityId: 7, factoryUnitId: 1, role: 'admin', assignedSector: null });
+
+  const result = await syncUser({ ...external, origem: 'LEGADO', id: '549' }, 1, 1, false, state.client);
+
+  assert.equal(result.identity.id, 7);
+  assert.equal(result.identity.authUserId, '549');
+  assert.equal(result.binding.id, 4);
+  assert.equal(state.identities.length, 1);
+  assert.equal(state.bindings.length, 1);
+  assert.equal(legacyUser.authOrigin, 'LEGADO');
+  assert.equal(legacyUser.authUserId, '549');
+});
+
+test('primeiro login comum reutiliza identidade numérica criada antes sem vínculo local', async () => {
+  const legacyUser = {
+    id: 10, factoryUnitId: 1, authOrigin: null, authUserId: null,
+    usuario: 'USER.TESTE', matriculaDass: 100n, role: 'admin', assignedSector: null,
+  };
+  const state = clientWith([legacyUser]);
+  state.identities.push(
+    { id: 7, nativeUnitId: 1, authOrigin: 'LEGADO', authUserId: 'USER.TESTE', usuario: 'USER.TESTE', matriculaDass: 100n },
+    { id: 8, nativeUnitId: 1, authOrigin: 'LEGADO', authUserId: '549', usuario: 'USER.TESTE', matriculaDass: 100n },
+  );
+  state.bindings.push({ id: 4, identityId: 7, factoryUnitId: 1, role: 'admin', assignedSector: null });
+
+  const result = await syncUser({ ...external, origem: 'LEGADO', id: '549' }, 1, 1, false, state.client);
+
+  assert.equal(result.identity.id, 8);
+  assert.equal(result.binding.id, 4);
+  assert.equal(result.binding.identityId, 8);
+  assert.equal(state.bindings.length, 1);
+  assert.equal(legacyUser.authUserId, '549');
 });
 
 test('identidades de origens diferentes não colidem nem herdam RBAC legado', async () => {

@@ -148,6 +148,39 @@ Somente após validar o clone, obter backup e autorizar a alteração no banco d
 destino, repita com `--apply`. Não use esse procedimento para contas realmente
 distintas. As migrations já aplicadas não devem ser reescritas.
 
+### Identidade legada migrada pelo login
+
+O login histórico da SEST emite `LEGADO/<autenticacao.usuarios.id>`. Versões
+anteriores da migração de identidade podiam registrar esses usuários como
+`LEGADO/<login>`. O primeiro login agora corrige essa chave preservando o vínculo
+e as permissões, sem criar uma segunda linha.
+
+Se uma versão anterior já materializou os dois vínculos, confirme no provedor
+legado que login e matrícula representam a mesma conta e simule a reconciliação
+em um clone. Os argumentos são IDs de unidade e de vínculos:
+
+```bash
+cd backend
+npm run identity:reconcile:legacy -- 1 4 22
+```
+
+A simulação sempre executa rollback. Depois de backup, validação do clone e
+autorização operacional explícita, aplique no banco de destino com `--apply`.
+O script recusa unidade, origem, ID numérico, login, matrícula ou permissões
+incompatíveis; preserva o vínculo migrado e sua auditoria e remove somente o
+vínculo redundante.
+
+Para corrigir em lote todos os cadastros SEST validados contra
+`autenticacao.usuarios`, incluindo a consolidação segura de duplicidades com
+permissões idênticas, execute primeiro a simulação no clone:
+
+```bash
+npm run identity:backfill:legacy
+```
+
+O comando informa somente contagens e faz rollback. O uso de `--apply` está
+sujeito às mesmas exigências de backup, clone validado e autorização operacional.
+
 ## Build e deploy
 
 Use somente migrations versionadas:

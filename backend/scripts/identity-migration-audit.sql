@@ -34,6 +34,14 @@ WITH legacy AS (
   GROUP BY b."factoryUnitId", upper(trim(i.usuario))
   HAVING count(DISTINCT i.id) > 1
   UNION ALL
+  SELECT u."factoryUnitId", 'legacy_provider_id_mismatch'
+  FROM legacy u
+  JOIN autenticacao.usuarios provider
+    ON upper(trim(provider.usuario)) = upper(trim(u.usuario))
+   AND NULLIF(regexp_replace(provider.matricula::text, '\D', '', 'g'), '')::numeric = u."matriculaDass"
+  WHERE u.native_code = 'SEST' AND u.origin = 'LEGADO'
+    AND u.provider_id IS DISTINCT FROM provider.id::text
+  UNION ALL
   SELECT c."nativeUnitId", 'recorded_migration_conflict'
   FROM sobra_corte."IdentityMigrationConflict" c
 )

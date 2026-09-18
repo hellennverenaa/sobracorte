@@ -76,6 +76,56 @@ export async function syncUser(
   }) : [];
   if (legacyCandidates.length > 1) throw new LegacyIdentityConflictError();
 
+  // The identity/RBAC migration predates the stable numeric ID emitted by the
+  // legacy auth service. It therefore used the login as authUserId. On the
+  // first login after that migration, adopt the signed provider ID instead of
+  // creating a second identity and binding for the same person.
+  if (!existingBinding && authOrigin === 'LEGADO' && legacyCandidates.length === 1) {
+    const legacyUser = legacyCandidates[0];
+    const migratedOrigin = String(legacyUser.authOrigin || 'LEGADO').trim().toUpperCase();
+    const migratedUserId = String(legacyUser.authUserId || legacyUser.usuario).trim();
+    const migratedIdentity = await client.authIdentity.findUnique({
+      where: {
+        nativeUnitId_authOrigin_authUserId: {
+          nativeUnitId,
+          authOrigin: migratedOrigin,
+          authUserId: migratedUserId,
+        },
+      },
+    });
+    const migratedBinding = migratedIdentity ? await client.userRoleBinding.findUnique({
+      where: { identityId_factoryUnitId: { identityId: migratedIdentity.id, factoryUnitId: nativeUnitId } },
+    }) : null;
+
+    if (migratedIdentity && migratedBinding) {
+      const runTransaction = typeof client.$transaction === 'function'
+        ? (operation: (tx: any) => Promise<any>) => client.$transaction(operation)
+        : (operation: (tx: any) => Promise<any>) => operation(client);
+      return runTransaction(async (tx: any) => {
+        const identity = existingIdentity
+          ? await tx.authIdentity.update({
+              where: { id: existingIdentity.id },
+              data: { usuario, ...commonData },
+            })
+          : await tx.authIdentity.update({
+              where: { id: migratedIdentity.id },
+              data: { authOrigin, authUserId, usuario, ...commonData },
+            });
+        const binding = existingIdentity
+          ? await tx.userRoleBinding.update({
+              where: { id_factoryUnitId: { id: migratedBinding.id, factoryUnitId: nativeUnitId } },
+              data: { identityId: existingIdentity.id },
+            })
+          : migratedBinding;
+        await tx.user.update({
+          where: { id_factoryUnitId: { id: legacyUser.id, factoryUnitId: nativeUnitId } },
+          data: { authOrigin, authUserId },
+        });
+        return { identity, binding };
+      });
+    }
+  }
+
   // O update vazio preserva permissões, mas pode fazer Prisma emular o
   // upsert. Um conflito concorrente só é aceito recarregando a mesma chave.
   const identity = await client.authIdentity.upsert({

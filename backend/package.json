@@ -18,6 +18,8 @@
     "stock:integrity": "node scripts/database-audit.cjs integrity",
     "sector:retirement:audit": "node scripts/sector-retirement-audit.cjs",
     "identity:audit": "node scripts/database-audit.cjs identity",
+    "identity:reconcile:legacy": "node scripts/reconcile-legacy-provider-identity.cjs",
+    "identity:backfill:legacy": "node scripts/backfill-legacy-provider-identities.cjs",
     "test:tenant:db": "NODE_ENV=test tsx --test tests/multiTenantIsolation.db.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"
   },
