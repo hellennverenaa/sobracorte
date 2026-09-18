@@ -20,6 +20,7 @@
     "identity:audit": "node scripts/database-audit.cjs identity",
     "identity:reconcile:legacy": "node scripts/reconcile-legacy-provider-identity.cjs",
     "identity:backfill:legacy": "node scripts/backfill-legacy-provider-identities.cjs",
+    "factory:reset:non-sest": "node scripts/reset-non-sest-factories.cjs",
     "test:tenant:db": "NODE_ENV=test tsx --test tests/multiTenantIsolation.db.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"
   },

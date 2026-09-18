@@ -7,7 +7,7 @@
  */
 
 export const LEGACY_UNIT_CODE = 'SEST'
-export const HIDDEN_UNIT_CODES = new Set(['ITP', 'IVT'])
+export const HIDDEN_UNIT_CODES = new Set(['IVT'])
 
 export function normalizeUnitCode(value) {
   return String(value ?? '').trim().toUpperCase()

@@ -27,17 +27,17 @@ test('uses the external endpoint and includes the unit for non-SEST', () => {
   })
 })
 
-test('intersects catalogs, always allows SEST, and hides ITP and IVT', () => {
+test('intersects catalogs, always allows SEST, exposes ITP, and hides IVT', () => {
   const factory = { data: [
     { code: 'SEST', name: 'Santo Estêvão' },
     { code: 'SAJ', name: 'Santo Antônio de Jesus' },
     { code: 'ITB', name: 'Itabuna' },
     { code: 'VDC', name: 'Vitória da Conquista' },
-    { code: 'ITP', name: 'Itapetinga' },
+    { code: 'ITP', name: 'Itapipoca' },
     { code: 'IVT', name: 'Ivitória' },
   ] }
   const external = { items: [{ codigo: 'SAJ' }, { codigo: 'ITB' }, { codigo: 'VDC' }, { codigo: 'ITP' }] }
-  assert.deepEqual(intersectFactoryUnits(factory, external).map(unit => unit.code), ['SEST', 'SAJ', 'ITB', 'VDC'])
+  assert.deepEqual(intersectFactoryUnits(factory, external).map(unit => unit.code), ['SEST', 'SAJ', 'ITB', 'VDC', 'ITP'])
 })
 
 test('external catalog failure leaves SEST available', () => {

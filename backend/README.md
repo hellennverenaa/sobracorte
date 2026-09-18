@@ -192,3 +192,31 @@ npm run build
 ```
 
 O artefato do servidor é `dist/src/server.js`. O arquivo `ecosystem.config.cjs` contém a configuração PM2. Nunca substitua `prisma migrate deploy` por `prisma db push` em produção.
+
+### Reset completo das unidades não-SEST
+
+O reset administrativo preserva integralmente `SEST` e os registros de
+`FactoryUnit`. Nas demais unidades remove dados operacionais, configurações,
+usuários, identidades, permissões e auditorias, e então recria somente categorias,
+origens e movimentos de auditoria do catálogo fixo.
+
+Compile e execute primeiro sem argumentos. A simulação usa a mesma transação da
+operação real e sempre faz rollback:
+
+```bash
+npm run build
+npm run factory:reset:non-sest -- --disable=VDC,IVT
+```
+
+Revise as unidades alvo e as contagens antes/depois. Em produção, somente após
+backup validado e janela de manutenção, a aplicação exige as três confirmações:
+
+```bash
+NODE_ENV=production npm run factory:reset:non-sest -- \
+  --disable=VDC,IVT --apply --confirm=RESET-NON-SEST --allow-production
+```
+
+Não há opção para incluir SEST. A operação bloqueia se não encontrar exatamente
+uma unidade com esse código ou se qualquer contagem da unidade protegida mudar.
+Os códigos passados em `--disable` precisam existir entre as unidades não-SEST;
+essas unidades recebem o catálogo normalmente, mas terminam com `active=false`.
