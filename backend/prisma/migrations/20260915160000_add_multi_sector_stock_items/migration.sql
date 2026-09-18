@@ -1,199 +1,138 @@
--- Upgrade after the production history through 20260913000000.
--- Compatibility bridge for databases that followed the main production
--- migration line before the multi-sector work was merged. That line removed
--- these legacy columns, while this migration still uses them when replicating
--- the SEST configuration. They are also present in the target Prisma schema.
+-- Upgrade in-place after the production history through 20260913000000.
+-- Existing stock rows keep their ids; no data is copied to parallel tables.
+BEGIN;
+
 ALTER TABLE "sobra_corte"."CategoryConfig"
-    ADD COLUMN IF NOT EXISTS "unitLock" TEXT NOT NULL DEFAULT 'livre';
-
+  ADD COLUMN IF NOT EXISTS "unitLock" TEXT NOT NULL DEFAULT 'livre';
 ALTER TABLE "sobra_corte"."Location"
-    ADD COLUMN IF NOT EXISTS "categoryId" INTEGER;
-
--- 1. Create Enums
-DO $$ BEGIN
-    CREATE TYPE "sobra_corte"."SectorType" AS ENUM ('CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+  ADD COLUMN IF NOT EXISTS "categoryId" INTEGER;
 
 DO $$ BEGIN
-    CREATE TYPE "sobra_corte"."ComponentType" AS ENUM ('MATERIA_PRIMA', 'PECA_CORTADA', 'SOLADO', 'CABEDAL', 'PE_PRONTO');
-EXCEPTION
-    WHEN duplicate_object THEN null;
+  CREATE TYPE "sobra_corte"."SectorType" AS ENUM ('CORTE', 'APOIO', 'PRE_FABRICADO', 'EXPEDICAO', 'MONTAGEM');
+EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-
 DO $$ BEGIN
-    CREATE TYPE "sobra_corte"."FootSide" AS ENUM ('E', 'D');
-EXCEPTION
-    WHEN duplicate_object THEN null;
+  CREATE TYPE "sobra_corte"."ComponentType" AS ENUM ('MATERIA_PRIMA', 'PECA_CORTADA', 'SOLADO', 'CABEDAL', 'PE_PRONTO');
+EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-
 DO $$ BEGIN
-    CREATE TYPE "sobra_corte"."MovementType" AS ENUM ('ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'REFUGO', 'CASAMENTO_PAR');
-EXCEPTION
-    WHEN duplicate_object THEN null;
+  CREATE TYPE "sobra_corte"."FootSide" AS ENUM ('E', 'D');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE TYPE "sobra_corte"."MovementType" AS ENUM ('ENTRADA', 'SAIDA', 'TRANSFERENCIA', 'REFUGO', 'CASAMENTO_PAR');
+EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- 2. Create Table StockItem (Unified 5 Industrial Sectors)
-CREATE TABLE IF NOT EXISTS "sobra_corte"."StockItem" (
-    "id" SERIAL NOT NULL,
-    "factoryUnitId" INTEGER NOT NULL,
-    "sector" "sobra_corte"."SectorType" NOT NULL DEFAULT 'CORTE',
-    "componentType" "sobra_corte"."ComponentType",
-    "quantity" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "observation" TEXT DEFAULT '',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "code" TEXT,
-    "name" TEXT,
-    "unit" TEXT,
-    "type" TEXT,
-    "minStock" DOUBLE PRECISION DEFAULT 0,
-    "pieceCode" TEXT,
-    "description" TEXT,
-    "materialColor" TEXT,
-    "productName" TEXT,
-    "sku" TEXT,
-    "color" TEXT,
-    "sizeGrade" TEXT,
-    "footSide" "sobra_corte"."FootSide",
+-- Fail before changing the schema if production contains an unknown legacy type.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "sobra_corte"."Movement"
+    WHERE lower(trim("type")) NOT IN ('entrada', 'saida', 'transferencia', 'refugo')
+  ) THEN
+    RAISE EXCEPTION 'Movement contém tipo histórico incompatível com MovementType';
+  END IF;
+END $$;
 
-    CONSTRAINT "StockItem_pkey" PRIMARY KEY ("id")
-);
+-- Keep the original objects and rows, changing only their canonical names.
+ALTER TABLE "sobra_corte"."Material" RENAME TO "StockItem";
+ALTER TABLE "sobra_corte"."MaterialLocation" RENAME TO "StockItemLocation";
+ALTER TABLE "sobra_corte"."Movement" RENAME TO "StockMovement";
+ALTER TABLE "sobra_corte"."StockItemLocation" RENAME COLUMN "materialId" TO "stockItemId";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "materialId" TO "stockItemId";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "materialCode" TO "itemCode";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "materialName" TO "itemName";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "materialCategory" TO "itemCategory";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "materialUnit" TO "itemUnit";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME COLUMN "locationName" TO "destinationLocationName";
 
--- 3. Create Table StockItemLocation
-CREATE TABLE IF NOT EXISTS "sobra_corte"."StockItemLocation" (
-    "stockItemId" INTEGER NOT NULL,
-    "locationId" INTEGER NOT NULL,
-    "factoryUnitId" INTEGER NOT NULL,
-    "quantity" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ALTER TABLE "sobra_corte"."StockItem"
+  ADD COLUMN IF NOT EXISTS "unit" TEXT,
+  ADD COLUMN IF NOT EXISTS "type" TEXT;
+ALTER TABLE "sobra_corte"."StockItem"
+  ADD COLUMN "sector" "sobra_corte"."SectorType" NOT NULL DEFAULT 'CORTE',
+  ADD COLUMN "componentType" "sobra_corte"."ComponentType" DEFAULT 'MATERIA_PRIMA',
+  ADD COLUMN "pieceCode" TEXT,
+  ADD COLUMN "description" TEXT,
+  ADD COLUMN "materialColor" TEXT,
+  ADD COLUMN "productName" TEXT,
+  ADD COLUMN "sku" TEXT,
+  ADD COLUMN "color" TEXT,
+  ADD COLUMN "sizeGrade" TEXT,
+  ADD COLUMN "footSide" "sobra_corte"."FootSide",
+  ALTER COLUMN "code" DROP NOT NULL,
+  ALTER COLUMN "name" DROP NOT NULL,
+  ALTER COLUMN "unit" DROP NOT NULL,
+  ALTER COLUMN "type" DROP NOT NULL,
+  ALTER COLUMN "minStock" DROP NOT NULL;
 
-    CONSTRAINT "StockItemLocation_pkey" PRIMARY KEY ("stockItemId","locationId")
-);
+UPDATE "sobra_corte"."StockItem"
+SET "sector" = 'CORTE', "componentType" = 'MATERIA_PRIMA';
 
--- 4. Create Table StockMovement (Audit & Traceability)
-CREATE TABLE IF NOT EXISTS "sobra_corte"."StockMovement" (
-    "id" SERIAL NOT NULL,
-    "factoryUnitId" INTEGER NOT NULL,
-    "stockItemId" INTEGER NOT NULL,
-    "sector" "sobra_corte"."SectorType" NOT NULL,
-    "type" "sobra_corte"."MovementType" NOT NULL,
-    "quantity" DOUBLE PRECISION NOT NULL,
-    "sourceLocationId" INTEGER,
-    "destinationLocationId" INTEGER,
-    "origem" TEXT,
-    "reason" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "operatorId" TEXT,
-    "operatorName" TEXT,
+UPDATE "sobra_corte"."StockItemLocation" SET "quantity" = 0 WHERE "quantity" IS NULL;
+ALTER TABLE "sobra_corte"."StockItemLocation" ALTER COLUMN "quantity" SET NOT NULL;
 
-    CONSTRAINT "StockMovement_pkey" PRIMARY KEY ("id")
-);
+ALTER TABLE "sobra_corte"."StockMovement"
+  ADD COLUMN "sector" "sobra_corte"."SectorType" NOT NULL DEFAULT 'CORTE',
+  ADD COLUMN "sourceLocationId" INTEGER,
+  ADD COLUMN "destinationLocationId" INTEGER,
+  ADD COLUMN "sourceLocationName" TEXT;
+ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "Movement_type_valid";
+ALTER TABLE "sobra_corte"."StockMovement"
+  ALTER COLUMN "type" TYPE "sobra_corte"."MovementType"
+  USING upper(trim("type"))::"sobra_corte"."MovementType";
+ALTER TABLE "sobra_corte"."StockMovement" ALTER COLUMN "sector" DROP DEFAULT;
 
--- 5. Indexes for StockItem
-CREATE UNIQUE INDEX IF NOT EXISTS "StockItem_id_factoryUnitId_key" ON "sobra_corte"."StockItem"("id", "factoryUnitId");
-CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_createdAt_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "createdAt" DESC);
-CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_productName_sizeGrade_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "productName", "sizeGrade");
-CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_sku_sizeGrade_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "sku", "sizeGrade");
-CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_sku_sizeGrade_footSide_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "sku", "sizeGrade", "footSide");
-CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_pieceCode_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "pieceCode");
+ALTER TABLE "sobra_corte"."StockItem" RENAME CONSTRAINT "Material_pkey" TO "StockItem_pkey";
+ALTER TABLE "sobra_corte"."StockItemLocation" RENAME CONSTRAINT "MaterialLocation_pkey" TO "StockItemLocation_pkey";
+ALTER TABLE "sobra_corte"."StockMovement" RENAME CONSTRAINT "Movement_pkey" TO "StockMovement_pkey";
 
--- 6. Indexes for StockItemLocation
-CREATE UNIQUE INDEX IF NOT EXISTS "StockItemLocation_stockItemId_locationId_factoryUnitId_key" ON "sobra_corte"."StockItemLocation"("stockItemId", "locationId", "factoryUnitId");
-CREATE INDEX IF NOT EXISTS "StockItemLocation_factoryUnitId_locationId_idx" ON "sobra_corte"."StockItemLocation"("factoryUnitId", "locationId");
+-- Replace legacy constraints with canonical tenant-safe constraints.
+ALTER TABLE "sobra_corte"."StockItemLocation"
+  DROP CONSTRAINT IF EXISTS "MaterialLocation_materialId_factoryUnitId_fkey",
+  DROP CONSTRAINT IF EXISTS "MaterialLocation_locationId_factoryUnitId_fkey",
+  DROP CONSTRAINT IF EXISTS "MaterialLocation_factoryUnitId_fkey";
+ALTER TABLE "sobra_corte"."StockMovement"
+  DROP CONSTRAINT IF EXISTS "Movement_materialId_factoryUnitId_fkey",
+  DROP CONSTRAINT IF EXISTS "Movement_materialId_fkey",
+  DROP CONSTRAINT IF EXISTS "Movement_factoryUnitId_fkey";
+ALTER TABLE "sobra_corte"."StockItem"
+  DROP CONSTRAINT IF EXISTS "Material_factoryUnitId_fkey";
 
--- 7. Indexes for StockMovement
-CREATE INDEX IF NOT EXISTS "StockMovement_factoryUnitId_stockItemId_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "stockItemId");
-CREATE INDEX IF NOT EXISTS "StockMovement_factoryUnitId_sector_createdAt_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "sector", "createdAt" DESC);
-CREATE INDEX IF NOT EXISTS "StockMovement_factoryUnitId_operatorId_createdAt_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "operatorId", "createdAt");
+ALTER TABLE "sobra_corte"."StockItem"
+  ADD CONSTRAINT "StockItem_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "sobra_corte"."StockItemLocation"
+  ADD CONSTRAINT "StockItemLocation_stockItemId_factoryUnitId_fkey" FOREIGN KEY ("stockItemId", "factoryUnitId") REFERENCES "sobra_corte"."StockItem"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT "StockItemLocation_locationId_factoryUnitId_fkey" FOREIGN KEY ("locationId", "factoryUnitId") REFERENCES "sobra_corte"."Location"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT "StockItemLocation_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "sobra_corte"."StockMovement"
+  ADD CONSTRAINT "StockMovement_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT "StockMovement_stockItemId_fkey" FOREIGN KEY ("stockItemId") REFERENCES "sobra_corte"."StockItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- 8. Foreign Key Constraints
-ALTER TABLE "sobra_corte"."StockItem" DROP CONSTRAINT IF EXISTS "StockItem_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockItem" ADD CONSTRAINT "StockItem_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER INDEX "sobra_corte"."Material_factoryUnitId_code_key" RENAME TO "StockItem_factoryUnitId_code_key";
+ALTER INDEX "sobra_corte"."Material_id_factoryUnitId_key" RENAME TO "StockItem_id_factoryUnitId_key";
+ALTER INDEX "sobra_corte"."Material_factoryUnitId_name_idx" RENAME TO "StockItem_factoryUnitId_name_idx";
+ALTER INDEX "sobra_corte"."Material_factoryUnitId_quantity_idx" RENAME TO "StockItem_factoryUnitId_quantity_idx";
+ALTER INDEX "sobra_corte"."Material_code_trgm_idx" RENAME TO "StockItem_code_idx";
+ALTER INDEX "sobra_corte"."Material_name_trgm_idx" RENAME TO "StockItem_name_idx";
+CREATE UNIQUE INDEX "StockItemLocation_stockItemId_locationId_factoryUnitId_key" ON "sobra_corte"."StockItemLocation"("stockItemId", "locationId", "factoryUnitId");
+CREATE INDEX "StockItem_factoryUnitId_sector_createdAt_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "createdAt" DESC);
+CREATE INDEX "StockItem_factoryUnitId_sector_productName_sizeGrade_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "productName", "sizeGrade");
+CREATE INDEX "StockItem_factoryUnitId_sector_sku_sizeGrade_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "sku", "sizeGrade");
+CREATE INDEX "StockItem_factoryUnitId_sector_sku_sizeGrade_footSide_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "sku", "sizeGrade", "footSide");
+CREATE INDEX "StockItem_factoryUnitId_sector_pieceCode_idx" ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "pieceCode");
+CREATE INDEX "StockItemLocation_factoryUnitId_locationId_idx" ON "sobra_corte"."StockItemLocation"("factoryUnitId", "locationId");
+CREATE INDEX "StockMovement_factoryUnitId_stockItemId_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "stockItemId");
+CREATE INDEX "StockMovement_factoryUnitId_sector_createdAt_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "sector", "createdAt" DESC);
+CREATE INDEX "StockMovement_factoryUnitId_operatorId_createdAt_idx" ON "sobra_corte"."StockMovement"("factoryUnitId", "operatorId", "createdAt");
+DROP INDEX IF EXISTS "sobra_corte"."Movement_factoryUnitId_createdAt_idx";
+DROP INDEX IF EXISTS "sobra_corte"."Movement_factoryUnitId_origem_createdAt_idx";
 
-ALTER TABLE "sobra_corte"."StockItemLocation" DROP CONSTRAINT IF EXISTS "StockItemLocation_stockItemId_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockItemLocation" ADD CONSTRAINT "StockItemLocation_stockItemId_factoryUnitId_fkey" FOREIGN KEY ("stockItemId", "factoryUnitId") REFERENCES "sobra_corte"."StockItem"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "sobra_corte"."StockItemLocation" DROP CONSTRAINT IF EXISTS "StockItemLocation_locationId_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockItemLocation" ADD CONSTRAINT "StockItemLocation_locationId_factoryUnitId_fkey" FOREIGN KEY ("locationId", "factoryUnitId") REFERENCES "sobra_corte"."Location"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "sobra_corte"."StockItemLocation" DROP CONSTRAINT IF EXISTS "StockItemLocation_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockItemLocation" ADD CONSTRAINT "StockItemLocation_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
-ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockMovement" ADD CONSTRAINT "StockMovement_factoryUnitId_fkey" FOREIGN KEY ("factoryUnitId") REFERENCES "sobra_corte"."FactoryUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
-ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_stockItemId_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."StockMovement" ADD CONSTRAINT "StockMovement_stockItemId_factoryUnitId_fkey" FOREIGN KEY ("stockItemId", "factoryUnitId") REFERENCES "sobra_corte"."StockItem"("id", "factoryUnitId") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- 9. Preserve existing factories, including the STJ -> SAJ production rename.
+-- Preserve existing factories and provision only shared configuration.
 INSERT INTO "sobra_corte"."FactoryUnit" ("code", "name", "active") VALUES
-    ('SEST', 'Santo Estêvão', true),
-    ('SAJ',  'Santo Antônio de Jesus', true),
-    ('ITB',  'Itaberaba', true),
-    ('VDC',  'Vitória da Conquista', true),
-    ('ITP',  'Itapipoca', true)
+  ('SEST', 'Santo Estêvão', true), ('SAJ', 'Santo Antônio de Jesus', true),
+  ('ITB', 'Itaberaba', true), ('VDC', 'Vitória da Conquista', true), ('ITP', 'Itapipoca', true)
 ON CONFLICT ("code") DO NOTHING;
 
--- 10. Replicate Default Configuration from SEST to other units
-DO $$
-DECLARE
-    u_code TEXT;
-    target_unit_id INT;
-    sest_unit_id INT;
-BEGIN
-    SELECT "id" INTO sest_unit_id FROM "sobra_corte"."FactoryUnit" WHERE "code" = 'SEST';
-
-    IF sest_unit_id IS NOT NULL THEN
-        -- SAJ already has its own configuration. Do not repopulate it from SEST.
-        FOR u_code IN SELECT unnest(ARRAY['ITB', 'VDC', 'ITP']) LOOP
-            SELECT "id" INTO target_unit_id FROM "sobra_corte"."FactoryUnit" WHERE "code" = u_code;
-
-            IF target_unit_id IS NOT NULL THEN
-                -- A. UnitConfig
-                INSERT INTO "sobra_corte"."UnitConfig" ("name", "symbol", "active", "factoryUnitId")
-                SELECT u."name", u."symbol", u."active", target_unit_id
-                FROM "sobra_corte"."UnitConfig" u
-                WHERE u."factoryUnitId" = sest_unit_id
-                  AND NOT EXISTS (
-                    SELECT 1 FROM "sobra_corte"."UnitConfig" ex
-                    WHERE ex."factoryUnitId" = target_unit_id AND ex."symbol" = u."symbol"
-                  );
-
-                -- B. CategoryConfig
-                INSERT INTO "sobra_corte"."CategoryConfig" ("name", "unitLock", "unitLocked", "defaultUnitId", "factoryUnitId")
-                SELECT c."name", c."unitLock", c."unitLocked", tu."id", target_unit_id
-                FROM "sobra_corte"."CategoryConfig" c
-                LEFT JOIN "sobra_corte"."UnitConfig" su ON su."id" = c."defaultUnitId"
-                LEFT JOIN "sobra_corte"."UnitConfig" tu ON tu."factoryUnitId" = target_unit_id AND tu."symbol" = su."symbol"
-                WHERE c."factoryUnitId" = sest_unit_id
-                  AND NOT EXISTS (
-                    SELECT 1 FROM "sobra_corte"."CategoryConfig" ex
-                    WHERE ex."factoryUnitId" = target_unit_id AND ex."name" = c."name"
-                  );
-
-                -- C. Location
-                INSERT INTO "sobra_corte"."Location" ("name", "categoryId", "factoryUnitId")
-                SELECT l."name", tc."id", target_unit_id
-                FROM "sobra_corte"."Location" l
-                LEFT JOIN "sobra_corte"."CategoryConfig" sc ON sc."id" = l."categoryId"
-                LEFT JOIN "sobra_corte"."CategoryConfig" tc ON tc."factoryUnitId" = target_unit_id AND tc."name" = sc."name"
-                WHERE l."factoryUnitId" = sest_unit_id
-                  AND NOT EXISTS (
-                    SELECT 1 FROM "sobra_corte"."Location" ex
-                    WHERE ex."factoryUnitId" = target_unit_id AND ex."name" = l."name"
-                  );
-
-                -- D. OriginConfig
-                INSERT INTO "sobra_corte"."OriginConfig" ("name", "factoryUnitId")
-                SELECT o."name", target_unit_id
-                FROM "sobra_corte"."OriginConfig" o
-                WHERE o."factoryUnitId" = sest_unit_id
-                  AND NOT EXISTS (
-                    SELECT 1 FROM "sobra_corte"."OriginConfig" ex
-                    WHERE ex."factoryUnitId" = target_unit_id AND ex."name" = o."name"
-                  );
-            END IF;
-        END LOOP;
-    END IF;
-END $$;
+COMMIT;

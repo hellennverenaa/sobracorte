@@ -73,13 +73,7 @@ CREATE INDEX IF NOT EXISTS "MaterialDeletionAudit_factoryUnitId_code_idx" ON "so
 ALTER TABLE "sobra_corte"."MaterialRequisition" ADD COLUMN IF NOT EXISTS "color" TEXT;
 CREATE INDEX IF NOT EXISTS "MaterialRequisition_factoryUnitId_sku_color_idx" ON "sobra_corte"."MaterialRequisition"("factoryUnitId", "sku", "color");
 
--- 6. Adição de Snapshots Imutáveis em Movement e StockMovement
-ALTER TABLE "sobra_corte"."Movement" ADD COLUMN IF NOT EXISTS "materialCode" TEXT;
-ALTER TABLE "sobra_corte"."Movement" ADD COLUMN IF NOT EXISTS "materialName" TEXT;
-ALTER TABLE "sobra_corte"."Movement" ADD COLUMN IF NOT EXISTS "materialCategory" TEXT;
-ALTER TABLE "sobra_corte"."Movement" ADD COLUMN IF NOT EXISTS "materialUnit" TEXT;
-ALTER TABLE "sobra_corte"."Movement" ADD COLUMN IF NOT EXISTS "locationName" TEXT;
-
+-- 6. Adição de Snapshots Imutáveis
 ALTER TABLE "sobra_corte"."StockMovement" ADD COLUMN IF NOT EXISTS "itemCode" TEXT;
 ALTER TABLE "sobra_corte"."StockMovement" ADD COLUMN IF NOT EXISTS "itemName" TEXT;
 ALTER TABLE "sobra_corte"."StockMovement" ADD COLUMN IF NOT EXISTS "itemCategory" TEXT;
@@ -88,13 +82,6 @@ ALTER TABLE "sobra_corte"."StockMovement" ADD COLUMN IF NOT EXISTS "sourceLocati
 ALTER TABLE "sobra_corte"."StockMovement" ADD COLUMN IF NOT EXISTS "destinationLocationName" TEXT;
 
 -- 7. Conversão de Precisão Numérica para DECIMAL(18, 3)
-ALTER TABLE "sobra_corte"."Material" ALTER COLUMN "quantity" TYPE DECIMAL(18, 3) USING "quantity"::DECIMAL(18, 3);
-ALTER TABLE "sobra_corte"."Material" ALTER COLUMN "minStock" TYPE DECIMAL(18, 3) USING "minStock"::DECIMAL(18, 3);
-
-ALTER TABLE "sobra_corte"."MaterialLocation" ALTER COLUMN "quantity" TYPE DECIMAL(18, 3) USING "quantity"::DECIMAL(18, 3);
-
-ALTER TABLE "sobra_corte"."Movement" ALTER COLUMN "quantity" TYPE DECIMAL(18, 3) USING "quantity"::DECIMAL(18, 3);
-
 ALTER TABLE "sobra_corte"."StockItem" ALTER COLUMN "quantity" TYPE DECIMAL(18, 3) USING "quantity"::DECIMAL(18, 3);
 ALTER TABLE "sobra_corte"."StockItem" ALTER COLUMN "minStock" TYPE DECIMAL(18, 3) USING "minStock"::DECIMAL(18, 3);
 
@@ -106,14 +93,6 @@ ALTER TABLE "sobra_corte"."MaterialRequisition" ALTER COLUMN "quantityRequested"
 ALTER TABLE "sobra_corte"."MaterialRequisition" ALTER COLUMN "quantityFulfilled" TYPE DECIMAL(18, 3) USING "quantityFulfilled"::DECIMAL(18, 3);
 
 -- 8. Preservação de Histórico de Auditoria (ON DELETE SET NULL)
--- Ajuste em Movement
-ALTER TABLE "sobra_corte"."Movement" DROP CONSTRAINT IF EXISTS "Movement_materialId_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."Movement" DROP CONSTRAINT IF EXISTS "Movement_materialId_fkey";
-ALTER TABLE "sobra_corte"."Movement" ALTER COLUMN "materialId" DROP NOT NULL;
-ALTER TABLE "sobra_corte"."Movement" ADD CONSTRAINT "Movement_materialId_fkey" 
-    FOREIGN KEY ("materialId") REFERENCES "sobra_corte"."Material"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- Ajuste em StockMovement
 ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_stockItemId_factoryUnitId_fkey";
 ALTER TABLE "sobra_corte"."StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_stockItemId_fkey";
 ALTER TABLE "sobra_corte"."StockMovement" ALTER COLUMN "stockItemId" DROP NOT NULL;

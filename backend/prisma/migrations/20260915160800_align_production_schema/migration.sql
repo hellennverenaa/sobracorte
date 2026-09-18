@@ -3,7 +3,7 @@
 -- e o schema Prisma após a reconciliação estrutural.
 BEGIN;
 
-ALTER TABLE "sobra_corte"."Material"
+ALTER TABLE "sobra_corte"."StockItem"
     ALTER COLUMN "quantity" SET DEFAULT 0;
 
 ALTER TABLE "sobra_corte"."MaterialRequisition"
@@ -17,7 +17,7 @@ DROP INDEX IF EXISTS "sobra_corte"."StockItem_factoryUnitId_sector_sku_sizeGrade
 CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_sector_sku_sizeGrade_color_footSide_idx"
     ON "sobra_corte"."StockItem"("factoryUnitId", "sector", "sku", "sizeGrade", "color", "footSide");
 
--- Production followed a parallel migration line where Material used relations
+-- Production followed a parallel migration line where the stock item used relations
 -- to CategoryConfig and UnitConfig. Preserve their values in the textual
 -- columns consumed by the current application before removing the legacy
 -- relation columns.
@@ -26,14 +26,14 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'sobra_corte'
-          AND table_name = 'Material'
+          AND table_name = 'StockItem'
           AND column_name = 'categoryId'
     ) THEN
-        ALTER TABLE "sobra_corte"."Material"
+        ALTER TABLE "sobra_corte"."StockItem"
             ADD COLUMN IF NOT EXISTS "type" TEXT,
             ADD COLUMN IF NOT EXISTS "unit" TEXT;
 
-        UPDATE "sobra_corte"."Material" material
+        UPDATE "sobra_corte"."StockItem" material
         SET "type" = category."name",
             "unit" = unit_config."symbol"
         FROM "sobra_corte"."CategoryConfig" category,
@@ -44,15 +44,15 @@ BEGIN
           AND unit_config."factoryUnitId" = material."factoryUnitId";
 
         IF EXISTS (
-            SELECT 1 FROM "sobra_corte"."Material"
+            SELECT 1 FROM "sobra_corte"."StockItem"
             WHERE "type" IS NULL OR "unit" IS NULL
         ) THEN
             RAISE EXCEPTION 'Não foi possível converter categoryId/unitId de todos os materiais';
         END IF;
 
-        ALTER TABLE "sobra_corte"."Material"
-            ALTER COLUMN "type" SET NOT NULL,
-            ALTER COLUMN "unit" SET NOT NULL,
+        ALTER TABLE "sobra_corte"."StockItem"
+            ALTER COLUMN "type" DROP NOT NULL,
+            ALTER COLUMN "unit" DROP NOT NULL,
             DROP COLUMN "categoryId",
             DROP COLUMN "unitId";
     END IF;
@@ -60,7 +60,7 @@ END $$;
 
 -- Preserve the textual movement origin used by the current API before
 -- removing the obsolete relational origin/location fields.
-ALTER TABLE "sobra_corte"."Movement"
+ALTER TABLE "sobra_corte"."StockMovement"
     ADD COLUMN IF NOT EXISTS "origem" TEXT;
 
 DO $$
@@ -68,10 +68,10 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'sobra_corte'
-          AND table_name = 'Movement'
+          AND table_name = 'StockMovement'
           AND column_name = 'originId'
     ) THEN
-        UPDATE "sobra_corte"."Movement" movement
+        UPDATE "sobra_corte"."StockMovement" movement
         SET "origem" = COALESCE(
             movement."origem",
             movement."originName",
@@ -81,27 +81,27 @@ BEGIN
         WHERE origin_config."id" = movement."originId"
           AND origin_config."factoryUnitId" = movement."factoryUnitId";
 
-        UPDATE "sobra_corte"."Movement"
+        UPDATE "sobra_corte"."StockMovement"
         SET "origem" = COALESCE("origem", "originName")
         WHERE "origem" IS NULL;
 
-        ALTER TABLE "sobra_corte"."Movement"
+        ALTER TABLE "sobra_corte"."StockMovement"
             DROP COLUMN "locationId",
             DROP COLUMN "originId",
             DROP COLUMN "originName";
     END IF;
 END $$;
 
-ALTER TABLE "sobra_corte"."Movement"
-    ALTER COLUMN "materialCode" DROP NOT NULL,
-    ALTER COLUMN "materialName" DROP NOT NULL,
-    ALTER COLUMN "materialCategory" DROP NOT NULL,
-    ALTER COLUMN "materialUnit" DROP NOT NULL;
+ALTER TABLE "sobra_corte"."StockMovement"
+    ALTER COLUMN "itemCode" DROP NOT NULL,
+    ALTER COLUMN "itemName" DROP NOT NULL,
+    ALTER COLUMN "itemCategory" DROP NOT NULL,
+    ALTER COLUMN "itemUnit" DROP NOT NULL;
 
-CREATE INDEX IF NOT EXISTS "Material_factoryUnitId_type_idx"
-    ON "sobra_corte"."Material"("factoryUnitId", "type");
-CREATE INDEX IF NOT EXISTS "Movement_factoryUnitId_origem_createdAt_idx"
-    ON "sobra_corte"."Movement"("factoryUnitId", "origem", "createdAt");
+CREATE INDEX IF NOT EXISTS "StockItem_factoryUnitId_type_idx"
+    ON "sobra_corte"."StockItem"("factoryUnitId", "type");
+CREATE INDEX IF NOT EXISTS "StockMovement_factoryUnitId_origem_createdAt_idx"
+    ON "sobra_corte"."StockMovement"("factoryUnitId", "origem", "createdAt");
 
 DROP INDEX IF EXISTS "sobra_corte"."CategoryConfig_name_key";
 DROP INDEX IF EXISTS "sobra_corte"."OriginConfig_name_key";
@@ -138,13 +138,13 @@ BEGIN
     END IF;
 END $$;
 
-ALTER TABLE "sobra_corte"."MaterialLocation"
-    ALTER COLUMN "quantity" DROP NOT NULL;
+ALTER TABLE "sobra_corte"."StockItemLocation"
+    ALTER COLUMN "quantity" SET NOT NULL;
 
-ALTER TABLE "sobra_corte"."MaterialLocation"
-    DROP CONSTRAINT IF EXISTS "MaterialLocation_locationId_factoryUnitId_fkey";
-ALTER TABLE "sobra_corte"."MaterialLocation"
-    ADD CONSTRAINT "MaterialLocation_locationId_factoryUnitId_fkey"
+ALTER TABLE "sobra_corte"."StockItemLocation"
+    DROP CONSTRAINT IF EXISTS "StockItemLocation_locationId_factoryUnitId_fkey";
+ALTER TABLE "sobra_corte"."StockItemLocation"
+    ADD CONSTRAINT "StockItemLocation_locationId_factoryUnitId_fkey"
     FOREIGN KEY ("locationId", "factoryUnitId")
     REFERENCES "sobra_corte"."Location"("id", "factoryUnitId")
     ON DELETE CASCADE ON UPDATE CASCADE;

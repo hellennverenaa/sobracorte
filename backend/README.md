@@ -92,7 +92,7 @@ npm run test:stock-migration:db
 npm run test:tenant:db
 ```
 
-Também existem scripts operacionais de status, backfill, reconciliação e integridade do estoque. Eles requerem acesso explícito ao banco correspondente e não fazem parte da inicialização normal.
+As auditorias `stock:integrity` e `identity:audit` são somente de verificação e requerem acesso explícito ao banco correspondente.
 
 ## Build e deploy
 

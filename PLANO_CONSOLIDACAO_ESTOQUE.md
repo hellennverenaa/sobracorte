@@ -1,5 +1,7 @@
 # Plano de consolidação do estoque
 
+Status: etapas 1–4 executadas. A etapa 5 permanece pendente até existir uma cópia atual do banco de produção.
+
 ## Decisão
 
 Usar as tabelas existentes como fonte única de estoque, renomeando-as diretamente no PostgreSQL:

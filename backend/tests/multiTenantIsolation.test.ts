@@ -7,17 +7,17 @@ const tenantOne = 1;
 const tenantTwo = 2;
 
 test('TenantGuard falha antes de qualquer query sem contexto ativo', () => {
-  assert.throws(() => requireTenantContext('Material', 'findMany'), TenantGuardError);
-  assert.equal(tenantStorage.run({ tenantId: tenantOne }, () => requireTenantContext('Material', 'findMany')), tenantOne);
+  assert.throws(() => requireTenantContext('StockItem', 'findMany'), TenantGuardError);
+  assert.equal(tenantStorage.run({ tenantId: tenantOne }, () => requireTenantContext('StockItem', 'findMany')), tenantOne);
 });
 
 test('TenantGuard injeta unidade em leituras, lotes e criações sem aceitar unidade estrangeira', () => {
   assert.deepEqual(
-    applyTenantGuard('Material', 'findMany', { where: { code: 'TEC-001' } }, tenantOne),
+    applyTenantGuard('StockItem', 'findMany', { where: { code: 'TEC-001' } }, tenantOne),
     { where: { code: 'TEC-001', factoryUnitId: tenantOne } },
   );
   assert.deepEqual(
-    applyTenantGuard('Material', 'createMany', { data: [{ code: 'A' }, { code: 'B', factoryUnitId: tenantOne }] }, tenantOne),
+    applyTenantGuard('StockItem', 'createMany', { data: [{ code: 'A' }, { code: 'B', factoryUnitId: tenantOne }] }, tenantOne),
     { data: [{ code: 'A', factoryUnitId: tenantOne }, { code: 'B', factoryUnitId: tenantOne }] },
   );
   for (const operation of ['findMany', 'create', 'createMany', 'updateMany', 'updateManyAndReturn', 'deleteMany']) {
@@ -26,9 +26,9 @@ test('TenantGuard injeta unidade em leituras, lotes e criações sem aceitar uni
       : operation === 'createMany'
         ? { data: [{ factoryUnitId: tenantTwo }] }
         : { where: { factoryUnitId: tenantTwo } };
-    assert.throws(() => applyTenantGuard('Material', operation, args, tenantOne), TenantGuardError);
+    assert.throws(() => applyTenantGuard('StockItem', operation, args, tenantOne), TenantGuardError);
   }
-  assert.throws(() => applyTenantGuard('Material', 'updateMany', {
+  assert.throws(() => applyTenantGuard('StockItem', 'updateMany', {
     where: { code: 'TEC-001' }, data: { factoryUnitId: tenantTwo },
   }, tenantOne), TenantGuardError);
   assert.deepEqual(applyTenantGuard('StockItem', 'updateManyAndReturn', {
@@ -64,16 +64,16 @@ test('TenantGuard exige seletor composto da unidade ativa em operações singula
 });
 
 test('TenantGuard mantém upsert na unidade ativa, inclusive nas ramificações de criação', () => {
-  const result = applyTenantGuard('MaterialLocation', 'upsert', {
-    where: { materialId_locationId_factoryUnitId: { materialId: 10, locationId: 20, factoryUnitId: tenantOne } },
+  const result = applyTenantGuard('StockItemLocation', 'upsert', {
+    where: { stockItemId_locationId_factoryUnitId: { stockItemId: 10, locationId: 20, factoryUnitId: tenantOne } },
     update: { quantity: 3 },
-    create: { materialId: 10, locationId: 20 },
+    create: { stockItemId: 10, locationId: 20 },
   }, tenantOne);
   assert.equal(result.create.factoryUnitId, tenantOne);
-  assert.throws(() => applyTenantGuard('MaterialLocation', 'upsert', {
-    where: { materialId_locationId_factoryUnitId: { materialId: 10, locationId: 20, factoryUnitId: tenantOne } },
+  assert.throws(() => applyTenantGuard('StockItemLocation', 'upsert', {
+    where: { stockItemId_locationId_factoryUnitId: { stockItemId: 10, locationId: 20, factoryUnitId: tenantOne } },
     update: {},
-    create: { materialId: 10, locationId: 20, factoryUnitId: tenantTwo },
+    create: { stockItemId: 10, locationId: 20, factoryUnitId: tenantTwo },
   }, tenantOne), TenantGuardError);
 });
 

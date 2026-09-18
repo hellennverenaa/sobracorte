@@ -5,5 +5,5 @@ ON "sobra_corte"."User"("id", "factoryUnitId");
 CREATE UNIQUE INDEX "MaterialRequisition_id_factoryUnitId_key"
 ON "sobra_corte"."MaterialRequisition"("id", "factoryUnitId");
 
-CREATE UNIQUE INDEX "MaterialLocation_materialId_locationId_factoryUnitId_key"
-ON "sobra_corte"."MaterialLocation"("materialId", "locationId", "factoryUnitId");
+-- O seletor composto de StockItemLocation já é criado na migration de
+-- consolidação do estoque.

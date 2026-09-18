@@ -22,14 +22,14 @@ export class DashboardController {
         lowStockMaterialsCount,
         lowStockStockItemsCount,
         stockMovementsCount,
-        legacyMovementsCount,
+        corteMovementsCount,
         stockEntriesCount,
-        legacyEntriesCount,
+        corteEntriesCount,
         stockExitsCount,
-        legacyExitsCount,
+        corteExitsCount,
         materialDistribution,
         stockOrigem,
-        legacyOrigem,
+        corteOrigem,
         stagnantMaterialsCount,
         stagnantStockItemsCount,
         // Agregações por setor (Volume e Contagens)
@@ -60,7 +60,7 @@ export class DashboardController {
         expedicaoStagnantCount,
         montagemStagnantCount,
         // Top 5 Entradas de Sobras (Corte & Multi-Setor)
-        topLegacyEntradas,
+        topCorteEntradas,
         topStockEntradas,
         // 🚀 SQL Window Function: Top 5 Materiais Acumulados particionados por Unidade de Medida
         topRankedMaterialsByUnit,
@@ -310,8 +310,8 @@ export class DashboardController {
         ORDER BY s.sector, unit
       `;
 
-      const totalEntries = stockEntriesCount + legacyEntriesCount;
-      const totalExits = stockExitsCount + legacyExitsCount;
+      const totalEntries = stockEntriesCount + corteEntriesCount;
+      const totalExits = stockExitsCount + corteExitsCount;
       const taxaReaproveitamento = totalEntries > 0 ? Math.min(100, Math.round((totalExits / totalEntries) * 100)) : 0;
       const totalParadosSemGiro = stagnantMaterialsCount + stagnantStockItemsCount;
       const distribuicaoPorSetorUnidade = (distribuicaoPorSetorUnidadeRaw || []).map(d => ({
@@ -375,7 +375,7 @@ export class DashboardController {
         totalMultiSetorItems: totalStockItemsCount,
         totalItems: totalMaterialsCount + totalStockItemsCount,
         lowStock: lowStockMaterialsCount + lowStockStockItemsCount,
-        totalMovements: stockMovementsCount + legacyMovementsCount,
+        totalMovements: stockMovementsCount + corteMovementsCount,
         totalEntries,
         totalExits,
         taxaReaproveitamento,
@@ -507,8 +507,7 @@ export class DashboardController {
         { sector: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', count: montagemCount, quantity: null, color: '#ec4899' },
       ];
 
-      // 4. Mesclagem e ordenação da Origem das Sobras (StockMovement + Movement legado)
-      // 4. Mesclagem e ordenação da Origem das Sobras (Global e por Setor)
+      // 4. Mesclagem e ordenação da origem das sobras (global e por setor)
       const globalOrigemMap = new Map<string, { count: number }>();
       const sectorOrigemMap: Record<string, Map<string, { count: number }>> = {
         CORTE: new Map(),
@@ -519,8 +518,7 @@ export class DashboardController {
         MONTAGEM: new Map(),
       };
 
-      // Legacy movements pertencem a CORTE
-      for (const item of legacyOrigem) {
+      for (const item of corteOrigem) {
         if (item.origem) {
           const norm = item.origem.trim();
           const count = Number(item._count?._all) || 1;
@@ -577,7 +575,7 @@ export class DashboardController {
       }
 
       // 5. Hidratação dos Top 5 Entradas de Sobras (Corte + Multi-Setor)
-      const materialIds = topLegacyEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
+      const materialIds = topCorteEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
       const stockItemIds = topStockEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
 
       const [materialsList, stockItemsList] = await Promise.all([
@@ -608,7 +606,7 @@ export class DashboardController {
         origin: string;
       }> = [];
 
-      for (const leg of topLegacyEntradas) {
+      for (const leg of topCorteEntradas) {
         const mat = leg.stockItemId ? materialMap.get(leg.stockItemId) : null;
         if (mat) {
           topSobrasEntrada.push({

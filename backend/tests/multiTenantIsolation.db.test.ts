@@ -153,7 +153,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
     }),
   ]);
 
-  const foreign = await prismaForInternalUse.material.create({
+  const foreign = await prismaForInternalUse.stockItem.create({
     data: {
       factoryUnitId: tenantTwo.id,
       code: `FOREIGN_${suffix}`,
@@ -164,7 +164,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
   });
 
   await tenantStorage.run({ tenantId: tenantOne.id }, async () => {
-    const local = await prisma.material.create({
+    const local = await prisma.stockItem.create({
       data: {
         factoryUnitId: tenantOne.id,
         code: `LOCAL_${suffix}`,
@@ -174,10 +174,10 @@ test('TenantGuard isola operações reais entre duas unidades', {
       },
     });
 
-    assert.deepEqual((await prisma.material.findMany()).map((item) => item.id), [local.id]);
+    assert.deepEqual((await prisma.stockItem.findMany()).map((item) => item.id), [local.id]);
 
     await assert.rejects(
-      prisma.material.create({
+      prisma.stockItem.create({
         data: {
           factoryUnitId: tenantTwo.id,
           code: `CROSS_CREATE_${suffix}`,
@@ -189,7 +189,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
       TenantGuardError,
     );
     await assert.rejects(
-      prisma.material.createMany({
+      prisma.stockItem.createMany({
         data: [{
           factoryUnitId: tenantTwo.id,
           code: `CROSS_BATCH_${suffix}`,
@@ -202,18 +202,18 @@ test('TenantGuard isola operações reais entre duas unidades', {
     );
 
     for (const operation of [
-      () => prisma.material.findUnique({
+      () => prisma.stockItem.findUnique({
         where: { id_factoryUnitId: { id: foreign.id, factoryUnitId: tenantTwo.id } },
       }),
-      () => prisma.material.update({
+      () => prisma.stockItem.update({
         where: { id_factoryUnitId: { id: foreign.id, factoryUnitId: tenantTwo.id } },
         data: { name: 'Cross update' },
       }),
-      () => prisma.material.delete({
+      () => prisma.stockItem.delete({
         where: { id_factoryUnitId: { id: foreign.id, factoryUnitId: tenantTwo.id } },
       }),
-      () => prisma.material.upsert({
-        where: { factoryUnitId_code: { factoryUnitId: tenantTwo.id, code: foreign.code } },
+      () => prisma.stockItem.upsert({
+        where: { factoryUnitId_code: { factoryUnitId: tenantTwo.id, code: foreign.code! } },
         update: { name: 'Cross upsert' },
         create: {
           factoryUnitId: tenantTwo.id,
@@ -228,15 +228,15 @@ test('TenantGuard isola operações reais entre duas unidades', {
     }
 
     await assert.rejects(
-      prisma.$transaction((tx) => tx.material.update({
+      prisma.$transaction((tx) => tx.stockItem.update({
         where: { id_factoryUnitId: { id: foreign.id, factoryUnitId: tenantTwo.id } },
         data: { name: 'Cross transaction' },
       })),
       TenantGuardError,
     );
 
-    const localUpsert = await prisma.material.upsert({
-      where: { factoryUnitId_code: { factoryUnitId: tenantOne.id, code: local.code } },
+    const localUpsert = await prisma.stockItem.upsert({
+      where: { factoryUnitId_code: { factoryUnitId: tenantOne.id, code: local.code! } },
       update: { name: 'Local material updated' },
       create: {
         factoryUnitId: tenantOne.id,
@@ -250,7 +250,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
     assert.equal(localUpsert.name, 'Local material updated');
   });
 
-  const unchangedForeign = await prismaForInternalUse.material.findUniqueOrThrow({
+  const unchangedForeign = await prismaForInternalUse.stockItem.findUniqueOrThrow({
     where: { id: foreign.id },
   });
   assert.equal(unchangedForeign.name, 'Foreign material');

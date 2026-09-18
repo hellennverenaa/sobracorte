@@ -39,18 +39,3 @@ WHERE r."quantityRequested" <= 0 OR r."quantityFulfilled" < 0 OR r."quantityFulf
   OR (r.status = 'ATENDIDA_TOTAL' AND r."quantityFulfilled" <> r."quantityRequested")
   OR (r.status IN ('PENDENTE', 'CANCELADA') AND r."quantityFulfilled" <> 0)
   OR (r.status = 'ATENDIDA_PARCIAL' AND (r."quantityFulfilled" <= 0 OR r."quantityFulfilled" >= r."quantityRequested"));
-
-CREATE OR REPLACE TEMP VIEW stock_legacy_evidence AS
-SELECT COALESCE(jsonb_agg(jsonb_build_object(
-  'unit', u.id,
-  'materials', (SELECT COALESCE(md5(string_agg(md5(to_jsonb(m)::text), '' ORDER BY m.id)), md5(''))
-    FROM sobra_corte."Material" m WHERE m."factoryUnitId" = u.id),
-  'locations', (SELECT COALESCE(md5(string_agg(md5(to_jsonb(l)::text), '' ORDER BY l."materialId", l."locationId")), md5(''))
-    FROM sobra_corte."MaterialLocation" l WHERE l."factoryUnitId" = u.id),
-  'movements', (SELECT COALESCE(md5(string_agg(md5(to_jsonb(m)::text), '' ORDER BY m.id)), md5(''))
-    FROM sobra_corte."Movement" m WHERE m."factoryUnitId" = u.id)
-) ORDER BY u.id), '[]'::jsonb) AS evidence
-FROM sobra_corte."FactoryUnit" u
-WHERE EXISTS (SELECT 1 FROM sobra_corte."Material" m WHERE m."factoryUnitId" = u.id)
-   OR EXISTS (SELECT 1 FROM sobra_corte."MaterialLocation" l WHERE l."factoryUnitId" = u.id)
-   OR EXISTS (SELECT 1 FROM sobra_corte."Movement" m WHERE m."factoryUnitId" = u.id);

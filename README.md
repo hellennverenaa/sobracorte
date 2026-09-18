@@ -9,7 +9,7 @@ O repositório contém duas aplicações:
 - `backend`: API REST em Node.js, TypeScript, Express, Prisma e PostgreSQL;
 - `frontend`: SPA em Vue 3, Pinia, Vue Router, Vite e Tailwind CSS.
 
-O sistema atende os setores de Corte, Apoio, Pré-Fabricado, Distribuição, Expedição e Montagem. O estoque unificado usa `StockItem`, `StockItemLocation` e `StockMovement`. As tabelas legadas de materiais e movimentos permanecem no esquema para compatibilidade e reconciliação durante a migração.
+O sistema atende os setores de Corte, Apoio, Pré-Fabricado, Distribuição, Expedição e Montagem. O estoque unificado usa `StockItem`, `StockItemLocation` e `StockMovement` como fonte única.
 
 ## Funcionalidades
 
@@ -91,7 +91,7 @@ Aplique somente as migrations versionadas:
 npm run db:deploy
 ```
 
-Não use `prisma db push` em produção. Scripts de backfill, reconciliação e integridade do estoque estão disponíveis no `backend/package.json` e devem seguir o procedimento de migração do ambiente.
+Não use `prisma db push` em produção. A verificação de integridade do estoque está disponível em `npm --prefix backend run stock:integrity`.
 
 ## Desenvolvimento
 
