@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "Sobra-corte",
+      name: "sobra-corte",
       cwd: __dirname,
       script: "./dist/src/server.js",
 
