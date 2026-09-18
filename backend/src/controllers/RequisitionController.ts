@@ -8,6 +8,7 @@ import {
   FulfillRequisitionSchema
 } from '../types/stock.dto';
 import { ZodError } from 'zod';
+import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 const requisitionService = new RequisitionService();
 
@@ -181,12 +182,13 @@ export class RequisitionController {
       const { sector } = req.query;
       const userSec = (req.user?.assignedSector && req.user?.role !== 'admin' && req.user?.assignedSector !== 'TODOS')
         ? req.user.assignedSector
-        : sector ? (String(sector).toUpperCase() as any) : undefined;
+        : sector ? requireActiveStockSector(String(sector)) : undefined;
 
-      const result = await requisitionService.getPendingCount(req.tenant.id, userSec);
+      const result = await requisitionService.getPendingCount(req.tenant.id, userSec as any);
       return res.json(result);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao buscar contagem de pendências:', error);
       return res.status(500).json({ error: 'Erro interno ao consultar pendências.' });
     }

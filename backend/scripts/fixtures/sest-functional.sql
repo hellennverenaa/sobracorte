@@ -32,7 +32,7 @@ BEGIN
   CREATE TEMP TABLE sest_functional_added_items (id integer PRIMARY KEY) ON COMMIT DROP;
   SELECT id INTO STRICT unit_id FROM sobra_corte."FactoryUnit" WHERE code = 'SEST' AND active FOR NO KEY UPDATE;
 
-  FOREACH sector_name IN ARRAY ARRAY['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM', 'CONSUMO'] LOOP
+  FOREACH sector_name IN ARRAY ARRAY['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'] LOOP
     sector_value := sector_name::sobra_corte."SectorType";
     INSERT INTO sobra_corte."CategoryConfig" (name, sector, "factoryUnitId")
     VALUES ('TESTE-SEST-' || sector_name, sector_value, unit_id)
@@ -76,7 +76,7 @@ BEGIN
         WHEN 'DISTRIBUICAO' THEN CASE WHEN product_group % 2 = 1 THEN 'CABEDAL' ELSE 'SOLA_PROCESSADA' END
         ELSE 'TESTE-SEST-' || sector_name END;
       unit_symbol := CASE WHEN sector_name = 'CORTE' THEN (ARRAY['M²', 'M²', 'KG', 'M'])[1 + (j - 1) % 4]
-                          WHEN sector_name = 'CONSUMO' THEN 'UN' ELSE 'UN' END;
+                          ELSE 'UN' END;
       item_name := 'TESTE ' || CASE sector_name
         WHEN 'CORTE' THEN (ARRAY['TECIDO RESPIRAVEL', 'COURO NATURAL', 'LAMINADO SINTETICO', 'LINHA DE COSTURA'])[1 + (j - 1) % 4]
         WHEN 'APOIO' THEN (ARRAY['LINGUETA', 'GASPEA', 'LATERAL'])[1 + (j - 1) % 3]
@@ -96,7 +96,7 @@ BEGIN
 
       initial_quantity := 100 + j * 5 + CASE WHEN sector_name = 'CORTE' THEN j::numeric / 100 ELSE 0 END;
       scrap_quantity := 2 + j % 3;
-      fulfilled_quantity := CASE WHEN sector_name <> 'CONSUMO' THEN CASE j WHEN 2 THEN 4 WHEN 3 THEN 10 ELSE 0 END ELSE 0 END;
+      fulfilled_quantity := CASE j WHEN 2 THEN 4 WHEN 3 THEN 10 ELSE 0 END;
       output_quantity := CASE WHEN j % 8 = 0 THEN initial_quantity
                               WHEN j % 6 = 0 THEN initial_quantity - scrap_quantity - fulfilled_quantity - 5
                               ELSE 10 + j % 7 END;
@@ -111,11 +111,11 @@ BEGIN
         unit_id, sector_value, component_value, item_code, item_name,
         CASE WHEN sector_name NOT IN ('CORTE', 'APOIO') THEN item_sku ELSE NULL END,
         CASE WHEN sector_name = 'APOIO' THEN item_sku ELSE NULL END,
-        CASE WHEN sector_name = 'CONSUMO' THEN item_name WHEN sector_name <> 'CORTE' THEN model_name ELSE NULL END,
+        CASE WHEN sector_name <> 'CORTE' THEN model_name ELSE NULL END,
         CASE WHEN sector_name = 'APOIO' THEN item_name ELSE NULL END,
         CASE WHEN sector_name = 'APOIO' THEN 'SINTETICO / ' || color_name ELSE NULL END,
-        CASE WHEN sector_name NOT IN ('CORTE', 'APOIO', 'CONSUMO') THEN color_name ELSE NULL END,
-        CASE WHEN sector_name NOT IN ('CORTE', 'CONSUMO') THEN grade_name ELSE NULL END,
+        CASE WHEN sector_name NOT IN ('CORTE', 'APOIO') THEN color_name ELSE NULL END,
+        CASE WHEN sector_name <> 'CORTE' THEN grade_name ELSE NULL END,
         side_value, category_name, unit_symbol, final_quantity, CASE WHEN sector_name = 'CORTE' THEN 15 ELSE 0 END,
         'TESTE-SEST-FUNCIONAL: dado sintetico para testes; nao representa producao.', now() - (40 - j) * interval '1 day', now()
       ) RETURNING id INTO item_id;
@@ -156,7 +156,7 @@ BEGIN
           'TESTE-SEST: TRANSFERENCIA', 'TESTE-SEST-FUNCIONAL: transferencia entre prateleiras', 'OPERADOR DE TESTE', now() - interval '4 days');
       END IF;
 
-      IF sector_name <> 'CONSUMO' AND j <= 4 THEN
+      IF j <= 4 THEN
         requisition_code := 'TESTE-SEST-REQ-' || sector_name || '-' || j;
         requisition_status := (ARRAY['PENDENTE', 'ATENDIDA_PARCIAL', 'ATENDIDA_TOTAL', 'CANCELADA'])[j]::sobra_corte."RequisitionStatus";
         INSERT INTO sobra_corte."MaterialRequisition" (

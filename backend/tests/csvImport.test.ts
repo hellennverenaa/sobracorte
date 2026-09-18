@@ -18,7 +18,6 @@ const mockLocations: AvailableLocation[] = [
   { id: 5, name: 'SOL-01', sector: 'PRE_FABRICADO' },
   { id: 6, name: 'DIS-01', sector: 'DISTRIBUICAO' },
   { id: 7, name: 'MO-01', sector: 'MONTAGEM' },
-  { id: 8, name: 'CS-01', sector: 'CONSUMO' },
 ];
 
 test('CSV de Apoio preserva modelo e descrição da peça separadamente, independentemente da ordem das colunas', () => {
@@ -128,7 +127,7 @@ test('validateImportBatch rejeita prateleira pertencente a outro setor (Isolamen
   });
 });
 
-test('validateImportBatch valida prateleiras em todos os outros setores (APOIO, PRE_FAB, DIST, MONTAGEM, CONSUMO)', () => {
+test('validateImportBatch valida prateleiras em todos os setores ativos', () => {
   // Teste Apoio
   const csvApoio = 'sku;modelo;peca;quantidade;prateleira\nMOL-001;PEGASUS 40;GASPEA;20;AP-01';
   const pApoio = parseCsvRFC4180(csvApoio);
@@ -155,11 +154,9 @@ test('validateImportBatch valida prateleiras em todos os outros setores (APOIO, 
   assert.equal(vMont.length, 2);
   assert.equal(vMont[0].locationId, 7);
 
-  // Teste Consumo
-  const csvCons = 'codigo_material;descricao;quantidade;prateleira\nINS-01;COLA SOLVENTE;50;CS-01';
-  const pCons = parseCsvRFC4180(csvCons);
-  const vCons = validateImportBatch(pCons.headers, pCons.rows, 'CONSUMO', mockLocations);
-  assert.equal(vCons[0].locationId, 8);
+  assert.throws(() => normalizeSector('CONSUMO'), /Setor inválido ou descontinuado/);
+  assert.throws(() => normalizeSector('INSUMOS'), /Setor inválido ou descontinuado/);
+  assert.throws(() => normalizeSector('QUIMICOS'), /Setor inválido ou descontinuado/);
 });
 
 test('validateImportBatch rejeita lote com código ou descrição vazios e retorna lista linha a linha', () => {

@@ -49,7 +49,7 @@ const currentUnitSuffix = computed(() => {
   const sec = filters.value.sector
   if (sec === 'CORTE') return 'm²'
   if (sec === 'MONTAGEM' || sec === 'PRE_FABRICADO') return 'pares/pés'
-  if (sec === 'APOIO' || sec === 'DISTRIBUICAO' || sec === 'CONSUMO') return 'un'
+  if (sec === 'APOIO' || sec === 'DISTRIBUICAO') return 'un'
   return 'un'
 })
 
@@ -259,8 +259,7 @@ function getSectorShort(sec) {
     PRE_FABRICADO: 'PRÉ-FAB.',
     DISTRIBUICAO: 'DISTRIB.',
     EXPEDICAO: 'DISTRIB.',
-    MONTAGEM: 'MONTAGEM',
-    CONSUMO: 'CONSUMO'
+    MONTAGEM: 'MONTAGEM'
   }
   return map[sec] || sec || 'CORTE'
 }
@@ -304,7 +303,6 @@ function getSectorBadge(sector) {
     DISTRIBUICAO: 'bg-purple-100 text-purple-800 border-purple-300',
     EXPEDICAO: 'bg-purple-100 text-purple-800 border-purple-300',
     MONTAGEM: 'bg-pink-100 text-pink-800 border-pink-300',
-    CONSUMO: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   }
   return map[sector] || 'bg-slate-100 text-slate-800 border-slate-300'
 }

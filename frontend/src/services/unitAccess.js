@@ -8,5 +8,7 @@ export function normalizeFactoryUnitCode(value) {
 
 export function hasPendingSectorAssignment(user) {
   if (!user || user.isGlobalAdmin || user.role === 'admin') return false
-  return user.accessStatus === 'pending_sector_assignment' || !user.assignedSector
+  const sector = String(user.assignedSector || '').trim().toUpperCase()
+  const valid = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'CABEDAIS', 'MONTAGEM']
+  return user.accessStatus === 'pending_sector_assignment' || !user.assignedSector || !valid.includes(sector)
 }

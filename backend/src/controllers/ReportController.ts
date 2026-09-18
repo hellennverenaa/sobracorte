@@ -2,6 +2,7 @@ import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccess
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
+import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 import type { Prisma, SectorType } from '../generated/prisma';
 
 export function csvCell(value: unknown): string {
@@ -52,7 +53,10 @@ function buildMovementWhere(req: Request): Record<string, any> {
   const rawStart = dataInicio || startDate;
   const rawEnd = dataFim || endDate;
   const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-  const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
+  const requestedSector = sector ? String(sector).trim() : 'TODOS';
+  const rawSector = assignedStockSector(requestStockAccess(req)) || (requestedSector === 'TODOS' || requestedSector === 'ALL'
+    ? 'TODOS'
+    : requireActiveStockSector(requestedSector));
   const rawType = tipoMovimento || movementType ? String(tipoMovimento || movementType).trim().toUpperCase() : 'TODOS';
   const rawOrigin = origin || origem ? String(origin || origem).trim() : null;
   const rawSearch = search ? String(search).trim() : null;
@@ -76,8 +80,8 @@ function buildMovementWhere(req: Request): Record<string, any> {
   if (start && end) stockWhere.createdAt = { gte: start, lte: end };
   if (rawSector === 'CORTE') {
     stockWhere.sector = 'CORTE';
-  } else if (rawSector !== 'TODOS' && rawSector !== 'ALL') {
-    const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+  } else if (String(rawSector) !== 'TODOS' && String(rawSector) !== 'ALL') {
+    const sec = String(rawSector) === 'EXPEDICAO' ? 'DISTRIBUICAO' : rawSector;
     if (sec === 'DISTRIBUICAO') stockWhere.sector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
     else if (sec === 'CONFIGURACOES') stockWhere.sector = 'NEVER_MATCH';
     else stockWhere.sector = sec;
@@ -220,6 +224,7 @@ export class ReportController {
       });
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro no relatório de estoque:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de inventário' });
     }
@@ -399,6 +404,7 @@ export class ReportController {
       });
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro no relatório analítico de movimentações:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de movimentações.' });
     }
@@ -421,7 +427,8 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
+      const requestedSector = sector ? String(sector).trim() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (requestedSector === 'TODOS' || requestedSector === 'ALL' ? 'TODOS' : requireActiveStockSector(requestedSector));
       const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
       const rawSearch = search ? String(search).trim() : null;
 
@@ -450,7 +457,7 @@ export class ReportController {
       }
 
       if (rawSector !== 'TODOS') {
-        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        const sec = rawSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           whereClause.requestSector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
         } else {
@@ -534,6 +541,7 @@ export class ReportController {
       });
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro no relatório de requisições:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de requisições.' });
     }
@@ -545,7 +553,10 @@ export class ReportController {
   async exportInventory(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
-      const targetSector = assignedStockSector(requestStockAccess(req)) || (req.query.sector ? String(req.query.sector).toUpperCase().trim() : 'TODOS');
+      const requestedSector = req.query.sector ? String(req.query.sector).trim() : 'TODOS';
+      const targetSector = assignedStockSector(requestStockAccess(req)) || (requestedSector === 'TODOS' || requestedSector === 'ALL'
+        ? 'TODOS'
+        : requireActiveStockSector(requestedSector));
       const rawSearch = req.query.search ? String(req.query.search).trim() : null;
 
       const dateStr = new Date().toISOString().split('T')[0];
@@ -645,6 +656,7 @@ export class ReportController {
       return res.end();
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao exportar inventário por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar inventário.' });
@@ -765,6 +777,7 @@ export class ReportController {
       return res.end();
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao exportar movimentações por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar movimentações.' });
@@ -792,7 +805,8 @@ export class ReportController {
       const rawStart = dataInicio || startDate;
       const rawEnd = dataFim || endDate;
       const rawPeriod = String(req.query.periodo || req.query.period || '').trim().toLowerCase();
-      const rawSector = assignedStockSector(requestStockAccess(req)) || (sector ? String(sector).trim().toUpperCase() : 'TODOS');
+      const requestedSector = sector ? String(sector).trim() : 'TODOS';
+      const rawSector = assignedStockSector(requestStockAccess(req)) || (requestedSector === 'TODOS' || requestedSector === 'ALL' ? 'TODOS' : requireActiveStockSector(requestedSector));
       const rawStatus = status ? String(status).trim().toUpperCase() : 'TODOS';
       const rawSearch = search ? String(search).trim() : null;
 
@@ -815,7 +829,7 @@ export class ReportController {
       if (start && end) whereClause.createdAt = { gte: start, lte: end };
 
       if (rawSector !== 'TODOS') {
-        const sec = (rawSector === 'CABEDAIS' || rawSector === 'EXPEDICAO') ? 'DISTRIBUICAO' : rawSector;
+        const sec = rawSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : rawSector;
         if (sec === 'DISTRIBUICAO') {
           whereClause.requestSector = { in: ['DISTRIBUICAO', 'EXPEDICAO'] };
         } else {
@@ -908,6 +922,7 @@ export class ReportController {
       return res.end();
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao exportar requisições por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar requisições.' });

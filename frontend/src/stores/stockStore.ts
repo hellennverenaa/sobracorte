@@ -3,7 +3,7 @@ import { api } from '@/services/httpClient';
 import { requestErrorMessage } from '@/utils/domain';
 import { useAuthStore } from '@/stores/auth';
 
-export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM' | 'CONSUMO';
+export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
 
 export interface MatchingPair {
   sku: string;
@@ -43,7 +43,6 @@ export interface StockState {
     totalExpedicao: number;
     totalDistribuicao?: number;
     totalMontagem: number;
-    totalConsumo: number;
   };
   sectors: {
     corte: { total: number; data: any[] };
@@ -52,7 +51,6 @@ export interface StockState {
     expedicao: { total: number; data: any[] };
     distribuicao?: { total: number; data: any[] };
     montagem: { total: number; data: any[] };
-    consumo: { total: number; data: any[] };
   };
   filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterOrigins: Array<{ id: number; name: string }>;
@@ -89,7 +87,6 @@ export const useStockStore = defineStore('stock', {
       totalPreFabricado: 0,
       totalExpedicao: 0,
       totalMontagem: 0,
-      totalConsumo: 0,
     },
     sectors: {
       corte: { total: 0, data: [] },
@@ -97,7 +94,6 @@ export const useStockStore = defineStore('stock', {
       preFabricado: { total: 0, data: [] },
       expedicao: { total: 0, data: [] },
       montagem: { total: 0, data: [] },
-      consumo: { total: 0, data: [] },
     },
     filterLocations: [],
     filterOrigins: [],
@@ -127,8 +123,6 @@ export const useStockStore = defineStore('stock', {
           return state.sectors.distribuicao || state.sectors.expedicao || { total: 0, data: [] };
         case 'MONTAGEM':
           return state.sectors.montagem;
-        case 'CONSUMO':
-          return state.sectors.consumo;
         default:
           return { total: 0, data: [] };
       }

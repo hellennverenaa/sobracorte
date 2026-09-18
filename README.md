@@ -11,6 +11,8 @@ O repositório contém duas aplicações:
 
 O sistema atende os setores de Corte, Apoio, Pré-Fabricado, Distribuição, Expedição e Montagem. O estoque unificado usa `StockItem`, `StockItemLocation` e `StockMovement` como fonte única.
 
+`Consumo` não é setor operacional nem opção de atribuição, cadastro ou importação. O texto “Consumo” continua válido como origem/motivo de uma baixa de estoque.
+
 ## Funcionalidades
 
 - dashboard com indicadores por setor e unidade de medida;
@@ -90,6 +92,8 @@ Aplique somente as migrations versionadas:
 ```bash
 npm run db:deploy
 ```
+
+Antes de aplicar a migration de retirada de Consumo em um clone isolado, execute `npm --prefix backend run sector:retirement:audit`. A migration bloqueia diante de qualquer referência persistida; não a aplique diretamente em produção.
 
 Não use `prisma db push` em produção. A verificação de integridade do estoque está disponível em `npm --prefix backend run stock:integrity`.
 

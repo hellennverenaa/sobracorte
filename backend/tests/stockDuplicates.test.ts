@@ -65,7 +65,6 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
     { sector: 'DISTRIBUICAO', sku: 'D1', productName: 'MODELO', type: 'CABEDAL', color: 'AZUL', sizeGrade: '40', footSide: 'E' },
     { sector: 'EXPEDICAO', sku: 'E1', productName: 'MODELO', type: 'CABEDAL', color: 'AZUL', sizeGrade: '40', footSide: 'E' },
     { sector: 'MONTAGEM', sku: 'M1', productName: 'MODELO', color: 'AZUL', sizeGrade: '40', footSide: 'E' },
-    { sector: 'CONSUMO', sku: 'I1', productName: 'INSUMO', unit: 'KG' },
   ];
   for (const fixture of fixtures) {
     const input = { ...fixture, quantity: 10, location: 'A' };
@@ -187,7 +186,7 @@ test('transferências ficam no setor para todos os perfis, sem alterar o item ne
   }
 });
 
-test('cadastro e importação recusam localização de outro setor antes de gravar', async t => {
+test('cadastro e importação recusam o setor retirado antes de gravar', async t => {
   const original = prisma.$transaction;
   t.after(() => { (prisma as any).$transaction = original; });
   let writes = 0;
@@ -196,10 +195,8 @@ test('cadastro e importação recusam localização de outro setor antes de grav
     findFirst: async () => ({ id: 1, name: 'A', sector: 'MONTAGEM' }),
   }, stockItem: { create: async () => { writes++; } } };
   (prisma as any).$transaction = (callback: any) => callback(tx);
-  await assert.rejects(new StockItemService().createBatch(BatchCreateStockItemSchema.parse({ items: [{
-    sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1, location: 'A',
-  }] }), { factoryUnitId: 1, role: 'admin' }), /outro setor/);
-  await assert.rejects(executeImportTransaction(prisma, [{ sector: 'CONSUMO', locationId: 1, quantity: 1, unit: 'KG' }] as any, { factoryUnitId: 1, role: 'admin' }), /outro setor/);
+  assert.equal(BatchCreateStockItemSchema.safeParse({ items: [{ sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1, location: 'A' }] }).success, false);
+  await assert.rejects(executeImportTransaction(prisma, [{ sector: 'CONSUMO', locationId: 1, quantity: 1, unit: 'KG' }] as any, { factoryUnitId: 1, role: 'admin' }), /Setor inválido|outro setor/);
   assert.equal(writes, 0);
 });
 

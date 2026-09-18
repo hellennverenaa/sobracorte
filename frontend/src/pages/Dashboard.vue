@@ -26,7 +26,6 @@ const selectedSector = dashboardDomain.selectedSector
 const sectorIcons = { TODOS: Layers, CORTE: Scissors, APOIO: Box, PRE_FABRICADO: Package, DISTRIBUICAO: Layers, MONTAGEM: Footprints }
 const sectorFilterOptions = computed(() => SECTOR_OPTIONS
   .filter(sector => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizeSector(authStore.user?.assignedSector))
-  .filter(sector => sector.id !== 'CONSUMO')
   .map(sector => ({ ...sector, icon: sectorIcons[sector.id] || Layers })))
 
 // --- ESTADOS DE DADOS (CARREGADOS EM 1 ÚNICA REQUISIÇÃO) ---

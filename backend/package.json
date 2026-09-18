@@ -14,6 +14,7 @@
     "seed:sest:functional": "node --max-old-space-size=192 scripts/seed-sest-functional.cjs",
     "stock:units:audit": "node scripts/unit-catalog-audit.cjs",
     "stock:integrity": "node scripts/database-audit.cjs integrity",
+    "sector:retirement:audit": "node scripts/sector-retirement-audit.cjs",
     "identity:audit": "node scripts/database-audit.cjs identity",
     "test:tenant:db": "NODE_ENV=test tsx --test tests/multiTenantIsolation.db.test.ts",
     "build": "prisma generate && tsc && cp -r src/generated dist/src/"

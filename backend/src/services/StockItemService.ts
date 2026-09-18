@@ -120,14 +120,6 @@ export class StockItemService {
               footSide: item.footSide,
             };
             break;
-          case 'CONSUMO':
-            sectorSpecificData = {
-              sku: (item.sku || item.code || '').trim().toUpperCase() || null,
-              code: item.code.trim().toUpperCase() || null,
-              productName: item.productName.trim().toUpperCase(),
-              name: item.productName.trim().toUpperCase(),
-            };
-            break;
         }
 
         await rejectDuplicateStockItem(tx, factoryUnitId, item.sector === 'CORTE' ? item : { ...baseData, ...sectorSpecificData });
@@ -255,16 +247,6 @@ export class StockItemService {
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
           };
-        case 'CONSUMO':
-          return {
-            ...base,
-            OR: searchTerms.flatMap(term => [
-              { code: { contains: term, mode: 'insensitive' } },
-              { sku: { contains: term, mode: 'insensitive' } },
-              { name: { contains: term, mode: 'insensitive' } },
-              { productName: { contains: term, mode: 'insensitive' } },
-            ]),
-          };
         case 'MONTAGEM':
           return {
             ...base,
@@ -294,8 +276,6 @@ export class StockItemService {
       expedicaoItems,
       montagemCount,
       montagemItems,
-      consumoCount,
-      consumoItems,
       locations,
       origins,
       categories,
@@ -348,14 +328,6 @@ export class StockItemService {
             where: buildSectorWhere('MONTAGEM'),
             skip,
             take: limit,
-            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
-          })
-        : [],
-      (isStockMaster(context) || targetSector === 'CONSUMO') ? prisma.stockItem.count({ where: buildSectorWhere('CONSUMO') }) : 0,
-      targetSector === 'CONSUMO'
-        ? prisma.stockItem.findMany({
-            where: buildSectorWhere('CONSUMO'), skip, take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             include: { locations: { include: { location: true } } },
           })
@@ -439,8 +411,6 @@ export class StockItemService {
         ? preFabCount
         : isDistribuicao
         ? expedicaoCount
-        : targetSector === 'CONSUMO'
-        ? consumoCount
         : montagemCount;
 
     const formattedActiveItems =
@@ -453,8 +423,6 @@ export class StockItemService {
               ? preFabItems
               : isDistribuicao
               ? expedicaoItems
-              : targetSector === 'CONSUMO'
-              ? consumoItems
               : montagemItems
           );
 
@@ -468,14 +436,13 @@ export class StockItemService {
       },
       metrics: {
         totalItems:
-          corteCount + apoioCount + preFabCount + expedicaoCount + montagemCount + consumoCount,
+          corteCount + apoioCount + preFabCount + expedicaoCount + montagemCount,
         totalCorte: corteCount,
         totalApoio: apoioCount,
         totalPreFabricado: preFabCount,
         totalDistribuicao: expedicaoCount,
         totalExpedicao: expedicaoCount,
         totalMontagem: montagemCount,
-        totalConsumo: consumoCount,
       },
       sectors: {
         corte: { total: corteCount, data: targetSector === 'CORTE' ? formattedActiveItems : [] },
@@ -484,7 +451,6 @@ export class StockItemService {
         distribuicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
         expedicao: { total: expedicaoCount, data: isDistribuicao ? formattedActiveItems : [] },
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
-        consumo: { total: consumoCount, data: targetSector === 'CONSUMO' ? formattedActiveItems : [] },
       },
       filterOptions: {
         locations: locations.map((l) => ({ id: l.id, name: l.name, sector: l.sector })),

@@ -10,6 +10,7 @@ import {
   ImportValidationError,
   normalizeSector,
 } from '../import/materialImport';
+import { SectorValidationError } from '../utils/sectorHelper';
 
 export class ImportController {
   async importCSV(req: Request, res: Response) {
@@ -83,6 +84,7 @@ export class ImportController {
 
     } catch (error: unknown) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });

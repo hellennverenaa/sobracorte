@@ -194,7 +194,6 @@
                     <option value="PRE_FABRICADO">Pré-Fabricado</option>
                     <option value="DISTRIBUICAO">Distribuição</option>
                     <option value="MONTAGEM">Montagem</option>
-                    <option value="CONSUMO">Consumo</option>
                   </select>
                 </div>
 
@@ -330,7 +329,6 @@
                   <option value="PRE_FABRICADO">Pré-Fabricado</option>
                   <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem</option>
-                  <option value="CONSUMO">Consumo</option>
                 </select>
               </div>
 
@@ -398,7 +396,6 @@
                 <option value="PRE_FABRICADO">Modelo: Pré-Fabricado (Solas)</option>
                 <option value="DISTRIBUICAO">Modelo: Distribuição</option>
                 <option value="MONTAGEM">Modelo: Montagem (Pés Órfãos)</option>
-                <option value="CONSUMO">Modelo: Consumo (Insumos)</option>
               </select>
               <button @click="downloadCSVTemplate(templateSector)"
                 class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition flex items-center gap-2 shrink-0 cursor-pointer">
@@ -497,7 +494,6 @@
                   <option value="PRE_FABRICADO">Pré-Fabricado (Solas)</option>
                   <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem (Pés Órfãos)</option>
-                  <option value="CONSUMO">Consumo (Insumos)</option>
                 </select>
                 <span class="text-slate-500 text-[11px]">(Utilizado caso a planilha não contenha a coluna 'setor')</span>
               </div>
@@ -704,7 +700,6 @@
               <option value="PRE_FABRICADO">Pré-Fabricado</option>
               <option value="DISTRIBUICAO">Distribuição</option>
               <option value="MONTAGEM">Montagem</option>
-              <option value="CONSUMO">Consumo</option>
             </select>
           </div>
 
@@ -807,24 +802,13 @@ function formatSectorName(sec) {
     DISTRIBUICAO: 'Distribuição',
     EXPEDICAO: 'Distribuição',
     MONTAGEM: 'Montagem',
-    CONSUMO: 'Consumo',
   }
   return sec ? (map[normalized] || sec) : 'Geral / Livre'
 }
 
 // --- TABS DINÂMICAS POR PERFIL ---
 const tabs = computed(() => {
-  const assignedSec = authStore.user?.assignedSector
-
-  // 1. Perfil Consumo: apenas Origens e Importar CSV
-  if (assignedSec === 'CONSUMO') {
-    return [
-      { key: 'origins', label: 'Origens / Motivos', icon: GitBranch },
-      { key: 'import',  label: 'Importar CSV',      icon: FileSpreadsheet },
-    ]
-  }
-
-  // 2. Admin Master e Admin de Setor: todas as abas
+  // Admin Master e Admin de Setor: todas as abas
   return [
     { key: 'categories',   label: 'Categorias',                 icon: Tag },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
@@ -833,7 +817,7 @@ const tabs = computed(() => {
     ...(isMasterAdmin.value ? [{ key: 'factory_unit', label: 'Unidade Fabril', icon: Building2 }] : [])
   ]
 })
-const activeTab = ref(authStore.user?.assignedSector === 'CONSUMO' ? 'origins' : 'categories')
+const activeTab = ref('categories')
 
 // --- NOTIFICAÇÕES & MODAL DE CONFIRMAÇÃO COMPARTILHADOS ---
 const { notification, showNotification } = useToast(3500)
@@ -1268,22 +1252,11 @@ const sectorCsvPattern = computed(() => {
     }
   }
 
-  // CONSUMO
   return {
-    title: 'Padrão Exigido para o Arquivo CSV — CONSUMO (Insumos & Químicos)',
-    columns: [
-      { name: 'codigo_material', req: true, desc: 'Código único do insumo ou químico. Ex: INS-001' },
-      { name: 'descricao', req: true, desc: 'Descrição do material de consumo. Ex: ADESIVO SOLVENTE PVC' },
-      { name: 'unidade', req: false, desc: 'Unidade de medida de consumo. Ex: L, KG, RL, UN (Padrão: UN)' },
-      { name: 'saldo_consumo', req: false, desc: 'Saldo inicial em estoque de consumo. Ex: 50.0 (Padrão: 0)' },
-      { name: 'prateleira', req: false, desc: 'Prateleira ou armário de químicos/insumos. Ex: CS-01' },
-    ],
-    headerExample: 'codigo_material;descricao;unidade;saldo_consumo;prateleira',
-    examples: [
-      'INS-001;ADESIVO SOLVENTE PVC;L;50.0;CS-01',
-      'INS-002;FITA ADESIVA DUPLA FACE;RL;100.0;CS-02',
-      'INS-003;DESMOLDANTE LIQUIDO;KG;25.0;CS-03',
-    ],
+    title: 'Padrão de CSV indisponível para o setor selecionado',
+    columns: [],
+    headerExample: '',
+    examples: [],
   }
 })
 

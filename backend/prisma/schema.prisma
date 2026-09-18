@@ -16,7 +16,6 @@ enum SectorType {
   DISTRIBUICAO
   EXPEDICAO
   MONTAGEM
-  CONSUMO
   CONFIGURACOES
 
   @@schema("sobra_corte")

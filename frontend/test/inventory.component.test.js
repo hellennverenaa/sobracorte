@@ -2,31 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadComponent, mountComponent, api, flushPromises } from './componentsHarness.js';
 
-test('Consumo abre pela rota e exibe código, descrição e unidade do insumo', async () => {
+test('URL legada de Consumo é descartada e usa Corte para administrador', async () => {
   const component = await loadComponent('src/pages/InventoryHub.vue');
   const { createPinia } = await import('pinia');
   const { createRouter, createMemoryHistory } = await import('vue-router');
   const pinia = createPinia();
-  pinia.state.value.auth = { user: { role: 'leitor', assignedSector: 'CONSUMO', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
   localStorage.clear();
   let sector;
   api.get = async (url, config) => {
     if (url === '/settings/units') return { data: [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }] };
     if (url !== '/inventory/search') return { data: [] };
     sector = config.params.sector;
-    return { data: { metrics: { totalConsumo: 1 }, sectors: { consumo: { total: 1, data: [
-      { id: 7, sector: 'CONSUMO', code: 'INS-KG', name: 'COLA SINTÉTICA', quantity: 1.5, unit: 'KG', locationDisplay: 'C1' },
-    ] } }, pagination: { page: 1, total: 1, totalPages: 1, limit: 50 } } };
+    return { data: {
+      metrics: { totalItems: 0, totalCorte: 0, totalApoio: 0, totalPreFabricado: 0, totalExpedicao: 0, totalMontagem: 0 },
+      sectors: { corte: { total: 0, data: [] }, apoio: { total: 0, data: [] }, preFabricado: { total: 0, data: [] }, distribuicao: { total: 0, data: [] }, expedicao: { total: 0, data: [] }, montagem: { total: 0, data: [] } },
+      filterOptions: { locations: [], origins: [], categories: [] },
+      pagination: { page: 1, total: 0, totalPages: 1, limit: 50 },
+    } };
   };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/inventory', component }] });
   await router.push('/inventory?sector=CONSUMO');
   const mounted = await mountComponent(component, { pinia, router });
   await flushPromises();
-  assert.equal(sector, 'CONSUMO');
-  assert.match(mounted.element.textContent, /INS-KG/);
-  assert.match(mounted.element.textContent, /COLA SINTÉTICA/);
-  assert.match(mounted.element.textContent, /KG/);
-  assert.match(mounted.element.textContent, /Consumo/);
+  assert.equal(sector, 'CORTE');
   mounted.unmount();
 });
 

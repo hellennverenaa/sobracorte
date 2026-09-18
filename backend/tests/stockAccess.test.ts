@@ -49,28 +49,8 @@ test('normalização de aliases é a mesma para autorização e identidade de es
   assert.throws(() => assignedStockSector({ role: 'leitor', assignedSector: 'DESCONHECIDO' }), StockAccessError);
 });
 
-test('inventário de Consumo pagina e busca seus próprios itens sem retornar Montagem', async t => {
-  const queries: any[] = [];
-  replace(t, prisma.stockItem, {
-    count: async ({ where }: any) => where.sector === 'CONSUMO' ? 1 : 0,
-    findMany: async (query: any) => {
-      queries.push(query);
-      return [{ id: 1, sector: 'CONSUMO', code: 'COLA', name: 'COLA', quantity: 1.5, unit: 'KG', locations: [] }];
-    },
-  });
-  for (const model of [prisma.location, prisma.originConfig, prisma.categoryConfig]) replace(t, model, { findMany: async () => [] });
-  const result = await new StockItemService().searchUnified({ sector: 'CONSUMO', q: 'COLA', page: 2, limit: 1 },
-    { factoryUnitId: 1, role: 'leitor', assignedSector: 'CONSUMO' });
-  assert.equal(result.pagination.total, 1);
-  assert.equal(result.metrics.totalConsumo, 1);
-  assert.equal(result.metrics.totalItems, 1);
-  assert.equal(result.sectors.consumo.data[0].code, 'COLA');
-  assert.deepEqual(result.sectors.montagem.data, []);
-  assert.equal(queries.length, 1);
-  assert.equal(queries[0].where.sector, 'CONSUMO');
-  assert.ok(queries[0].where.OR.some((filter: any) => filter.name?.contains === 'COLA'));
-  assert.equal(queries[0].skip, 1);
-  assert.equal(queries[0].take, 1);
+test('perfil legado de Consumo não recebe setor de estoque automaticamente', () => {
+  assert.throws(() => assignedStockSector({ role: 'leitor', assignedSector: 'CONSUMO' }), StockAccessError);
 });
 
 test('perfis comuns exigem setor específico; Geral/Livre é exclusivo de Master', () => {

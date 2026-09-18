@@ -5,7 +5,6 @@ export const SECTOR_OPTIONS = [
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)' },
   { id: 'DISTRIBUICAO', label: 'Distribuição' },
   { id: 'MONTAGEM', label: 'Montagem (Pés Órfãos)' },
-  { id: 'CONSUMO', label: 'Consumo (Insumos)' },
 ];
 
 export const ROLE_LABELS = {

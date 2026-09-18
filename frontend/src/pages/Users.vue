@@ -161,7 +161,6 @@ function formatSectorName(sec) {
     DISTRIBUICAO: 'Distribuição',
     EXPEDICAO: 'Distribuição',
     MONTAGEM: 'Montagem',
-    CONSUMO: 'Consumo',
   };
   return sec ? (map[sec] || sec) : 'Todos / Livre';
 }

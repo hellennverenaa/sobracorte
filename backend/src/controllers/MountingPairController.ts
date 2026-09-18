@@ -4,6 +4,7 @@ import { MountingPairService } from '../services/MountingPairService';
 import { ExecuteMatchSchema } from '../types/stock.dto';
 import { SectorType } from '../generated/prisma';
 import { ZodError } from 'zod';
+import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 const mountingPairService = new MountingPairService();
 
@@ -17,8 +18,7 @@ export class MountingPairController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      let sectorParam = (req.query.sector as string)?.toUpperCase();
-      if (sectorParam === 'EXPEDICAO' || sectorParam === 'CABEDAIS') sectorParam = 'DISTRIBUICAO';
+      let sectorParam = req.query.sector ? requireActiveStockSector(String(req.query.sector)) : undefined;
       const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'];
       const sector: SectorType = assignedStockSector(requestStockAccess(req)) || (validSectors.includes(sectorParam as SectorType)
         ? (sectorParam as SectorType)
@@ -33,6 +33,7 @@ export class MountingPairController {
       });
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao buscar pares casáveis:', error);
       return res.status(500).json({ error: 'Erro interno ao consultar pares casáveis.' });
     }

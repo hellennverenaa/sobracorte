@@ -139,7 +139,6 @@ const allTabs = [
   { id: 'PRE_FABRICADO' as SectorType, countKey: 'totalPreFabricado', icon: Layers },
   { id: 'DISTRIBUICAO' as SectorType, countKey: 'totalExpedicao', icon: Box },
   { id: 'MONTAGEM' as SectorType, countKey: 'totalMontagem', icon: Footprints },
-  { id: 'CONSUMO' as SectorType, countKey: 'totalConsumo', icon: Box },
 ].map((tab) => {
   const sector = SECTOR_OPTIONS.find((option) => option.id === tab.id);
   return { ...tab, label: sector?.shortLabel || sector?.label || tab.id };
@@ -262,7 +261,7 @@ const maxAvailableBalance = computed(() => {
 
 const { units: measurementUnits, fetchUnits } = useSettings({ notify: message => showToast(message, 'error') });
 onMounted(fetchUnits);
-const movementIntegerOnly = computed(() => selectedItem.value?.sector !== 'CORTE' && selectedItem.value?.sector !== 'CONSUMO' || Boolean(measurementUnits.value.find(unit => unit.symbol === getItemUnitBadge(selectedItem.value))?.integerOnly));
+const movementIntegerOnly = computed(() => selectedItem.value?.sector !== 'CORTE' || Boolean(measurementUnits.value.find(unit => unit.symbol === getItemUnitBadge(selectedItem.value))?.integerOnly));
 const movementQuantityInvalid = computed(() => {
   const qty = Number(movementQuantity.value);
   return !Number.isFinite(qty) || qty <= 0 || (movementIntegerOnly.value ? !Number.isInteger(qty) : !/^\d+(?:\.\d{1,3})?$/.test(String(qty)));
@@ -637,7 +636,7 @@ onMounted(() => {
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
               <!-- Headers CORTE -->
-              <tr v-if="activeTab === 'CORTE' || activeTab === 'CONSUMO'">
+              <tr v-if="activeTab === 'CORTE'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição / Material</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Tipo</th>
@@ -700,7 +699,7 @@ onMounted(() => {
                 class="hover:bg-gray-50 border-b last:border-b-0 transition-colors"
               >
                 <!-- Colunas CORTE -->
-                <template v-if="activeTab === 'CORTE' || activeTab === 'CONSUMO'">
+                <template v-if="activeTab === 'CORTE'">
                   <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code || item.sku }}</td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.name || item.productName }}</td>
                   <td class="px-4 py-3 text-center">

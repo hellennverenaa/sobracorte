@@ -29,7 +29,6 @@ export function stockIdentity(data: Record<string, any>) {
   const sector = normalizeStockSector(data.sector);
   const fields = sector === 'CORTE' ? ['code', 'name', 'type']
     : sector === 'APOIO' ? ['pieceCode', 'productName', 'description', 'materialColor', 'sizeGrade']
-    : sector === 'CONSUMO' ? ['sku', 'productName']
     : sector === 'MONTAGEM' ? ['sku', 'productName', 'color', 'sizeGrade', 'footSide']
     : ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide'];
   return Object.fromEntries(fields.map(field => [field,

@@ -27,7 +27,7 @@ async function main() {
   try {
     for (const path of ['/health/ready', '/factory-unit/current', '/inventory/search?limit=5',
       '/settings/categories', '/settings/locations', '/settings/units', '/settings/origins',
-      '/dashboard/summary', '/inventory/search?sector=CORTE', '/inventory/search?sector=MONTAGEM', '/inventory/search?sector=CONSUMO',
+      '/dashboard/summary', '/inventory/search?sector=CORTE', '/inventory/search?sector=MONTAGEM',
       '/inventory/movements/history', '/requisitions', '/users', '/users/audit',
       '/reports/inventory', '/reports/movements', '/reports/requisitions']) {
       const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {

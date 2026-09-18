@@ -128,11 +128,11 @@ test('atendimentos concorrentes não excedem pendência; atendimento/cancelament
   await balance(item.id, 23 - amount);
 }));
 
-test('CSV real importa os seis setores, aceita KG/M² e recusa frações de unidades discretas', options, async () => inUnit(async context => {
-  const sectors = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM', 'CONSUMO'] as const;
+test('CSV real importa os setores ativos e recusa frações de unidades discretas', options, async () => inUnit(async context => {
+  const sectors = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'] as const;
   const locations = await Promise.all(sectors.map(sector => prisma.location.create({ data: { factoryUnitId: context.factoryUnitId, name: sector, sector } })));
   const csv = parseCsvRFC4180('setor;codigo;descricao;modelo;unidade;tipo;quantidade;prateleira;cor;grade;lado\n' + sectors.map(sector =>
-    `${sector};IMPORT-${sector};DESCRIPTION-${sector};MODEL-${sector};${sector === 'CORTE' ? 'M2' : sector === 'CONSUMO' ? 'KG' : 'UND'};TEST;${['CORTE', 'CONSUMO'].includes(sector) ? '1,5' : '2'};${sector};BLACK;40;${sector === 'MONTAGEM' ? 'E' : ''}`,
+    `${sector};IMPORT-${sector};DESCRIPTION-${sector};MODEL-${sector};${sector === 'CORTE' ? 'M2' : 'UND'};TEST;${sector === 'CORTE' ? '1,5' : '2'};${sector};BLACK;40;${sector === 'MONTAGEM' ? 'E' : ''}`,
   ).join('\n'));
   const validated = validateImportBatch(csv.headers, csv.rows, 'CORTE', locations);
   await executeImportTransaction(prisma, validated, context);
@@ -140,13 +140,13 @@ test('CSV real importa os seis setores, aceita KG/M² e recusa frações de unid
   assert.equal(await prisma.stockMovement.count(), 6);
   for (const item of await prisma.stockItem.findMany()) await balance(item.id, Number(item.quantity));
   await assert.rejects(executeImportTransaction(prisma, validated, context), DuplicateStockItemError);
-  assert.equal(await prisma.stockItem.count(), 6);
-  for (const sector of ['CORTE', 'CONSUMO']) {
+  assert.equal(await prisma.stockItem.count(), 5);
+  for (const sector of ['CORTE']) {
     const discrete = parseCsvRFC4180(`setor;codigo;descricao;unidade;quantidade;prateleira\n${sector};FRACTION;TEST;UN;1,5;${sector}`);
     assert.throws(() => validateImportBatch(discrete.headers, discrete.rows, sector, locations), /validação/i);
   }
   assert.throws(() => BatchCreateStockItemSchema.parse({ items: [corte('FRACTION', 1.5, 'UN')] }), /inteiro/);
-  assert.throws(() => BatchCreateStockItemSchema.parse({ items: [{ sector: 'CONSUMO', code: 'FRACTION', productName: 'TEST', quantity: 1.5, unit: 'UN', location: 'CONSUMO' }] }), /inteiro/);
+  assert.equal(BatchCreateStockItemSchema.safeParse({ items: [{ sector: 'CONSUMO', code: 'FRACTION', productName: 'TEST', quantity: 1.5, unit: 'UN', location: 'CONSUMO' }] }).success, false);
 }));
 
 test('histórico e inbox desempatem timestamps iguais por ID entre páginas', options, async () => inUnit(async context => {
@@ -167,8 +167,8 @@ test('histórico e inbox desempatem timestamps iguais por ID entre páginas', op
   assert.deepEqual(paginated, movementIds);
 }));
 
-test('HTTP real cobre Consumo, relatórios/exportações, snapshots e 404 das APIs removidas', options, async () => inUnit(async context => {
-  const [item, consumed] = await create(context, corte('HTTP', 2.5, 'KG'), { sector: 'CONSUMO', code: 'COLA', productName: 'COLA', quantity: 1.5, unit: 'KG', location: 'CONSUMO' });
+test('HTTP real cobre relatórios/exportações, snapshots e 404 das APIs removidas', options, async () => inUnit(async context => {
+  const [item] = await create(context, corte('HTTP', 2.5, 'KG'));
   await create(context, corte('HTTP-M2', 3, 'M2'));
   const identity = await prismaForInternalUse.authIdentity.create({ data: { nativeUnitId: context.factoryUnitId, authOrigin: 'EXTERNO', authUserId: 'http-user', usuario: 'HTTP.TEST', nome: 'Synthetic HTTP', email: 'http@test.local' } });
   await prisma.userRoleBinding.create({ data: { identityId: identity.id, factoryUnitId: context.factoryUnitId, role: 'admin' } });
@@ -195,7 +195,8 @@ test('HTTP real cobre Consumo, relatórios/exportações, snapshots e 404 das AP
     assert.equal(rejected.status, 400);
     assert.match(JSON.stringify(await rejected.json()), /bloqueada/);
 
-    for (const path of ['/dashboard/summary', '/inventory/search?sector=CONSUMO', '/inventory/search-suggestions?sector=CONSUMO', '/inventory/combinations?sector=CORTE', '/inventory/mounting/matching-pairs', '/inventory/movements/history', '/requisitions', '/requisitions/pending-count', '/reports/inventory', '/reports/movements', '/reports/requisitions', '/reports/inventory/export', '/reports/movements/export', '/reports/requisitions/export']) assert.equal((await get(path)).status, 200, path);
+    for (const path of ['/dashboard/summary', '/inventory/search?sector=CORTE', '/inventory/combinations?sector=CORTE', '/inventory/mounting/matching-pairs', '/inventory/movements/history', '/requisitions', '/requisitions/pending-count', '/reports/inventory', '/reports/movements', '/reports/requisitions', '/reports/inventory/export', '/reports/movements/export', '/reports/requisitions/export']) assert.equal((await get(path)).status, 200, path);
+    assert.equal((await get('/inventory/search?sector=CONSUMO')).status, 400);
     for (const path of ['/materials', '/movements', '/stats', '/reports/data', '/dashboard/origem-sobras', '/dashboard/distribuicao', '/dashboard/top-materiais']) assert.equal((await get(path)).status, 404, path);
     const report = await (await get('/reports/inventory?page=1&limit=1')).json();
     assert.equal(report.items.length, 1);
@@ -203,9 +204,9 @@ test('HTTP real cobre Consumo, relatórios/exportações, snapshots e 404 das AP
     assert.equal(report.totals.quantidadeTotal, null);
     assert.equal(report.totals.porUnidade.KG.quantidadeTotal, 4);
     assert.equal(report.totals.porUnidade['M²'].quantidadeTotal, 3);
-    const moveResponse = await fetch(`${base}/inventory/movements`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ stockItemId: consumed.id, type: 'SAIDA', quantity: 0.5 }) });
+    const moveResponse = await fetch(`${base}/inventory/movements`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ stockItemId: item.id, type: 'SAIDA', quantity: 0.5 }) });
     assert.equal(moveResponse.status, 201);
-    await balance(consumed.id, 1);
+    await balance(item.id, 2);
     const source = await prisma.location.findFirstOrThrow({ where: { name: 'C1' } });
     await prisma.location.update({ where: { id_factoryUnitId: { id: source.id, factoryUnitId: context.factoryUnitId } }, data: { name: 'RENAMED.LOCATION' } });
     await prisma.stockItem.update({ where: { id_factoryUnitId: { id: item.id, factoryUnitId: context.factoryUnitId } }, data: { name: 'RENAMED.ITEM' } });

@@ -1,6 +1,6 @@
 import { Request } from 'express';
 import { SectorType } from '../generated/prisma';
-import { normalizeSector } from '../utils/sectorHelper';
+import { normalizeSector, requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 export interface StockAccessContext {
   role?: string | null;
@@ -15,8 +15,10 @@ export function isStockMaster(context: StockAccessContext) {
 }
 export function assignedStockSector(context: StockAccessContext): SectorType | null {
   if (isStockMaster(context)) return null;
-  const sector = normalizeSector(context.assignedSector || '');
-  if (!['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM', 'CONSUMO'].includes(sector)) {
+  let sector: string;
+  try { sector = requireActiveStockSector(context.assignedSector || ''); }
+  catch (error) {
+    if (!(error instanceof SectorValidationError)) throw error;
     throw new StockAccessError('Acesso negado: seu perfil precisa de um setor específico atribuído.');
   }
   return sector as SectorType;

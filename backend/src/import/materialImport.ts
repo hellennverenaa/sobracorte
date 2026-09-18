@@ -4,7 +4,7 @@ import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit, isDiscreteUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
-import { normalizeSector as normalizeSectorAlias } from '../utils/sectorHelper';
+import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 export interface AvailableLocation {
   id: number;
@@ -63,13 +63,7 @@ export interface ImportExecutionResult {
 const UNIDADES_VALIDAS = new Set(['M2', 'M', 'UN', 'KG', 'PAR', 'CX', 'RL', 'G', 'UND', 'M²', 'CM', 'L', 'ROLO']);
 
 export function normalizeSector(rawSector?: string, defaultSector: string = 'CORTE'): SectorType {
-  const sec = normalizeSectorAlias(rawSector || defaultSector);
-  if (sec === 'DISTRIBUICAO') return 'DISTRIBUICAO';
-  if (sec === 'PRE_FABRICADO' || sec === 'PRE-FABRICADO' || sec === 'PREFABRICADO' || sec === 'SOLAS' || sec === 'SOLA') return 'PRE_FABRICADO';
-  if (sec === 'MONTAGEM' || sec === 'PES_ORFAOS' || sec === 'PES_PRONTOS') return 'MONTAGEM';
-  if (sec === 'APOIO' || sec === 'MOLDES' || sec === 'MOLDE' || sec === 'PECAS_CORTADAS') return 'APOIO';
-  if (sec === 'CONSUMO' || sec === 'INSUMOS' || sec === 'QUIMICOS') return 'CONSUMO';
-  return 'CORTE';
+  return requireActiveStockSector(rawSector || defaultSector) as SectorType;
 }
 
 export function normalizeFootSide(rawSide?: string): 'E' | 'D' | 'PAR' | null {
@@ -83,7 +77,7 @@ export function normalizeFootSide(rawSide?: string): 'E' | 'D' | 'PAR' | null {
 
 export function matchLocationSector(locSector: SectorType | null, itemSector: SectorType): boolean {
   if (locSector === null) return true; // Localização geral compartilhada
-  return normalizeSectorAlias(locSector) === normalizeSectorAlias(itemSector);
+  return requireActiveStockSector(locSector) === requireActiveStockSector(itemSector);
 }
 
 /**
@@ -147,7 +141,7 @@ export function validateImportBatch(
   const descIdx = descriptionIdx === -1 ? modelIdx : descriptionIdx;
   const catIdx = headerCols.findIndex(c => c === 'categoria' || c === 'type' || c === 'tipo' || c === 'componenttype');
   const unitIdx = headerCols.findIndex(c => c === 'unidade' || c === 'unit' || c === 'um' || c === 'sigla');
-  const qtdIdx = headerCols.findIndex(c => c === 'quantidade' || c === 'quantity' || c === 'estoque' || c === 'saldo' || c === 'qtd' || c === 'saldo_consumo');
+  const qtdIdx = headerCols.findIndex(c => c === 'quantidade' || c === 'quantity' || c === 'estoque' || c === 'saldo' || c === 'qtd');
   const locIdx = headerCols.findIndex(c => c === 'prateleira' || c === 'localizacao' || c === 'localização' || c === 'location' || c === 'box' || c === 'estante' || c === 'endereco');
   const colorIdx = headerCols.findIndex(c => c === 'cor' || c === 'color' || c === 'materialcor' || c === 'material_cor');
   const sizeIdx = headerCols.findIndex(c => c === 'grade' || c === 'tamanho' || c === 'sizegrade' || c === 'num' || c === 'numeracao' || c === 'numeração');
@@ -282,7 +276,16 @@ export function validateImportBatch(
       });
     }
 
-    const itemSector = normalizeSector(rawSector, defaultSector);
+    let itemSector: SectorType;
+    try {
+      itemSector = normalizeSector(rawSector, defaultSector);
+    } catch (error) {
+      if (error instanceof SectorValidationError) {
+        errors.push({ row: row.rowNumber, column: 'setor', value: rawSector || defaultSector, message: error.message });
+        continue;
+      }
+      throw error;
+    }
 
     // 2. Validação e normalização de quantidade
     const parsedQtd = parseQuantity(rawQtd);
@@ -297,7 +300,7 @@ export function validateImportBatch(
 
     // 3. Validação de casas decimais para setores discretos
     const isDiscreteSector = ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(itemSector);
-    const isDiscreteMaterial = ['CORTE', 'CONSUMO'].includes(itemSector) && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
+    const isDiscreteMaterial = itemSector === 'CORTE' && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
     if ((isDiscreteSector || isDiscreteMaterial) && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
       errors.push({
         row: row.rowNumber,
@@ -566,10 +569,12 @@ export async function executeImportTransaction(
           sku = item.code;
           productName = item.productName || item.name;
           break;
-        default: // CONSUMO
+        case 'CORTE':
           name = item.name;
           sku = item.code;
           break;
+        default:
+          throw new SectorValidationError(item.sector);
       }
 
       const data = {

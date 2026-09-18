@@ -3,7 +3,6 @@ import test from 'node:test';
 import { normalizeUnit, areUnitsCompatible, isDiscreteSector, isDiscreteUnit, requiresIntegerQuantity } from '../src/utils/unitHelper';
 import { validateImportBatch } from '../src/import/materialImport';
 import { ParsedCsvRow } from '../src/import/csvParser';
-import { ConsumoItemSchema } from '../src/types/stock.dto';
 
 test('unitHelper: normalizeUnit padroniza variações e aliases de unidades de medida', () => {
   // Metro quadrado
@@ -73,35 +72,24 @@ test('unitHelper: isDiscreteSector identifica corretamente setores discretos vs 
   assert.equal(isDiscreteSector('MONTAGEM'), true);
 
   assert.equal(isDiscreteSector('CORTE'), false);
-  assert.equal(isDiscreteSector('CONSUMO'), false);
   assert.equal(isDiscreteSector(null), false);
 });
 
-test('unitHelper: quantidade de Consumo segue a unidade, não apenas o setor', () => {
+test('unitHelper: Corte segue a unidade para quantidades contínuas', () => {
   assert.equal(isDiscreteUnit('UN'), true);
   assert.equal(isDiscreteUnit('CX'), true);
   assert.equal(isDiscreteUnit('KG'), false);
   assert.equal(isDiscreteUnit('L'), false);
-  assert.equal(requiresIntegerQuantity('UN', 'CONSUMO'), true);
-  assert.equal(requiresIntegerQuantity('KG', 'CONSUMO'), false);
-  assert.equal(requiresIntegerQuantity(undefined, 'CONSUMO'), true);
+  assert.equal(requiresIntegerQuantity('UN', 'CORTE'), true);
+  assert.equal(requiresIntegerQuantity('KG', 'CORTE'), false);
+  assert.equal(requiresIntegerQuantity(undefined, 'CORTE'), false);
 });
 
-test('Consumo aceita fração em KG e rejeita fração em UN no cadastro e CSV', () => {
-  assert.doesNotThrow(() => ConsumoItemSchema.parse({
-    sector: 'CONSUMO', productName: 'COLA', unit: 'KG', quantity: 1.5, location: 'CS-01',
-  }));
-  assert.throws(() => ConsumoItemSchema.parse({
-    sector: 'CONSUMO', productName: 'COLA', unit: 'UN', quantity: 1.5, location: 'CS-01',
-  }), /unidade discreta/);
-
-  const locations = [{ id: 1, name: 'CS-01', sector: 'CONSUMO' as any }];
-  assert.equal(validateImportBatch([
-    'codigo', 'descricao', 'unidade', 'quantidade', 'prateleira',
-  ], [{ rowNumber: 2, cells: ['INS-KG', 'COLA', 'KG', '1.5', 'CS-01'] } as ParsedCsvRow], 'CONSUMO', locations)[0].quantity, 1.5);
-  assert.throws(() => validateImportBatch([
-    'codigo', 'descricao', 'unidade', 'quantidade', 'prateleira',
-  ], [{ rowNumber: 2, cells: ['INS-UN', 'PINCEL', 'UN', '1.5', 'CS-01'] } as ParsedCsvRow], 'CONSUMO', locations), (err: any) => err.errors?.some((item: any) => /Valores fracionados/.test(item.message)));
+test('importação rejeita Consumo e aliases sem redirecioná-los para Corte', () => {
+  const locations = [{ id: 1, name: 'C-01', sector: 'CORTE' as any }];
+  for (const sector of ['CONSUMO', 'INSUMOS', 'QUIMICOS']) {
+    assert.throws(() => validateImportBatch(['setor', 'codigo', 'descricao'], [{ rowNumber: 2, cells: [sector, 'I', 'ITEM'] } as ParsedCsvRow], 'CORTE', locations), /Setor inválido ou descontinuado/);
+  }
 });
 
 test('Validação de Domínio: Bloqueio de troca de unidade em material com saldo ativo', () => {
@@ -199,19 +187,17 @@ test('Validação de Domínio: Bloqueio de entrada com unidade conflitante no lo
 
 test('Importação CSV: validateImportBatch normaliza unidades canônicas por setor', () => {
   const { parseCsvRFC4180 } = require('../src/import/csvParser');
-  const csv = 'setor;codigo;descricao;unidade;quantidade;prateleira\nCORTE;TEC-01;Tecido Algodão;m2;10.5;PRAT-A1\nCONSUMO;INS-01;Tinta Branca;un;5;PRAT-C1';
+  const csv = 'setor;codigo;descricao;unidade;quantidade;prateleira\nCORTE;TEC-01;Tecido Algodão;m2;10.5;PRAT-A1';
   const parsed = parseCsvRFC4180(csv);
 
   const locations = [
     { id: 1, name: 'PRAT-A1', sector: 'CORTE' as any },
-    { id: 2, name: 'PRAT-C1', sector: 'CONSUMO' as any },
   ];
 
   const result = validateImportBatch(parsed.headers, parsed.rows, 'CORTE', locations);
 
-  assert.equal(result.length, 2);
+  assert.equal(result.length, 1);
   assert.equal(result[0].unit, 'M²', 'CORTE deve normalizar m2 para M²');
-  assert.equal(result[1].unit, 'UN', 'CONSUMO deve normalizar un para UN');
 });
 
 test('catálogo valida símbolos, quantidades, importação e estoque mínimo sem arredondar', async () => {

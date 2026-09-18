@@ -6,7 +6,8 @@ import { DuplicateStockItemError, StockItemService } from '../services/StockItem
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
 import { SectorType } from '../generated/prisma';
-import { lockStockIdentityWrites, normalizeStockSector } from '../services/stockIdentity';
+import { lockStockIdentityWrites } from '../services/stockIdentity';
+import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 const stockItemService = new StockItemService();
 
@@ -35,6 +36,7 @@ export class StockItemController {
       return res.status(201).json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
@@ -62,7 +64,7 @@ export class StockItemController {
       const { q, search, sector, page, limit } = req.query;
       const searchQuery = q || search;
 
-      let targetSector = sector ? normalizeStockSector(String(sector)) as SectorType : undefined;
+      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : undefined;
 
       targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
@@ -84,6 +86,7 @@ export class StockItemController {
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro na busca unificada de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar dados de estoque.' });
@@ -100,10 +103,7 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
-      let targetSector = (sector ? String(sector).toUpperCase() : 'MONTAGEM') as SectorType;
-      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
-        targetSector = 'DISTRIBUICAO' as SectorType;
-      }
+      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : 'MONTAGEM';
 
       targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
@@ -113,6 +113,7 @@ export class StockItemController {
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar sugestões de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
@@ -129,10 +130,7 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
-      let targetSector = (sector ? String(sector).toUpperCase() : 'PRE_FABRICADO') as SectorType;
-      if (targetSector === ('EXPEDICAO' as any) || targetSector === ('CABEDAIS' as any)) {
-        targetSector = 'DISTRIBUICAO' as SectorType;
-      }
+      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : 'PRE_FABRICADO';
 
       targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
 
@@ -142,6 +140,7 @@ export class StockItemController {
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       console.error('Erro ao buscar combinações de estoque:', error);
       return res.status(500).json({ error: 'Erro interno ao buscar combinações.' });

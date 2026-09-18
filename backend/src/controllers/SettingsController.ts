@@ -1,6 +1,6 @@
 import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
-import { normalizeSector } from '../utils/sectorHelper';
+import { normalizeSector, requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 import { prisma } from '../prisma';
 import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
@@ -46,11 +46,10 @@ export class SettingsController {
   async getCategories(req: Request, res: Response) {
     try {
       const rawSector = req.query.sector as string | undefined;
-      let targetSector = rawSector ? rawSector.toUpperCase().trim() : undefined;
-      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+      let targetSector = rawSector ? requireActiveStockSector(rawSector) : undefined;
 
       if (assignedStockSector(requestStockAccess(req))) {
-        targetSector = assignedStockSector(requestStockAccess(req))!;
+        targetSector = assignedStockSector(requestStockAccess(req))! as any;
       }
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
@@ -78,6 +77,7 @@ export class SettingsController {
       res.json(categoriesWithCount);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao buscar categorias:', error);
       res.status(500).json({ error: 'Erro ao buscar categorias' });
     }
@@ -95,10 +95,9 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
 
-      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || 'CORTE');
-      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+      let targetSector = sector ? requireActiveStockSector(sector) : (req.user?.assignedSector ? requireActiveStockSector(req.user.assignedSector) : 'CORTE');
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+        targetSector = req.user.assignedSector as any;
       }
 
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
@@ -133,6 +132,7 @@ export class SettingsController {
       });
       res.status(201).json(category);
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa categoria já existe.' });
@@ -152,10 +152,9 @@ export class SettingsController {
       const id = Number(req.params.id);
       const { name, defaultUnitCode, unitLocked, sector } = req.body;
 
-      let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
-      if (targetSector === 'EXPEDICAO' || targetSector === 'CABEDAIS') targetSector = 'DISTRIBUICAO';
+      let targetSector = sector !== undefined ? (sector ? requireActiveStockSector(sector) : null) : undefined;
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+        targetSector = req.user.assignedSector as any;
       }
 
       const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
@@ -213,6 +212,7 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
@@ -286,8 +286,7 @@ export class SettingsController {
   async getLocations(req: Request, res: Response) {
     try {
       const sectorFilter = req.query.sector as string | undefined;
-      let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
-      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
+      let targetSector = sectorFilter ? requireActiveStockSector(sectorFilter) : undefined;
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
       if (assignedStockSector(requestStockAccess(req))) {
@@ -332,6 +331,7 @@ export class SettingsController {
       res.json(locationsWithStats);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao buscar localizações:', error);
       res.status(500).json({ error: 'Erro ao buscar localizações' });
     }
@@ -349,10 +349,9 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
 
-      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
-      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
+      let targetSector = sector ? requireActiveStockSector(sector) : (req.user?.assignedSector ? requireActiveStockSector(req.user.assignedSector) : null);
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+        targetSector = req.user.assignedSector as any;
       }
 
       // Suporta array de IDs ou único ID
@@ -431,6 +430,7 @@ export class SettingsController {
       });
       res.status(201).json(location);
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa localização já existe.' });
@@ -457,10 +457,9 @@ export class SettingsController {
         return res.status(404).json({ error: 'Localização não encontrada.' });
       }
 
-      let targetSector = sector !== undefined ? (sector ? String(sector).toUpperCase().trim() : null) : undefined;
-      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
+      let targetSector = sector !== undefined ? (sector ? requireActiveStockSector(sector) : null) : undefined;
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+        targetSector = req.user.assignedSector as any;
       }
 
       let finalCategoryIds: number[] | undefined;
@@ -546,6 +545,7 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof Error && error.message.includes('Movimentações entre setores não são permitidas')) {
         return res.status(400).json({ error: 'Não é possível vincular a localização a um setor diferente dos itens já alocados nela.' });
@@ -617,8 +617,7 @@ export class SettingsController {
   async getOrigins(req: Request, res: Response) {
     try {
       const sectorFilter = req.query.sector as string | undefined;
-      let targetSector = sectorFilter ? sectorFilter.toUpperCase().trim() : undefined;
-      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
+      let targetSector = sectorFilter ? requireActiveStockSector(sectorFilter) : undefined;
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
       if (assignedStockSector(requestStockAccess(req))) {
@@ -650,6 +649,7 @@ export class SettingsController {
       res.json(originsWithCount);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao buscar origens:', error);
       res.status(500).json({ error: 'Erro ao buscar origens' });
     }
@@ -667,10 +667,9 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da origem é obrigatório.' });
       }
 
-      let targetSector = sector ? String(sector).toUpperCase().trim() : (req.user?.assignedSector || null);
-      if (targetSector === 'CABEDAIS' || targetSector === 'EXPEDICAO') targetSector = 'DISTRIBUICAO';
+      let targetSector = sector ? requireActiveStockSector(sector) : (req.user?.assignedSector ? requireActiveStockSector(req.user.assignedSector) : null);
       if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector;
+        targetSector = req.user.assignedSector as any;
       }
 
       const origin = await prisma.$transaction(async (tx) => {
@@ -699,6 +698,7 @@ export class SettingsController {
       });
       res.status(201).json(origin);
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa origem já existe.' });
@@ -754,6 +754,7 @@ export class SettingsController {
 
       res.json({ message: 'Origem excluída com sucesso.' });
     } catch (error: unknown) {
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2003')) {
         return res.status(400).json({ error: 'Não é possível excluir este item pois ele já está vinculado a outros registros no sistema.' });

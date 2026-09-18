@@ -20,7 +20,6 @@ export const SectorEnum = z.enum([
   'DISTRIBUICAO',
   'EXPEDICAO',
   'MONTAGEM',
-  'CONSUMO',
   'CONFIGURACOES',
 ]);
 
@@ -142,24 +141,6 @@ export const MontagemItemSchema = z.object({
   observation: z.string().trim().optional().default(''),
 });
 
-// 🔹 6. CONSUMO: Materiais de Consumo / Insumos
-export const ConsumoItemSchema = z.object({
-  sector: z.literal('CONSUMO'),
-  code: z.string().trim().optional().default(''),
-  sku: z.string().trim().optional().default(''),
-  productName: z.string().trim().min(1, 'Descrição do material de consumo é obrigatória'),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
-  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
-  location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
-  observation: z.string().trim().optional().default(''),
-}).superRefine((item, ctx) => {
-  for (const field of ['quantity', 'minStock'] as const) {
-    if (!(field in item)) continue;
-    try { validateQuantity(Number((item as any)[field]), item.unit, item.sector, field === 'minStock'); }
-    catch (error) { ctx.addIssue({ code: 'custom', path: [field], message: (error as Error).message }); }
-  }
-});
-
 // 🌟 Discriminated Union dos Setores
 export const StockItemUnionSchema = z.discriminatedUnion('sector', [
   CorteItemSchema,
@@ -168,7 +149,6 @@ export const StockItemUnionSchema = z.discriminatedUnion('sector', [
   DistribuicaoItemSchema,
   ExpedicaoItemSchema,
   MontagemItemSchema,
-  ConsumoItemSchema,
 ]);
 
 // 📦 Cadastro em Lote

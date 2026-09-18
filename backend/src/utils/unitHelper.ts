@@ -33,11 +33,11 @@ export function isDiscreteUnit(unit?: string | null): boolean {
 /**
  * Decide se a quantidade deve ser inteira, considerando a unidade cadastrada.
  * Setores historicamente discretos continuam inteiros mesmo quando a unidade
- * antiga não foi preenchida; Consumo sem unidade usa o default UN.
+ * antiga não foi preenchida.
  */
 export function requiresIntegerQuantity(unit?: string | null, sector?: string | null): boolean {
   if (!unit || String(unit).trim() === '') {
-    return isDiscreteSector(sector) || String(sector || '').toUpperCase().trim() === 'CONSUMO';
+    return isDiscreteSector(sector);
   }
   return isDiscreteSector(sector) || isDiscreteUnit(normalizeUnit(unit, sector));
 }
