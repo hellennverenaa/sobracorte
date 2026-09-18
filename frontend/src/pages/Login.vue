@@ -145,7 +145,7 @@ async function handleLogin() {
         </div>
 
         <div class="relative z-10 text-xs text-indigo-300/70 font-medium pt-8">
-          &copy; 2026 Grupo DASS - Equipe de Desenvolvimento SEST v3.0 (Multi-Setor)
+          &copy; 2026 Grupo DASS • Desenvolvido por DASS SEST
         </div>
       </div>
 
