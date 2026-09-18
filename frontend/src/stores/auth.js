@@ -145,7 +145,7 @@ export const useAuthStore = defineStore('auth', {
         return false
       }
       try {
-        const response = await authApi.post('/auth/me', null, { withCredentials: true })
+        const response = await authApi.post('/auth/me', null)
         const token = response.data?.data?.token
         if (!token) throw new Error('Sessão inválida.')
         const synced = await api.post('/auth/check-user', null, {

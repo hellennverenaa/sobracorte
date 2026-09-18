@@ -269,7 +269,7 @@ test('ExecuteMatchSchema aceita apenas quantidades inteiras e rejeita frações'
 });
 
 test('decimalHelper realiza conversão e arredondamento determinístico com Prisma.Decimal', () => {
-  const { decimalInput, decimalNumber, isZeroOrResidual } = require('../src/utils/decimalHelper');
+  const { decimalInput, decimalNumber } = require('../src/utils/decimalHelper');
   const { Prisma } = require('../src/generated/prisma');
 
   // Conversão de números e strings com vírgula brasileira
@@ -282,7 +282,6 @@ test('decimalHelper realiza conversão e arredondamento determinístico com Pris
   // Resíduos infinitesimais viram zero
   const dZero = decimalInput('0.00005');
   assert.equal(dZero.toString(), '0');
-  assert.equal(isZeroOrResidual(dZero), true);
 
   // Tratamento de null/undefined
   assert.equal(decimalInput(null).toString(), '0');
@@ -299,5 +298,4 @@ test('decimalHelper realiza conversão e arredondamento determinístico com Pris
   assert.equal(decimalNumber(null), 0);
   assert.equal(decimalNumber('invalid'), 0);
 });
-
 

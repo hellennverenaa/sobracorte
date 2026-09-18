@@ -131,11 +131,13 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
     sector,
     code: `${sector}-${firstId + index}`,
     name: 'Material',
-    type: 'TECIDO',
+    type: 'tecido',
     quantity: 1,
-    unit: 'UND',
+    unit: null,
+    sizeGrade: '40',
+    footSide: 'E',
     createdAt: new Date('2026-01-01'),
-    locations: [],
+    locations: [{ location: { name: 'A' } }],
   }));
 
   const corteRows = rows(501, 'CORTE', 1);
@@ -161,6 +163,9 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
     const csv = chunks.join('');
     assert.equal((csv.match(/"CORTE";/g) ?? []).length, 501);
     assert.equal((csv.match(/"APOIO";/g) ?? []).length, 2);
+    assert.match(chunks[1], /^"CORTE";"CORTE-1";"Material";"TECIDO";"'-";"'-";"1";"m²";"A";/);
+    assert.ok(chunks[501].startsWith('"CORTE";"CORTE-501";'));
+    assert.ok(chunks[502].startsWith('"APOIO";"APOIO-1001";"Material";"tecido";"40";"E";"1";"UND";"A";'));
   } finally {
     stockItem.findMany = originalFindMany;
   }

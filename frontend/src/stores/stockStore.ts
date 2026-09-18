@@ -56,7 +56,6 @@ export interface StockState {
   };
   filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterOrigins: Array<{ id: number; name: string }>;
-  filterCategories: Array<{ id: number; name: string }>;
   matchingPairs: MatchingPair[];
   matchingPairsCount: number;
   history: {
@@ -102,7 +101,6 @@ export const useStockStore = defineStore('stock', {
     },
     filterLocations: [],
     filterOrigins: [],
-    filterCategories: [],
     matchingPairs: [],
     matchingPairsCount: 0,
     history: {
@@ -179,7 +177,6 @@ export const useStockStore = defineStore('stock', {
         }
         this.filterLocations = data.filterOptions?.locations || [];
         this.filterOrigins = data.filterOptions?.origins || [];
-        this.filterCategories = data.filterOptions?.categories || [];
       } catch (err: any) {
         if (requestId !== this.inventoryRequestId || unitCode !== auth.user?.unit?.code) return;
         console.error('Erro ao carregar estoque:', err);

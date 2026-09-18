@@ -2,6 +2,7 @@ import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccess
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
+import type { Prisma, SectorType } from '../generated/prisma';
 
 export function csvCell(value: unknown): string {
   let text = String(value ?? '');
@@ -567,87 +568,13 @@ export class ReportController {
       ]));
 
       const batchSize = 500;
-      const shouldStreamCorte = targetSector === 'TODOS' || targetSector === 'CORTE';
-      const shouldStreamStock = targetSector !== 'CORTE';
-
-      // 1. Stream de materiais do CORTE
-      if (shouldStreamCorte) {
-        let lastMaterialId: number | undefined = undefined;
-        const materialWhere: any = {
-          factoryUnitId,
-          ...(rawSearch && {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-              { type: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          }),
-        };
-
+      async function stream(where: Prisma.StockItemWhereInput) {
+        let lastItemId: number | undefined;
         while (true) {
-          const batch: any[] = await prisma.stockItem.findMany({
+          const batch = await prisma.stockItem.findMany({
             where: {
-              ...materialWhere, sector: 'CORTE',
-              ...(lastMaterialId !== undefined && { id: { gt: lastMaterialId } }),
-            },
-            take: batchSize,
-            orderBy: { id: 'asc' },
-            include: {
-              locations: {
-                include: { location: true },
-              },
-            },
-          });
-
-          if (batch.length === 0) break;
-
-          for (const m of batch) {
-            const locs = (m.locations ?? []).map((l: any) => l.location?.name).filter(Boolean).join(' | ') || '-';
-            res.write(csvLine([
-              'CORTE',
-              m.code,
-              m.name,
-              m.type.toUpperCase(),
-              '-',
-              '-',
-              decimalString(m.quantity),
-              m.unit || 'm²',
-              locs,
-              m.createdAt ? new Date(m.createdAt).toLocaleDateString('pt-BR') : '-',
-            ]));
-          }
-
-          if (batch.length < batchSize) break;
-          lastMaterialId = batch[batch.length - 1].id;
-        }
-      }
-
-      // 2. Stream de itens dos outros setores (APOIO, PRE_FABRICADO, DISTRIBUICAO, MONTAGEM)
-      if (shouldStreamStock) {
-        let lastStockId: number | undefined = undefined;
-        const stockWhere: any = {
-          factoryUnitId,
-          ...(targetSector !== 'TODOS' && {
-            sector: ['DISTRIBUICAO', 'EXPEDICAO', 'CABEDAIS'].includes(targetSector) ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : targetSector,
-          }),
-          ...(targetSector === 'TODOS' && { sector: { not: 'CORTE' } }),
-          ...(rawSearch && {
-            OR: [
-              { code: { contains: rawSearch, mode: 'insensitive' } },
-              { name: { contains: rawSearch, mode: 'insensitive' } },
-              { description: { contains: rawSearch, mode: 'insensitive' } },
-              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
-              { sku: { contains: rawSearch, mode: 'insensitive' } },
-              { productName: { contains: rawSearch, mode: 'insensitive' } },
-            ],
-          }),
-        };
-
-        while (true) {
-          const batch: any[] = await prisma.stockItem.findMany({
-            where: {
-              ...stockWhere,
-              ...(lastStockId !== undefined && { id: { gt: lastStockId } }),
+              ...where,
+              ...(lastItemId !== undefined && { id: { gt: lastItemId } }),
             },
             take: batchSize,
             orderBy: { id: 'asc' },
@@ -661,27 +588,58 @@ export class ReportController {
           if (batch.length === 0) break;
 
           for (const s of batch) {
-            const code = s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`;
-            const desc = s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor';
-            const locs = (s.locations ?? []).map((l: any) => l.location?.name).filter(Boolean).join(' | ') || '-';
-
+            const isCorte = s.sector === 'CORTE';
+            const locs = (s.locations ?? []).map(l => l.location?.name).filter(Boolean).join(' | ') || '-';
             res.write(csvLine([
               s.sector,
-              code,
-              desc,
-              s.type || s.sector,
-              s.sizeGrade || '-',
-              s.footSide || '-',
+              isCorte ? s.code : s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`,
+              isCorte ? s.name : s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
+              isCorte ? s.type!.toUpperCase() : s.type || s.sector,
+              isCorte ? '-' : s.sizeGrade || '-',
+              isCorte ? '-' : s.footSide || '-',
               decimalString(s.quantity),
-              s.unit || 'UND',
+              s.unit || (isCorte ? 'm²' : 'UND'),
               locs,
               s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '-',
             ]));
           }
 
           if (batch.length < batchSize) break;
-          lastStockId = batch[batch.length - 1].id;
+          lastItemId = batch[batch.length - 1].id;
         }
+      }
+
+      // Preserve Corte-first ordering and the sector-specific search fields.
+      if (targetSector === 'TODOS' || targetSector === 'CORTE') {
+        await stream({
+          factoryUnitId, sector: 'CORTE',
+          ...(rawSearch && {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { type: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          }),
+        });
+      }
+      if (targetSector !== 'CORTE') {
+        await stream({
+          factoryUnitId,
+          ...(targetSector !== 'TODOS' && {
+            sector: ['DISTRIBUICAO', 'EXPEDICAO', 'CABEDAIS'].includes(targetSector) ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : targetSector as SectorType,
+          }),
+          ...(targetSector === 'TODOS' && { sector: { not: 'CORTE' } }),
+          ...(rawSearch && {
+            OR: [
+              { code: { contains: rawSearch, mode: 'insensitive' } },
+              { name: { contains: rawSearch, mode: 'insensitive' } },
+              { description: { contains: rawSearch, mode: 'insensitive' } },
+              { pieceCode: { contains: rawSearch, mode: 'insensitive' } },
+              { sku: { contains: rawSearch, mode: 'insensitive' } },
+              { productName: { contains: rawSearch, mode: 'insensitive' } },
+            ],
+          }),
+        });
       }
 
       return res.end();

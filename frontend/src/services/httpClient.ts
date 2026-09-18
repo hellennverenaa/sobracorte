@@ -4,8 +4,7 @@ import { buildRefreshedSessionUser } from './interceptors/sessionRefresh'
 export type RequestConfig = {
   headers?: Record<string, string>
   params?: Record<string, unknown> | URLSearchParams
-  responseType?: 'json' | 'blob' | 'text'
-  withCredentials?: boolean
+  responseType?: 'json' | 'blob'
   _retry?: boolean
 }
 
@@ -30,7 +29,6 @@ export class HttpError extends Error {
 }
 
 export type HttpClient = {
-  request<T = unknown>(url: string, config?: RequestConfig & { method?: string; data?: unknown }): Promise<HttpResponse<T>>
   get<T = unknown>(url: string, config?: RequestConfig): Promise<HttpResponse<T>>
   post<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<HttpResponse<T>>
   put<T = unknown>(url: string, data?: unknown, config?: RequestConfig): Promise<HttpResponse<T>>
@@ -86,7 +84,6 @@ async function readResponse(response: Response, responseType: RequestConfig['res
   if (responseType === 'blob') return response.blob()
   const text = await response.text()
   if (!text) return null
-  if (responseType === 'text') return text
   try {
     return JSON.parse(text)
   } catch {
@@ -114,7 +111,7 @@ function decodeJwtPayload(token: string) {
 }
 
 async function refreshSession(authApi: HttpClient, api: HttpClient) {
-  const response = await authApi.post('/auth/me', null, { withCredentials: true })
+  const response = await authApi.post('/auth/me', null)
   const newToken = (response.data as any)?.data?.token
   const user = getStoredUser()
   if (!newToken || !user) throw new Error('Não foi possível renovar a sessão.')
@@ -191,7 +188,6 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
     throw error
   }
 
-  client.request = request
   client.get = (url, config) => request(url, { ...config, method: 'GET' })
   client.post = (url, data, config) => request(url, { ...config, method: 'POST', data })
   client.put = (url, data, config) => request(url, { ...config, method: 'PUT', data })

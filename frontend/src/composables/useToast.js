@@ -18,17 +18,7 @@ export function useToast(durationMs = 3000) {
 
   function showNotification(type, message) {
     if (timer) clearTimeout(timer);
-    // Suporte a chamada flexível showNotification(message, type) ou showNotification(type, message)
-    let finalType = type;
-    let finalMsg = message;
-    if (typeof type === 'string' && (type === 'success' || type === 'error' || type === 'warning' || type === 'info')) {
-      finalType = type;
-      finalMsg = message;
-    } else if (typeof message === 'string' && (message === 'success' || message === 'error' || message === 'warning' || message === 'info')) {
-      finalType = message;
-      finalMsg = type;
-    }
-    notification.value = { show: true, type: finalType, message: finalMsg };
+    notification.value = { show: true, type, message };
     timer = setTimeout(() => {
       notification.value.show = false;
     }, durationMs);

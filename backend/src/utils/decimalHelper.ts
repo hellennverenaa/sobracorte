@@ -66,11 +66,3 @@ export function decimalString(val: number | string | Prisma.Decimal | null | und
     maximumFractionDigits: maxDecimals,
   });
 }
-
-/**
- * Verifica se um valor é zero ou residual infinitesimal (< 0.0001)
- */
-export function isZeroOrResidual(val: number | string | Prisma.Decimal | null | undefined): boolean {
-  const num = decimalNumber(val);
-  return Math.abs(num) < 0.0001;
-}

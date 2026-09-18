@@ -575,25 +575,14 @@ export class DashboardController {
       }
 
       // 5. Hidratação dos Top 5 Entradas de Sobras (Corte + Multi-Setor)
-      const materialIds = topCorteEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
-      const stockItemIds = topStockEntradas.map(e => e.stockItemId).filter((id): id is number => id !== null);
-
-      const [materialsList, stockItemsList] = await Promise.all([
-        materialIds.length > 0
-          ? prisma.stockItem.findMany({
-              where: { factoryUnitId, AND: [scope], sector: 'CORTE', id: { in: materialIds } },
-              select: { id: true, code: true, name: true, unit: true, type: true }
-            })
-          : [],
-        stockItemIds.length > 0
-          ? prisma.stockItem.findMany({
-              where: { factoryUnitId, AND: [scope], id: { in: stockItemIds } },
-              select: { id: true, code: true, name: true, pieceCode: true, description: true, productName: true, sku: true, unit: true, sector: true }
-            })
-          : []
-      ]);
-
-      const materialMap = new Map(materialsList.map(m => [m.id, m]));
+      const stockItemIds = [...new Set([...topCorteEntradas, ...topStockEntradas]
+        .map(e => e.stockItemId).filter((id): id is number => id !== null))];
+      const stockItemsList = stockItemIds.length > 0
+        ? await prisma.stockItem.findMany({
+            where: { factoryUnitId, AND: [scope], id: { in: stockItemIds } },
+            select: { id: true, code: true, name: true, pieceCode: true, description: true, productName: true, sku: true, unit: true, sector: true },
+          })
+        : [];
       const stockItemMap = new Map(stockItemsList.map(s => [s.id, s]));
 
       const topSobrasEntrada: Array<{
@@ -607,8 +596,8 @@ export class DashboardController {
       }> = [];
 
       for (const leg of topCorteEntradas) {
-        const mat = leg.stockItemId ? materialMap.get(leg.stockItemId) : null;
-        if (mat) {
+        const mat = leg.stockItemId ? stockItemMap.get(leg.stockItemId) : null;
+        if (mat?.sector === 'CORTE') {
           topSobrasEntrada.push({
             id: `mat_${mat.id}`,
             code: mat.code || '-',
