@@ -28,6 +28,12 @@ WITH legacy AS (
       AND a."factoryUnitId" = b."factoryUnitId" AND a."newRole" = b.role
       AND a."newSector" IS NOT DISTINCT FROM b."assignedSector")
   UNION ALL
+  SELECT b."factoryUnitId", 'multiple_bound_identities_for_login'
+  FROM sobra_corte."UserRoleBinding" b
+  JOIN sobra_corte."AuthIdentity" i ON i.id = b."identityId"
+  GROUP BY b."factoryUnitId", upper(trim(i.usuario))
+  HAVING count(DISTINCT i.id) > 1
+  UNION ALL
   SELECT c."nativeUnitId", 'recorded_migration_conflict'
   FROM sobra_corte."IdentityMigrationConflict" c
 )

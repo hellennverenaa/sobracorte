@@ -93,6 +93,37 @@ npm run test:tenant:db
 
 As auditorias `stock:integrity` e `identity:audit` são somente de verificação e requerem acesso explícito ao banco correspondente.
 
+### Cadastro externo classificado como legado pela migração
+
+Cadastros antigos sem `authOrigin`/`authUserId` foram migrados como `LEGADO/<login>`.
+Isso não comprova que a conta veio de um provedor legado: um cadastro criado pelo
+DASS Identidades também pode ter perdido esses metadados no armazenamento antigo.
+O login `EXTERNO/<id>` então cria outro vínculo, pois origens diferentes não podem
+herdar permissões automaticamente por login ou matrícula.
+
+Após confirmar no provedor que ambos representam a mesma conta, simule a
+reconciliação (IDs são de **vínculos**, não necessariamente de identidades):
+
+```bash
+cd backend
+node scripts/reconcile-external-identity.cjs 2 19 21
+```
+
+O exemplo corresponde ao caso confirmado de SAJ. Configure `DATABASE_URL` para
+o clone de teste primeiro. A simulação executa e reverte a transação. O script
+recusa origens, unidades, matrículas, cadastro original ou permissões incompatíveis.
+Preserva o vínculo original e as auditorias, remove apenas o vínculo redundante,
+atualiza a origem no cadastro original e registra a operação. A identidade migrada
+fica sem vínculo como evidência. Não altera senhas nem dados no DASS Identidades.
+O cadastro original deve existir; não execute em instalações que já o removeram.
+A auditoria `identity:audit` aponta `multiple_bound_identities_for_login` quando
+há mais de uma identidade vinculada ao mesmo login na unidade. Esse alerta exige
+revisão; não autoriza unir contas de origens distintas.
+
+Somente após validar o clone, obter backup e autorizar a alteração no banco de
+destino, repita com `--apply`. Não use esse procedimento para contas realmente
+distintas. As migrations já aplicadas não devem ser reescritas.
+
 ## Build e deploy
 
 Use somente migrations versionadas:
