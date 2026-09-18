@@ -53,7 +53,7 @@ export async function syncUser(
   // Administradores globais não criam vínculo na unidade visitada. Evite
   // consultar usuários legados da unidade nativa sob o tenant ativo, pois
   // essa consulta cruzada é bloqueada pelo TenantGuard.
-  // Transitório até identity:audit aprovar o banco real: vínculos existentes
+  // Compatibilidade transitória: vínculos existentes
   // nunca dependem de User nem herdam alterações posteriores do legado.
   const legacyCandidates = !existingBinding && !isGlobalAdmin && authOrigin === 'LEGADO' ? await client.user.findMany({
     where: {

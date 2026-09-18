@@ -93,9 +93,9 @@ Aplique somente as migrations versionadas:
 npm run db:deploy
 ```
 
-Antes de aplicar a migration de retirada de Consumo em um clone isolado, execute `npm --prefix backend run sector:retirement:audit`. A migration bloqueia diante de qualquer referência persistida; não a aplique diretamente em produção.
+A migration de retirada de Consumo bloqueia diante de qualquer referência persistida; não a aplique diretamente em produção.
 
-Não use `prisma db push` em produção. A verificação de integridade do estoque está disponível em `npm --prefix backend run stock:integrity`.
+Não use `prisma db push` em produção.
 
 ## Desenvolvimento
 

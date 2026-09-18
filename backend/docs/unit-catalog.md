@@ -12,18 +12,8 @@ Snapshots históricos são preservados; seus símbolos são normalizados na leit
 ## Migração
 
 Antes da migration `20260918120000_fixed_unit_catalog`, faça backup e restaure
-em um clone isolado. No backend apontado para esse clone, execute:
-
-```sh
-npm run stock:units:audit
-```
-
-A auditoria é somente leitura. Antes da remoção de `UnitConfig`, ela resume aliases
-e referências legadas de categorias e lista cada inconsistência por ID. Depois da
-migração, o mesmo comando detecta automaticamente o schema atual e verifica
-`StockItem`, `StockItemLocation` e `CategoryConfig` sem consultar a tabela removida.
-Símbolos desconhecidos, frações incompatíveis e categorias bloqueadas sem unidade
-definida bloqueiam a validação. Revise cada ocorrência; não arredonde ou deduza
+em um clone isolado. Símbolos desconhecidos, frações incompatíveis e categorias
+bloqueadas sem unidade definida precisam ser revisados sem arredondar ou deduzir
 equivalências.
 
 ## Catálogo inicial de fábricas
@@ -40,6 +30,6 @@ UnitConfig e os campos antigos. Não altera saldos, mínimos ou snapshots.
 Código e schema precisam ser implantados juntos. A implantação e a remoção da
 tabela em produção exigem autorização específica.
 
-Após migrar o clone, execute os builds, os testes afetados e `npm run stock:integrity`.
+Após migrar o clone, execute os builds e os testes afetados.
 Os testes DB usam exclusivamente banco local `sobracorte_cycle7_*`, com
 `DATABASE_URL` e `TEST_DATABASE_URL` iguais.
