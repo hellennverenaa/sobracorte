@@ -1,6 +1,6 @@
 # Plano: seed previsível e inicialização explícita das fábricas
 
-Status: proposta para revisão; nenhuma implementação ou alteração de banco executada.
+Status: implementação concluída; nenhuma execução em banco de destino foi realizada.
 
 ## Diagnóstico confirmado no código
 
@@ -44,10 +44,8 @@ Não haverá sincronização automática ou ferramenta de cópia entre fábricas
    origens iniciais e seus campos de negócio: nome, setor, unidade padrão e bloqueio.
 2. Definir o conteúdo com revisão explícita antes de implementar a inicialização.
    Não extrair o catálogo automaticamente do banco ou das configurações de SEST.
-3. Usar como candidatos de origens os oito padrões já documentados na migration
-   histórica de configurações comuns, sujeitos à revisão:
-   Consumo; Devolução de Produção; Dublagem / Tirada; Erro de Enfesto/Corte;
-   Ganho no Rolo do Material; Outros; Retalho Aproveitável; Sobra de Requisição.
+3. Usar as origens aprovadas para o catálogo inicial: Consumo; Devolução;
+   Dublagem; Erro de Enfesto; Ganho no Rolo; Outros; Retalho; Sobra de Requisição.
 4. A lista de categorias e os setores de cada origem ainda precisam ser definidos.
    Não assumir que nomes das categorias representam necessariamente um setor.
 5. Normalizar os nomes segundo os cadastros atuais, validar unicidade por nome,
@@ -158,7 +156,12 @@ seed/provisionamento no banco de destino como parte da preparação deste plano.
 A migration histórica de Ivoti continuará preservada; seus efeitos existentes não
 serão tratados como prova de procedência nem removidos automaticamente.
 
-Definição pendente antes da implementação: nomes das categorias, setores das
-categorias/origens e unidade padrão/bloqueio de cada categoria. Os oito nomes de
-origem acima são candidatos baseados no histórico do repositório, não um catálogo
-novo já aprovado. Prateleiras locais ficam fora dos padrões iniciais propostos.
+Catálogo inicial definido para a implementação: `TECIDO` (CORTE/M²), `COURO`
+(CORTE/M), `FORRO` (CORTE/M²), `SINTETICO` (CORTE/M²), `LINHA` (CORTE/KG),
+`MOLDE / PEÇA` (APOIO/UN), `EVA` e `BORRACHA` (PRE_FABRICADO/UN), `CABEDAL`
+e `SOLA_PROCESSADA` (DISTRIBUICAO/UN), e `PE PRONTO` (MONTAGEM/UN). Todas as
+categorias começam bloqueadas. As origens `CONSUMO`, `DEVOLUÇÃO` e `OUTROS`
+serão globais; `DUBLAGEM`, `ERRO DE ENFESTO`, `GANHO NO ROLO` e `RETALHO`
+serão de CORTE; `SOBRA DE REQUISIÇÃO` será global. `CONSUMO` fica global porque
+o schema atual não suporta uma origem única vinculada simultaneamente a dois
+setores. Prateleiras locais ficam fora dos padrões iniciais propostos.

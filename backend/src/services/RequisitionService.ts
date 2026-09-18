@@ -131,8 +131,7 @@ export class RequisitionService {
 
       const results = [];
       for (const item of rawItems) {
-        let sec = item.requestSector;
-        if ((sec as string) === 'EXPEDICAO' || (sec as string) === 'CABEDAIS') sec = 'DISTRIBUICAO';
+        const sec = normalizeStockSector(item.requestSector);
         const created = await tx.materialRequisition.create({
           data: {
             code,
@@ -252,7 +251,7 @@ export class RequisitionService {
         throw new Error('Apenas requisições pendentes ou atendidas parcialmente podem receber baixa.');
       }
       if (context.role !== 'admin') {
-        if (context.role !== 'admin_setor' || !context.assignedSector || normalizeStockSector(context.assignedSector === 'CABEDAIS' ? 'DISTRIBUICAO' : context.assignedSector) !== normalizeStockSector(req.requestSector)) {
+        if (context.role !== 'admin_setor' || !context.assignedSector || normalizeStockSector(context.assignedSector) !== normalizeStockSector(req.requestSector)) {
           const error: any = new Error('Acesso negado: apenas administradores do setor podem atender esta requisição.');
           error.status = 403;
           throw error;

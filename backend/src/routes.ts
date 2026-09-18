@@ -14,6 +14,7 @@ import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
 import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
+import { normalizeSector } from './utils/sectorHelper';
 import {
   userService,
   UserNotFoundError,
@@ -227,8 +228,9 @@ routes.put('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), a
       return res.status(400).json({ error: 'Nível de acesso inválido.' });
     }
 
-    let sec = assignedSector !== undefined ? (assignedSector ? String(assignedSector).toUpperCase().trim() : null) : null;
-    if (sec === 'CABEDAIS' || sec === 'EXPEDICAO') sec = 'DISTRIBUICAO';
+    const sec = assignedSector !== undefined
+      ? (assignedSector ? normalizeSector(String(assignedSector)) : null)
+      : null;
 
     const actor = {
       matricula: req.user?.matricula ? String(req.user.matricula) : null,

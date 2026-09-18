@@ -26,6 +26,14 @@ Símbolos desconhecidos, frações incompatíveis e categorias bloqueadas sem un
 definida bloqueiam a validação. Revise cada ocorrência; não arredonde ou deduza
 equivalências.
 
+## Catálogo inicial de fábricas
+
+O seed usa `KG` como unidade canônica para a categoria `LINHA`. `G` continua
+válida no catálogo técnico, mas não é convertida automaticamente para `KG`:
+saldo, histórico, relatórios e troca de unidade tratam `G` e `KG` como unidades
+distintas. Registros existentes em `G` devem ser auditados e convertidos somente
+por decisão operacional explícita.
+
 A migration é transacional: normaliza apenas símbolos, transfere os padrões de
 categorias para códigos, transforma unitLock m2/m em padrão bloqueado e remove
 UnitConfig e os campos antigos. Não altera saldos, mínimos ou snapshots.

@@ -13,7 +13,7 @@ import { formatDate } from '@/utils/format';
 import PageState from '@/components/PageState.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import RequisitionFilters from '@/components/RequisitionFilters.vue';
-import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
+import { formatSectorName, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
@@ -551,12 +551,6 @@ async function cancelItem(item: RequisitionItem) {
     const msg = error.response?.data?.error || 'Erro ao cancelar requisição.';
     showToast(msg, 'error');
   }
-}
-
-function formatSectorName(sec: string) {
-  const normalized = normalizeSector(sec);
-  const option = SECTOR_OPTIONS.find(item => item.id === normalized);
-  return option?.shortLabel || option?.label || sec;
 }
 
 onMounted(() => {

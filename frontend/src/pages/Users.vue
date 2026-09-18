@@ -2,12 +2,14 @@
 import { ref, onMounted, computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
-import { Trash2, Edit, Search, UserCheck, Shield, ShieldCheck, Users as UsersIcon, Activity, Eye, CheckCircle, XCircle, Layers } from "lucide-vue-next";
+import { Trash2, Edit, Search, UserCheck, Shield, ShieldCheck, Users as UsersIcon, Activity, Eye, Layers } from "lucide-vue-next";
 import { api } from '../services/httpClient'
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import ToastNotification from "@/components/ToastNotification.vue";
 import { useToast } from "@/composables/useToast";
 import { useConfirmModal } from "@/composables/useConfirmModal";
 import { formatDate } from "@/utils/format";
+import { formatSectorName } from "@/utils/domain";
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -153,18 +155,6 @@ const getRoleInfo = (role) => {
   return roleOptions.find((r) => r.value === role) || roleOptions[3];
 };
 
-function formatSectorName(sec) {
-  const map = {
-    CORTE: 'Corte',
-    APOIO: 'Apoio',
-    PRE_FABRICADO: 'Pré-Fabricado',
-    DISTRIBUICAO: 'Distribuição',
-    EXPEDICAO: 'Distribuição',
-    MONTAGEM: 'Montagem',
-  };
-  return sec ? (map[sec] || sec) : 'Todos / Livre';
-}
-
 onMounted(() => {
   fetchUsers();
 });
@@ -172,18 +162,7 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Toast Notification -->
-    <transition name="fade-down">
-      <div v-if="notification.show"
-        class="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 transition-all"
-        :class="notification.type === 'success'
-          ? 'bg-emerald-500 text-white'
-          : 'bg-red-500 text-white'">
-        <CheckCircle v-if="notification.type === 'success'" class="w-4 h-4" />
-        <XCircle v-else class="w-4 h-4" />
-        {{ notification.message }}
-      </div>
-    </transition>
+    <ToastNotification :notification="notification" />
 
     <div class="p-6 max-w-7xl mx-auto">
       <div class="flex justify-between items-center mb-8">

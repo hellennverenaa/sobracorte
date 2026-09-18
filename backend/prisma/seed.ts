@@ -1,4 +1,6 @@
 import { prismaForInternalUse } from '../src/prisma';
+import { FACTORY_CATALOG, validateFactoryCatalog } from '../src/provisioning/factoryCatalog';
+import { createFactoryWithCatalog } from '../src/provisioning/factoryProvisioning';
 
 export const FACTORY_UNITS = [
   { code: 'SEST', name: 'Santo Estêvão', active: true },
@@ -9,72 +11,58 @@ export const FACTORY_UNITS = [
   { code: 'IVT', name: 'Ivoti', active: true },
 ] as const;
 
+function isFactoryCodeConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error) || error.code !== 'P2002') return false;
+  const target = 'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta
+    ? error.meta.target
+    : undefined;
+  return Array.isArray(target) ? target.includes('code') : target === 'FactoryUnit_code_key' || target === 'code';
+}
+
 export async function seedFactoryUnits(client = prismaForInternalUse) {
   if (await client.factoryUnit.findUnique({ where: { code: 'STJ' } })) {
     throw new Error('Aplique a migration de renomeação STJ/SAJ antes do seed; não criar uma segunda unidade.');
   }
-  console.log('🌱 Iniciando Seed de Unidades Fabris e Configurações...');
+  const catalog = validateFactoryCatalog(FACTORY_CATALOG);
 
-  for (const unit of FACTORY_UNITS) {
-    const upserted = await client.factoryUnit.upsert({
-      where: { code: unit.code },
-      update: { name: unit.name, active: unit.active },
-      create: { code: unit.code, name: unit.name, active: unit.active },
-    });
-    console.log(`✅ Unidade [${upserted.code}] ${upserted.name} sincronizada (ID: ${upserted.id})`);
-  }
+  console.log('🌱 Iniciando seed de fábricas ausentes com catálogo fixo...');
 
-  // Obter SEST como referência de configurações de categorias e origens
-  const sestUnit = await client.factoryUnit.findUnique({
-    where: { code: 'SEST' },
-    include: { categories: true, origins: true },
-  });
-
-  if (sestUnit) {
-    const otherUnits = await client.factoryUnit.findMany({
-      where: { code: { not: 'SEST' } },
-    });
-
-    for (const targetUnit of otherUnits) {
-      // 1. Replicar CategoryConfig
-      for (const c of sestUnit.categories) {
-        const exists = await client.categoryConfig.findFirst({
-          where: { factoryUnitId: targetUnit.id, name: c.name },
-        });
-        if (!exists) {
-          await client.categoryConfig.create({
-            data: {
-              name: c.name,
-              sector: c.sector,
-              defaultUnitCode: c.defaultUnitCode,
-              unitLocked: c.unitLocked,
-              factoryUnitId: targetUnit.id,
-            },
-          });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const result = await client.$transaction(async (tx) => {
+        if (await tx.factoryUnit.findUnique({ where: { code: 'STJ' } })) {
+          throw new Error('Aplique a migration de renomeação STJ/SAJ antes do seed; não criar uma segunda unidade.');
         }
-      }
 
-      // 2. Replicar OriginConfig
-      for (const o of sestUnit.origins) {
-        const exists = await client.originConfig.findFirst({
-          where: { factoryUnitId: targetUnit.id, name: o.name },
+        const existing = await tx.factoryUnit.findMany({
+          where: { code: { in: FACTORY_UNITS.map(unit => unit.code) } },
+          select: { code: true },
         });
-        if (!exists) {
-          await client.originConfig.create({
-            data: {
-              name: o.name,
-              sector: o.sector,
-              factoryUnitId: targetUnit.id,
-            },
-          });
+        const existingCodes = new Set(existing.map(unit => unit.code));
+        const created: string[] = [];
+
+        for (const unit of FACTORY_UNITS) {
+          if (existingCodes.has(unit.code)) continue;
+          await createFactoryWithCatalog(tx, unit, catalog);
+          created.push(unit.code);
         }
-      }
+
+        return {
+          created,
+          preserved: FACTORY_UNITS.filter(unit => existingCodes.has(unit.code)).map(unit => unit.code),
+        };
+      });
+
+      for (const code of result.created) console.log(`✅ Unidade [${code}] criada com catálogo fixo.`);
+      for (const code of result.preserved) console.log(`↪️ Unidade [${code}] existente preservada.`);
+      console.log('🚀 Seed concluído sem sincronização retroativa.');
+      return result;
+    } catch (error) {
+      if (!isFactoryCodeConflict(error) || attempt > 0) throw error;
+      console.log('↻ Execução concorrente detectada; reavaliando unidades oficiais.');
     }
   }
-
-  console.log('🚀 Seed concluído com sucesso!');
 }
-
 
 if (require.main === module) {
   seedFactoryUnits()

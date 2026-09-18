@@ -122,7 +122,7 @@
                 <td class="px-6 py-3 font-bold text-gray-800 font-mono text-sm">{{ cat.name }}</td>
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200">
-                    {{ formatSectorName(cat.sector) }}
+                    {{ formatSectorName(cat.sector, 'Geral / Livre') }}
                   </span>
                 </td>
                 <td class="px-6 py-3 text-center">
@@ -162,7 +162,7 @@
               <MapPin class="w-4 h-4 text-emerald-500" /> Localizações de Armazenamento
             </h2>
             <span class="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-semibold">
-              {{ authStore.user?.role === 'admin_setor' ? `Setor: ${formatSectorName(authStore.user.assignedSector)}` : 'Governança de Prateleiras' }}
+            {{ authStore.user?.role === 'admin_setor' ? `Setor: ${formatSectorName(authStore.user.assignedSector, 'Geral / Livre')}` : 'Governança de Prateleiras' }}
             </span>
           </div>
           
@@ -179,7 +179,7 @@
                 <div v-if="authStore.user?.role === 'admin_setor'" class="w-48 min-w-[160px]">
                   <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
                   <div class="px-3 py-2 border border-emerald-200 bg-emerald-50 rounded-lg text-sm font-bold text-emerald-800 uppercase">
-                    {{ formatSectorName(authStore.user.assignedSector) }}
+                {{ formatSectorName(authStore.user.assignedSector, 'Geral / Livre') }}
                   </div>
                 </div>
                 <div v-else class="w-48 min-w-[160px]">
@@ -247,7 +247,7 @@
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ loc.name }}</td>
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    {{ formatSectorName(loc.sector) }}
+              {{ formatSectorName(loc.sector, 'Geral / Livre') }}
                   </span>
                 </td>
                 <td class="px-6 py-3 text-center">
@@ -352,7 +352,7 @@
                 <td class="px-6 py-3 text-sm text-gray-700 font-medium">{{ orig.name }}</td>
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                    {{ formatSectorName(orig.sector) }}
+              {{ formatSectorName(orig.sector, 'Geral / Livre') }}
                   </span>
                 </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
@@ -443,7 +443,7 @@
               <!-- Bloco de Exemplo Visual Dinâmico -->
               <div class="bg-slate-900 text-slate-200 rounded-xl p-4 text-xs font-mono overflow-x-auto shadow-inner">
                 <div class="text-slate-400 text-[10px] mb-2 font-sans font-bold uppercase tracking-wider flex items-center justify-between">
-                  <span>Exemplo de Arquivo CSV Válido ({{ formatSectorName(templateSector) }})</span>
+                  <span>Exemplo de Arquivo CSV Válido ({{ formatSectorName(templateSector, 'Geral / Livre') }})</span>
                   <span>Codificação: UTF-8</span>
                 </div>
                 <code>{{ sectorCsvPattern.headerExample }}</code><br />
@@ -685,7 +685,7 @@
           <div v-if="authStore.user?.role === 'admin_setor'">
             <label class="block font-bold text-gray-500 uppercase mb-1">Setor</label>
             <div class="border border-emerald-200 bg-emerald-50 p-2.5 rounded-lg text-sm font-bold text-emerald-800 uppercase">
-              {{ formatSectorName(authStore.user.assignedSector) }}
+              {{ formatSectorName(authStore.user.assignedSector, 'Geral / Livre') }}
             </div>
           </div>
           <div v-else>
@@ -776,8 +776,8 @@ import { useSettings } from '@/composables/useSettings'
 import PageState from '@/components/PageState.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import SettingsTabNav from '@/components/SettingsTabNav.vue'
-import { normalizeSector } from '@/utils/domain'
-import { formatDate, formatNumber } from '@/utils/format'
+import { formatSectorName } from '@/utils/domain'
+import { formatDate } from '@/utils/format'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
   Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2, Building2, Sliders, ClipboardList
@@ -792,19 +792,6 @@ const settingsPersisted = usePersistedFilters('settings', {
 // --- PERMISSÕES ---
 const canManageSettings = computed(() => authStore.can('gerenciar_configuracoes'))
 const isMasterAdmin = computed(() => authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin))
-
-function formatSectorName(sec) {
-  const normalized = normalizeSector(sec)
-  const map = {
-    CORTE: 'Corte',
-    APOIO: 'Apoio',
-    PRE_FABRICADO: 'Pré-Fabricado',
-    DISTRIBUICAO: 'Distribuição',
-    EXPEDICAO: 'Distribuição',
-    MONTAGEM: 'Montagem',
-  }
-  return sec ? (map[normalized] || sec) : 'Geral / Livre'
-}
 
 // --- TABS DINÂMICAS POR PERFIL ---
 const tabs = computed(() => {

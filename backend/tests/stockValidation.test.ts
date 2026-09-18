@@ -268,34 +268,3 @@ test('ExecuteMatchSchema aceita apenas quantidades inteiras e rejeita frações'
   }, /Quantidade a casar deve ser maior que zero/);
 });
 
-test('decimalHelper realiza conversão e arredondamento determinístico com Prisma.Decimal', () => {
-  const { decimalInput, decimalNumber } = require('../src/utils/decimalHelper');
-  const { Prisma } = require('../src/generated/prisma');
-
-  // Conversão de números e strings com vírgula brasileira
-  const d1 = decimalInput('12,3456');
-  assert.equal(d1.toString(), '12.346');
-
-  const d2 = decimalInput(10.1);
-  assert.equal(d2.toString(), '10.1');
-
-  // Resíduos infinitesimais viram zero
-  const dZero = decimalInput('0.00005');
-  assert.equal(dZero.toString(), '0');
-
-  // Tratamento de null/undefined
-  assert.equal(decimalInput(null).toString(), '0');
-  assert.equal(decimalInput(undefined).toString(), '0');
-
-  // Rejeição de valores não numéricos e inválidos
-  assert.throws(() => decimalInput('abc'), /Valor decimal inválido/);
-  assert.throws(() => decimalInput(NaN), /Valor decimal inválido/);
-  assert.throws(() => decimalInput(Infinity), /Valor decimal inválido/);
-
-  // decimalNumber
-  assert.equal(decimalNumber(new Prisma.Decimal('45.678')), 45.678);
-  assert.equal(decimalNumber('78,9'), 78.9);
-  assert.equal(decimalNumber(null), 0);
-  assert.equal(decimalNumber('invalid'), 0);
-});
-

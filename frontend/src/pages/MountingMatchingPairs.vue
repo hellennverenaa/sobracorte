@@ -4,6 +4,8 @@ import Layout from '@/components/Layout.vue';
 import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
+import ToastNotification from '@/components/ToastNotification.vue';
+import { normalizeSector } from '@/utils/domain';
 import { 
   Footprints, Layers, Box, RefreshCw, CheckCircle2, AlertCircle, 
   MapPin, Check, ArrowRight, Search, X
@@ -21,7 +23,7 @@ const allPairSectors: Array<{ id: SectorType; label: string; sublabel: string; i
 const pairSectors = computed(() => allPairSectors.filter(sector => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizedAssignedSector.value));
 const normalizedAssignedSector = computed(() => {
   const sector = authStore.user?.assignedSector;
-  return sector === 'EXPEDICAO' || sector === 'CABEDAIS' ? 'DISTRIBUICAO' : sector;
+  return sector ? normalizeSector(sector) : sector;
 });
 const activeSector = ref<SectorType>((authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? 'MONTAGEM' : normalizedAssignedSector.value) as SectorType);
 const searchQuery = ref('');
@@ -38,10 +40,8 @@ const canOperateMatchingSector = computed(() => {
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
   if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
-  const userSec = authStore.user.assignedSector.toUpperCase().trim();
-  const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
-  const curSec = activeSector.value.toUpperCase().trim();
-  const normCurSec = (curSec === 'EXPEDICAO' || curSec === 'CABEDAIS') ? 'DISTRIBUICAO' : curSec;
+  const normUserSec = normalizeSector(authStore.user.assignedSector);
+  const normCurSec = normalizeSector(activeSector.value);
   return normUserSec === normCurSec;
 });
 
@@ -106,16 +106,7 @@ onMounted(() => {
 
 <template>
   <Layout>
-    <!-- Notificação Toast Padrão Materials.vue -->
-    <div
-      v-if="notification.show"
-      :class="notification.type === 'success'
-        ? 'bg-green-100 border-green-400 text-green-700'
-        : 'bg-red-100 border-red-400 text-red-700'"
-      class="fixed top-4 right-4 px-4 py-3 rounded border shadow-lg z-50 flex items-center transition-all duration-300"
-    >
-      <span class="font-medium text-sm">{{ notification.message }}</span>
-    </div>
+    <ToastNotification :notification="notification" />
 
     <div class="flex flex-col h-full">
       <!-- Top Bar -->

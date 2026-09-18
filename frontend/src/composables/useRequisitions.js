@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { api } from '../services/httpClient'
 import { usePersistedFilters } from './usePersistedFilters'
-import { requestErrorMessage } from '../utils/domain'
+import { normalizeSector, requestErrorMessage } from '../utils/domain'
 
 /**
  * State and query behaviour for the requisitions inbox.
@@ -104,7 +104,7 @@ export function useRequisitions({ route, authStore, notify = () => {} } = {}) {
   const assignedSector = computed(() => {
     const sector = authStore?.user?.assignedSector
     if (!sector || sector === 'TODOS') return null
-    return sector === 'EXPEDICAO' || sector === 'CABEDAIS' ? 'DISTRIBUICAO' : sector
+    return normalizeSector(sector)
   })
   watch(assignedSector, sector => {
     if (authStore?.user?.role !== 'admin' && sector) filterSector.value = sector

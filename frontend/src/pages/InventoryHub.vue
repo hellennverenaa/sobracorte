@@ -366,10 +366,8 @@ const canOperateCurrentSector = computed(() => {
   if (authStore.user.role === 'admin') return true;
   if (authStore.user.role === 'leitor') return false;
   if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
-  const userSec = authStore.user.assignedSector.toUpperCase().trim();
-  const normUserSec = (userSec === 'EXPEDICAO' || userSec === 'CABEDAIS') ? 'DISTRIBUICAO' : userSec;
-  const tabSec = activeTab.value.toUpperCase().trim();
-  const normTabSec = (tabSec === 'EXPEDICAO' || tabSec === 'CABEDAIS') ? 'DISTRIBUICAO' : tabSec;
+  const normUserSec = normalizeSector(authStore.user.assignedSector);
+  const normTabSec = normalizeSector(activeTab.value);
   return normUserSec === normTabSec;
 });
 

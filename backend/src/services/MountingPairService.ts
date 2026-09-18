@@ -34,10 +34,7 @@ export class MountingPairService {
     sector: SectorType = 'MONTAGEM',
     searchQuery: string = ''
   ): Promise<MatchingPairRawResult[]> {
-    let normalizedSector = sector;
-    if ((normalizedSector as string) === 'EXPEDICAO' || (normalizedSector as string) === 'CABEDAIS') {
-      normalizedSector = 'DISTRIBUICAO';
-    }
+    const normalizedSector = normalizeStockSector(sector) as SectorType;
 
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 

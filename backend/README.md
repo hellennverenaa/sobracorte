@@ -93,6 +93,30 @@ npm run test:tenant:db
 
 As auditorias `stock:integrity` e `identity:audit` são somente de verificação e requerem acesso explícito ao banco correspondente.
 
+### Provisionamento de fábricas
+
+O seed é executado pela configuração vigente do Prisma e só cria fábricas oficiais
+ausentes. Ele preserva fábricas e configurações existentes, não copia `SEST` e
+registra as configurações novas como auditorias de domínio:
+
+```bash
+npm --prefix backend exec -- prisma db seed
+```
+
+Após o build, uma fábrica não oficial pode ser criada com o mesmo catálogo fixo:
+
+```bash
+npm run factory:create -- NOVA "Nome da Fábrica"
+```
+
+O código existente é recusado. Em produção, o comando exige `--allow-production`
+e autorização operacional específica. A auditoria somente leitura do catálogo e
+do uso de `KG`/`G` pode ser executada com:
+
+```bash
+npm run factory:catalog:audit
+```
+
 ### Cadastro externo classificado como legado pela migração
 
 Cadastros antigos sem `authOrigin`/`authUserId` foram migrados como `LEGADO/<login>`.
