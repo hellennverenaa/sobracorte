@@ -61,6 +61,12 @@ async function main() {
         destinationLocationId: location.id, destinationLocationName: location.name,
         itemCode: material.code, itemName: material.name, itemUnit: material.unit,
         origem: 'UPGRADE ACCEPTANCE' } });
+      for (const type of ['CRIACAO_CONFIGURACAO', 'EDICAO_CONFIGURACAO', 'EXCLUSAO_CONFIGURACAO']) {
+        await tx.stockMovement.create({ data: {
+          factoryUnitId: operator.factoryUnitId, sector: 'CONFIGURACOES', type,
+          quantity: 0, operatorName: 'UPGRADE ACCEPTANCE',
+        } });
+      }
       await tx.roleChangeAudit.create({ data: { factoryUnitId: operator.factoryUnitId,
         userId: operator.id, bindingId: operator.id,
         usuario: operator.identity.usuario, nome: operator.identity.nome,
@@ -71,7 +77,13 @@ async function main() {
         quantityRequested: 1, reason: 'ACCEPTANCE' } });
       throw rollback;
     }), error => error === rollback);
+    await assert.rejects(db.$transaction(async tx => {
+      await tx.stockMovement.create({ data: {
+        factoryUnitId: operator.factoryUnitId, sector: 'CORTE', type: 'ENTRADA', quantity: 0,
+      } });
+    }), error => error.code === 'P2004' || error.cause?.originalCode === '23514');
     console.log('Canonical stock, location balance, movement, role audit and requisition writes passed and rolled back.');
+    console.log('Zero quantities accepted for configuration audits and rejected for stock entries.');
   } finally {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));

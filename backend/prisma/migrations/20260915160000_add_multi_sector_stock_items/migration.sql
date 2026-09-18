@@ -84,6 +84,29 @@ ALTER TABLE "sobra_corte"."StockMovement"
   USING upper(trim("type"))::"sobra_corte"."MovementType";
 ALTER TABLE "sobra_corte"."StockMovement" ALTER COLUMN "sector" DROP DEFAULT;
 
+-- The legacy location is the destination for entries and the source for exits.
+-- A single location cannot identify both endpoints of a historical transfer.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "sobra_corte"."StockMovement"
+    WHERE "type" = 'TRANSFERENCIA'
+      AND ("locationId" IS NOT NULL OR "destinationLocationName" IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'Transferência histórica com localização sem direção definida; revise antes do deploy';
+  END IF;
+END $$;
+
+UPDATE "sobra_corte"."StockMovement"
+SET "destinationLocationId" = "locationId"
+WHERE "type" = 'ENTRADA';
+
+UPDATE "sobra_corte"."StockMovement"
+SET "sourceLocationId" = "locationId",
+    "sourceLocationName" = "destinationLocationName",
+    "destinationLocationName" = NULL
+WHERE "type" IN ('SAIDA', 'REFUGO');
+
 ALTER TABLE "sobra_corte"."StockItem" RENAME CONSTRAINT "Material_pkey" TO "StockItem_pkey";
 ALTER TABLE "sobra_corte"."StockItemLocation" RENAME CONSTRAINT "MaterialLocation_pkey" TO "StockItemLocation_pkey";
 ALTER TABLE "sobra_corte"."StockMovement" RENAME CONSTRAINT "Movement_pkey" TO "StockMovement_pkey";

@@ -1,6 +1,6 @@
 # Plano de consolidação do estoque
 
-Status: etapas 1–4 executadas. A etapa 5 permanece pendente até existir uma cópia atual do banco de produção.
+Status: consolidação local e testes da etapa 5 executados em 18/09/2026 sobre uma cópia isolada do clone de produção. Upgrade, preservação dos dados, integridade, smoke tests e restauração com PostgreSQL 15 aprovados. Três dos quatro checksums históricos divergentes foram explicados pelo Git. Falta localizar o SQL originalmente aplicado de `20260807_sync_settings_schema`; o deploy em produção também depende da preparação operacional e autorização explícita. Evidências e procedimento em [VALIDACAO_CONSOLIDACAO_ESTOQUE.md](VALIDACAO_CONSOLIDACAO_ESTOQUE.md).
 
 ## Decisão
 
@@ -22,6 +22,10 @@ Movement.materialId         → StockMovement.stockItemId
 Não serão usados `@@map` ou `@map`. Os nomes físicos, os modelos Prisma e o código usarão `StockItem`, `StockItemLocation` e `StockMovement`.
 
 As renomeações serão feitas in-place, preservando dados, IDs, sequences e relações. Não haverá cópia de registros ou backfill entre tabelas.
+
+A localização histórica dos movimentos será convertida conforme o tipo: `ENTRADA` usa destino; `SAIDA` e `REFUGO` usam origem. IDs e nomes existentes serão preservados antes da remoção de `locationId`. Transferências históricas com localização sem direção definida interrompem a migration para revisão, evitando atribuir uma direção presumida.
+
+A constraint histórica `Movement_quantity_positive` será substituída pela regra final, que mantém quantidade positiva para movimentos de estoque e permite zero exclusivamente nas auditorias de configuração.
 
 ## Situação conhecida
 
@@ -119,25 +123,25 @@ Não será criada uma suíte extensa apenas para esta refatoração. Testes tran
 
 ## Etapa 5 — Validação final com dados de produção
 
-Esta etapa fica adiada até existir acesso a uma cópia atual do banco de produção.
+Executada em uma cópia isolada do clone restaurado de produção. O clone original foi preservado. Os resultados e as pendências operacionais estão registrados no relatório de validação.
 
 1. confirmar `_prisma_migrations` em produção;
 2. criar um ambiente descartável a partir da cópia;
 3. registrar contagens anteriores;
 4. executar `prisma migrate deploy`;
-5. comparar IDs, contagens, saldos, localizações e movimentos;
+5. comparar IDs, contagens, saldos, localizações e movimentos, incluindo IDs e nomes das localizações históricas de origem/destino;
 6. executar a verificação de integridade;
-7. realizar smoke tests dos fluxos principais;
+7. realizar smoke tests dos fluxos principais, incluindo criação, edição e exclusão de configurações com auditoria de quantidade zero;
 8. medir a duração da migration;
 9. fechar o procedimento de backup, deploy e rollback.
 
-Nenhuma migration será aplicada em produção antes dessa validação final.
+Nenhuma migration foi aplicada em produção. A validação técnica foi aprovada; o deploy real depende da revisão do histórico divergente, backup restaurável e autorização explícita.
 
 ## Observação sobre o banco de desenvolvimento
 
-O banco atual já registrou as migrations da estratégia paralela. Depois de reescrever o histórico, ele não deve ser tratado como compatível com as novas migrations.
+O banco de desenvolvimento anteriormente analisado já havia registrado as migrations da estratégia paralela. Depois de reescrever o histórico, ele não deve ser tratado como compatível com as novas migrations. Essa observação não se aplica ao clone de produção restaurado posteriormente para a etapa 5.
 
-Até a validação final, ele pode continuar sendo usado para desenvolvimento do código, mas o teste real da linha de upgrade deverá partir de uma cópia limpa da produção. Não serão executadas agora operações destrutivas para tentar adaptar esse banco ao novo histórico.
+Até a validação final, ele pode ser usado apenas para atividades de desenvolvimento compatíveis com sua estrutura atual. As tabelas canônicas vazias não representam o estoque histórico, e esse banco não comprova compatibilidade do runtime, preservação de dados ou funcionamento da linha de upgrade. Não executar `prisma migrate deploy` nele com o histórico reescrito. O teste real da linha de upgrade deverá partir de uma cópia limpa da produção. Não serão executadas agora operações destrutivas para tentar adaptar esse banco ao novo histórico.
 
 ## Critérios de conclusão
 

@@ -88,7 +88,6 @@ npm test
 npm run build
 npm run test:identity:db
 npm run test:stock-functional:db
-npm run test:stock-migration:db
 npm run test:tenant:db
 ```
 
