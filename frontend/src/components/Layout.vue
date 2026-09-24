@@ -26,6 +26,11 @@ const unitSwitchStatus = computed({
 let notificationInterval = null
 let releaseUnsavedChangesHost = null
 
+async function refreshProfileOnFocus() {
+  const refreshed = await authStore.refreshProfile()
+  if (!refreshed && !authStore.isAuthenticated) router.replace('/login')
+}
+
 async function logout() {
   if (!(await confirmPendingChanges())) return
   if (notificationInterval) {
@@ -64,6 +69,7 @@ async function fetchPendingCount() {
 
 onMounted(() => {
   releaseUnsavedChangesHost = registerUnsavedChangesHost()
+  window.addEventListener('focus', refreshProfileOnFocus)
   if (authStore.user?.isGlobalAdmin) {
     authStore.fetchAvailableUnits()
   }
@@ -74,6 +80,7 @@ onMounted(() => {
 onUnmounted(() => {
   releaseUnsavedChangesHost?.()
   releaseUnsavedChangesHost = null
+  window.removeEventListener('focus', refreshProfileOnFocus)
   if (notificationInterval) {
     clearInterval(notificationInterval)
     notificationInterval = null
@@ -172,6 +179,9 @@ async function handleUnitChange(event) {
           <div class="overflow-hidden">
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
             <p class="text-xs text-slate-500 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
+            <p v-if="authStore.user?.authOrigin === 'EXTERNO'" class="text-xs text-slate-400 truncate" :title="`Função: ${authStore.user?.funcao} | Setor: ${authStore.user?.setor}`">
+              Função: {{ authStore.user?.funcao }} · Setor: {{ authStore.user?.setor }}
+            </p>
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>
         </div>

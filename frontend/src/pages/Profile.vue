@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { User, Mail, Shield, CheckCircle, AlertTriangle } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
-const user = ref({ ...authStore.user }) // Clona os dados para editar
+const user = computed(() => authStore.user || {})
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
@@ -50,6 +50,7 @@ async function handleUpdateProfile() {
         <div class="text-center md:text-left flex-grow">
           <h1 class="text-3xl font-bold text-gray-900">{{ user.nome }}</h1>
           <p class="text-gray-500 font-medium">{{ user.email }}</p>
+          <p v-if="user.authOrigin === 'EXTERNO'" class="text-sm text-gray-500 mt-1">Função: {{ user.funcao }} · Setor: {{ user.setor }}</p>
           <div class="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border"
             :class="user.role === 'admin' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-200'">
             <Shield class="w-3 h-3" /> {{ roleMap[user.role] || user.role }}
@@ -71,14 +72,14 @@ async function handleUpdateProfile() {
               <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Nome Completo</label>
               <div class="relative">
                 <User class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input v-model="user.nome" type="text" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" disabled required />
+                <input :value="user.nome" type="text" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" disabled required />
               </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Email</label>
               <div class="relative">
                 <Mail class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input v-model="user.email" type="email" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" disabled required />
+                <input :value="user.email" type="email" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" disabled required />
               </div>
             </div>
           </div>

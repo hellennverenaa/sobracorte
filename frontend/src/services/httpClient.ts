@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { buildRefreshedSessionUser } from './interceptors/sessionRefresh'
+import { decodeJwtPayload } from './decodeJwtPayload'
 
 export type RequestConfig = {
   headers?: Record<string, string>
@@ -37,6 +38,11 @@ export type HttpClient = {
 }
 
 let refreshPromise: Promise<void> | null = null
+let sessionRefreshHandler: ((user: any) => void) | null = null
+
+export function setSessionRefreshHandler(handler: (user: any) => void) {
+  sessionRefreshHandler = handler
+}
 
 function getStoredUser() {
   if (typeof localStorage === 'undefined') return null
@@ -104,12 +110,6 @@ function shouldSkipRefresh(path: string) {
   return ['/auth/login', '/auth/me', '/auth/check-user'].some((route) => path.includes(route))
 }
 
-function decodeJwtPayload(token: string) {
-  const payload = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/')
-  if (!payload) throw new Error('Token inválido recebido do serviço de autenticação.')
-  return JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')))
-}
-
 async function refreshSession(authApi: HttpClient, api: HttpClient) {
   const response = await authApi.post('/auth/me', null)
   const newToken = (response.data as any)?.data?.token
@@ -128,9 +128,15 @@ async function refreshSession(authApi: HttpClient, api: HttpClient) {
     synced: syncedData,
   })
   localStorage.setItem('user', JSON.stringify(refreshedUser))
+  sessionRefreshHandler?.(refreshedUser)
   if (typeof sessionStorage !== 'undefined' && (response.data as any)?.tokenExpirationTime) {
     sessionStorage.setItem('expirationTime', (response.data as any).tokenExpirationTime)
   }
+}
+
+export function refreshAuthSession() {
+  if (!refreshPromise) refreshPromise = refreshSession(authApi, api).finally(() => { refreshPromise = null })
+  return refreshPromise
 }
 
 function createClient(baseURL: string | undefined, options: { refreshOn401: boolean; authApi?: HttpClient } = { refreshOn401: false }): HttpClient {
@@ -171,9 +177,8 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
 
     const error = new HttpError(errorMessage(result.data, response.statusText, response.status), result)
     if (options.refreshOn401 && response.status === 401 && !config._retry && !shouldSkipRefresh(url) && getStoredUser() && options.authApi) {
-      if (!refreshPromise) refreshPromise = refreshSession(options.authApi, client).finally(() => { refreshPromise = null })
       try {
-        await refreshPromise
+        await refreshAuthSession()
         const retryHeaders = new Headers(config.headers || {})
         const refreshedUser = getStoredUser()
         if (refreshedUser?.token) retryHeaders.set('Authorization', `Bearer ${refreshedUser.token}`)

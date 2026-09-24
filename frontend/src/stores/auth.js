@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { authApi, api } from '../services/httpClient'
+import { authApi, api, refreshAuthSession, setSessionRefreshHandler } from '../services/httpClient'
+import { decodeJwtPayload } from '../services/decodeJwtPayload'
 import { externalLoginMessage, loginRequest, normalizeUnitCode } from '../services/loginFlow'
 import { canSwitchFactoryUnit, normalizeFactoryUnitCode } from '../services/unitAccess'
 import { requestErrorMessage } from '../utils/domain'
@@ -15,12 +16,6 @@ function loadStoredUser() {
   }
 }
 
-function decodeJwtPayload(token) {
-  const payload = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/')
-  if (!payload) throw new Error('Token inválido recebido do serviço de autenticação.')
-  return JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')))
-}
-
 function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false, accessStatus = undefined) {
   const apiUser = decodeJwtPayload(token)
   const authOrigin = String(apiUser.origem || apiUser.origin || 'LEGADO').toUpperCase()
@@ -31,12 +26,12 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false, access
     matricula,
     registration: matricula,
     matriculaDass: matricula,
-    nome: apiUser.nome || apiUser.usuario,
+    nome: syncedUser?.nome || apiUser.nome || apiUser.usuario,
     usuario: apiUser.usuario,
     email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
-    setor: apiUser.setor || 'NÃO DEFINIDO',
+    setor: syncedUser?.setor || apiUser.setor || 'NÃO DEFINIDO',
     assignedSector: syncedUser?.assignedSector || null,
-    funcao: apiUser.funcao || 'NÃO DEFINIDO',
+    funcao: syncedUser?.funcao || apiUser.funcao || 'NÃO DEFINIDO',
     role: syncedUser?.role || 'leitor',
     token,
     unit,
@@ -62,6 +57,23 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    registerSessionRefresh() {
+      setSessionRefreshHandler((user) => {
+        if (this.isAuthenticated) this.user = user
+      })
+    },
+
+    async refreshProfile() {
+      if (!this.isAuthenticated || this.user?.authOrigin !== 'EXTERNO') return true
+      try {
+        await refreshAuthSession()
+        return true
+      } catch (error) {
+        if (error?.response?.status === 401) this.clearSession()
+        return false
+      }
+    },
+
     clearSession() {
       this.user = null
       this.isAuthenticated = false

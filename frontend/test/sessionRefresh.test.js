@@ -14,7 +14,7 @@ test('session refresh preserves the backend assigned sector', () => {
     token: 'new-token',
     tokenPayload,
     synced: {
-      user: { id: 'new', role: 'lider', assignedSector: 'Corte' },
+      user: { id: 'new', nome: 'José Falcão', setor: 'Novo setor', funcao: 'Nova função', role: 'lider', assignedSector: 'Corte' },
       unit: { code: 'SAJ' },
       isGlobalAdmin: false,
     },
@@ -22,6 +22,9 @@ test('session refresh preserves the backend assigned sector', () => {
 
   assert.equal(refreshed.assignedSector, 'Corte')
   assert.equal(refreshed.role, 'lider')
+  assert.equal(refreshed.nome, 'José Falcão')
+  assert.equal(refreshed.setor, 'Novo setor')
+  assert.equal(refreshed.funcao, 'Nova função')
 })
 
 test('session refresh clears a revoked assigned sector when backend returns null', () => {

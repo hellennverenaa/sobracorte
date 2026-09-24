@@ -39,7 +39,7 @@ export async function loadComponent(path, { mockHttpClient = true } = {}) {
         if (mockHttpClient) {
           builder.onResolve({ filter: /services\/httpClient$/ }, () => ({ path: 'http-client', namespace: 'test' }));
           builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({
-            contents: 'export const api = globalThis.__componentTestApi; export const authApi = api;', loader: 'js',
+            contents: 'export const api = globalThis.__componentTestApi; export const authApi = api; export const refreshAuthSession = async () => {}; export const setSessionRefreshHandler = () => {};', loader: 'js',
           }));
         }
         builder.onResolve({ filter: /^@\// }, (args) => {

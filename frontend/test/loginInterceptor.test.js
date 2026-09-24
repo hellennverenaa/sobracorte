@@ -8,10 +8,12 @@ function tokenFor(payload) {
 }
 
 test('cliente HTTP renova uma sessão uma vez e repete requisições concorrentes', async (t) => {
-  const { api } = await loadComponent('src/services/httpClient.ts', { mockHttpClient: false });
+  const { api, setSessionRefreshHandler } = await loadComponent('src/services/httpClient.ts', { mockHttpClient: false });
   const originalFetch = globalThis.fetch;
   const calls = [];
-  const refreshedToken = tokenFor({ usuario: 'OPERADOR01', nome: 'Operador', setor: 'Corte' });
+  const refreshedToken = tokenFor({ usuario: 'OPERADOR01', nome: 'José Falcão', setor: 'Produção', funcao: 'Líder', role: 'admin', assignedSector: 'MONTAGEM' });
+  let refreshedUser;
+  setSessionRefreshHandler(user => { refreshedUser = user; });
   let protectedRequests = 0;
 
   localStorage.setItem('user', JSON.stringify({
@@ -26,7 +28,7 @@ test('cliente HTTP renova uma sessão uma vez e repete requisições concorrente
       return new Response(JSON.stringify({ data: { token: refreshedToken }, tokenExpirationTime: 'later' }), { status: 200 });
     }
     if (String(url).endsWith('/auth/check-user')) {
-      return new Response(JSON.stringify({ user: { id: 1, role: 'lider', assignedSector: 'CORTE' }, unit: { code: 'UNIDADE_01' } }), { status: 200 });
+      return new Response(JSON.stringify({ user: { id: 1, nome: 'José Falcão', setor: 'Produção', funcao: 'Líder', role: 'lider', assignedSector: 'CORTE' }, unit: { code: 'UNIDADE_01' } }), { status: 200 });
     }
     protectedRequests += 1;
     if (protectedRequests <= 2) return new Response(JSON.stringify({ error: 'Sessão expirada' }), { status: 401 });
@@ -50,6 +52,11 @@ test('cliente HTTP renova uma sessão uma vez e repete requisições concorrente
   const retried = calls.filter(({ url }) => url.endsWith('/inventory/search') || url.endsWith('/dashboard/summary')).slice(-2);
   assert.ok(retried.every(({ init }) => init.headers.get('authorization') === `Bearer ${refreshedToken}`));
   assert.equal(JSON.parse(localStorage.getItem('user')).assignedSector, 'CORTE');
+  assert.equal(refreshedUser.nome, 'José Falcão');
+  assert.equal(refreshedUser.setor, 'Produção');
+  assert.equal(refreshedUser.funcao, 'Líder');
+  assert.equal(refreshedUser.role, 'lider');
+  assert.equal(refreshedUser.assignedSector, 'CORTE');
 });
 
 test('falha de refresh rejeita requisições concorrentes e limpa a sessão sem loop', async t => {
@@ -75,6 +82,28 @@ test('falha de refresh rejeita requisições concorrentes e limpa a sessão sem 
   assert.equal(protectedCalls, 2);
   assert.equal(localStorage.getItem('user'), null);
   assert.equal(sessionStorage.getItem('expirationTime'), null);
+});
+
+test('retomar a aplicação atualiza dados cadastrais na store sem herdar permissões do Dass', async t => {
+  const { createPinia, setActivePinia } = await import('pinia');
+  const { useAuthStore } = await loadComponent('src/stores/auth.js', { mockHttpClient: false });
+  const originalFetch = globalThis.fetch;
+  const token = tokenFor({ id: 7, origem: 'EXTERNO', usuario: 'JOSE', nome: 'José Falcão', setor: 'Produção', funcao: 'Líder', role: 'admin', assignedSector: 'MONTAGEM' });
+  localStorage.setItem('user', JSON.stringify({ id: 7, authOrigin: 'EXTERNO', nome: 'Nome antigo', setor: 'Antigo', funcao: 'Antiga', role: 'leitor', assignedSector: 'APOIO', token: 'old-token', unit: { code: 'ITP' } }));
+  setActivePinia(createPinia());
+  const auth = useAuthStore();
+  auth.registerSessionRefresh();
+  globalThis.fetch = async url => String(url).endsWith('/auth/me')
+    ? new Response(JSON.stringify({ data: { token } }), { status: 200 })
+    : new Response(JSON.stringify({ user: { id: 7, nome: 'José Falcão', setor: 'Produção', funcao: 'Líder', role: 'leitor', assignedSector: 'APOIO' }, unit: { code: 'ITP' } }), { status: 200 });
+  t.after(() => { globalThis.fetch = originalFetch; localStorage.clear(); sessionStorage.clear(); });
+
+  assert.equal(await auth.refreshProfile(), true);
+  assert.equal(auth.user.nome, 'José Falcão');
+  assert.equal(auth.user.setor, 'Produção');
+  assert.equal(auth.user.funcao, 'Líder');
+  assert.equal(auth.user.role, 'leitor');
+  assert.equal(auth.user.assignedSector, 'APOIO');
 });
 
 test('logout limpa store e armazenamento mesmo com provedor indisponível', async t => {
