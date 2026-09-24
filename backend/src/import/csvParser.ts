@@ -15,6 +15,7 @@ export interface ParsedCsvRow {
 
 export interface CsvParseResult {
   delimiter: string;
+  encoding: 'UTF-8' | 'Windows-1252';
   headers: string[];
   headerRowNumber: number;
   rows: ParsedCsvRow[];
@@ -22,6 +23,12 @@ export interface CsvParseResult {
 
 export interface CsvParseOptions {
   delimiter?: string;
+}
+
+export class CsvEncodingError extends Error {
+  constructor() {
+    super('Não foi possível ler a codificação do CSV. Salve o arquivo em UTF-8 ou Windows-1252.');
+  }
 }
 
 /**
@@ -61,7 +68,23 @@ export function detectDelimiter(text: string): string {
  * Faz o parse de um Buffer ou string CSV conforme RFC 4180.
  */
 export function parseCsvRFC4180(input: Buffer | string, options?: CsvParseOptions): CsvParseResult {
-  let text = typeof input === 'string' ? input : input.toString('utf-8');
+  let encoding: CsvParseResult['encoding'] = 'UTF-8';
+  let text: string;
+  if (typeof input === 'string') {
+    text = input;
+  } else {
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(input);
+    } catch {
+      try {
+        text = new TextDecoder('windows-1252', { fatal: true }).decode(input);
+        encoding = 'Windows-1252';
+      } catch {
+        throw new CsvEncodingError();
+      }
+    }
+  }
+  if (text.includes('\0')) throw new CsvEncodingError();
 
   // 1. Remover BOM UTF-8 caso presente
   if (text.charCodeAt(0) === 0xFEFF) {
@@ -164,6 +187,7 @@ export function parseCsvRFC4180(input: Buffer | string, options?: CsvParseOption
   if (rawRows.length === 0) {
     return {
       delimiter,
+      encoding,
       headers: [],
       headerRowNumber: 1,
       rows: [],
@@ -176,6 +200,7 @@ export function parseCsvRFC4180(input: Buffer | string, options?: CsvParseOption
 
   return {
     delimiter,
+    encoding,
     headers,
     headerRowNumber: headerRow.rowNumber,
     rows: dataRows,

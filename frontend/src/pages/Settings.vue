@@ -476,7 +476,7 @@
                     <p class="text-xs text-blue-500">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
                   </div>
                 </div>
-                <button @click="selectedFile = null; importResult = null" class="text-blue-400 hover:text-red-500 transition">
+                <button @click="selectedFile = null; importResult = null; importPreview = null" class="text-blue-400 hover:text-red-500 transition">
                   <XCircle class="w-5 h-5" />
                 </button>
               </div>
@@ -499,12 +499,20 @@
               </div>
             </div>
 
-            <!-- Botão de Confirmação -->
-            <button v-if="selectedFile" @click="importCSV" :disabled="importing"
+            <div v-if="importPreview" class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 space-y-1">
+              <p class="font-bold">Prévia da importação — nenhum item foi gravado</p>
+              <p>{{ importPreview.processados }} processados · {{ importPreview.novos }} novos · {{ importPreview.ignorados }} já cadastrados e ignorados</p>
+              <p>{{ importPreview.saldosZero }} com saldo zero · {{ importPreview.localizacoesPadrao }} usando localização padrão</p>
+              <p>Localizações: {{ importPreview.prateleiras.slice(0, 5).join(', ') }}{{ importPreview.prateleiras.length > 5 ? '…' : '' }}</p>
+              <p>Codificação detectada: {{ importPreview.codificacao }}. Itens existentes não terão seus saldos alterados.</p>
+            </div>
+
+            <!-- Validação antes da confirmação -->
+            <button v-if="selectedFile" @click="importPreview ? importCSV() : previewCSV()" :disabled="importing"
               class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-200 cursor-pointer">
               <Loader2 v-if="importing" class="w-4 h-4 animate-spin text-white" />
               <Upload v-else class="w-4 h-4" />
-              {{ importing ? 'Processando e Validando Planilha Multi-Setor...' : 'Confirmar Importação de Materiais' }}
+              {{ importing ? 'Processando Planilha Multi-Setor...' : importPreview ? 'Confirmar Importação de Materiais' : 'Validar e Visualizar Importação' }}
             </button>
 
             <!-- Feedback Amigável de Erro ou Sucesso -->
@@ -527,7 +535,7 @@
                   
                   <div v-else class="text-xs text-emerald-800 space-y-1">
                     <p>
-                      <strong>{{ importResult.inseridos }}</strong> materiais cadastrados com sucesso · <strong>{{ importResult.processados }}</strong> processados no total.
+                        <strong>{{ importResult.inseridos }}</strong> materiais cadastrados · <strong>{{ importResult.ignorados || 0 }}</strong> já existentes e ignorados · <strong>{{ importResult.processados }}</strong> processados no total.
                     </p>
                     <p class="text-[11px] text-emerald-700">
                       ✓ Prateleiras e Localizações vinculadas: <strong>{{ importResult.prateleirasCriadas || 0 }}</strong> · Movimentações de Saldo Inicial geradas: <strong>{{ importResult.movimentacoesCriadas || 0 }}</strong>
@@ -538,7 +546,7 @@
                   <div v-if="importResult.errors && importResult.errors.length > 0" class="mt-3 pt-3 border-t border-red-200">
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-xs font-bold uppercase tracking-wider text-red-900">
-                        Inconsistências Encontradas ({{ importResult.errors.length }} {{ importResult.errors.length === 1 ? 'erro' : 'erros' }}):
+                        Inconsistências Encontradas ({{ importResult.totalErrors || importResult.errors.length }} {{ (importResult.totalErrors || importResult.errors.length) === 1 ? 'erro' : 'erros' }}{{ importResult.totalErrors > importResult.errors.length ? ', primeiras 100 exibidas' : '' }}):
                       </span>
                     </div>
                     <div class="max-h-60 overflow-y-auto rounded-lg border border-red-200 bg-white">
@@ -1166,6 +1174,7 @@ async function deleteOrigin(orig) {
 const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
+const importPreview = ref(null)
 const templateSector = computed({
   get: () => settingsPersisted.filters.value.templateSector || 'CORTE',
   set: value => { settingsPersisted.filters.value.templateSector = value || 'CORTE' },
@@ -1252,6 +1261,7 @@ watch(templateSector, (newSec) => {
     importSector.value = newSec
   }
 })
+watch(importSector, () => { importPreview.value = null })
 
 function downloadCSVTemplate(targetSector = templateSector.value || 'CORTE') {
   templateSector.value = targetSector
@@ -1276,6 +1286,7 @@ function handleFileSelect(event) {
   if (file) {
     selectedFile.value = file
     importResult.value = null
+    importPreview.value = null
   }
   event.target.value = null // reset input
 }
@@ -1285,8 +1296,36 @@ function handleDrop(event) {
   if (file && file.name.endsWith('.csv')) {
     selectedFile.value = file
     importResult.value = null
+    importPreview.value = null
   } else {
     showNotification('error', 'Apenas arquivos .csv são aceitos.')
+  }
+}
+
+function importFormData() {
+  const formData = new FormData()
+  formData.append('arquivo', selectedFile.value)
+  formData.append('sector', importSector.value)
+  return formData
+}
+
+function importFailure(error) {
+  const msg = error.response?.data?.error || 'Erro ao importar a planilha.'
+  importResult.value = { error: msg, errors: error.response?.data?.errors || [], totalErrors: error.response?.data?.totalErrors }
+  showNotification('error', msg)
+}
+
+async function previewCSV() {
+  if (!selectedFile.value) return
+  importing.value = true
+  importResult.value = null
+  try {
+    const res = await api.post('/import/csv/preview', importFormData())
+    importPreview.value = res.data
+  } catch (error) {
+    importFailure(error)
+  } finally {
+    importing.value = false
   }
 }
 
@@ -1296,19 +1335,14 @@ async function importCSV() {
   importResult.value = null
 
   try {
-    const formData = new FormData()
-    formData.append('arquivo', selectedFile.value)
-    formData.append('sector', importSector.value)
-
-    const res = await api.post('/import/csv', formData)
+    const res = await api.post('/import/csv', importFormData())
     importResult.value = res.data
     showNotification('success', `${res.data.inseridos} itens importados com sucesso!`)
     selectedFile.value = null
+    importPreview.value = null
   } catch (e) {
-    const msg = e.response?.data?.error || 'Erro ao importar a planilha.'
-    const errors = e.response?.data?.errors || []
-    importResult.value = { error: msg, errors }
-    showNotification('error', msg)
+    importPreview.value = null
+    importFailure(e)
   } finally {
     importing.value = false
   }

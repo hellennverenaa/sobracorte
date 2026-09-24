@@ -3,7 +3,7 @@ import { movementSnapshot } from '../services/movementSnapshot';
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit, isDiscreteUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
-import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem } from '../services/stockIdentity';
+import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem, stockIdentity } from '../services/stockIdentity';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 export interface AvailableLocation {
@@ -39,6 +39,7 @@ export interface ValidatedImportItem {
   quantity: number;
   locationId: number;
   locationName: string;
+  locationDefaulted?: boolean;
   color?: string;
   sizeGrade?: string;
   footSide?: 'E' | 'D' | null;
@@ -133,6 +134,9 @@ export function validateImportBatch(
   }
 
   const headerCols = headers.map(c => c.toLowerCase().trim());
+  const locationsByName = new Map(availableLocations.map(location => [location.name.toUpperCase(), location]));
+  const defaultLocation = (sector: SectorType) => availableLocations.find(location => location.name.toUpperCase() === 'GERAL' && matchLocationSector(location.sector, sector))
+    || availableLocations.find(location => matchLocationSector(location.sector, sector));
   const modelIdx = headerCols.findIndex(c => ['modelo', 'productname', 'nome_modelo', 'nomemodelo'].includes(c));
 
   const sectorIdx = headerCols.findIndex(c => c === 'setor' || c === 'sector' || c === 'área' || c === 'area');
@@ -155,8 +159,7 @@ export function validateImportBatch(
     const errors: ImportRowError[] = [];
 
     // Localização padrão de corte
-    const defaultCorteLoc = availableLocations.find(l => l.name.toUpperCase() === 'GERAL' && matchLocationSector(l.sector, 'CORTE'))
-      || availableLocations.find(l => matchLocationSector(l.sector, 'CORTE'));
+    const defaultCorteLoc = defaultLocation('CORTE');
 
     if (!defaultCorteLoc) {
       throw new ImportValidationError('Não há nenhuma localização cadastrada para o setor CORTE. Cadastre uma localização antes de importar.', [
@@ -211,6 +214,7 @@ export function validateImportBatch(
         quantity: 0,
         locationId: defaultCorteLoc.id,
         locationName: defaultCorteLoc.name,
+        locationDefaulted: true,
         observation: 'Importação legado de materiais de corte',
       });
     }
@@ -337,7 +341,7 @@ export function validateImportBatch(
 
     if (rawLoc && rawLoc.trim() !== '') {
       const normLocName = rawLoc.trim().toUpperCase();
-      const matchedLoc = availableLocations.find(l => l.name.toUpperCase() === normLocName);
+      const matchedLoc = locationsByName.get(normLocName);
 
       if (!matchedLoc) {
         errors.push({
@@ -359,8 +363,7 @@ export function validateImportBatch(
       }
     } else {
       // Prateleira não informada na linha: tenta encontrar localização padrão do setor
-      const defaultLoc = availableLocations.find(l => l.name.toUpperCase() === 'GERAL' && matchLocationSector(l.sector, itemSector))
-        || availableLocations.find(l => matchLocationSector(l.sector, itemSector));
+      const defaultLoc = defaultLocation(itemSector);
 
       if (defaultLoc) {
         locationId = defaultLoc.id;
@@ -396,6 +399,7 @@ export function validateImportBatch(
         quantity: parsedQtd.value,
         locationId,
         locationName,
+        locationDefaulted: !rawLoc?.trim(),
         color,
         sizeGrade,
         footSide: 'E',
@@ -412,6 +416,7 @@ export function validateImportBatch(
         quantity: parsedQtd.value,
         locationId,
         locationName,
+        locationDefaulted: !rawLoc?.trim(),
         color,
         sizeGrade,
         footSide: 'D',
@@ -429,6 +434,7 @@ export function validateImportBatch(
         quantity: parsedQtd.value,
         locationId,
         locationName,
+        locationDefaulted: !rawLoc?.trim(),
         color,
         sizeGrade,
         footSide: parsedSide === 'E' || parsedSide === 'D' ? parsedSide : null,
@@ -445,6 +451,145 @@ export function validateImportBatch(
   return validatedItems;
 }
 
+const IMPORT_QUERY_CHUNK = 400;
+
+function importStockData(item: ValidatedImportItem, factoryUnitId: number) {
+  const base = {
+    factoryUnitId,
+    sector: item.sector,
+    quantity: item.quantity,
+    unit: normalizeUnit(item.unit),
+    type: item.type,
+    observation: item.observation || (item.sector === 'CORTE' ? 'Importado via planilha de materiais CSV' : 'Importado via planilha de componentes CSV'),
+  };
+  if (item.sector === 'CORTE') return {
+    ...base, componentType: 'MATERIA_PRIMA' as ComponentType,
+    code: item.code, name: item.name,
+  };
+  const apoio = item.sector === 'APOIO';
+  return {
+    ...base,
+    componentType: (apoio ? 'PECA_CORTADA' : item.sector === 'PRE_FABRICADO' ? 'SOLADO' : item.sector === 'MONTAGEM' ? 'PE_PRONTO' : 'CABEDAL') as ComponentType,
+    // SKU e código da peça identificam componentes. `code` é único por unidade
+    // e deve ficar reservado aos materiais de CORTE (inclusive para E + D).
+    code: null,
+    name: item.name,
+    pieceCode: apoio ? item.code : null,
+    description: apoio ? item.name : item.name,
+    productName: apoio ? item.productName || null : item.productName || item.name,
+    sku: apoio ? null : item.code,
+    color: normalizeStockColor(item.color) || null,
+    materialColor: apoio ? item.color || 'PADRAO' : null,
+    sizeGrade: item.sizeGrade || null,
+    footSide: item.footSide as FootSide || null,
+  };
+}
+
+function importIdentityKey(data: Record<string, any>) {
+  return JSON.stringify([normalizeSector(data.sector), stockIdentity(data)]);
+}
+
+export async function planImport(prisma: any, items: ValidatedImportItem[], factoryUnitId: number) {
+  const existingByCode = new Map<string, any>();
+  const existingByIdentity = new Map<string, any>();
+  const codes = [...new Set(items.map(item => item.code))];
+  for (let start = 0; start < codes.length; start += IMPORT_QUERY_CHUNK) {
+    const batch = codes.slice(start, start + IMPORT_QUERY_CHUNK);
+    const found = await prisma.stockItem.findMany({
+      where: { factoryUnitId, OR: [
+        { code: { in: batch } }, { sku: { in: batch } }, { pieceCode: { in: batch } },
+      ] },
+    });
+    for (const existing of found) {
+      if (existing.code) existingByCode.set(existing.code.toUpperCase(), existing);
+      existingByIdentity.set(importIdentityKey(existing), existing);
+    }
+  }
+
+  const seenIdentities = new Map<string, number>();
+  const seenCorteCodes = new Map<string, number>();
+  const toInsert: ValidatedImportItem[] = [];
+  const errors: ImportRowError[] = [];
+  let ignored = 0;
+  for (const item of items) {
+    const data = importStockData(item, factoryUnitId);
+    const identity = importIdentityKey(data);
+    const earlier = seenIdentities.get(identity) || (item.sector === 'CORTE' ? seenCorteCodes.get(item.code) : undefined);
+    if (earlier) {
+      errors.push({ row: item.rowNumber, column: 'codigo', value: item.code, message: `Item repetido no arquivo (primeira ocorrência na linha ${earlier}).` });
+      continue;
+    }
+    seenIdentities.set(identity, item.rowNumber);
+    if (item.sector === 'CORTE') seenCorteCodes.set(item.code, item.rowNumber);
+
+    const existing = item.sector === 'CORTE' ? existingByCode.get(item.code) : existingByIdentity.get(identity);
+    if (!existing) {
+      toInsert.push(item);
+      continue;
+    }
+    if (importIdentityKey(existing) === identity && normalizeUnit(existing.unit, item.sector) === data.unit) {
+      ignored++;
+      continue;
+    }
+    errors.push({
+      row: item.rowNumber, column: 'codigo', value: item.code,
+      message: item.sector === 'CORTE'
+        ? `O código já existe no setor ${existing.sector} com descrição, categoria ou unidade diferente. Cadastro atual: ${existing.name || ''} / ${existing.type || ''} / ${existing.unit || ''}.`
+        : 'O item já existe com a mesma identidade, mas outra unidade de medida.',
+    });
+  }
+  return { toInsert, ignored, errors };
+}
+
+async function executeBulkImport(tx: any, items: ValidatedImportItem[], context: ImportExecutionContext): Promise<ImportExecutionResult> {
+  const { factoryUnitId, operatorId, operatorName } = context;
+  const locations = await tx.location.findMany({ where: { factoryUnitId, id: { in: [...new Set(items.map(item => item.locationId))] } } });
+  const locationsById = new Map<number, any>(locations.map((location: any) => [location.id, location]));
+  const categories = await tx.categoryConfig.findMany({
+    where: { factoryUnitId, name: { in: [...new Set(items.filter(item => item.sector === 'CORTE').map(item => item.type))] }, OR: [{ sector: 'CORTE' }, { sector: null }] },
+  });
+  const categoryByName = new Map<string, any>(categories.map((category: any) => [category.name, category]));
+  for (const item of items) {
+    assertStockSectorAccess(context, item.sector);
+    validateQuantity(item.quantity, item.unit, item.sector, true);
+    const location = locationsById.get(item.locationId);
+    if (!location) throw new ImportValidationError('Localização não encontrada nesta unidade.', [{ row: item.rowNumber, column: 'prateleira', value: item.locationName, message: 'A localização foi removida. Atualize a página e valide novamente.' }]);
+    assertStockLocationSector(location, item.sector);
+    assertGeneralStockAccess(context, location);
+    const category = item.sector === 'CORTE' ? categoryByName.get(item.type) : null;
+    if (category?.unitLocked && normalizeUnit(item.unit) !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
+  }
+
+  const plan = await planImport(tx, items, factoryUnitId);
+  if (plan.errors.length) throw new ImportValidationError('Conflitos encontrados no estoque. Nenhum item foi importado.', plan.errors);
+  let movementsCreated = 0;
+  for (let start = 0; start < plan.toInsert.length; start += 200) {
+    const batch = plan.toInsert.slice(start, start + 200);
+    const inputByIdentity = new Map(batch.map(item => [importIdentityKey(importStockData(item, factoryUnitId)), item]));
+    const created = await tx.stockItem.createManyAndReturn({ data: batch.map(item => importStockData(item, factoryUnitId)) });
+    if (created.length !== batch.length) throw new Error('A gravação do lote retornou uma quantidade inesperada de itens.');
+    const links = [];
+    const movements = [];
+    for (const record of created) {
+      const item = inputByIdentity.get(importIdentityKey(record));
+      if (!item) throw new Error('Não foi possível relacionar um item criado à linha do CSV.');
+      links.push({ stockItemId: record.id, locationId: item.locationId, factoryUnitId, quantity: item.quantity });
+      if (item.quantity > 0) movements.push({
+        factoryUnitId, stockItemId: record.id, sector: record.sector, type: 'ENTRADA', quantity: item.quantity,
+        ...movementSnapshot(record),
+        destinationStockItemId: record.id, destinationSector: record.sector,
+        destinationLocationId: item.locationId, destinationLocationName: item.locationName,
+        origem: 'Saldo Inicial / Implantação', reason: item.observation || 'Importação inicial via planilha CSV',
+        operatorId: operatorId || null, operatorName: operatorName || 'Sistema / Importação',
+      });
+    }
+    await tx.stockItemLocation.createMany({ data: links });
+    if (movements.length) await tx.stockMovement.createMany({ data: movements });
+    movementsCreated += movements.length;
+  }
+  return { inserted: plan.toInsert.length, processed: items.length, ignored: plan.ignored, locationsCreated: 0, movementsCreated };
+}
+
 /**
  * Executa a transação atômica ACID de importação no banco de dados.
  * Amarra com as prateleiras existentes validadas e gera as movimentações iniciais de implantação.
@@ -459,6 +604,7 @@ export async function executeImportTransaction(
 
   return await prisma.$transaction(async (tx: any) => {
     await lockStockIdentityWrites(tx, factoryUnitId);
+    if (items.length >= 100) return executeBulkImport(tx, items, context);
     for (const item of items) {
       validateQuantity(item.quantity, item.unit, item.sector, true);
       item.unit = normalizeUnit(item.unit);
@@ -584,7 +730,7 @@ export async function executeImportTransaction(
           quantity: item.quantity,
           unit: item.unit,
           type: item.type,
-          code: item.code,
+          code: null,
           name: name || item.name,
           pieceCode,
           description: description || item.name,
@@ -640,5 +786,5 @@ export async function executeImportTransaction(
       locationsCreated: 0,
       movementsCreated: movementsCreatedCount,
     };
-  });
+  }, items.length >= 100 ? { maxWait: 10_000, timeout: 120_000 } : undefined);
 }

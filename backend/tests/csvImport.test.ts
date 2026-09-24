@@ -45,6 +45,13 @@ test('parseCsvRFC4180 remove BOM UTF-8 (\\uFEFF) sem corromper o primeiro cabeç
   assert.equal(result.rows[0].cells[1], 'TECIDO PRETO');
 });
 
+test('CSV Windows-1252 preserva acentos em descrições e informa a codificação', () => {
+  const csv = Buffer.from('codigo;descricao;categoria;unidade\n1001;TECIDO MAÇÃ;TECIDO;M2', 'latin1');
+  const parsed = parseCsvRFC4180(csv);
+  assert.equal(parsed.encoding, 'Windows-1252');
+  assert.equal(parsed.rows[0].cells[1], 'TECIDO MAÇÃ');
+});
+
 test('parseCsvRFC4180 processa aspas escapadas ("") e delimitadores dentro de células', () => {
   const csv = 'codigo;descricao;observacao\n1001;"TECIDO ""PRETO"" ESPECIAL";"Obs com ; ponto e virgula"';
   const result = parseCsvRFC4180(csv);
