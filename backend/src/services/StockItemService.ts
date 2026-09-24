@@ -20,7 +20,14 @@ export class StockItemService {
 
       await lockStockIdentityWrites(tx, factoryUnitId);
 
-      for (const item of dto.items) {
+      const items = dto.items.flatMap((item) => {
+        if ((item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO' || item.sector === 'MONTAGEM') && item.footSide === 'PAR') {
+          return [{ ...item, footSide: 'E' as const }, { ...item, footSide: 'D' as const }];
+        }
+        return [item];
+      });
+
+      for (const item of items) {
         assertStockSectorAccess(context, item.sector);
         validateQuantity(item.quantity, item.unit, item.sector);
         if ('minStock' in item) validateQuantity(item.minStock, item.unit, item.sector, true);

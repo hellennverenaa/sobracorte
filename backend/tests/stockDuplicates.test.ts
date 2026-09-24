@@ -59,6 +59,22 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   await assert.rejects(create([{ ...item, pieceCode: 'NOVO' }, { ...item, pieceCode: 'NOVO' }]), DuplicateStockItemError);
   assert.equal(records.length, count, 'lote duplicado deve ser revertido integralmente');
 
+  for (const pair of [
+    { sector: 'PRE_FABRICADO', sku: 'PAIR-P', productName: 'MODELO', type: 'EVA', color: 'AZUL', sizeGrade: '40' },
+    { sector: 'DISTRIBUICAO', sku: 'PAIR-D', productName: 'MODELO', type: 'CABEDAL', color: 'AZUL', sizeGrade: '40' },
+    { sector: 'MONTAGEM', sku: 'PAIR-M', productName: 'MODELO', color: 'AZUL', sizeGrade: '40' },
+  ]) {
+    const input = { ...pair, footSide: 'PAR', quantity: 7, location: 'A' };
+    const result = await create([input]);
+    assert.equal(result.insertedCount, 2);
+    const sides = records.filter(record => record.sku === pair.sku);
+    assert.deepEqual(sides.map(record => record.footSide), ['E', 'D']);
+    assert.deepEqual(sides.map(record => record.quantity), [7, 7]);
+    const beforeDuplicate: number = records.length;
+    await assert.rejects(create([{ ...input, sku: `${pair.sku}-NEW` }, input]), DuplicateStockItemError);
+    assert.equal(records.length, beforeDuplicate, 'nenhum lado do lote deve persistir se houver duplicata');
+  }
+
   const fixtures = [
     { sector: 'CORTE', code: 'C1', name: 'TECIDO', type: 'TECIDO', unit: 'M2' },
     { sector: 'PRE_FABRICADO', sku: 'P1', productName: 'MODELO', type: 'EVA', color: 'AZUL', sizeGrade: '40', footSide: 'E' },

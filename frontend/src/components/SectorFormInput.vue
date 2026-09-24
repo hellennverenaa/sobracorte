@@ -95,7 +95,7 @@ const formData = reactive({
   materialColor: '',
   productName: '',
   sku: '',
-  footSide: 'E' as 'E' | 'D',
+  footSide: 'E' as 'E' | 'D' | 'PAR',
 });
 const savedForm = ref(JSON.stringify(formData));
 const { confirmDiscard } = useUnsavedChanges(() => JSON.stringify(formData) !== savedForm.value);
@@ -443,7 +443,9 @@ async function handleSubmit() {
   isSubmitting.value = true;
   try {
     await stockStore.createBatch([payloadItem]);
-    successMessage.value = `Item cadastrado com sucesso no setor ${activeSector.value}!`;
+    successMessage.value = formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value)
+      ? `Par cadastrado com sucesso no setor ${activeSector.value}!`
+      : `Item cadastrado com sucesso no setor ${activeSector.value}!`;
     if (payloadItem.color) {
       addCombinationLocally(payloadItem.color, activeSector.value);
     }
@@ -705,7 +707,7 @@ onMounted(async () => {
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
               @click="formData.footSide = 'E'"
@@ -725,6 +727,16 @@ onMounted(async () => {
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
               D
+            </button>
+            <button
+              type="button"
+              @click="formData.footSide = 'PAR'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'PAR'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              Par (E + D)
             </button>
           </div>
         </div>
@@ -801,7 +813,7 @@ onMounted(async () => {
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
               @click="formData.footSide = 'E'"
@@ -821,6 +833,16 @@ onMounted(async () => {
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
             >
               D
+            </button>
+            <button
+              type="button"
+              @click="formData.footSide = 'PAR'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'PAR'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              Par (E + D)
             </button>
           </div>
         </div>
@@ -886,7 +908,7 @@ onMounted(async () => {
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-3 gap-2">
             <button
               type="button"
               @click="formData.footSide = 'E'"
@@ -907,6 +929,16 @@ onMounted(async () => {
             >
               D
             </button>
+            <button
+              type="button"
+              @click="formData.footSide = 'PAR'"
+              class="py-2 rounded font-bold text-xs transition-all border text-center"
+              :class="formData.footSide === 'PAR'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
+            >
+              Par (E + D)
+            </button>
           </div>
         </div>
       </div>
@@ -914,7 +946,7 @@ onMounted(async () => {
       <!-- Campos Comuns -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-gray-100">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Quantidade Inicial *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector) ? 'Quantidade de Pares' : 'Quantidade Inicial' }} *</label>
           <input
             v-model="formData.quantity"
             :step="isIntegerQuantitySector ? 1 : 0.001"
@@ -927,7 +959,7 @@ onMounted(async () => {
             autocomplete="off"
           />
           <span v-if="isIntegerQuantitySector" class="text-[10px] text-gray-400 mt-0.5 block">
-            Estoque inicial do item (apenas números inteiros)
+            {{ formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector) ? 'Cada par cadastra 1 pé esquerdo e 1 direito' : 'Estoque inicial do item (apenas números inteiros)' }}
           </span>
           <span v-else class="text-[10px] text-gray-400 mt-0.5 block">
             Estoque inicial do item (permite decimais ex: 12.5 m²)
