@@ -1300,9 +1300,7 @@ async function importCSV() {
     formData.append('arquivo', selectedFile.value)
     formData.append('sector', importSector.value)
 
-    const res = await api.post('/import/csv', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const res = await api.post('/import/csv', formData)
     importResult.value = res.data
     showNotification('success', `${res.data.inseridos} itens importados com sucesso!`)
     selectedFile.value = null
