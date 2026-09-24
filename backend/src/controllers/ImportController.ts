@@ -14,13 +14,13 @@ import {
 import { SectorValidationError } from '../utils/sectorHelper';
 
 export class ImportController {
-  async importCSV(req: Request, res: Response) {
+  importCSV = async (req: Request, res: Response) => {
     return this.processCSV(req, res, false);
-  }
+  };
 
-  async previewCSV(req: Request, res: Response) {
+  previewCSV = async (req: Request, res: Response) => {
     return this.processCSV(req, res, true);
-  }
+  };
 
   private async processCSV(req: Request, res: Response, preview: boolean) {
     try {
