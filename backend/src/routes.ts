@@ -1,5 +1,5 @@
 import { StockAccessError } from './auth/stockAccess';
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { AuthController } from './controllers/AuthController';
@@ -12,6 +12,7 @@ import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
 import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
+import { tenantStorage } from './context/tenantContext';
 import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
 import { isUserRole } from './auth/roles';
 import { normalizeSector } from './utils/sectorHelper';
@@ -86,6 +87,17 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
+const singleCsvUpload = upload.single('arquivo');
+const uploadCsv = (req: Request, res: Response, next: NextFunction) => {
+  singleCsvUpload(req, res, (error) => {
+    const tenantId = req.tenant?.id;
+    if (tenantId === undefined) return next(error);
+
+    // Multer resumes after reading the request stream, whose async context may
+    // predate requireAuth. Re-enter the authenticated tenant before the handler.
+    tenantStorage.run({ tenantId }, () => next(error));
+  });
+};
 
 const reportController = new ReportController();
 const authController = new AuthController();
@@ -310,7 +322,7 @@ routes.get('/settings/origins',    requireAuth, authenticatedLimiter, settingsCo
 routes.post('/settings/origins',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
 
-routes.post('/import/csv/preview', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), upload.single('arquivo'), importController.previewCSV);
-routes.post('/import/csv', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), upload.single('arquivo'), importController.importCSV);
+routes.post('/import/csv/preview', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), uploadCsv, importController.previewCSV);
+routes.post('/import/csv', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), uploadCsv, importController.importCSV);
 
 export { routes };
