@@ -10,6 +10,7 @@ import { lockStockIdentityWrites } from '../services/stockIdentity';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 const stockItemService = new StockItemService();
+const INVENTORY_PAGE_SIZES = new Set([50, 100, 200]);
 
 export class StockItemController {
   /**
@@ -61,8 +62,29 @@ export class StockItemController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const { q, search, sector, page, limit } = req.query;
+      const { q, search, sector, page, limit, locationId, type, stockStatus } = req.query;
       const searchQuery = q || search;
+
+      const pageNumber = page === undefined ? 1 : Number(page);
+      const pageSize = limit === undefined ? 50 : Number(limit);
+      const parsedLocationId = locationId === undefined || locationId === '' ? undefined : Number(locationId);
+      if (!Number.isSafeInteger(pageNumber) || pageNumber < 1) {
+        return res.status(400).json({ error: 'Página inválida.' });
+      }
+      if (!Number.isSafeInteger(pageSize) || !INVENTORY_PAGE_SIZES.has(pageSize)) {
+        return res.status(400).json({ error: 'Itens por página inválido. Use 50, 100 ou 200.' });
+      }
+      if (parsedLocationId !== undefined && (!Number.isSafeInteger(parsedLocationId) || parsedLocationId < 1)) {
+        return res.status(400).json({ error: 'Localização inválida.' });
+      }
+      const statusFilter = stockStatus === undefined || stockStatus === '' ? undefined : String(stockStatus);
+      if (statusFilter && !['with_balance', 'zero_balance'].includes(statusFilter)) {
+        return res.status(400).json({ error: 'Situação de saldo inválida.' });
+      }
+      const typeFilter = type === undefined || type === '' ? undefined : String(type).trim();
+      if (typeFilter && typeFilter.length > 100) {
+        return res.status(400).json({ error: 'Tipo inválido.' });
+      }
 
       let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : undefined;
 
@@ -78,8 +100,11 @@ export class StockItemController {
       const params = {
         q: searchQuery ? String(searchQuery) : undefined,
         sector: targetSector,
-        page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 50,
+        page: pageNumber,
+        limit: pageSize,
+        locationId: parsedLocationId,
+        type: typeFilter,
+        stockStatus: statusFilter as 'with_balance' | 'zero_balance' | undefined,
       };
 
       const result = await stockItemService.searchUnified(params, operatorContext);

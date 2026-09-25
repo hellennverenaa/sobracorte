@@ -54,6 +54,7 @@ export interface StockState {
   };
   filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterOrigins: Array<{ id: number; name: string }>;
+  filterCategories: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   matchingPairs: MatchingPair[];
   matchingPairsCount: number;
   history: {
@@ -97,6 +98,7 @@ export const useStockStore = defineStore('stock', {
     },
     filterLocations: [],
     filterOrigins: [],
+    filterCategories: [],
     matchingPairs: [],
     matchingPairsCount: 0,
     history: {
@@ -145,7 +147,15 @@ export const useStockStore = defineStore('stock', {
     /**
      * Busca unificada Round-Trip Único (GET /inventory/search)
      */
-    async fetchInventory(params?: { q?: string; sector?: SectorType; page?: number; limit?: number }) {
+    async fetchInventory(params?: {
+      q?: string;
+      sector?: SectorType;
+      page?: number;
+      limit?: number;
+      locationId?: number;
+      type?: string;
+      stockStatus?: 'with_balance' | 'zero_balance';
+    }) {
       const auth = useAuthStore();
       const unitCode = auth.user?.unit?.code;
       const requestId = ++this.inventoryRequestId;
@@ -158,6 +168,9 @@ export const useStockStore = defineStore('stock', {
           sector: targetSector,
           page: params?.page ?? this.pagination.page,
           limit: params?.limit ?? this.pagination.limit,
+          locationId: params?.locationId,
+          type: params?.type,
+          stockStatus: params?.stockStatus,
         };
 
         const response = await api.get('/inventory/search', { params: queryParams });
@@ -171,6 +184,7 @@ export const useStockStore = defineStore('stock', {
         }
         this.filterLocations = data.filterOptions?.locations || [];
         this.filterOrigins = data.filterOptions?.origins || [];
+        this.filterCategories = data.filterOptions?.categories || [];
       } catch (err: any) {
         if (requestId !== this.inventoryRequestId || unitCode !== auth.user?.unit?.code) return;
         console.error('Erro ao carregar estoque:', err);

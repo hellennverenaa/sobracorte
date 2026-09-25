@@ -185,30 +185,48 @@ export class StockItemService {
    * Todos os setores são lidos de StockItem.
    */
   async searchUnified(
-    params: { q?: string; sector?: SectorType; page?: number; limit?: number },
+    params: {
+      q?: string;
+      sector?: SectorType;
+      page?: number;
+      limit?: number;
+      locationId?: number;
+      type?: string;
+      stockStatus?: 'with_balance' | 'zero_balance';
+    },
     context: OperatorContext
   ) {
     const { factoryUnitId } = context;
-    const { q, sector, page = 1, limit = 50 } = params;
+    const { q, sector, page = 1, limit = 50, locationId, type, stockStatus } = params;
     const skip = (page - 1) * limit;
+    const targetSector = normalizeStockSector(assignedStockSector(context) || sector || 'CORTE') as SectorType;
 
     const rawSearch = q ? q.trim() : '';
     const searchTerms = rawSearch
       ? rawSearch.split(/[,\s\n;]+/).map((t) => t.trim()).filter(Boolean)
       : [];
 
-    const buildMaterialWhere = () => {
-      const base: any = { factoryUnitId };
-      if (searchTerms.length === 0) return base;
-      return {
-        ...base,
-        OR: searchTerms.flatMap((term) => [
+    const applyInventoryFilters = (where: any, itemSector: SectorType) => {
+      if (normalizeStockSector(itemSector) !== targetSector) return where;
+
+      const filtered = { ...where };
+      if (locationId) filtered.locations = { some: { factoryUnitId, locationId } };
+      if (type && ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(itemSector)) {
+        filtered.type = { equals: type, mode: 'insensitive' };
+      }
+      if (stockStatus === 'with_balance') filtered.quantity = { gt: 0 };
+      if (stockStatus === 'zero_balance') filtered.quantity = 0;
+      return filtered;
+    };
+
+    const buildMaterialWhere = () => applyInventoryFilters({
+      factoryUnitId,
+      ...(searchTerms.length ? { OR: searchTerms.flatMap((term) => [
           { code: { contains: term, mode: 'insensitive' } },
           { name: { contains: term, mode: 'insensitive' } },
           { type: { contains: term, mode: 'insensitive' } },
-        ]),
-      };
-    };
+        ]) } : {}),
+    }, 'CORTE');
 
     const buildSectorWhere = (sec: SectorType) => {
       const base: any = { factoryUnitId };
@@ -217,11 +235,11 @@ export class StockItemService {
       } else {
         base.sector = sec;
       }
-      if (searchTerms.length === 0) return base;
+      if (searchTerms.length === 0) return applyInventoryFilters(base, sec);
 
       switch (sec) {
         case 'APOIO':
-          return {
+          return applyInventoryFilters({
             ...base,
             OR: searchTerms.flatMap((term) => [
               { pieceCode: { contains: term, mode: 'insensitive' } },
@@ -230,9 +248,9 @@ export class StockItemService {
               { materialColor: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
-          };
+          }, sec);
         case 'PRE_FABRICADO':
-          return {
+          return applyInventoryFilters({
             ...base,
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
@@ -241,10 +259,10 @@ export class StockItemService {
               { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
-          };
+          }, sec);
         case 'DISTRIBUICAO':
         case 'EXPEDICAO':
-          return {
+          return applyInventoryFilters({
             ...base,
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
@@ -253,9 +271,9 @@ export class StockItemService {
               { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
-          };
+          }, sec);
         case 'MONTAGEM':
-          return {
+          return applyInventoryFilters({
             ...base,
             OR: searchTerms.flatMap((term) => [
               { sku: { contains: term, mode: 'insensitive' } },
@@ -263,13 +281,11 @@ export class StockItemService {
               { color: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
-          };
+          }, sec);
         default:
-          return base;
+          return applyInventoryFilters(base, sec);
       }
     };
-
-    const targetSector = normalizeStockSector(assignedStockSector(context) || sector || 'CORTE') as SectorType;
 
     // Execução paralela de buscas e contagens por setor (Zero N+1 Queries)
     const [
@@ -358,7 +374,7 @@ export class StockItemService {
       }),
       prisma.categoryConfig.findMany({
         where: { factoryUnitId, ...(!isStockMaster(context) ? { OR: [{ sector: targetSector as SectorType }, { sector: null }, ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : [])] } : {}) },
-        select: { id: true, name: true },
+        select: { id: true, name: true, sector: true },
         orderBy: { name: 'asc' },
       }),
     ]);
