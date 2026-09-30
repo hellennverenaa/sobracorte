@@ -84,7 +84,7 @@ export class ImportController {
         ignorados: plan.ignored,
         saldosZero: validatedItems.filter(item => item.quantity === 0).length,
         localizacoesPadrao: validatedItems.filter(item => item.locationDefaulted).length,
-        prateleiras: [...new Set(validatedItems.map(item => item.locationName))].sort(),
+        prateleiras: [...new Set(validatedItems.flatMap(item => (item.locations && item.locations.length > 0 ? item.locations.map(l => l.locationName) : [item.locationName])))].filter(Boolean).sort(),
         codificacao: parsed.encoding,
       });
 

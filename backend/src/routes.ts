@@ -119,7 +119,8 @@ routes.get('/factory-units', unitCatalogLimiter, async (_req, res) => {
       select: { id: true, code: true, name: true, active: true, enableRequisitions: true },
     });
     return res.json({ data: units });
-  } catch {
+  } catch (err) {
+    console.error('Erro ao carregar unidades:', err);
     return res.status(500).json({ error: 'Erro ao carregar unidades.' });
   }
 });

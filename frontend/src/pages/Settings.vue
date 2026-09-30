@@ -1231,19 +1231,20 @@ const sectorCsvPattern = computed(() => {
     return {
       title: `Padrão Exigido para o Arquivo CSV — ${secLabel}`,
       columns: [
-        { name: 'sku', req: true, desc: 'SKU ou código do produto. Ex: SKU-RACER-SPD-BLK' },
+        { name: 'sku', req: true, desc: 'SKU ou código do produto (aceita sku ou codigo). Ex: SKU-RACER-SPD-BLK' },
         { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: false, desc: `Componente do calçado. Ex: ${pecaEx}` },
-        { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41' },
-        { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado automaticamente em 1E + 1D)' },
+        { name: 'cor', req: false, desc: 'Cor ou Combinação do produto (aceita cor ou combinacao). Ex: PRETO, BRANCO' },
+        { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41, 7,5' },
+        { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado e consolidado automaticamente com pés avulsos e locais)' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
-        { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, MO-02' },
+        { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, ESTANTE 1 - NIVEL 3' },
       ],
-      headerExample: 'sku;modelo;peca;grade;lado;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;cor;grade;lado;quantidade;prateleira',
       examples: [
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};41;PAR;20;PR-01`,
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};40;E;15;MO-02`,
-        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};38;D;10;MO-03`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};PRETO;41;PAR;20;PR-01`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};BRANCO;40;E;15;MO-02`,
+        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};PRETO;38;D;10;MO-03`,
       ],
     }
   }

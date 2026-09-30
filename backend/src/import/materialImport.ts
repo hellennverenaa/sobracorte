@@ -29,6 +29,13 @@ export class ImportValidationError extends Error {
   }
 }
 
+export interface ImportItemLocationAllocation {
+  locationId: number;
+  locationName: string;
+  quantity: number;
+  rowNumber: number;
+}
+
 export interface ValidatedImportItem {
   rowNumber: number;
   sector: SectorType;
@@ -45,6 +52,7 @@ export interface ValidatedImportItem {
   footSide?: 'E' | 'D' | null;
   observation?: string;
   productName?: string;
+  locations?: ImportItemLocationAllocation[];
 }
 
 export interface ImportExecutionContext extends StockAccessContext {
@@ -147,7 +155,7 @@ export function validateImportBatch(
   const unitIdx = headerCols.findIndex(c => c === 'unidade' || c === 'unit' || c === 'um' || c === 'sigla');
   const qtdIdx = headerCols.findIndex(c => c === 'quantidade' || c === 'quantity' || c === 'estoque' || c === 'saldo' || c === 'qtd');
   const locIdx = headerCols.findIndex(c => c === 'prateleira' || c === 'localizacao' || c === 'localização' || c === 'location' || c === 'box' || c === 'estante' || c === 'endereco');
-  const colorIdx = headerCols.findIndex(c => c === 'cor' || c === 'color' || c === 'materialcor' || c === 'material_cor');
+  const colorIdx = headerCols.findIndex(c => c === 'cor' || c === 'color' || c === 'materialcor' || c === 'material_cor' || c === 'combinacao' || c === 'combinação' || c === 'combinacão');
   const sizeIdx = headerCols.findIndex(c => c === 'grade' || c === 'tamanho' || c === 'sizegrade' || c === 'num' || c === 'numeracao' || c === 'numeração');
   const sideIdx = headerCols.findIndex(c => c === 'lado' || c === 'footside' || c === 'lado_pe' || c === 'pe');
   const obsIdx = headerCols.findIndex(c => c === 'observacao' || c === 'observação' || c === 'obs' || c === 'observation' || c === 'nota');
@@ -382,7 +390,18 @@ export function validateImportBatch(
     try { validateQuantity(parsedQtd.value, unit, itemSector, true); }
     catch (error) { errors.push({ row: row.rowNumber, column: 'quantidade', value: String(parsedQtd.value), message: (error as Error).message }); continue; }
 
-    const type = rawType ? rawType.trim().toUpperCase() : (itemSector === 'CORTE' ? 'GERAL' : itemSector);
+    let type = rawType ? rawType.trim().toUpperCase() : (itemSector === 'CORTE' ? 'GERAL' : itemSector);
+    if (itemSector === 'DISTRIBUICAO') {
+      const normDesc = descricao.replace(/[_-]+/g, ' ');
+      if (rawType) {
+        if (rawType.toUpperCase().includes('SOLA')) type = 'SOLA_PROCESSADA';
+        else if (rawType.toUpperCase().includes('CABEDAL')) type = 'CABEDAL';
+      } else if (normDesc.includes('SOLA')) {
+        type = 'SOLA_PROCESSADA';
+      } else {
+        type = 'CABEDAL';
+      }
+    }
     const color = rawColor && rawColor.trim() !== '' ? rawColor.trim().toUpperCase() : undefined;
     const sizeGrade = rawSize && rawSize.trim() !== '' ? rawSize.trim().toUpperCase() : undefined;
     const observation = rawObs && rawObs.trim() !== '' ? rawObs.trim() : undefined;
@@ -448,12 +467,50 @@ export function validateImportBatch(
     throw new ImportValidationError('Foram encontrados erros de validação na planilha. Nenhum registro foi importado.', errors);
   }
 
-  return validatedItems;
+  // Agrupamento e consolidação de itens para setores com componentes (evita rejeição por PAR + avulsos ou multi-estante)
+  const consolidated: ValidatedImportItem[] = [];
+  const consolidatedByIdentity = new Map<string, ValidatedImportItem>();
+
+  for (const item of validatedItems) {
+    if (item.sector === 'CORTE') {
+      consolidated.push({
+        ...item,
+        locations: [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }],
+      });
+      continue;
+    }
+
+    const key = JSON.stringify([item.sector, stockIdentity(importStockData(item, 0))]);
+    const existing = consolidatedByIdentity.get(key);
+    if (!existing) {
+      const consolidatedItem: ValidatedImportItem = {
+        ...item,
+        locations: [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }],
+      };
+      consolidatedByIdentity.set(key, consolidatedItem);
+      consolidated.push(consolidatedItem);
+    } else {
+      existing.quantity += item.quantity;
+      const locMatch = existing.locations?.find(l => l.locationId === item.locationId);
+      if (locMatch) {
+        locMatch.quantity += item.quantity;
+      } else {
+        existing.locations?.push({
+          locationId: item.locationId,
+          locationName: item.locationName,
+          quantity: item.quantity,
+          rowNumber: item.rowNumber,
+        });
+      }
+    }
+  }
+
+  return consolidated;
 }
 
 const IMPORT_QUERY_CHUNK = 400;
 
-function importStockData(item: ValidatedImportItem, factoryUnitId: number) {
+export function importStockData(item: ValidatedImportItem, factoryUnitId: number) {
   const base = {
     factoryUnitId,
     sector: item.sector,
@@ -467,9 +524,10 @@ function importStockData(item: ValidatedImportItem, factoryUnitId: number) {
     code: item.code, name: item.name,
   };
   const apoio = item.sector === 'APOIO';
+  const isSolaDist = item.sector === 'DISTRIBUICAO' && item.type === 'SOLA_PROCESSADA';
   return {
     ...base,
-    componentType: (apoio ? 'PECA_CORTADA' : item.sector === 'PRE_FABRICADO' ? 'SOLADO' : item.sector === 'MONTAGEM' ? 'PE_PRONTO' : 'CABEDAL') as ComponentType,
+    componentType: (apoio ? 'PECA_CORTADA' : item.sector === 'PRE_FABRICADO' || isSolaDist ? 'SOLADO' : item.sector === 'MONTAGEM' ? 'PE_PRONTO' : 'CABEDAL') as ComponentType,
     // SKU e código da peça identificam componentes. `code` é único por unidade
     // e deve ficar reservado aos materiais de CORTE (inclusive para E + D).
     code: null,
@@ -543,7 +601,8 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
 
 async function executeBulkImport(tx: any, items: ValidatedImportItem[], context: ImportExecutionContext): Promise<ImportExecutionResult> {
   const { factoryUnitId, operatorId, operatorName } = context;
-  const locations = await tx.location.findMany({ where: { factoryUnitId, id: { in: [...new Set(items.map(item => item.locationId))] } } });
+  const locationIds = [...new Set(items.flatMap(item => (item.locations?.map(l => l.locationId) || [item.locationId])))];
+  const locations = await tx.location.findMany({ where: { factoryUnitId, id: { in: locationIds } } });
   const locationsById = new Map<number, any>(locations.map((location: any) => [location.id, location]));
   const categories = await tx.categoryConfig.findMany({
     where: { factoryUnitId, name: { in: [...new Set(items.filter(item => item.sector === 'CORTE').map(item => item.type))] }, OR: [{ sector: 'CORTE' }, { sector: null }] },
@@ -552,10 +611,15 @@ async function executeBulkImport(tx: any, items: ValidatedImportItem[], context:
   for (const item of items) {
     assertStockSectorAccess(context, item.sector);
     validateQuantity(item.quantity, item.unit, item.sector, true);
-    const location = locationsById.get(item.locationId);
-    if (!location) throw new ImportValidationError('Localização não encontrada nesta unidade.', [{ row: item.rowNumber, column: 'prateleira', value: item.locationName, message: 'A localização foi removida. Atualize a página e valide novamente.' }]);
-    assertStockLocationSector(location, item.sector);
-    assertGeneralStockAccess(context, location);
+    const allocs = item.locations && item.locations.length > 0
+      ? item.locations
+      : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
+    for (const alloc of allocs) {
+      const location = locationsById.get(alloc.locationId);
+      if (!location) throw new ImportValidationError('Localização não encontrada nesta unidade.', [{ row: alloc.rowNumber, column: 'prateleira', value: alloc.locationName, message: 'A localização foi removida. Atualize a página e valide novamente.' }]);
+      assertStockLocationSector(location, item.sector);
+      assertGeneralStockAccess(context, location);
+    }
     const category = item.sector === 'CORTE' ? categoryByName.get(item.type) : null;
     if (category?.unitLocked && normalizeUnit(item.unit) !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
   }
@@ -573,15 +637,20 @@ async function executeBulkImport(tx: any, items: ValidatedImportItem[], context:
     for (const record of created) {
       const item = inputByIdentity.get(importIdentityKey(record));
       if (!item) throw new Error('Não foi possível relacionar um item criado à linha do CSV.');
-      links.push({ stockItemId: record.id, locationId: item.locationId, factoryUnitId, quantity: item.quantity });
-      if (item.quantity > 0) movements.push({
-        factoryUnitId, stockItemId: record.id, sector: record.sector, type: 'ENTRADA', quantity: item.quantity,
-        ...movementSnapshot(record),
-        destinationStockItemId: record.id, destinationSector: record.sector,
-        destinationLocationId: item.locationId, destinationLocationName: item.locationName,
-        origem: 'Saldo Inicial / Implantação', reason: item.observation || 'Importação inicial via planilha CSV',
-        operatorId: operatorId || null, operatorName: operatorName || 'Sistema / Importação',
-      });
+      const allocs = item.locations && item.locations.length > 0
+        ? item.locations
+        : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
+      for (const alloc of allocs) {
+        links.push({ stockItemId: record.id, locationId: alloc.locationId, factoryUnitId, quantity: alloc.quantity });
+        if (alloc.quantity > 0) movements.push({
+          factoryUnitId, stockItemId: record.id, sector: record.sector, type: 'ENTRADA', quantity: alloc.quantity,
+          ...movementSnapshot(record),
+          destinationStockItemId: record.id, destinationSector: record.sector,
+          destinationLocationId: alloc.locationId, destinationLocationName: alloc.locationName,
+          origem: 'Saldo Inicial / Implantação', reason: item.observation || 'Importação inicial via planilha CSV',
+          operatorId: operatorId || null, operatorName: operatorName || 'Sistema / Importação',
+        });
+      }
     }
     await tx.stockItemLocation.createMany({ data: links });
     if (movements.length) await tx.stockMovement.createMany({ data: movements });
@@ -612,11 +681,16 @@ export async function executeImportTransaction(
         const category = await tx.categoryConfig.findFirst({ where: { factoryUnitId, name: item.type, OR: [{ sector: 'CORTE' }, { sector: null }] } });
         if (category?.unitLocked && item.unit !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
       }
-      const location = await tx.location.findFirst({ where: { id: item.locationId, factoryUnitId } });
-      if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
-      assertStockSectorAccess(context, item.sector);
-      assertStockLocationSector(location, item.sector);
-      assertGeneralStockAccess(context, location);
+      const allocs = item.locations && item.locations.length > 0
+        ? item.locations
+        : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
+      for (const alloc of allocs) {
+        const location = await tx.location.findFirst({ where: { id: alloc.locationId, factoryUnitId } });
+        if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
+        assertStockSectorAccess(context, item.sector);
+        assertStockLocationSector(location, item.sector);
+        assertGeneralStockAccess(context, location);
+      }
     }
     let insertedCount = 0;
     let movementsCreatedCount = 0;
@@ -640,45 +714,50 @@ export async function executeImportTransaction(
       });
       insertedCount++;
 
-      await tx.stockItemLocation.upsert({
-        where: {
-          stockItemId_locationId_factoryUnitId: {
-            stockItemId: materialRecord.id,
-            locationId: item.locationId,
-            factoryUnitId,
+      const allocs = item.locations && item.locations.length > 0
+        ? item.locations
+        : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
+      for (const alloc of allocs) {
+        await tx.stockItemLocation.upsert({
+          where: {
+            stockItemId_locationId_factoryUnitId: {
+              stockItemId: materialRecord.id,
+              locationId: alloc.locationId,
+              factoryUnitId,
+            },
           },
-        },
-        update: {
-          quantity: { increment: item.quantity },
-        },
-        create: {
-          stockItemId: materialRecord.id,
-          locationId: item.locationId,
-          factoryUnitId,
-          quantity: item.quantity,
-        },
-      });
-
-      // Se quantidade > 0, registrar movimentação inicial de implantação com snapshots
-      if (item.quantity > 0) {
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
+          update: {
+            quantity: { increment: alloc.quantity },
+          },
+          create: {
             stockItemId: materialRecord.id,
-            sector: 'CORTE',
-            type: 'ENTRADA',
-            quantity: item.quantity,
-            ...movementSnapshot(materialRecord),
-              destinationStockItemId: materialRecord.id, destinationSector: materialRecord.sector,
-            destinationLocationId: item.locationId,
-            destinationLocationName: item.locationName,
-            origem: 'Saldo Inicial / Implantação',
-            reason: item.observation || 'Importação inicial via planilha CSV',
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Sistema / Importação',
+            locationId: alloc.locationId,
+            factoryUnitId,
+            quantity: alloc.quantity,
           },
         });
-        movementsCreatedCount++;
+
+        // Se quantidade > 0, registrar movimentação inicial de implantação com snapshots
+        if (alloc.quantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              factoryUnitId,
+              stockItemId: materialRecord.id,
+              sector: 'CORTE',
+              type: 'ENTRADA',
+              quantity: alloc.quantity,
+              ...movementSnapshot(materialRecord),
+              destinationStockItemId: materialRecord.id, destinationSector: materialRecord.sector,
+              destinationLocationId: alloc.locationId,
+              destinationLocationName: alloc.locationName,
+              origem: 'Saldo Inicial / Implantação',
+              reason: item.observation || 'Importação inicial via planilha CSV',
+              operatorId: operatorId || null,
+              operatorName: operatorName || 'Sistema / Importação',
+            },
+          });
+          movementsCreatedCount++;
+        }
       }
     }
 
@@ -706,7 +785,7 @@ export async function executeImportTransaction(
           break;
         case 'DISTRIBUICAO':
         case 'EXPEDICAO':
-          componentType = 'CABEDAL';
+          componentType = item.type === 'SOLA_PROCESSADA' ? 'SOLADO' : 'CABEDAL';
           sku = item.code;
           productName = item.productName || item.name;
           break;
@@ -747,35 +826,40 @@ export async function executeImportTransaction(
       insertedCount++;
 
       // Amarração com a prateleira física existente
-      await tx.stockItemLocation.create({
-        data: {
-          stockItemId: stockItem.id,
-          locationId: item.locationId,
-          factoryUnitId,
-          quantity: item.quantity,
-        },
-      });
-
-      // Se quantidade > 0, registrar movimentação inicial de implantação
-      if (item.quantity > 0) {
-        await tx.stockMovement.create({
+      const allocs = item.locations && item.locations.length > 0
+        ? item.locations
+        : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
+      for (const alloc of allocs) {
+        await tx.stockItemLocation.create({
           data: {
-            factoryUnitId,
             stockItemId: stockItem.id,
-            sector: item.sector,
-            type: 'ENTRADA',
-            quantity: item.quantity,
-            destinationLocationId: item.locationId,
-            destinationLocationName: item.locationName,
-            ...movementSnapshot(stockItem),
-              destinationStockItemId: stockItem.id, destinationSector: stockItem.sector,
-            origem: 'Saldo Inicial / Implantação',
-            reason: item.observation || 'Importação inicial via planilha CSV',
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Sistema / Importação',
+            locationId: alloc.locationId,
+            factoryUnitId,
+            quantity: alloc.quantity,
           },
         });
-        movementsCreatedCount++;
+
+        // Se quantidade > 0, registrar movimentação inicial de implantação
+        if (alloc.quantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              factoryUnitId,
+              stockItemId: stockItem.id,
+              sector: item.sector,
+              type: 'ENTRADA',
+              quantity: alloc.quantity,
+              destinationLocationId: alloc.locationId,
+              destinationLocationName: alloc.locationName,
+              ...movementSnapshot(stockItem),
+              destinationStockItemId: stockItem.id, destinationSector: stockItem.sector,
+              origem: 'Saldo Inicial / Implantação',
+              reason: item.observation || 'Importação inicial via planilha CSV',
+              operatorId: operatorId || null,
+              operatorName: operatorName || 'Sistema / Importação',
+            },
+          });
+          movementsCreatedCount++;
+        }
       }
     }
 
