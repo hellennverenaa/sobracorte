@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -28,7 +28,7 @@ interface RequisitionItem {
   unit?: string;
   id: string;
   code: string;
-  requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
+  requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
   sku?: string;
   modelName?: string;
   description: string;
@@ -58,10 +58,11 @@ interface SkuSuggestion {
 }
 
 interface StagedRequisitionItem {
-  requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'EXPEDICAO' | 'MONTAGEM';
+  requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
   sku?: string;
   modelName?: string;
   description: string;
+  type?: string;
   sizeGrade?: string;
   color?: string;
   footSide?: 'E' | 'D' | 'PAR' | null;
@@ -102,6 +103,8 @@ const {
 const showCreateModal = ref(false);
 const isSubmitting = ref(false);
 const stagedItems = ref<StagedRequisitionItem[]>([]);
+const reasonInput = ref<HTMLInputElement | null>(null);
+const reasonErrorVisible = ref(false);
 
 // Formulário do item corrente
 const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
@@ -149,14 +152,27 @@ function closeDetailsModal() {
 }
 
 // Verificação de Saldo em Tempo Real (Trava Saldo Zero)
-const checkingAvailability = ref(false);
+type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'ambiguous' | 'error';
+
+interface AvailabilityRequest {
+  requestSector: typeof currentSector.value;
+  sku?: string;
+  modelName?: string;
+  description: string;
+  type?: string;
+  sizeGrade?: string;
+  color?: string;
+  footSide?: 'E' | 'D' | 'PAR' | null;
+}
+
 const availabilityResult = ref<{
-  checked: boolean;
+  status: AvailabilityStatus;
+  identityKey?: string;
   quantity: number;
   locations: string[];
   pairsDetail?: { esq: number; dir: number };
 }>({
-  checked: false,
+  status: 'idle',
   quantity: 0,
   locations: [],
 });
@@ -165,8 +181,18 @@ const availabilityResult = ref<{
 const suggestions = ref<SkuSuggestion[]>([]);
 const showSuggestions = ref(false);
 const availableGrades = ref<string[]>([]);
+const availableFootSides = ref<Array<'E' | 'D' | 'PAR'>>([]);
 let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
 let availabilityDebounce: ReturnType<typeof setTimeout> | null = null;
+let availabilityRequestVersion = 0;
+let autocompleteRequestVersion = 0;
+
+onUnmounted(() => {
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  if (availabilityDebounce) clearTimeout(availabilityDebounce);
+  availabilityRequestVersion++;
+  autocompleteRequestVersion++;
+});
 
 // Modal de Atendimento (Fulfill)
 const showFulfillModal = ref(false);
@@ -198,66 +224,150 @@ const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
 
-// Consulta de Disponibilidade em Tempo Real com Trava de Saldo Zero
-async function checkCurrentItemAvailability() {
-  let desc = formItem.value.description?.trim();
-  const sku = formItem.value.sku?.trim();
+// Consulta de disponibilidade em tempo real. A resposta só vale para a identidade
+// exata que iniciou a requisição; qualquer edição invalida o resultado anterior.
+function buildAvailabilityRequest(): AvailabilityRequest {
+  const sku = formItem.value.sku?.trim().toUpperCase();
+  const modelName = formItem.value.modelName?.trim().toUpperCase();
+  const type = formItem.value.type?.trim().toUpperCase();
+  let description = formItem.value.description?.trim();
 
   if (currentSector.value === 'MONTAGEM') {
-    desc = 'CALÇADO COMPLETO';
+    description = 'CALÇADO COMPLETO';
   } else if (currentSector.value === 'PRE_FABRICADO') {
-    desc = (formItem.value.type || 'SOLA') + (formItem.value.modelName ? ` - ${formItem.value.modelName}` : '');
+    const solaType = type || 'SOLA';
+    description = `${solaType} - ${modelName || sku || 'SOLA'}`;
   } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
-    const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
-    desc = `${insumoType}${formItem.value.modelName ? ` - ${formItem.value.modelName}` : ''}`;
+    const insumoType = type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
+    description = `${insumoType} - ${modelName || sku || 'INSUMO'}`;
   }
 
-  if (!desc && !sku) {
-    availabilityResult.value = { checked: false, quantity: 0, locations: [] };
-    return;
-  }
+  return {
+    requestSector: currentSector.value,
+    sku: sku || undefined,
+    modelName: modelName || undefined,
+    description: (description || sku || 'CALÇADO COMPLETO').toUpperCase(),
+    type: type || undefined,
+    sizeGrade: formItem.value.sizeGrade?.trim().toUpperCase() || undefined,
+    color: formItem.value.color?.trim().toUpperCase() || undefined,
+    footSide: formItem.value.footSide || undefined,
+  };
+}
 
-  checkingAvailability.value = true;
+function availabilityIdentityKey(request: AvailabilityRequest) {
+  return JSON.stringify([
+    request.requestSector,
+    request.sku || '',
+    request.modelName || '',
+    request.description,
+    request.type || '',
+    request.sizeGrade || '',
+    request.color || '',
+    request.footSide || '',
+  ]);
+}
+
+function hasEnoughIdentityToCheck(request: AvailabilityRequest) {
+  if (request.requestSector === 'CORTE') return Boolean(request.sku || formItem.value.description.trim());
+  if (request.requestSector === 'APOIO') return Boolean(request.sku && formItem.value.description.trim());
+  return Boolean(request.sku);
+}
+
+async function checkCurrentItemAvailability(request: AvailabilityRequest, identityKey: string, requestVersion: number) {
   try {
-    const res = await api.post('/requisitions/check-availability', {
-      requestSector: currentSector.value,
-      sku: sku ? sku.toUpperCase() : undefined,
-      modelName: formItem.value.modelName?.trim().toUpperCase() || undefined,
-      description: desc ? desc.toUpperCase() : (sku ? sku.toUpperCase() : 'CALÇADO COMPLETO'),
-      sizeGrade: formItem.value.sizeGrade?.trim().toUpperCase() || undefined,
-      color: formItem.value.color?.trim().toUpperCase() || undefined,
-      footSide: formItem.value.footSide || undefined,
-    });
+    const res = await api.post('/requisitions/check-availability', request);
+    if (requestVersion !== availabilityRequestVersion || identityKey !== availabilityIdentityKey(buildAvailabilityRequest())) return;
 
     if (res.data?.unit) formItem.value.unit = res.data.unit;
+    const quantity = Number(res.data?.quantity) || 0;
     availabilityResult.value = {
-      checked: true,
-      quantity: res.data?.quantity || 0,
+      status: res.data?.ambiguous ? 'ambiguous' : quantity > 0 ? 'available' : 'unavailable',
+      identityKey,
+      quantity,
       locations: res.data?.locations || [],
       pairsDetail: res.data?.pairsDetail,
     };
-  } catch (err) {
-    availabilityResult.value = { checked: true, quantity: 0, locations: [] };
-  } finally {
-    checkingAvailability.value = false;
+  } catch {
+    if (requestVersion !== availabilityRequestVersion || identityKey !== availabilityIdentityKey(buildAvailabilityRequest())) return;
+    availabilityResult.value = { status: 'error', identityKey, quantity: 0, locations: [] };
   }
 }
 
-function triggerAvailabilityCheck() {
+function scheduleAvailabilityCheck() {
   if (availabilityDebounce) clearTimeout(availabilityDebounce);
-  availabilityDebounce = setTimeout(checkCurrentItemAvailability, 300);
+  availabilityDebounce = null;
+  const requestVersion = ++availabilityRequestVersion;
+  const request = buildAvailabilityRequest();
+  reasonErrorVisible.value = false;
+
+  if (!hasEnoughIdentityToCheck(request)) {
+    availabilityResult.value = { status: 'idle', quantity: 0, locations: [] };
+    return;
+  }
+
+  const identityKey = availabilityIdentityKey(request);
+  availabilityResult.value = { status: 'checking', identityKey, quantity: 0, locations: [] };
+  availabilityDebounce = setTimeout(() => {
+    void checkCurrentItemAvailability(request, identityKey, requestVersion);
+  }, 300);
 }
+
+watch(
+  () => [
+    currentSector.value,
+    formItem.value.sku,
+    formItem.value.modelName,
+    formItem.value.description,
+    formItem.value.type,
+    formItem.value.sizeGrade,
+    formItem.value.color,
+    formItem.value.footSide,
+  ],
+  scheduleAvailabilityCheck,
+  { flush: 'sync' },
+);
+
+const currentAvailabilityMatches = computed(() =>
+  availabilityResult.value.status === 'available'
+  && availabilityResult.value.identityKey === availabilityIdentityKey(buildAvailabilityRequest())
+  && availabilityResult.value.quantity > 0,
+);
+
+const currentQuantityIsValid = computed(() => {
+  const quantity = formItem.value.quantityRequested;
+  return Number.isFinite(quantity)
+    && /^\d+(?:\.\d{1,3})?$/.test(String(quantity))
+    && (!requestIntegerOnly.value || Number.isInteger(quantity))
+    && quantity > 0;
+});
+
+const canAddCurrentItem = computed(() =>
+  currentAvailabilityMatches.value
+  && currentQuantityIsValid.value
+  && formItem.value.quantityRequested <= availabilityResult.value.quantity,
+);
+
+const canSubmitRequisition = computed(() =>
+  !isSubmitting.value && (stagedItems.value.length > 0 || canAddCurrentItem.value),
+);
 
 // Autocomplete ao digitar SKU / Código
 function onSkuInput() {
   if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  const requestVersion = ++autocompleteRequestVersion;
+  formItem.value.sizeGrade = '';
+  formItem.value.color = '';
+  formItem.value.footSide = null;
+  availableGrades.value = [];
+  availableFootSides.value = [];
   const q = formItem.value.sku.trim();
   if (q.length < 2) {
     suggestions.value = [];
     showSuggestions.value = false;
-    triggerAvailabilityCheck();
     return;
   }
+  suggestions.value = [];
+  showSuggestions.value = false;
 
   autocompleteTimer = setTimeout(async () => {
     try {
@@ -267,35 +377,43 @@ function onSkuInput() {
           q,
         },
       });
+      if (requestVersion !== autocompleteRequestVersion) return;
       suggestions.value = res.data || [];
       showSuggestions.value = suggestions.value.length > 0;
     } catch {
+      if (requestVersion !== autocompleteRequestVersion) return;
       suggestions.value = [];
       showSuggestions.value = false;
-    } finally {
-      triggerAvailabilityCheck();
     }
   }, 250);
 }
 
 function selectSuggestion(sug: SkuSuggestion) {
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  autocompleteRequestVersion++;
   formItem.value.sku = sug.sku;
   formItem.value.modelName = sug.modelName;
+  formItem.value.color = sug.color || '';
+  formItem.value.sizeGrade = '';
+  formItem.value.footSide = null;
   if (currentSector.value === 'APOIO' || currentSector.value === 'CORTE') {
     formItem.value.description = sug.description;
   }
-  if (sug.color) {
-    formItem.value.color = sug.color;
-  }
   availableGrades.value = sug.sizeGrades || [];
+  const suggestedSides = new Set(sug.footSides || []);
+  availableFootSides.value = ['E', 'D'].filter(side => suggestedSides.has(side)) as Array<'E' | 'D'>;
+  if (suggestedSides.has('E') && suggestedSides.has('D')) availableFootSides.value.push('PAR');
+  if (availableFootSides.value.length === 1) formItem.value.footSide = availableFootSides.value[0];
   if (availableGrades.value.length === 1) {
     formItem.value.sizeGrade = availableGrades.value[0];
   }
   showSuggestions.value = false;
-  checkCurrentItemAvailability();
+  scheduleAvailabilityCheck();
 }
 
 function onSectorChange() {
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  autocompleteRequestVersion++;
   formItem.value = {
     sku: '',
     modelName: '',
@@ -309,13 +427,14 @@ function onSectorChange() {
     reason: formItem.value.reason, // preserva o motivo comum se digitado
   };
   availableGrades.value = [];
+  availableFootSides.value = [];
   suggestions.value = [];
   showSuggestions.value = false;
-  availabilityResult.value = { checked: false, quantity: 0, locations: [] };
 }
 
 function openCreate() {
   stagedItems.value = [];
+  reasonErrorVisible.value = false;
   currentSector.value = 'MONTAGEM';
   onSectorChange();
   createInitial.value = JSON.stringify(formItem.value);
@@ -371,13 +490,22 @@ function addCurrentItem() {
   }
 
   if (!formItem.value.reason.trim()) {
-    showToast('O motivo da avaria/defeito é obrigatório.', 'error');
+    reasonErrorVisible.value = true;
+    reasonInput.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    reasonInput.value?.focus({ preventScroll: true });
     return;
   }
 
-  // TRAVA DE SALDO ZERO
-  if (availabilityResult.value.checked && availabilityResult.value.quantity <= 0) {
-    showToast('MATERIAL INDISPONÍVEL EM SOBRAS DASS. Favor acionar a programação regular de corte/compra.', 'error');
+  if (!currentAvailabilityMatches.value) {
+    if (availabilityResult.value.status === 'checking') {
+      showToast('Aguarde a confirmação do saldo para o item selecionado.', 'error');
+    } else if (availabilityResult.value.status === 'ambiguous') {
+      showToast('Há mais de um material compatível. Especifique a identificação antes de continuar.', 'error');
+    } else if (availabilityResult.value.status === 'error') {
+      showToast('Não foi possível consultar o saldo. Tente novamente antes de continuar.', 'error');
+    } else {
+      showToast('MATERIAL INDISPONÍVEL EM SOBRAS DASS. A requisição exige saldo positivo no estoque de sobras.', 'error');
+    }
     return;
   }
 
@@ -391,6 +519,7 @@ function addCurrentItem() {
     sku: formItem.value.sku.trim().toUpperCase() || undefined,
     modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
     description: (finalDesc || 'CALÇADO COMPLETO').toUpperCase(),
+    type: formItem.value.type.trim().toUpperCase() || undefined,
     sizeGrade: formItem.value.sizeGrade.trim().toUpperCase() || undefined,
     color: formItem.value.color?.trim().toUpperCase() || undefined,
     footSide: formItem.value.footSide || null,
@@ -415,10 +544,12 @@ function addCurrentItem() {
     quantityRequested: 1,
     reason: lastReason,
   };
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
+  autocompleteRequestVersion++;
   availableGrades.value = [];
+  availableFootSides.value = [];
   suggestions.value = [];
   showSuggestions.value = false;
-  availabilityResult.value = { checked: false, quantity: 0, locations: [] };
   showToast('Item adicionado à lista da requisição.', 'success');
 }
 
@@ -430,12 +561,19 @@ function removeStagedItem(index: number) {
 async function submitRequisition() {
   if (stagedItems.value.length === 0) {
     // Se o operador não clicou em "Adicionar", tenta adicionar o item atual se válido
-    if (availabilityResult.value.checked && availabilityResult.value.quantity > 0) {
-      addCurrentItem();
-    } else {
-      showToast('Adicione pelo menos 1 item com saldo disponível à requisição.', 'error');
+    if (!canAddCurrentItem.value) {
+      if (availabilityResult.value.status === 'checking') {
+        showToast('Aguarde a confirmação do saldo para o item selecionado.', 'error');
+      } else if (availabilityResult.value.status === 'error') {
+        showToast('Não foi possível consultar o saldo. Tente novamente antes de continuar.', 'error');
+      } else if (availabilityResult.value.status === 'ambiguous') {
+        showToast('Há mais de um material compatível. Especifique a identificação antes de continuar.', 'error');
+      } else {
+        showToast('Adicione um item válido com saldo positivo no estoque de sobras.', 'error');
+      }
       return;
     }
+    addCurrentItem();
   }
 
   if (stagedItems.value.length === 0) return;
@@ -448,6 +586,7 @@ async function submitRequisition() {
         sku: item.sku,
         modelName: item.modelName,
         description: item.description,
+        type: item.type,
         sizeGrade: item.sizeGrade,
         color: item.color,
         footSide: item.footSide,
@@ -954,7 +1093,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Descrição / Tipo *</label>
                   <input
                     v-model="formItem.description"
-                    @input="triggerAvailabilityCheck"
                     type="text"
                     placeholder="Ex: Couro Bovino Preto Premium..."
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1031,7 +1169,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Molde Solicitado *</label>
                   <input
                     v-model="formItem.description"
-                    @input="triggerAvailabilityCheck"
                     type="text"
                     placeholder="Ex: Reforço Traseiro, Gáspea Cortada..."
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1057,7 +1194,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Sola *</label>
                   <select
                     v-model="formItem.type"
-                    @change="triggerAvailabilityCheck"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
                   >
                     <option value="EVA">EVA</option>
@@ -1105,7 +1241,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
                   <input
                     v-model="formItem.sizeGrade"
-                    @input="triggerAvailabilityCheck"
                     type="text"
                     placeholder="Ex: 39/40"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1117,7 +1252,7 @@ onMounted(() => {
                   <div class="flex gap-1">
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
                       :class="formItem.footSide === 'E'
                         ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
@@ -1127,7 +1262,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
                       :class="formItem.footSide === 'D'
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
@@ -1137,7 +1272,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
                       :class="formItem.footSide === 'PAR'
                         ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
@@ -1168,7 +1303,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Insumo *</label>
                   <select
                     v-model="formItem.type"
-                    @change="triggerAvailabilityCheck"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
                   >
                     <option value="CABEDAL">Cabedal</option>
@@ -1224,7 +1358,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
                   <input
                     v-model="formItem.sizeGrade"
-                    @input="triggerAvailabilityCheck"
                     type="text"
                     placeholder="Ex: 39/40"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1235,7 +1368,7 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Cor / Combinação</label>
                   <input
                     v-model="formItem.color"
-                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(); triggerAvailabilityCheck()"
+                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
                     type="text"
                     placeholder="Ex: BRANCO/GOMA"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1247,7 +1380,7 @@ onMounted(() => {
                   <div class="flex gap-1">
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'E'
                         ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
@@ -1257,7 +1390,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'D'
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
@@ -1267,7 +1400,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'PAR'
                         ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
@@ -1343,7 +1476,7 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Combinação / Cor</label>
                   <input
                     v-model="formItem.color"
-                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase(); triggerAvailabilityCheck()"
+                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
                     type="text"
                     placeholder="Ex: BRANCO/PRETO"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1354,7 +1487,6 @@ onMounted(() => {
                   <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
                   <input
                     v-model="formItem.sizeGrade"
-                    @input="triggerAvailabilityCheck"
                     type="text"
                     placeholder="Ex: 39/40"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1366,7 +1498,7 @@ onMounted(() => {
                   <div class="flex gap-1">
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'E'
                         ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
@@ -1376,7 +1508,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'D'
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
@@ -1386,7 +1518,7 @@ onMounted(() => {
                     </button>
                     <button
                       type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'; triggerAvailabilityCheck()"
+                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
                       class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
                       :class="formItem.footSide === 'PAR'
                         ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
@@ -1414,30 +1546,98 @@ onMounted(() => {
             <div>
               <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
               <input
+                ref="reasonInput"
                 v-model="formItem.reason"
                 type="text"
                 placeholder="Ex: Quebra de agulha na costura, rasgo no corte, mancha de cola..."
-                class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                :aria-invalid="reasonErrorVisible && !formItem.reason.trim()"
+                :aria-describedby="reasonErrorVisible && !formItem.reason.trim() ? 'requisition-reason-error' : undefined"
+                class="w-full border p-2.5 rounded-xl font-medium uppercase outline-none bg-white"
+                :class="reasonErrorVisible && !formItem.reason.trim()
+                  ? 'border-rose-500 focus:border-rose-600'
+                  : 'border-slate-200 focus:border-indigo-500'"
               />
+              <p
+                v-if="reasonErrorVisible && !formItem.reason.trim()"
+                id="requisition-reason-error"
+                role="alert"
+                class="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-rose-700"
+              >
+                <AlertCircle class="w-3.5 h-3.5 shrink-0" />
+                Informe o motivo da avaria ou do defeito para incluir este item.
+              </p>
             </div>
 
             <!-- INDICADOR DE SALDO EM TEMPO REAL E AVISO INDUSTRIAL -->
-            <div class="pt-2">
-              <!-- Sem Saldo / Trava Saldo Zero -->
+            <div class="pt-2" aria-live="polite">
               <div
-                v-if="availabilityResult.checked && availabilityResult.quantity === 0"
+                v-if="availabilityResult.status === 'checking'"
+                class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2.5 text-blue-800"
+              >
+                <RefreshCw class="w-4 h-4 animate-spin shrink-0" />
+                <p class="font-bold text-xs">Verificando o saldo do item selecionado...</p>
+              </div>
+
+              <div
+                v-else-if="availabilityResult.status === 'ambiguous'"
+                class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-900"
+              >
+                <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div class="flex-1">
+                  <p class="font-black tracking-tight text-xs uppercase">Identificação ambígua</p>
+                  <p class="text-[11px] text-amber-800 mt-0.5">Mais de um material corresponde aos dados informados. Refine grade, cor ou lado; se não for possível diferenciá-los, solicite a regularização dos cadastros duplicados.</p>
+                  <div v-if="availableGrades.length > 1 && currentSector !== 'CORTE' && currentSector !== 'APOIO'" class="flex flex-wrap gap-1.5 mt-2">
+                    <span class="text-[10px] font-bold mr-1 self-center">Grade:</span>
+                    <button
+                      v-for="grade in availableGrades"
+                      :key="grade"
+                      type="button"
+                      @click="formItem.sizeGrade = grade"
+                      class="px-2 py-1 rounded-lg border text-[10px] font-bold"
+                      :class="formItem.sizeGrade === grade ? 'bg-amber-600 text-white border-amber-700' : 'bg-white text-amber-900 border-amber-300'"
+                    >{{ grade }}</button>
+                  </div>
+                  <div v-if="availableFootSides.length > 1" class="flex flex-wrap gap-1.5 mt-2">
+                    <span class="text-[10px] font-bold mr-1 self-center">Lado:</span>
+                    <button
+                      v-for="side in availableFootSides"
+                      :key="side"
+                      type="button"
+                      @click="formItem.footSide = side"
+                      class="px-2 py-1 rounded-lg border text-[10px] font-bold"
+                      :class="formItem.footSide === side ? 'bg-amber-600 text-white border-amber-700' : 'bg-white text-amber-900 border-amber-300'"
+                    >{{ side === 'E' ? 'Pé esquerdo' : side === 'D' ? 'Pé direito' : 'Par completo' }}</button>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-else-if="availabilityResult.status === 'error'"
+                class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-800"
+              >
+                <AlertCircle class="w-5 h-5 text-rose-600 shrink-0" />
+                <div class="flex-1">
+                  <p class="font-bold text-xs">Não foi possível consultar o saldo.</p>
+                  <p class="text-[11px] mt-0.5">O envio fica bloqueado até a confirmação do estoque de sobras.</p>
+                </div>
+                <button type="button" @click="scheduleAvailabilityCheck" class="px-2.5 py-1.5 rounded-lg border border-rose-300 bg-white text-[10px] font-bold hover:bg-rose-100">
+                  Tentar novamente
+                </button>
+              </div>
+
+              <div
+                v-else-if="availabilityResult.status === 'unavailable'"
                 class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800"
               >
                 <ShieldAlert class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <p class="font-black tracking-tight text-xs uppercase">MATERIAL INDISPONÍVEL EM SOBRAS DASS</p>
-                  <p class="text-[11px] text-rose-700 mt-0.5">Favor acionar a programação regular de corte/compra. Requisições sem saldo físico em sobras não podem ser geradas.</p>
+                  <p class="text-[11px] text-rose-700 mt-0.5">A requisição exige saldo positivo no estoque de sobras. Favor acionar a programação regular de corte/compra.</p>
                 </div>
               </div>
 
-              <!-- Com Saldo -->
               <div
-                v-else-if="availabilityResult.checked && availabilityResult.quantity > 0"
+                v-else-if="availabilityResult.status === 'available'"
                 class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-800"
               >
                 <CheckCircle2 class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -1454,6 +1654,9 @@ onMounted(() => {
                     <MapPin class="w-3.5 h-3.5 shrink-0" />
                     <span>Prateleiras: {{ availabilityResult.locations.join(', ') }}</span>
                   </p>
+                  <p v-if="formItem.quantityRequested > availabilityResult.quantity" class="text-[11px] text-rose-700 font-bold mt-1">
+                    A quantidade solicitada excede o saldo disponível.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1463,9 +1666,9 @@ onMounted(() => {
               <button
                 type="button"
                 @click="addCurrentItem"
-                :disabled="availabilityResult.checked && availabilityResult.quantity === 0"
+                :disabled="!canAddCurrentItem"
                 class="px-4 py-2 rounded-xl font-bold flex items-center gap-1.5 transition-all text-xs"
-                :class="availabilityResult.checked && availabilityResult.quantity === 0
+                :class="!canAddCurrentItem
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   : 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm'"
               >
@@ -1537,7 +1740,7 @@ onMounted(() => {
         </div>
 
         <!-- Rodapé do Modal -->
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center gap-3 shrink-0">
           <button
             type="button"
             @click="closeCreateModal"
@@ -1546,15 +1749,23 @@ onMounted(() => {
             Cancelar
           </button>
 
-          <button
-            type="button"
-            @click="submitRequisition"
-            :disabled="isSubmitting || (stagedItems.length === 0 && (!availabilityResult.checked || availabilityResult.quantity === 0))"
-            class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 text-xs"
-          >
-            <span v-if="isSubmitting">Emitindo Requisição...</span>
-            <span v-else>Confirmar e Enviar Requisição ({{ stagedItems.length }} itens)</span>
-          </button>
+          <div class="flex items-center justify-end gap-3">
+            <p
+              v-if="stagedItems.length === 0 && canAddCurrentItem && !formItem.reason.trim()"
+              class="max-w-52 text-right text-[10px] leading-snug text-rose-700"
+            >
+              O motivo da avaria/defeito é obrigatório. Clique para destacar o campo.
+            </p>
+            <button
+              type="button"
+              @click="submitRequisition"
+              :disabled="!canSubmitRequisition"
+              class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 text-xs"
+            >
+              <span v-if="isSubmitting">Emitindo Requisição...</span>
+              <span v-else>Confirmar e Enviar Requisição ({{ stagedItems.length }} itens)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -15,6 +15,22 @@ import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
 import { debitStockItem } from './stockDebit';
 import { assertCompatiblePair, findRequisitionStock } from './requisitionStock';
 
+function persistedRequisitionDescription(item: RequisitionItemInputDTO) {
+  const sector = normalizeStockSector(item.requestSector);
+  const type = item.type?.trim().toUpperCase();
+  const prefix = sector === 'PRE_FABRICADO'
+    ? type
+    : sector === 'DISTRIBUICAO' && type
+      ? (type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : type)
+      : undefined;
+
+  if (!prefix) return item.description;
+  const description = item.description.trim().toUpperCase();
+  if (description === prefix || description.startsWith(`${prefix} -`)) return description;
+  const detail = item.modelName || item.sku || description;
+  return `${prefix} - ${detail.trim().toUpperCase()}`;
+}
+
 export class RequisitionService {
   /**
    * Contagem de requisições pendentes para notificações e sininho
@@ -57,7 +73,7 @@ export class RequisitionService {
   async checkStockAvailability(
     req: {
       requestSector: SectorType; sku?: string | null; modelName?: string | null;
-      description: string; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
+      description: string; type?: string | null; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
     },
     factoryUnitId: number,
     client: StockTransactionClient = prisma,
@@ -108,6 +124,7 @@ export class RequisitionService {
             sku: item.sku || null,
             modelName: item.modelName || null,
             description: item.description,
+            type: item.type || null,
             sizeGrade: item.sizeGrade || null,
             color: item.color || null,
             footSide: item.footSide || null,
@@ -138,7 +155,7 @@ export class RequisitionService {
             requestSector: sec as SectorType,
             sku: item.sku || null,
             modelName: item.modelName || null,
-            description: item.description,
+            description: persistedRequisitionDescription(item),
             sizeGrade: item.sizeGrade || null,
             color: item.color || null,
             footSide: item.footSide || null,

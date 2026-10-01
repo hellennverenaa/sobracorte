@@ -8,6 +8,7 @@ type RequestIdentity = {
   sku?: string | null;
   modelName?: string | null;
   description: string;
+  type?: string | null;
   color?: string | null;
   sizeGrade?: string | null;
   footSide?: string | null;
@@ -22,6 +23,17 @@ export async function findRequisitionStock(tx: StockTransactionClient, factoryUn
   exact(sector === 'CORTE' ? 'code' : sector === 'APOIO' ? 'pieceCode' : 'sku', req.sku);
   if (sector !== 'CORTE') exact('productName', req.modelName);
   if (sector === 'CORTE' || sector === 'APOIO') exact(sector === 'CORTE' ? 'name' : 'description', req.description);
+  const description = normalizeStockText(req.description);
+  const inferredType = req.type || (
+    sector === 'PRE_FABRICADO'
+      ? description.match(/^(.+?)\s+-\s+/)?.[1]
+      : sector === 'DISTRIBUICAO' && description.startsWith('SOLA PROCESSADA')
+        ? 'SOLA_PROCESSADA'
+        : sector === 'DISTRIBUICAO' && description.startsWith('CABEDAL')
+          ? 'CABEDAL'
+          : undefined
+  );
+  exact('type', inferredType);
   exact('sizeGrade', req.sizeGrade);
   const footSide = side || (sector === 'APOIO' || sector === 'CORTE' ? null : req.footSide);
   if (footSide) AND.push({ footSide: footSide as FootSide });
