@@ -505,6 +505,46 @@
               <p>{{ importPreview.saldosZero }} com saldo zero · {{ importPreview.localizacoesPadrao }} usando localização padrão</p>
               <p>Localizações: {{ importPreview.prateleiras.slice(0, 5).join(', ') }}{{ importPreview.prateleiras.length > 5 ? '…' : '' }}</p>
               <p>Codificação detectada: {{ importPreview.codificacao }}. Itens existentes não terão seus saldos alterados.</p>
+              <p v-if="importPreview.itensLimitados" class="pt-1 text-xs text-blue-800">
+                Abaixo estão os primeiros {{ importPreview.itens.length }} de {{ importPreview.totalItens }} itens validados.
+              </p>
+              <div v-if="importPreview.itens?.length" class="mt-3 max-h-96 overflow-auto rounded-lg border border-blue-200 bg-white">
+                <table class="min-w-full text-left text-xs">
+                  <thead class="sticky top-0 bg-blue-100 text-blue-950">
+                    <tr>
+                      <th class="px-3 py-2">Linha</th>
+                      <th class="px-3 py-2">Setor</th>
+                      <th class="px-3 py-2">SKU / código</th>
+                      <th class="px-3 py-2">Modelo / peça</th>
+                      <th class="px-3 py-2">Tipo</th>
+                      <th class="px-3 py-2">Cor / combinação</th>
+                      <th class="px-3 py-2">Grade / lado</th>
+                      <th class="px-3 py-2">Saldo / unidade</th>
+                      <th class="px-3 py-2">Localização</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-blue-50 text-slate-700">
+                    <tr v-for="item in importPreview.itens" :key="`${item.linha}-${item.setor}-${item.sku}-${item.grade || ''}-${item.lado || ''}`">
+                      <td class="px-3 py-2 whitespace-nowrap">{{ item.linha }}</td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ formatSectorName(item.setor, item.setor) }}</td>
+                      <td class="px-3 py-2 font-mono whitespace-nowrap">{{ item.sku }}</td>
+                      <td class="px-3 py-2 min-w-40">
+                        <span class="font-semibold">{{ item.modelo }}</span>
+                        <span v-if="item.peca && item.peca !== item.modelo" class="block text-slate-500">{{ item.peca }}</span>
+                      </td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ item.tipo || '—' }}</td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ item.combinacao || '—' }}</td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ [item.grade, item.lado].filter(Boolean).join(' / ') || '—' }}</td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ item.quantidade }} {{ item.unidade }}</td>
+                      <td class="px-3 py-2 min-w-36">
+                        <span v-for="(local, index) in item.localizacoes" :key="`${local.nome}-${index}`" class="block whitespace-nowrap">
+                          {{ local.nome }} <span class="text-slate-500">({{ local.quantidade }})</span>
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <!-- Validação antes da confirmação -->
@@ -1180,6 +1220,12 @@ const templateSector = computed({
   set: value => { settingsPersisted.filters.value.templateSector = value || 'CORTE' },
 })
 const importSector = ref(authStore.user?.assignedSector || 'CORTE')
+const preFabricadoCategoryNames = computed(() => {
+  const names = categories.value
+    .filter(category => category.sector === null || category.sector === 'PRE_FABRICADO')
+    .map(category => category.name)
+  return names.length ? names.join(', ') : 'nenhuma categoria cadastrada'
+})
 
 // --- PADRÃO EXIGIDO DE CSV DINÂMICO & REATIVO POR SETOR ---
 const sectorCsvPattern = computed(() => {
@@ -1213,34 +1259,58 @@ const sectorCsvPattern = computed(() => {
         { name: 'sku', req: true, desc: 'Código / SKU ou Molde da peça. Ex: MOL-001' },
         { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: true, desc: 'Nome / Descrição da peça avulsa. Ex: GASPEA LATERAL' },
+        { name: 'material_cor', req: false, desc: 'Material ou combinação da peça (aceita também combinacao ou cor). Se vazio, será usado PADRAO.' },
+        { name: 'grade', req: false, desc: 'Grade/numeração quando aplicável. Ex: 40' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box no apoio. Ex: AP-01' },
       ],
-      headerExample: 'sku;modelo;peca;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;material_cor;grade;quantidade;prateleira',
       examples: [
-        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;50;AP-01',
-        'MOL-002;AIR MAX SC;TALONEIRA TRASEIRA;30;AP-02',
-        'MOL-003;VOMERO 17;LINGUETA SUPERIOR;40;AP-03',
+        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;SINTETICO PRETO;40;50;AP-01',
+        'MOL-002;AIR MAX SC;TALONEIRA TRASEIRA;COURO BRANCO;39;30;AP-02',
+        'MOL-003;VOMERO 17;LINGUETA SUPERIOR;MALHA CINZA;41;40;AP-03',
       ],
     }
   }
 
-  if (sec === 'PRE_FABRICADO' || sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO' || sec === 'MONTAGEM') {
-    const secLabel = sec === 'PRE_FABRICADO' ? 'PRÉ-FABRICADO (Solas)' : (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'DISTRIBUIÇÃO' : 'MONTAGEM (Pés Órfãos)'
-    const pecaEx = sec === 'PRE_FABRICADO' ? 'SOLA PEGASUS' : (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'CABEDAL AIR MAX' : 'PE MONTADO CORTEZ'
+  if (sec === 'PRE_FABRICADO') {
+    return {
+      title: 'Padrão Exigido para o Arquivo CSV — PRÉ-FABRICADO (Solas)',
+      columns: [
+        { name: 'sku', req: true, desc: 'SKU ou código do produto. Ex: SKU-SOLA-001' },
+        { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: RACER SPEEDZONE' },
+        { name: 'peca', req: true, desc: 'Descrição do solado. Ex: SOLA RACER SPEEDZONE' },
+        { name: 'tipo', req: true, desc: `Categoria configurada para Pré-Fabricado (aceita também categoria). Valores disponíveis: ${preFabricadoCategoryNames.value}.` },
+        { name: 'combinacao', req: false, desc: 'Cor ou combinação do solado (também aceita cor ou material_cor). Ex: PRETO' },
+        { name: 'grade', req: true, desc: 'Grade / Numeração do solado. Ex: 39/40, 41' },
+        { name: 'lado', req: false, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR.' },
+        { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
+        { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01' },
+      ],
+      headerExample: 'sku;modelo;peca;tipo;combinacao;grade;lado;quantidade;prateleira',
+      examples: [
+        'SKU-SOLA-RACER;RACER SPEEDZONE;SOLA RACER SPEEDZONE;EVA;PRETO;41;PAR;20;PR-01',
+        'SKU-SOLA-AIRMAX;AIR MAX SC;SOLA AIR MAX;BORRACHA;BRANCO;40;E;15;PR-02',
+      ],
+    }
+  }
+
+  if (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO' || sec === 'MONTAGEM') {
+    const secLabel = (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'DISTRIBUIÇÃO' : 'MONTAGEM (Pés Órfãos)'
+    const pecaEx = (sec === 'DISTRIBUICAO' || sec === 'EXPEDICAO') ? 'CABEDAL AIR MAX' : 'PE MONTADO CORTEZ'
     return {
       title: `Padrão Exigido para o Arquivo CSV — ${secLabel}`,
       columns: [
         { name: 'sku', req: true, desc: 'SKU ou código do produto (aceita sku ou codigo). Ex: SKU-RACER-SPD-BLK' },
         { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: false, desc: `Componente do calçado. Ex: ${pecaEx}` },
-        { name: 'cor', req: false, desc: 'Cor ou Combinação do produto (aceita cor ou combinacao). Ex: PRETO, BRANCO' },
+        { name: 'combinacao', req: false, desc: 'Cor ou combinação do produto (o importador também aceita cor ou material_cor). Ex: PRETO, BRANCO' },
         { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41, 7,5' },
         { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado e consolidado automaticamente com pés avulsos e locais)' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, ESTANTE 1 - NIVEL 3' },
       ],
-      headerExample: 'sku;modelo;peca;cor;grade;lado;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira',
       examples: [
         `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};PRETO;41;PAR;20;PR-01`,
         `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};BRANCO;40;E;15;MO-02`,

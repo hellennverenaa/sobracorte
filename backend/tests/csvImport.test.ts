@@ -7,7 +7,9 @@ import {
   normalizeFootSide,
   parseQuantity,
   ImportValidationError,
-  AvailableLocation,
+  importStockData,
+  type AvailableLocation,
+  type AvailableImportCategory,
 } from '../src/import/materialImport';
 
 const mockLocations: AvailableLocation[] = [
@@ -20,6 +22,11 @@ const mockLocations: AvailableLocation[] = [
   { id: 7, name: 'MO-01', sector: 'MONTAGEM' },
 ];
 
+const mockCategories: AvailableImportCategory[] = [
+  { name: 'EVA', sector: 'PRE_FABRICADO' },
+  { name: 'BORRACHA', sector: 'PRE_FABRICADO' },
+];
+
 test('CSV de Apoio preserva modelo e descrição da peça separadamente, independentemente da ordem das colunas', () => {
   const parsed = parseCsvRFC4180('codigo;modelo;descricao;material_cor;grade;quantidade;prateleira\n121212;RACER SPEEDZONE;LINGUETA;SINTETICO;40;100;AP-01');
   const [item] = validateImportBatch(parsed.headers, parsed.rows, 'APOIO', mockLocations);
@@ -27,6 +34,16 @@ test('CSV de Apoio preserva modelo e descrição da peça separadamente, indepen
   assert.equal(item.productName, 'RACER SPEEDZONE');
   assert.equal(item.color, 'SINTETICO');
   assert.equal(item.sizeGrade, '40');
+  assert.equal((importStockData(item, 1) as any).materialColor, 'SINTETICO');
+});
+
+test('CSV de Distribuição aceita a coluna combinacao e a grava como cor do item', () => {
+  const parsed = parseCsvRFC4180('sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira\nCAB-001;RACER SPEEDZONE;CABEDAL;PRETO/BRANCO;40;E;12;DIS-01');
+  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', mockLocations);
+  const stockData = importStockData(item, 1);
+
+  assert.equal(item.color, 'PRETO/BRANCO');
+  assert.equal((stockData as any).color, 'PRETO/BRANCO');
 });
 
 test('detectDelimiter detecta corretamente delimitadores ponto e vírgula, vírgula e tab', () => {
@@ -142,11 +159,13 @@ test('validateImportBatch valida prateleiras em todos os setores ativos', () => 
   assert.equal(vApoio[0].locationId, 4);
 
   // Teste Pré-Fabricado
-  const csvPreFab = 'sku;modelo;grade;lado;quantidade;prateleira\nSOLA-01;PEGASUS 40;41;PAR;15;SOL-01';
+  const csvPreFab = 'sku;modelo;tipo;combinacao;grade;lado;quantidade;prateleira\nSOLA-01;PEGASUS 40;EVA;PRETO;41;PAR;15;SOL-01';
   const pPreFab = parseCsvRFC4180(csvPreFab);
-  const vPreFab = validateImportBatch(pPreFab.headers, pPreFab.rows, 'PRE_FABRICADO', mockLocations);
+  const vPreFab = validateImportBatch(pPreFab.headers, pPreFab.rows, 'PRE_FABRICADO', mockLocations, mockCategories);
   assert.equal(vPreFab.length, 2);
   assert.equal(vPreFab[0].locationId, 5);
+  assert.equal(vPreFab[0].type, 'EVA');
+  assert.equal(vPreFab[0].color, 'PRETO');
 
   // Teste Distribuição
   const csvDist = 'sku;modelo;grade;lado;quantidade;prateleira\nCAB-01;PEGASUS 40;41;E;30;DIS-01';
@@ -164,6 +183,27 @@ test('validateImportBatch valida prateleiras em todos os setores ativos', () => 
   assert.throws(() => normalizeSector('CONSUMO'), /Setor inválido ou descontinuado/);
   assert.throws(() => normalizeSector('INSUMOS'), /Setor inválido ou descontinuado/);
   assert.throws(() => normalizeSector('QUIMICOS'), /Setor inválido ou descontinuado/);
+});
+
+test('CSV de Pré-Fabricado exige tipo configurado e rejeita categoria inválida', () => {
+  const missingType = parseCsvRFC4180('sku;modelo;grade;quantidade;prateleira\nSOLA-01;PEGASUS 40;41;15;SOL-01');
+  assert.throws(() => {
+    validateImportBatch(missingType.headers, missingType.rows, 'PRE_FABRICADO', mockLocations, mockCategories);
+  }, (err: any) => {
+    assert(err instanceof ImportValidationError);
+    assert.equal(err.errors[0].column, 'tipo');
+    return true;
+  });
+
+  const invalidType = parseCsvRFC4180('sku;modelo;tipo;grade;quantidade;prateleira\nSOLA-01;PEGASUS 40;PLASTICO;41;15;SOL-01');
+  assert.throws(() => {
+    validateImportBatch(invalidType.headers, invalidType.rows, 'PRE_FABRICADO', mockLocations, mockCategories);
+  }, (err: any) => {
+    assert(err instanceof ImportValidationError);
+    assert.equal(err.errors[0].column, 'tipo');
+    assert.match(err.errors[0].message, /EVA, BORRACHA/);
+    return true;
+  });
 });
 
 test('validateImportBatch rejeita lote com código ou descrição vazios e retorna lista linha a linha', () => {

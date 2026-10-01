@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { parseCsvRFC4180, CsvEncodingError } from '../import/csvParser';
 import { DuplicateStockItemError } from '../services/stockIdentity';
+import type { AvailableImportCategory } from '../import/materialImport';
 import {
   validateImportBatch,
   planImport,
@@ -54,11 +55,15 @@ export class ImportController {
         where: { factoryUnitId },
         select: { id: true, name: true, sector: true },
       });
+      const availableCategories: AvailableImportCategory[] = await prisma.categoryConfig.findMany({
+        where: { factoryUnitId, OR: [{ sector: 'PRE_FABRICADO' }, { sector: null }] },
+        select: { name: true, sector: true },
+      });
 
       // 3. Validação de Lote em Memória (Pre-Flight) com validação de prateleiras existentes
       let validatedItems;
       try {
-        validatedItems = validateImportBatch(parsed.headers, parsed.rows, defaultSector, availableLocations);
+        validatedItems = validateImportBatch(parsed.headers, parsed.rows, defaultSector, availableLocations, availableCategories);
       } catch (validationErr) {
         if (validationErr instanceof ImportValidationError) {
           return res.status(422).json({
@@ -78,15 +83,38 @@ export class ImportController {
         });
       }
 
-      if (preview) return res.status(200).json({
-        processados: validatedItems.length,
-        novos: plan.toInsert.length,
-        ignorados: plan.ignored,
-        saldosZero: validatedItems.filter(item => item.quantity === 0).length,
-        localizacoesPadrao: validatedItems.filter(item => item.locationDefaulted).length,
-        prateleiras: [...new Set(validatedItems.flatMap(item => (item.locations && item.locations.length > 0 ? item.locations.map(l => l.locationName) : [item.locationName])))].filter(Boolean).sort(),
-        codificacao: parsed.encoding,
-      });
+      if (preview) {
+        const previewLimit = 100;
+        const previewItems = validatedItems.slice(0, previewLimit).map(item => ({
+          linha: item.rowNumber,
+          setor: item.sector,
+          sku: item.code,
+          modelo: item.productName || item.name,
+          peca: item.name,
+          tipo: item.type,
+          combinacao: item.color || (item.sector === 'APOIO' ? 'PADRAO' : null),
+          grade: item.sizeGrade || null,
+          lado: item.footSide || null,
+          quantidade: item.quantity,
+          unidade: item.unit,
+          localizacoes: item.locations?.length
+            ? item.locations.map(location => ({ nome: location.locationName, quantidade: location.quantity }))
+            : [{ nome: item.locationName, quantidade: item.quantity }],
+        }));
+
+        return res.status(200).json({
+          processados: validatedItems.length,
+          novos: plan.toInsert.length,
+          ignorados: plan.ignored,
+          saldosZero: validatedItems.filter(item => item.quantity === 0).length,
+          localizacoesPadrao: validatedItems.filter(item => item.locationDefaulted).length,
+          prateleiras: [...new Set(validatedItems.flatMap(item => (item.locations && item.locations.length > 0 ? item.locations.map(l => l.locationName) : [item.locationName])))].filter(Boolean).sort(),
+          codificacao: parsed.encoding,
+          itens: previewItems,
+          totalItens: validatedItems.length,
+          itensLimitados: validatedItems.length > previewLimit,
+        });
+      }
 
       // 4. Execução Transacional Atômica (Persistência + Amarração + Movimentações)
       const operatorId = req.user?.matricula ? String(req.user.matricula) : null;

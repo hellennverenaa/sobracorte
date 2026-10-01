@@ -37,6 +37,82 @@ test('importação de 8.450 materiais usa lotes e mantém vínculos e saldos', a
   assert.ok(queries <= 22, `consultas de identidade: ${queries}`);
 });
 
+test('importação de componentes aplica o mesmo mapeamento abaixo e acima de 100 itens', async () => {
+  async function importBatch(count: number) {
+    const savedItems: any[] = [];
+    let nextId = 1;
+    const location = { id: 1, name: 'SOL-01', sector: 'PRE_FABRICADO' };
+    const category = { name: 'EVA', sector: 'PRE_FABRICADO', unitLocked: true, defaultUnitCode: 'UN' };
+    const tx: any = {
+      $queryRaw: async () => [{ id: 1 }],
+      location: {
+        findFirst: async () => location,
+        findMany: async () => [location],
+      },
+      categoryConfig: { findMany: async () => [category] },
+      stockItem: {
+        findMany: async () => [],
+        create: async ({ data }: any) => {
+          const record = { id: nextId++, ...data };
+          savedItems.push(record);
+          return record;
+        },
+        createManyAndReturn: async ({ data }: any) => data.map((item: any) => {
+          const record = { id: nextId++, ...item };
+          savedItems.push(record);
+          return record;
+        }),
+      },
+      stockItemLocation: {
+        create: async () => undefined,
+        createMany: async () => undefined,
+      },
+      stockMovement: {
+        create: async () => undefined,
+        createMany: async () => undefined,
+      },
+    };
+    const prisma: any = { $transaction: async (callback: any) => callback(tx) };
+    const items: ValidatedImportItem[] = Array.from({ length: count }, (_, index) => ({
+      rowNumber: index + 2,
+      sector: 'PRE_FABRICADO',
+      code: `SOLA-${index}`,
+      name: `SOLA MODELO ${index}`,
+      productName: `MODELO ${index}`,
+      unit: 'UN',
+      type: 'EVA',
+      color: 'PRETO/BRANCO',
+      sizeGrade: '41',
+      footSide: 'E',
+      quantity: 1,
+      locationId: 1,
+      locationName: 'SOL-01',
+    }));
+
+    const result = await executeImportTransaction(prisma, items, { factoryUnitId: 1, role: 'admin' });
+    return { result, savedItems };
+  }
+
+  const smallBatch = await importBatch(1);
+  const largeBatch = await importBatch(100);
+  const persistedFields = (item: any) => ({
+    sector: item.sector,
+    componentType: item.componentType,
+    type: item.type,
+    sku: item.sku,
+    productName: item.productName,
+    color: item.color,
+    sizeGrade: item.sizeGrade,
+    footSide: item.footSide,
+  });
+
+  assert.equal(smallBatch.result.inserted, 1);
+  assert.equal(largeBatch.result.inserted, 100);
+  assert.deepEqual(persistedFields(smallBatch.savedItems[0]), persistedFields(largeBatch.savedItems[0]));
+  assert.equal(smallBatch.savedItems[0].color, 'PRETO/BRANCO');
+  assert.equal(largeBatch.savedItems[0].color, 'PRETO/BRANCO');
+});
+
 test('pré-validação distingue repetição, item existente e conflito de código', async () => {
   const base: ValidatedImportItem = {
     rowNumber: 2, sector: 'CORTE', code: '1384205', name: 'FILME AZUL',
