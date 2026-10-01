@@ -1,4 +1,4 @@
-import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
+import { StockAccessError } from '../auth/stockAccess';
 import { pairCompatibilitySql } from '../services/pairCompatibilitySql';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
@@ -12,8 +12,9 @@ export class DashboardController {
   async getSummary(req: Request, res: Response) {
     try {
       const factoryUnitId = req.tenant!.id;
-      const assignedSector = assignedStockSector(requestStockAccess(req));
-      const scope = sectorAccessWhere(requestStockAccess(req));
+      // Dashboard é leitura agregada de todos os setores, sempre limitada à unidade ativa.
+      const assignedSector = null;
+      const scope = {};
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
       const [

@@ -50,7 +50,8 @@ export class MountingPairService {
           SELECT string_agg(l.name, ' | ') 
           FROM sobra_corte."StockItemLocation" sil 
           JOIN sobra_corte."Location" l ON l.id = sil."locationId" 
-          WHERE sil."stockItemId" = e.id AND sil.quantity > 0
+          WHERE sil."stockItemId" = e.id AND sil."factoryUnitId" = ${factoryUnitId}
+            AND l."factoryUnitId" = ${factoryUnitId} AND sil.quantity > 0
         ) AS "leftLocations",
         d.id AS "rightFootStockItemId",
         d.quantity AS "rightQuantity",
@@ -58,7 +59,8 @@ export class MountingPairService {
           SELECT string_agg(l.name, ' | ') 
           FROM sobra_corte."StockItemLocation" sil 
           JOIN sobra_corte."Location" l ON l.id = sil."locationId" 
-          WHERE sil."stockItemId" = d.id AND sil.quantity > 0
+          WHERE sil."stockItemId" = d.id AND sil."factoryUnitId" = ${factoryUnitId}
+            AND l."factoryUnitId" = ${factoryUnitId} AND sil.quantity > 0
         ) AS "rightLocations",
         LEAST(e.quantity, d.quantity) AS "formablePairs"
       FROM sobra_corte."StockItem" e

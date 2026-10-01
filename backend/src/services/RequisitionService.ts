@@ -1,5 +1,5 @@
 import { validateQuantity, normalizeUnit } from '../utils/unitHelper';
-import { assertStockSectorAccess, assignedStockSector } from '../auth/stockAccess';
+import { assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma, type StockTransactionClient } from '../prisma';
 import { 
@@ -39,7 +39,11 @@ export class RequisitionService {
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
       status: 'PENDENTE',
-      ...(sector ? { requestSector: sector } : {}),
+      ...(sector ? {
+        requestSector: sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO'
+          ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] as SectorType[] }
+          : sector,
+      } : {}),
     };
 
     const count = await prisma.materialRequisition.count({ where });
@@ -117,7 +121,6 @@ export class RequisitionService {
       await lockStockIdentityWrites(tx, factoryUnitId);
       // 1. Validar disponibilidade sob o lock, sem reservar saldo.
       for (const item of rawItems) {
-        assertStockSectorAccess(context, item.requestSector);
         const stockInfo = await this.checkStockAvailability(
           {
             requestSector: item.requestSector as SectorType,
@@ -200,15 +203,13 @@ export class RequisitionService {
     const { status, requestSector, search, page = 1, limit = 20 } = filter;
     const skip = (page - 1) * limit;
 
-    const effectiveSector = assignedStockSector(context) || requestSector;
-
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
       ...(status ? { status } : {}),
-      ...(effectiveSector ? {
-        requestSector: (effectiveSector === 'DISTRIBUICAO' || (effectiveSector as string) === 'EXPEDICAO')
+      ...(requestSector ? {
+        requestSector: (requestSector === 'DISTRIBUICAO' || (requestSector as string) === 'EXPEDICAO')
           ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
-          : (effectiveSector as SectorType)
+          : (requestSector as SectorType)
       } : {}),
       ...(search ? {
         OR: [
@@ -321,6 +322,7 @@ export class RequisitionService {
       await lockStockIdentityWrites(tx, factoryUnitId);
       const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
       if (!req) throw new Error('Requisição não encontrada.');
+      if (context.role === 'leitor') throw new StockAccessError('Acesso negado: o perfil leitor não pode cancelar requisições.');
       assertStockSectorAccess(context, req.requestSector);
       if (req.status !== 'PENDENTE') throw new Error('Apenas requisições pendentes podem ser canceladas.');
       return tx.materialRequisition.update({

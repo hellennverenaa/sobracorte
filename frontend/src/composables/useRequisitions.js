@@ -11,7 +11,7 @@ import { normalizeSector, requestErrorMessage } from '../utils/domain'
 export function useRequisitions({ route, authStore, notify = () => {} } = {}) {
   const initialStatus = route?.query?.status ? String(route.query.status) : ''
   const unitCode = () => authStore?.user?.unit?.code || 'default'
-  const persisted = usePersistedFilters('requisitions', {
+  const persisted = usePersistedFilters('requisitions_read_all', {
     status: initialStatus,
     sector: '',
     search: '',
@@ -99,16 +99,11 @@ export function useRequisitions({ route, authStore, notify = () => {} } = {}) {
     fulfilled: requisitions.value.filter(item => item.status === 'ATENDIDA_TOTAL').length,
   }))
 
-  // Sector restrictions are derived from the current session and must win over
-  // a stale filter saved for another role/unit.
   const assignedSector = computed(() => {
     const sector = authStore?.user?.assignedSector
     if (!sector || sector === 'TODOS') return null
     return normalizeSector(sector)
   })
-  watch(assignedSector, sector => {
-    if (authStore?.user?.role !== 'admin' && sector) filterSector.value = sector
-  }, { immediate: true })
 
   if (route) {
     watch(() => route.query.status, status => {

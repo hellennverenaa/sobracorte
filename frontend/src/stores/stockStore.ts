@@ -4,6 +4,7 @@ import { requestErrorMessage } from '@/utils/domain';
 import { useAuthStore } from '@/stores/auth';
 
 export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
+export type InventorySectorFilter = SectorType | 'TODOS';
 
 export interface MatchingPair {
   sku: string;
@@ -22,7 +23,7 @@ export interface MatchingPair {
 }
 
 export interface StockState {
-  activeSector: SectorType;
+  activeSector: InventorySectorFilter;
   searchQuery: string;
   pendingOperations: number;
   inventoryRequestId: number;
@@ -45,6 +46,7 @@ export interface StockState {
     totalMontagem: number;
   };
   sectors: {
+    todos: { total: number; data: any[] };
     corte: { total: number; data: any[] };
     apoio: { total: number; data: any[] };
     preFabricado: { total: number; data: any[] };
@@ -53,7 +55,7 @@ export interface StockState {
     montagem: { total: number; data: any[] };
   };
   filterLocations: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
-  filterOrigins: Array<{ id: number; name: string }>;
+  filterOrigins: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   filterCategories: Array<{ id: number; name: string; sector?: SectorType | string | null }>;
   matchingPairs: MatchingPair[];
   matchingPairsCount: number;
@@ -68,7 +70,7 @@ export interface StockState {
 
 export const useStockStore = defineStore('stock', {
   state: (): StockState => ({
-    activeSector: 'CORTE',
+    activeSector: 'TODOS',
     searchQuery: '',
     pendingOperations: 0,
     inventoryRequestId: 0,
@@ -90,6 +92,7 @@ export const useStockStore = defineStore('stock', {
       totalMontagem: 0,
     },
     sectors: {
+      todos: { total: 0, data: [] },
       corte: { total: 0, data: [] },
       apoio: { total: 0, data: [] },
       preFabricado: { total: 0, data: [] },
@@ -114,6 +117,8 @@ export const useStockStore = defineStore('stock', {
     loading: (state) => state.pendingOperations > 0,
     currentSectorData(state) {
       switch (state.activeSector) {
+        case 'TODOS':
+          return state.sectors.todos;
         case 'CORTE':
           return state.sectors.corte;
         case 'APOIO':
@@ -149,7 +154,7 @@ export const useStockStore = defineStore('stock', {
      */
     async fetchInventory(params?: {
       q?: string;
-      sector?: SectorType;
+      sector?: InventorySectorFilter;
       page?: number;
       limit?: number;
       locationId?: number;
@@ -317,7 +322,7 @@ export const useStockStore = defineStore('stock', {
       }
     },
 
-    setActiveSector(sector: SectorType) {
+    setActiveSector(sector: InventorySectorFilter) {
       this.activeSector = sector;
     },
   },

@@ -1,4 +1,4 @@
-import { assertStockSectorAccess, assertGeneralStockAccess, isStockMaster, assignedStockSector } from '../auth/stockAccess';
+import { assertStockSectorAccess, assertGeneralStockAccess, isStockMaster } from '../auth/stockAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
@@ -187,7 +187,7 @@ export class StockItemService {
   async searchUnified(
     params: {
       q?: string;
-      sector?: SectorType;
+      sector?: SectorType | 'TODOS';
       page?: number;
       limit?: number;
       locationId?: number;
@@ -199,7 +199,10 @@ export class StockItemService {
     const { factoryUnitId } = context;
     const { q, sector, page = 1, limit = 50, locationId, type, stockStatus } = params;
     const skip = (page - 1) * limit;
-    const targetSector = normalizeStockSector(assignedStockSector(context) || sector || 'CORTE') as SectorType;
+    if (!sector || sector === 'TODOS') {
+      return this.searchAllSectors(params, context);
+    }
+    const targetSector = normalizeStockSector(sector) as SectorType;
 
     const rawSearch = q ? q.trim() : '';
     const searchTerms = rawSearch
@@ -304,7 +307,7 @@ export class StockItemService {
       categories,
     ] = await Promise.all([
       // Corte também usa o estoque canônico.
-      (isStockMaster(context) || targetSector === 'CORTE') ? prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }) : 0,
+      prisma.stockItem.count({ where: { ...buildMaterialWhere(), sector: 'CORTE' } }),
       targetSector === 'CORTE'
         ? prisma.stockItem.findMany({
             where: { ...buildMaterialWhere(), sector: 'CORTE' },
@@ -315,7 +318,7 @@ export class StockItemService {
           })
         : [],
       // Demais setores na tabela StockItem
-      (isStockMaster(context) || targetSector === 'APOIO') ? prisma.stockItem.count({ where: buildSectorWhere('APOIO') }) : 0,
+      prisma.stockItem.count({ where: buildSectorWhere('APOIO') }),
       targetSector === 'APOIO'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('APOIO'),
@@ -325,7 +328,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      (isStockMaster(context) || targetSector === 'PRE_FABRICADO') ? prisma.stockItem.count({ where: buildSectorWhere('PRE_FABRICADO') }) : 0,
+      prisma.stockItem.count({ where: buildSectorWhere('PRE_FABRICADO') }),
       targetSector === 'PRE_FABRICADO'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('PRE_FABRICADO'),
@@ -335,7 +338,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      (isStockMaster(context) || targetSector === 'DISTRIBUICAO') ? prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }) : 0,
+      prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }),
       (targetSector === 'DISTRIBUICAO' || (targetSector as string) === 'EXPEDICAO')
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('DISTRIBUICAO'),
@@ -345,7 +348,7 @@ export class StockItemService {
             include: { locations: { include: { location: true } } },
           })
         : [],
-      (isStockMaster(context) || targetSector === 'MONTAGEM') ? prisma.stockItem.count({ where: buildSectorWhere('MONTAGEM') }) : 0,
+      prisma.stockItem.count({ where: buildSectorWhere('MONTAGEM') }),
       targetSector === 'MONTAGEM'
         ? prisma.stockItem.findMany({
             where: buildSectorWhere('MONTAGEM'),
@@ -483,11 +486,190 @@ export class StockItemService {
     };
   }
 
+  private async searchAllSectors(
+    params: {
+      q?: string;
+      sector?: SectorType | 'TODOS';
+      page?: number;
+      limit?: number;
+      locationId?: number;
+      type?: string;
+      stockStatus?: 'with_balance' | 'zero_balance';
+    },
+    context: OperatorContext,
+  ) {
+    const { factoryUnitId } = context;
+    const { q, page = 1, limit = 50, locationId, type, stockStatus } = params;
+    const searchTerms = q?.trim()
+      ? q.trim().split(/[,\s\n;]+/).map(term => term.trim()).filter(Boolean)
+      : [];
+    const baseWhere: any = {
+      factoryUnitId,
+      ...(locationId ? { locations: { some: { factoryUnitId, locationId } } } : {}),
+      ...(type ? { type: { equals: type, mode: 'insensitive' } } : {}),
+      ...(stockStatus === 'with_balance' ? { quantity: { gt: 0 } } : {}),
+      ...(stockStatus === 'zero_balance' ? { quantity: 0 } : {}),
+    };
+    const searchFields: Record<string, string[]> = {
+      CORTE: ['code', 'name', 'type'],
+      APOIO: ['pieceCode', 'productName', 'description', 'materialColor', 'sizeGrade'],
+      PRE_FABRICADO: ['sku', 'productName', 'type', 'color', 'sizeGrade'],
+      DISTRIBUICAO: ['sku', 'productName', 'type', 'color', 'sizeGrade'],
+      MONTAGEM: ['sku', 'productName', 'color', 'sizeGrade'],
+    };
+    const sectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'];
+    const whereForSector = (sector: SectorType) => {
+      const sectorWhere: any = {
+        ...baseWhere,
+        sector: sector === 'DISTRIBUICAO' ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : sector,
+      };
+      if (searchTerms.length) {
+        sectorWhere.AND = [{
+          OR: searchTerms.flatMap(term => searchFields[sector].map(field => ({
+            [field]: { contains: term, mode: 'insensitive' },
+          }))),
+        }];
+      }
+      return sectorWhere;
+    };
+    const where: any = {
+      ...baseWhere,
+      OR: sectors.map(sector => {
+        const sectorCriteria = { ...whereForSector(sector) };
+        delete sectorCriteria.factoryUnitId;
+        delete sectorCriteria.locations;
+        delete sectorCriteria.type;
+        delete sectorCriteria.quantity;
+        return sectorCriteria;
+      }),
+    };
+
+    const [total, rows, corteCount, apoioCount, preFabCount, distribuicaoCount, montagemCount, locations, origins, categories] = await Promise.all([
+      prisma.stockItem.count({ where }),
+      prisma.stockItem.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: { locations: { include: { location: true } } },
+      }),
+      prisma.stockItem.count({ where: whereForSector('CORTE') }),
+      prisma.stockItem.count({ where: whereForSector('APOIO') }),
+      prisma.stockItem.count({ where: whereForSector('PRE_FABRICADO') }),
+      prisma.stockItem.count({ where: whereForSector('DISTRIBUICAO') }),
+      prisma.stockItem.count({ where: whereForSector('MONTAGEM') }),
+      prisma.location.findMany({
+        where: { factoryUnitId },
+        select: { id: true, name: true, sector: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.originConfig.findMany({
+        where: { factoryUnitId },
+        select: { id: true, name: true, sector: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.categoryConfig.findMany({
+        where: { factoryUnitId },
+        select: { id: true, name: true, sector: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const formattedItems = rows.map((item: any) => {
+      const itemLocations = item.locations || [];
+      const activeLocations = itemLocations.filter((link: any) => Number(link.quantity) > 0);
+      const locationDisplay = activeLocations.length
+        ? activeLocations.map((link: any) => `${link.location.name} (${Number(link.quantity)} ${item.unit || 'UND'})`).join(' | ')
+        : (itemLocations[0]?.location?.name || 'Não definido');
+      if (item.sector === 'CORTE') {
+        return {
+          id: item.id,
+          sector: item.sector,
+          code: item.code,
+          name: item.name,
+          unit: item.unit,
+          type: item.type,
+          quantity: item.quantity,
+          minStock: item.minStock,
+          observation: item.observation || '',
+          createdAt: item.createdAt,
+          locations: itemLocations.map((link: any) => ({
+            locationId: link.locationId,
+            quantity: link.quantity,
+            location: { id: link.location.id, name: link.location.name, sector: link.location.sector },
+          })),
+          locationDisplay,
+        };
+      }
+      return { ...item, locationDisplay };
+    });
+    const pageSectorItems = (sector: string) => formattedItems.filter(item => normalizeStockSector(item.sector) === normalizeStockSector(sector));
+    const totalItems = corteCount + apoioCount + preFabCount + distribuicaoCount + montagemCount;
+
+    return {
+      items: formattedItems,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+      metrics: {
+        totalItems,
+        totalCorte: corteCount,
+        totalApoio: apoioCount,
+        totalPreFabricado: preFabCount,
+        totalDistribuicao: distribuicaoCount,
+        totalExpedicao: distribuicaoCount,
+        totalMontagem: montagemCount,
+      },
+      sectors: {
+        todos: { total, data: formattedItems },
+        corte: { total: corteCount, data: pageSectorItems('CORTE') },
+        apoio: { total: apoioCount, data: pageSectorItems('APOIO') },
+        preFabricado: { total: preFabCount, data: pageSectorItems('PRE_FABRICADO') },
+        distribuicao: { total: distribuicaoCount, data: pageSectorItems('DISTRIBUICAO') },
+        expedicao: { total: distribuicaoCount, data: pageSectorItems('DISTRIBUICAO') },
+        montagem: { total: montagemCount, data: pageSectorItems('MONTAGEM') },
+      },
+      filterOptions: {
+        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
+        origins: origins.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
+        categories: categories.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
+      },
+    };
+  }
+
   /**
    * Sugestões de autocomplete inteligente por setor
    */
-  async getSearchSuggestions(sector: SectorType, query: string, factoryUnitId: number) {
+  async getSearchSuggestions(sector: SectorType | 'TODOS', query: string, factoryUnitId: number) {
     const rawQ = query ? query.trim() : '';
+
+    if (sector === 'TODOS') {
+      const terms = rawQ.split(/[\s,;]+/).map(term => term.trim()).filter(Boolean);
+      const searchableFields = ['code', 'name', 'type', 'sku', 'pieceCode', 'productName', 'description', 'materialColor', 'color', 'sizeGrade'];
+      const where: any = {
+        factoryUnitId,
+        sector: { in: ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'] },
+        quantity: { gt: 0 },
+        ...(terms.length ? {
+          AND: terms.map(term => ({
+            OR: searchableFields.map(field => ({ [field]: { contains: term, mode: 'insensitive' } })),
+          })),
+        } : {}),
+      };
+      const items = await prisma.stockItem.findMany({
+        where,
+        take: 50,
+        orderBy: { updatedAt: 'desc' },
+      });
+      return items.map(item => ({
+        sector: item.sector,
+        sku: item.sku || item.pieceCode || item.code || item.productName || '',
+        modelName: item.productName || item.type || '',
+        description: item.description || item.name || item.materialColor || '',
+        sizeGrades: item.sizeGrade ? [item.sizeGrade] : [],
+        color: item.color || item.materialColor || '',
+        footSides: item.footSide ? [item.footSide] : [],
+        availableQuantity: Number(item.quantity || 0),
+      }));
+    }
 
     if (sector === 'CORTE') {
       const materials = await prisma.stockItem.findMany({
@@ -588,8 +770,25 @@ export class StockItemService {
   /**
    * Consulta agregada de combinações / cores já cadastradas (Autocomplete)
    */
-  async getCombinations(sector: SectorType, query: string, factoryUnitId: number): Promise<string[]> {
+  async getCombinations(sector: SectorType | 'TODOS', query: string, factoryUnitId: number): Promise<string[]> {
     const rawQ = query ? query.trim() : '';
+
+    if (sector === 'TODOS') {
+      const items = await prisma.stockItem.findMany({
+        where: {
+          factoryUnitId,
+          sector: { in: ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'] },
+          OR: [
+            { color: { not: null, ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}) } },
+            { materialColor: { not: null, ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}) } },
+          ],
+        },
+        select: { color: true, materialColor: true },
+        take: 500,
+      });
+      const values = items.flatMap(item => [item.color, item.materialColor]);
+      return [...new Set(values.map(value => value?.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()).filter(Boolean) as string[])].sort();
+    }
 
     let sectorCondition: any = sector;
     if (sector === 'DISTRIBUICAO' || sector === 'EXPEDICAO') {

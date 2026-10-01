@@ -626,6 +626,7 @@ function canFulfill(item: RequisitionItem) {
 
 function canCancel(item: RequisitionItem) {
   if (item.status !== 'PENDENTE') return false;
+  if (authStore.user?.role === 'leitor') return false;
   if (isMasterAdmin.value) return true;
   if (authStore.user?.role === 'admin_setor') {
     const userSec = userAssignedSector.value;
@@ -633,7 +634,9 @@ function canCancel(item: RequisitionItem) {
     return Boolean(userSec && userSec === reqSec);
   }
   if (authStore.user?.matricula && item.requesterId && String(authStore.user.matricula) === String(item.requesterId)) {
-    return true;
+    const userSec = userAssignedSector.value;
+    const reqSec = (item.requestSector === 'EXPEDICAO' || item.requestSector === 'CABEDAIS') ? 'DISTRIBUICAO' : item.requestSector;
+    return Boolean(userSec && userSec === reqSec);
   }
   return false;
 }
@@ -795,7 +798,7 @@ onMounted(() => {
         v-model:status="filterStatus"
         v-model:sector="filterSector"
         v-model:search="search"
-        :sector-locked="!isMasterAdmin && Boolean(userAssignedSector)"
+        :sector-locked="false"
         @change="loadRequisitions(1)"
         @search="handleSearch"
         @clear-search="clearSearch"

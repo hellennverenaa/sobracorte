@@ -1,4 +1,4 @@
-import { requestStockAccess, assignedStockSector, StockAccessError } from '../auth/stockAccess';
+import { requestStockAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { MountingPairService } from '../services/MountingPairService';
 import { ExecuteMatchSchema } from '../types/stock.dto';
@@ -18,9 +18,9 @@ export class MountingPairController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      let sectorParam = req.query.sector ? requireActiveStockSector(String(req.query.sector)) : undefined;
+      const sectorParam = req.query.sector ? requireActiveStockSector(String(req.query.sector)) : undefined;
       const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'];
-      const sector: SectorType = assignedStockSector(requestStockAccess(req)) || (validSectors.includes(sectorParam as SectorType)
+      const sector: SectorType = (validSectors.includes(sectorParam as SectorType)
         ? (sectorParam as SectorType)
         : 'MONTAGEM');
 

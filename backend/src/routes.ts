@@ -14,7 +14,7 @@ import { RequisitionController } from './controllers/RequisitionController';
 import { prisma } from './prisma';
 import { tenantStorage } from './context/tenantContext';
 import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
-import { isUserRole } from './auth/roles';
+import { effectiveRoleForBinding, isUserRole } from './auth/roles';
 import { normalizeSector } from './utils/sectorHelper';
 import {
   userService,
@@ -175,7 +175,7 @@ routes.post('/inventory/mounting/execute-match', requireAuth, mutationLimiter, r
 
 // 🔄 MOVIMENTAÇÕES & HISTÓRICO DE AUDITORIA MULTI-SETOR
 routes.post('/inventory/movements', requireAuth, mutationLimiter, requireRole(['admin_setor', 'lider', 'movimentador']), requireSectorMatch((req: any) => req.body?.sector), stockMovementController.create);
-routes.get('/inventory/movements/history', requireAuth, authenticatedLimiter, stockMovementController.history);
+routes.get('/inventory/movements/history', requireAuth, authenticatedLimiter, requireRole(['admin', 'admin_setor', 'lider', 'movimentador']), stockMovementController.history);
 
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
 routes.post('/requisitions', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.create);
@@ -202,14 +202,19 @@ routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), 
       orderBy: { identity: { nome: 'asc' } },
     });
 
-    const safeUsers = users.map(({ identity, ...binding }) => ({
-      ...identity,
-      ...binding,
-      identityId: identity.id,
-      id: binding.id,
-      matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
-      assignedSector: binding.assignedSector || null,
-    }));
+    const safeUsers = users.map(({ identity, ...binding }) => {
+      const role = effectiveRoleForBinding(binding);
+      return {
+        ...identity,
+        ...binding,
+        role,
+        persistedRole: binding.role,
+        identityId: identity.id,
+        id: binding.id,
+        matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
+        assignedSector: role === 'leitor' || role === 'admin' ? null : (binding.assignedSector || null),
+      };
+    });
 
     res.json(safeUsers);
   } catch (error) {

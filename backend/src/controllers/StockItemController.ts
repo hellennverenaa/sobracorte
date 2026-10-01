@@ -1,5 +1,5 @@
 import { UnitValidationError } from '../utils/unitHelper';
-import { StockAccessError, requestStockAccess, assignedStockSector, assertStockSectorAccess } from '../auth/stockAccess';
+import { StockAccessError, requestStockAccess, assertStockSectorAccess } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { DuplicateStockItemError, StockItemService } from '../services/StockItemService';
@@ -86,9 +86,10 @@ export class StockItemController {
         return res.status(400).json({ error: 'Tipo inválido.' });
       }
 
-      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : undefined;
-
-      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
+      const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const targetSector = requestedSector === 'TODOS'
+        ? 'TODOS' as const
+        : requireActiveStockSector(requestedSector) as SectorType;
 
       const operatorContext = {
         ...requestStockAccess(req),
@@ -128,9 +129,10 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
-      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : 'MONTAGEM';
-
-      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
+      const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const targetSector = requestedSector === 'TODOS'
+        ? 'TODOS' as const
+        : requireActiveStockSector(requestedSector) as SectorType;
 
       const query = q ? String(q) : '';
 
@@ -155,9 +157,10 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
-      let targetSector = sector ? requireActiveStockSector(String(sector)) as SectorType : 'PRE_FABRICADO';
-
-      targetSector = assignedStockSector(requestStockAccess(req)) || targetSector;
+      const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
+      const targetSector = requestedSector === 'TODOS'
+        ? 'TODOS' as const
+        : requireActiveStockSector(requestedSector) as SectorType;
 
       const query = q ? String(q) : '';
 

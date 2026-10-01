@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { deriveInitialRole } from '../auth/roles';
+import { deriveInitialRole, effectiveRoleForBinding } from '../auth/roles';
 import { prisma } from '../prisma';
 import { normalizeRegistration, registrationToBigInt } from '../auth/tenant';
 
@@ -134,16 +134,17 @@ export async function syncUser(
     create: { ...identityKey, usuario, ...commonData },
   });
   const bindingKey = { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: nativeUnitId } };
+  const initialRole = legacyCandidates.length === 1
+    ? legacyCandidates[0].role
+    : deriveInitialRole({ usuario, funcao: user.funcao });
   const binding = isGlobalAdmin ? null : await client.userRoleBinding.upsert({
     where: bindingKey,
     update: {},
     create: {
       identityId: identity.id,
       factoryUnitId: nativeUnitId,
-      role: legacyCandidates.length === 1
-        ? legacyCandidates[0].role
-        : deriveInitialRole({ usuario, funcao: user.funcao }),
-      assignedSector: legacyCandidates.length === 1 ? legacyCandidates[0].assignedSector : null,
+      role: initialRole,
+      assignedSector: initialRole === 'leitor' ? null : legacyCandidates.length === 1 ? legacyCandidates[0].assignedSector : null,
     },
   }).catch(async (error: { code?: string }) => {
     if (error.code !== 'P2002') throw error;
@@ -167,12 +168,13 @@ export class AuthController {
       if (!nativeUnit) return res.status(403).json({ error: 'Unidade nativa inexistente ou inativa.' });
 
       const result = await syncUser(req.user, nativeUnit.id, req.tenant.id, Boolean(req.isGlobalAdmin));
+      const effectiveRole = effectiveRoleForBinding(result.binding, Boolean(req.isGlobalAdmin));
       const effectiveUser = {
         ...result.identity,
-        role: req.isGlobalAdmin ? 'admin' : (result.binding?.role || 'leitor'),
-        assignedSector: result.binding?.assignedSector || null,
+        role: effectiveRole,
+        assignedSector: effectiveRole === 'leitor' || effectiveRole === 'admin' ? null : (result.binding?.assignedSector || null),
       };
-      const accessStatus = req.isGlobalAdmin || effectiveUser.role === 'admin' || effectiveUser.assignedSector
+      const accessStatus = req.isGlobalAdmin || effectiveUser.role === 'admin' || effectiveUser.role === 'leitor' || effectiveUser.assignedSector
         ? 'active'
         : 'pending_sector_assignment';
       const effectiveContext = {
@@ -192,7 +194,11 @@ export class AuthController {
         message: 'Usuário sincronizado com sucesso.',
         user: serializeUser(effectiveUser),
         identity: serializeUser(result.identity),
-        binding: result.binding,
+        binding: result.binding ? {
+          ...result.binding,
+          role: effectiveRole,
+          assignedSector: effectiveUser.assignedSector,
+        } : null,
         effectiveContext,
         nativeUnit,
         unit: req.tenant,

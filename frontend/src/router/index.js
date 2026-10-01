@@ -60,7 +60,7 @@ const routes = [
     component: StockMovementHistory, 
     meta: { 
       requiresAuth: true,
-      roles: ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] 
+      roles: ['admin', 'admin_setor', 'lider', 'movimentador']
     } 
   },
   { 

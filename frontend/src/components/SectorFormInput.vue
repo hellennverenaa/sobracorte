@@ -30,7 +30,11 @@ const isSectorLocked = computed(() => {
 const activeSector = ref<SectorType>(
   isSectorLocked.value && userSector.value
     ? userSector.value
-    : (stockStore.activeSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : stockStore.activeSector)
+    : stockStore.activeSector === 'EXPEDICAO'
+      ? 'DISTRIBUICAO'
+      : stockStore.activeSector === 'TODOS'
+        ? 'CORTE'
+        : stockStore.activeSector
 );
 const isSubmitting = ref(false);
 const successMessage = ref('');

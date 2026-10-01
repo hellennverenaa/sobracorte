@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
-import { useStockStore, SectorType } from '@/stores/stockStore';
+import { useStockStore, SectorType, InventorySectorFilter } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
@@ -31,28 +31,14 @@ const stockStore = useStockStore();
 const authStore = useAuthStore();
 
 const validSectors: SectorType[] = SECTOR_OPTIONS.filter(option => option.id !== 'TODOS').map(option => option.id as SectorType);
+const validSectorFilters: InventorySectorFilter[] = ['TODOS', ...validSectors];
 
-const userSector = computed(() => {
-  const s = authStore.user?.assignedSector;
-  if (!s || s === 'TODOS') return null;
-  return normalizeSector(s) as SectorType;
-});
-
-const isSectorLocked = computed(() => {
-  const role = authStore.user?.role;
-  const isAdmin = role === 'admin' || authStore.user?.isGlobalAdmin === true;
-  return !isAdmin && !!userSector.value;
-});
-
-function getSectorFromRoute(): SectorType {
-  if (isSectorLocked.value && userSector.value) {
-    return userSector.value;
-  }
+function getSectorFromRoute(): InventorySectorFilter {
   const sec = normalizeSector(route.query.sector);
-  if (sec && validSectors.includes(sec as SectorType)) {
-    return sec as SectorType;
+  if (sec && validSectorFilters.includes(sec as InventorySectorFilter)) {
+    return sec as InventorySectorFilter;
   }
-  return 'CORTE';
+  return 'TODOS';
 }
 
 const showEntryForm = ref(false);
@@ -73,6 +59,12 @@ const {
 } = useInventoryQuery(stockStore, authStore, route, getSectorFromRoute());
 
 const inventoryTypeOptions = computed(() => {
+  if (activeTab.value === 'TODOS') {
+    return [...new Set([
+      ...stockStore.filterCategories.map(category => category.name),
+      'EVA', 'BORRACHA', 'CABEDAL', 'SOLA_PROCESSADA',
+    ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
   if (activeTab.value === 'CORTE') {
     return [...new Set(stockStore.filterCategories
       .filter(category => !category.sector || normalizeSector(category.sector) === 'CORTE')
@@ -134,24 +126,24 @@ useModalFocus(() => showMovementModal.value, movementDialog, closeMovementModal)
 const viewingItem = ref<any>(null);
 
 // Permissão para Excluir (apenas admin_master e admin_setor no respectivo setor)
-const canDelete = computed(() => {
+function canOperateSector(sector: string | null | undefined) {
+  if (!authStore.user) return false;
+  if (authStore.user.role === 'admin' || authStore.user.isGlobalAdmin === true) return true;
+  if (authStore.user.role === 'leitor' || !authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
+  return normalizeSector(authStore.user.assignedSector) === normalizeSector(sector);
+}
+
+function canDeleteItem(item: any) {
   const role = authStore.user?.role;
   if (role === 'admin' || authStore.user?.isGlobalAdmin === true) return true;
-  if (role === 'admin_setor') {
-    const userSec = authStore.user?.assignedSector;
-    if (!userSec || userSec === 'TODOS') return false;
-    const normUserSec = normalizeSector(userSec);
-    const normActiveTab = normalizeSector(activeTab.value);
-    return normUserSec === normActiveTab;
-  }
-  return false;
-});
+  return role === 'admin_setor' && canOperateSector(item?.sector);
+}
 
 // Modal de Confirmação Corporativo
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
 
 function confirmDelete(item: any) {
-  const isCorte = activeTab.value === 'CORTE' || item.sector === 'CORTE';
+  const isCorte = item.sector === 'CORTE';
   const itemName = isCorte ? item.name : (item.description || item.productName || item.sku || `Item #${item.id}`);
   const itemCode = isCorte ? item.code : (item.sku || item.pieceCode || item.code || '-');
 
@@ -175,6 +167,7 @@ function confirmDelete(item: any) {
 }
 
 const allTabs = [
+  { id: 'TODOS' as InventorySectorFilter, countKey: 'totalItems', icon: Layers },
   { id: 'CORTE' as SectorType, countKey: 'totalCorte', icon: Scissors },
   { id: 'APOIO' as SectorType, countKey: 'totalApoio', icon: Wrench },
   { id: 'PRE_FABRICADO' as SectorType, countKey: 'totalPreFabricado', icon: Layers },
@@ -185,17 +178,9 @@ const allTabs = [
   return { ...tab, label: sector?.shortLabel || sector?.label || tab.id };
 });
 
-const visibleTabs = computed(() => {
-  if (isSectorLocked.value && userSector.value) {
-    return allTabs.filter(t => t.id === userSector.value);
-  }
-  return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? allTabs : [];
-});
+const visibleTabs = computed(() => allTabs);
 
-async function selectTab(tab: SectorType) {
-  if (isSectorLocked.value && userSector.value && tab !== userSector.value) {
-    return;
-  }
+async function selectTab(tab: InventorySectorFilter) {
   activeTab.value = tab;
   currentPage.value = 1;
   stockStore.setActiveSector(tab);
@@ -266,6 +251,19 @@ const itemAllocatedLocations = computed(() => {
     }));
 });
 
+const itemSectorLocations = computed(() => {
+  const itemSector = selectedItem.value?.sector || activeTab.value;
+  return stockStore.filterLocations.filter(location => {
+    if (!location.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
+    return normalizeSector(location.sector) === normalizeSector(itemSector);
+  });
+});
+
+const itemSectorOrigins = computed(() => {
+  const itemSector = selectedItem.value?.sector || activeTab.value;
+  return stockStore.filterOrigins.filter(origin => !origin.sector || normalizeSector(origin.sector) === normalizeSector(itemSector));
+});
+
 const transferSourceLocations = computed(() => itemAllocatedLocations.value.filter(loc => {
   if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
   return normalizeSector(loc.sector) === normalizeSector(selectedItem.value?.sector || activeTab.value);
@@ -273,18 +271,7 @@ const transferSourceLocations = computed(() => itemAllocatedLocations.value.filt
 
 // Prateleiras de destino disponíveis para transferência (exclui a prateleira de origem)
 const availableDestinationLocations = computed(() => {
-  const currentItemSector = selectedItem.value?.sector || activeTab.value;
-
-  return stockStore.filterLocations.filter((loc) => {
-    // Exclui a prateleira de origem atual
-    if (loc.id === selectedLocationId.value) return false;
-
-    // Todos os perfis usam somente localizações compatíveis com o setor.
-    if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
-    const normLocSector = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
-    const normItemSector = currentItemSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : currentItemSector;
-    return normLocSector === normItemSector;
-  });
+  return itemSectorLocations.value.filter(location => location.id !== selectedLocationId.value);
 });
 
 // Saldo disponível na prateleira de origem selecionada
@@ -320,7 +307,7 @@ const isFormInvalid = computed(() => {
   if (movementQuantityInvalid.value) return true;
   if (movementType.value !== 'ENTRADA' && isExceedingBalance.value) return true;
   if (!selectedLocationId.value) return true;
-  if (movementType.value === 'ENTRADA' && !stockStore.filterLocations.some(loc => loc.id === selectedLocationId.value)) return true;
+  if (movementType.value === 'ENTRADA' && !itemSectorLocations.value.some(loc => loc.id === selectedLocationId.value)) return true;
   if (movementType.value === 'TRANSFERENCIA' && !transferSourceLocations.value.some(loc => loc.id === selectedLocationId.value)) return true;
   if (movementType.value === 'TRANSFERENCIA' && (!destinationLocationId.value || destinationLocationId.value === selectedLocationId.value)) return true;
   if (movementType.value === 'ENTRADA' && !movementReason.value?.trim()) return true;
@@ -364,11 +351,11 @@ const formValidationHint = computed(() => {
 
 function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
   movementType.value = type;
-  if (type === 'ENTRADA' && !stockStore.filterLocations.some(loc => loc.id === selectedLocationId.value)) {
-    selectedLocationId.value = stockStore.filterLocations[0]?.id || null;
+  if (type === 'ENTRADA' && !itemSectorLocations.value.some(loc => loc.id === selectedLocationId.value)) {
+    selectedLocationId.value = itemSectorLocations.value[0]?.id || null;
   }
   movementReason.value = type === 'ENTRADA'
-    ? (movementReason.value || stockStore.filterOrigins[0]?.name || 'Entrada Adicional')
+    ? (movementReason.value || itemSectorOrigins.value[0]?.name || 'Entrada Adicional')
     : '';
 
   // Se a quantidade estiver vazia ou zero, sugere 1 ou o saldo disponível
@@ -401,20 +388,13 @@ watch(selectedLocationId, () => {
   }
 });
 
-const canOperateCurrentSector = computed(() => {
-  if (!authStore.user) return false;
-  if (authStore.user.role === 'admin') return true;
-  if (authStore.user.role === 'leitor') return false;
-  if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
-  const normUserSec = normalizeSector(authStore.user.assignedSector);
-  const normTabSec = normalizeSector(activeTab.value);
-  return normUserSec === normTabSec;
-});
+const canOperateCurrentSector = computed(() => canOperateSector(activeTab.value));
 
 function openMovementModal(item: any) {
+  if (!canOperateSector(item?.sector)) return;
   selectedItem.value = {
     ...item,
-    sector: activeTab.value,
+    sector: item.sector || activeTab.value,
   };
   movementType.value = 'SAIDA';
   movementReason.value = '';
@@ -422,8 +402,8 @@ function openMovementModal(item: any) {
 
   if (item.locations && item.locations.length > 0) {
     selectedLocationId.value = item.locations[0].locationId || item.locations[0].location?.id || null;
-  } else if (stockStore.filterLocations.length > 0) {
-    selectedLocationId.value = stockStore.filterLocations[0].id;
+  } else if (itemSectorLocations.value.length > 0) {
+    selectedLocationId.value = itemSectorLocations.value[0].id;
   } else {
     selectedLocationId.value = null;
   }
@@ -515,17 +495,10 @@ function getItemDescription(item: any) {
 watch(
   () => route.query.sector,
   (newSec) => {
-    if (isSectorLocked.value && userSector.value) {
-      if (newSec !== userSector.value) {
-        router.replace({
-          query: { ...route.query, sector: userSector.value }
-        });
-      }
-      return;
-    }
     if (newSec) {
-      const secUpper = normalizeSector(newSec) as SectorType;
-      if (validSectors.includes(secUpper) && secUpper !== activeTab.value) {
+      const secUpper = normalizeSector(newSec) as InventorySectorFilter;
+      const validFilter = validSectorFilters.includes(secUpper);
+      if (validFilter && secUpper !== activeTab.value) {
         activeTab.value = secUpper;
         stockStore.setActiveSector(secUpper);
         loadData(1);
@@ -535,14 +508,10 @@ watch(
 );
 
 onMounted(() => {
-  const initialSector = isSectorLocked.value ? getSectorFromRoute() : (validSectors.includes(activeTab.value) ? activeTab.value : getSectorFromRoute());
+  const initialSector = validSectorFilters.includes(activeTab.value as InventorySectorFilter) ? activeTab.value as InventorySectorFilter : getSectorFromRoute();
   activeTab.value = initialSector;
   stockStore.setActiveSector(initialSector);
-  if (isSectorLocked.value && route.query.sector !== initialSector) {
-    router.replace({
-      query: { ...route.query, sector: initialSector }
-    });
-  }
+  if (route.query.sector !== initialSector) router.replace({ query: { ...route.query, sector: initialSector } });
   loadData(currentPage.value);
 });
 </script>
@@ -594,7 +563,6 @@ onMounted(() => {
           <select
             v-model="activeTab"
             aria-label="Setor do estoque"
-            :disabled="isSectorLocked"
             @change="selectTab(activeTab)"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
           >
@@ -724,6 +692,15 @@ onMounted(() => {
         <div class="overflow-x-auto bg-white rounded-b shadow border-b border-l border-r border-gray-200">
           <table class="w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
+              <tr v-if="activeTab === 'TODOS'">
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código / SKU</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Material / Descrição</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Setor</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Tipo / Variação</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo / Unidade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
+              </tr>
               <!-- Headers CORTE -->
               <tr v-if="activeTab === 'CORTE'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código</th>
@@ -787,6 +764,23 @@ onMounted(() => {
                 :key="item.id"
                 class="hover:bg-gray-50 border-b last:border-b-0 transition-colors"
               >
+                <template v-if="activeTab === 'TODOS'">
+                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ getItemIdentifier(item) }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ getItemDescription(item) }}</td>
+                  <td class="px-4 py-3 text-xs font-semibold text-slate-700">{{ SECTOR_OPTIONS.find(option => option.id === item.sector)?.label || item.sector }}</td>
+                  <td class="px-4 py-3 text-xs text-gray-600">
+                    <span>{{ item.type || item.materialColor || item.color || '—' }}</span>
+                    <span v-if="item.sizeGrade" class="block text-[10px] text-gray-400">Grade {{ item.sizeGrade }}</span>
+                    <span v-if="item.footSide" class="block text-[10px] text-gray-400">Pé {{ item.footSide }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">{{ item.locationDisplay }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-right font-bold text-gray-800">
+                    {{ formatNumber(item.quantity) }}
+                    <span class="text-xs bg-blue-50 text-blue-800 px-1.5 py-0.5 rounded ml-1 border border-blue-100 font-mono font-semibold">{{ getItemUnitBadge(item) }}</span>
+                  </td>
+                </template>
                 <!-- Colunas CORTE -->
                 <template v-if="activeTab === 'CORTE'">
                   <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code || item.sku }}</td>
@@ -977,8 +971,16 @@ onMounted(() => {
                       <span class="hidden xl:inline">Detalhes</span>
                     </button>
 
+                    <span
+                      v-if="!canOperateSector(item.sector)"
+                      class="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded"
+                      title="Você pode consultar este setor, mas suas permissões de alteração não incluem este setor."
+                    >
+                      Somente leitura
+                    </span>
+
                     <button
-                      v-if="authStore.can('movimentar') && canOperateCurrentSector"
+                      v-if="authStore.can('movimentar') && canOperateSector(item.sector)"
                       @click="openMovementModal(item)"
                       class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors"
                       title="Registrar Movimentação de Estoque"
@@ -988,7 +990,7 @@ onMounted(() => {
                     </button>
 
                     <button
-                      v-if="canDelete"
+                      v-if="canDeleteItem(item)"
                       @click="confirmDelete(item)"
                       class="text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors"
                       title="Excluir Item do Estoque (Apenas Saldo Zerado)"
@@ -1002,7 +1004,7 @@ onMounted(() => {
 
               <tr v-if="!stockStore.loading && !stockStore.error && stockStore.currentSectorData.data.length === 0">
                 <td colspan="8" class="p-8 text-center text-gray-400 font-medium text-sm">
-                  Nenhum item encontrado para este setor.
+                  {{ activeTab === 'TODOS' ? 'Nenhum item encontrado na unidade.' : 'Nenhum item encontrado para este setor.' }}
                 </td>
               </tr>
             </tbody>
@@ -1024,7 +1026,7 @@ onMounted(() => {
               </span>
               <span>de</span>
               <span class="font-bold text-gray-900">{{ formatNumber(stockStore.pagination.total) }}</span>
-              <span>itens encontrados no setor {{ activeTab }}</span>
+              <span>{{ activeTab === 'TODOS' ? 'itens encontrados em todos os setores' : `itens encontrados no setor ${activeTab}` }}</span>
             </div>
 
             <div class="flex items-center gap-1">
@@ -1233,7 +1235,7 @@ onMounted(() => {
                 aria-label="Prateleira da movimentação"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option v-for="loc in stockStore.filterLocations" :key="loc.id" :value="loc.id">
+                <option v-for="loc in itemSectorLocations" :key="loc.id" :value="loc.id">
                   {{ loc.name }}
                 </option>
               </select>
@@ -1245,7 +1247,7 @@ onMounted(() => {
                 aria-label="Prateleira de origem"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white font-medium text-gray-800 text-xs"
               >
-                <option v-for="loc in (movementType === 'TRANSFERENCIA' ? transferSourceLocations : (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : stockStore.filterLocations))" :key="loc.id" :value="loc.id">
+                <option v-for="loc in (movementType === 'TRANSFERENCIA' ? transferSourceLocations : (itemAllocatedLocations.length > 0 ? itemAllocatedLocations : itemSectorLocations))" :key="loc.id" :value="loc.id">
                   {{ loc.name }} {{ loc.quantity !== undefined ? `(Saldo: ${formatNumber(loc.quantity)} ${getItemUnitBadge(selectedItem)})` : '' }}
                 </option>
               </select>
@@ -1290,7 +1292,7 @@ onMounted(() => {
                 aria-label="Motivo da movimentação"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white text-gray-800 text-xs font-medium"
               >
-                <option v-for="orig in stockStore.filterOrigins" :key="orig.id" :value="orig.name">
+                <option v-for="orig in itemSectorOrigins" :key="orig.id" :value="orig.name">
                   {{ orig.name }}
                 </option>
                 <option value="Consumo de Produção">Consumo de Produção</option>

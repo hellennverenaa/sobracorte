@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout.vue";
 import { Trash2, Edit, Search, UserCheck, Shield, ShieldCheck, Users as UsersIcon, Activity, Eye, Layers } from "lucide-vue-next";
@@ -17,6 +17,11 @@ const loading = ref(true);
 const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
+watch(() => editingUser.value?.role, role => {
+  if (role === 'admin' || role === 'leitor') {
+    if (editingUser.value) editingUser.value.assignedSector = null;
+  }
+});
 
 const { notification, showNotification } = useToast(3500);
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal();
@@ -73,7 +78,7 @@ const openAuditModal = async () => {
 
 const saveUserRole = async () => {
   if (!editingUser.value) return;
-  if (editingUser.value.role !== 'admin' && !editingUser.value.assignedSector) {
+  if (!['admin', 'leitor'].includes(editingUser.value.role) && !editingUser.value.assignedSector) {
     showNotification("error", "Selecione um setor específico para este perfil.");
     return;
   }
@@ -81,7 +86,7 @@ const saveUserRole = async () => {
   try {
     const payload = {
       role: editingUser.value.role,
-      assignedSector: editingUser.value.role === 'admin' ? null : (editingUser.value.assignedSector || null),
+      assignedSector: ['admin', 'leitor'].includes(editingUser.value.role) ? null : (editingUser.value.assignedSector || null),
       expectedRole: editingUser.value._originalRole,
     };
 
@@ -90,6 +95,7 @@ const saveUserRole = async () => {
     const index = users.value.findIndex((u) => u.id === editingUser.value.id);
     if (index !== -1) {
       users.value[index].role = res.data.role;
+      users.value[index].persistedRole = res.data.role;
       users.value[index].assignedSector = res.data.assignedSector;
     }
 
@@ -110,7 +116,7 @@ const openEditModal = (user) => {
   editingUser.value = {
     ...user,
     assignedSector: user.assignedSector || null,
-    _originalRole: user.role,
+    _originalRole: user.persistedRole || user.role,
   };
   showEditModal.value = true;
 };
@@ -320,14 +326,14 @@ onMounted(() => {
           <!-- Setor Vinculado (RBAC) -->
           <div class="mt-4">
             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">
-              Setor Vinculado (RBAC) *
+              Setor Vinculado (RBAC) {{ editingUser.role === 'leitor' ? '(opcional)' : '*' }}
             </label>
             <select
               v-model="editingUser.assignedSector"
               class="w-full px-3 py-2 border rounded-lg uppercase text-sm font-medium focus:ring-2 focus:ring-blue-500 bg-white"
-              :disabled="editingUser.role === 'admin'"
+              :disabled="editingUser.role === 'admin' || editingUser.role === 'leitor'"
             >
-              <option :value="null" :disabled="editingUser.role !== 'admin'">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : 'SELECIONE UM SETOR' }}</option>
+              <option :value="null" :disabled="!['admin', 'leitor'].includes(editingUser.role)">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : editingUser.role === 'leitor' ? 'SEM VÍNCULO DE SETOR' : 'SELECIONE UM SETOR' }}</option>
               <option value="CORTE">CORTE</option>
               <option value="APOIO">APOIO</option>
               <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>
@@ -336,6 +342,9 @@ onMounted(() => {
             </select>
             <p v-if="editingUser.role === 'admin'" class="text-xs text-gray-500 mt-1">
               * Administradores Master possuem acesso automático a todos os setores.
+            </p>
+            <p v-else-if="editingUser.role === 'leitor'" class="text-xs text-gray-500 mt-1">
+              Leitores consultam o estoque de todos os setores da unidade sem vínculo setorial e não alteram estoque.
             </p>
             <p v-else class="text-[11px] text-gray-500 mt-1">
               * Administrador de Setor aprova requisições e gerencia seu setor. Líderes e Movimentadores realizam operações no estoque deste setor.

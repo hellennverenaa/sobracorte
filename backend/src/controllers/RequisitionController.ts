@@ -1,4 +1,4 @@
-import { requestStockAccess, assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
+import { requestStockAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { RequisitionService } from '../services/RequisitionService';
 import { 
@@ -23,11 +23,12 @@ export class RequisitionController {
       }
 
       const parsed = CheckStockAvailabilitySchema.parse(req.body);
-      assertStockSectorAccess(requestStockAccess(req), parsed.requestSector);
+      requireActiveStockSector(parsed.requestSector);
       const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id);
       return res.json(result);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Dados de verificação inválidos.',
@@ -49,7 +50,7 @@ export class RequisitionController {
       }
 
       const parsed = CreateRequisitionPayloadSchema.parse(req.body);
-      for (const item of ('items' in parsed ? parsed.items : [parsed])) assertStockSectorAccess(requestStockAccess(req), item.requestSector);
+      for (const item of ('items' in parsed ? parsed.items : [parsed])) requireActiveStockSector(item.requestSector);
 
       const operatorContext = {
         ...requestStockAccess(req),
@@ -62,6 +63,7 @@ export class RequisitionController {
       return res.status(201).json(result);
     } catch (error: any) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos dados.',
@@ -180,11 +182,9 @@ export class RequisitionController {
       }
 
       const { sector } = req.query;
-      const userSec = (req.user?.assignedSector && req.user?.role !== 'admin' && req.user?.assignedSector !== 'TODOS')
-        ? req.user.assignedSector
-        : sector ? requireActiveStockSector(String(sector)) : undefined;
+      const requestedSector = sector ? requireActiveStockSector(String(sector)) : undefined;
 
-      const result = await requisitionService.getPendingCount(req.tenant.id, userSec as any);
+      const result = await requisitionService.getPendingCount(req.tenant.id, requestedSector as any);
       return res.json(result);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });

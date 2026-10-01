@@ -6,12 +6,10 @@ import { normalizeSector } from '@/utils/domain'
 export function useDashboard(options = {}) {
   const fetchSummary = options.fetchSummary || (() => api.get('/dashboard/summary').then((response) => response?.data || {}))
   const unitCode = options.unitCode || (() => options.authStore?.user?.unit?.code || 'default')
-  const persisted = usePersistedFilters('dashboard', { sector: 'TODOS', topUnit: 'M²' }, unitCode)
+  const persisted = usePersistedFilters('dashboard_read_all', { sector: 'TODOS', topUnit: 'M²' }, unitCode)
   const selectedSector = computed({
     get: () => {
-      const user = options.authStore?.user;
-      return user && user.role !== 'admin' && !user.isGlobalAdmin
-        ? normalizeSector(user.assignedSector) : normalizeSector(persisted.filters.value.sector);
+      return normalizeSector(persisted.filters.value.sector) || 'TODOS';
     },
     set: (value) => { persisted.filters.value.sector = normalizeSector(value) },
   })

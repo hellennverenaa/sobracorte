@@ -20,12 +20,8 @@ const allPairSectors: Array<{ id: SectorType; label: string; sublabel: string; i
   { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais e Solas', icon: Box },
 ];
 
-const pairSectors = computed(() => allPairSectors.filter(sector => authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin || sector.id === normalizedAssignedSector.value));
-const normalizedAssignedSector = computed(() => {
-  const sector = authStore.user?.assignedSector;
-  return sector ? normalizeSector(sector) : sector;
-});
-const activeSector = ref<SectorType>((authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin ? 'MONTAGEM' : normalizedAssignedSector.value) as SectorType);
+const pairSectors = computed(() => allPairSectors);
+const activeSector = ref<SectorType>('MONTAGEM');
 const searchQuery = ref('');
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);

@@ -1,4 +1,5 @@
 import { assignedStockSector, assertStockSectorAccess, requestStockAccess } from '../auth/stockAccess';
+import { effectiveRoleForBinding } from '../auth/roles';
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
 import { vars } from "../config/dotenv"
@@ -53,8 +54,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       ? await tenantStorage.run({ tenantId: tenant.id }, async () => await prisma.userRoleBinding.findUnique({ where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } } }))
       : null;
 
-    const effectiveRole = isGlobalAdmin ? 'admin' : (binding?.role || 'leitor');
-    const assignedSector = isGlobalAdmin ? null : (binding?.assignedSector || null);
+    const effectiveRole = effectiveRoleForBinding(binding, isGlobalAdmin);
+    const assignedSector = effectiveRole === 'admin' || effectiveRole === 'leitor'
+      ? null
+      : (binding?.assignedSector || null);
 
     const effectiveContext: EffectiveContext = {
       userId: identity?.id || 0,
@@ -81,7 +84,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     req.isGlobalAdmin = isGlobalAdmin;
     req.effectiveContext = effectiveContext;
 
-    if (req.path !== '/auth/check-user') {
+    // O perfil Leitor não possui vínculo setorial. Perfis operacionais que
+    // ainda não têm setor válido recebem as permissões de Leitor; os demais
+    // continuam exigindo vínculo setorial antes de acessar rotas protegidas.
+    if (req.path !== '/auth/check-user' && effectiveRole !== 'leitor') {
       try { assignedStockSector(requestStockAccess(req)); }
       catch (error) { return res.status(403).json({ error: (error as Error).message }); }
     }

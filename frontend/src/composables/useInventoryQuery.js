@@ -2,8 +2,8 @@ import { computed, ref, watch } from 'vue';
 import { usePersistedFilters } from './usePersistedFilters';
 
 export function useInventoryQuery(stockStore, authStore, route, initialSector) {
-  const { filters, resetFilters } = usePersistedFilters('inventory', {
-    search: '', location: '', type: '', stockStatus: '', pageSize: 50, sector: initialSector,
+  const { filters, resetFilters } = usePersistedFilters('inventory_read_all', {
+    search: '', location: '', type: '', stockStatus: '', pageSize: 50, sector: initialSector || 'TODOS',
   }, () => authStore.user?.unit?.code || '');
   if (route.query.q !== undefined) filters.value.search = String(route.query.q);
   if (route.query.sector) filters.value.sector = initialSector;

@@ -38,7 +38,7 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false, access
     authOrigin,
     authUserId,
     isGlobalAdmin,
-    accessStatus: accessStatus || (isGlobalAdmin || syncedUser?.role === 'admin' || syncedUser?.assignedSector
+    accessStatus: accessStatus || (isGlobalAdmin || syncedUser?.role === 'admin' || syncedUser?.role === 'leitor' || syncedUser?.assignedSector
       ? 'active'
       : 'pending_sector_assignment'),
   }
