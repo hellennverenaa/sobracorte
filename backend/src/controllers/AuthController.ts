@@ -169,10 +169,12 @@ export class AuthController {
 
       const result = await syncUser(req.user, nativeUnit.id, req.tenant.id, Boolean(req.isGlobalAdmin));
       const effectiveRole = effectiveRoleForBinding(result.binding, Boolean(req.isGlobalAdmin));
+      const linkedSector = effectiveRole === 'admin' ? null : (result.binding?.assignedSector || null);
       const effectiveUser = {
         ...result.identity,
         role: effectiveRole,
         assignedSector: effectiveRole === 'leitor' || effectiveRole === 'admin' ? null : (result.binding?.assignedSector || null),
+        linkedSector,
       };
       const accessStatus = req.isGlobalAdmin || effectiveUser.role === 'admin' || effectiveUser.role === 'leitor' || effectiveUser.assignedSector
         ? 'active'
@@ -198,6 +200,7 @@ export class AuthController {
           ...result.binding,
           role: effectiveRole,
           assignedSector: effectiveUser.assignedSector,
+          linkedSector,
         } : null,
         effectiveContext,
         nativeUnit,

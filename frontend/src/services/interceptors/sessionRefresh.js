@@ -16,6 +16,7 @@ export function buildRefreshedSessionUser({ user, token, tokenPayload, synced })
     funcao: syncedUser.funcao || tokenPayload.funcao || 'NÃO DEFINIDO',
     role: syncedUser.role,
     assignedSector: syncedUser.assignedSector,
+    linkedSector: syncedUser.linkedSector || null,
     unit: synced?.unit,
     isGlobalAdmin: synced?.isGlobalAdmin,
     accessStatus: synced?.accessStatus || (synced?.isGlobalAdmin || syncedUser.role === 'admin' || syncedUser.role === 'leitor' || syncedUser.assignedSector

@@ -204,6 +204,7 @@ routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), 
 
     const safeUsers = users.map(({ identity, ...binding }) => {
       const role = effectiveRoleForBinding(binding);
+      const linkedSector = role === 'admin' ? null : (binding.assignedSector || null);
       return {
         ...identity,
         ...binding,
@@ -212,7 +213,8 @@ routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), 
         identityId: identity.id,
         id: binding.id,
         matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
-        assignedSector: role === 'leitor' || role === 'admin' ? null : (binding.assignedSector || null),
+        assignedSector: role === 'leitor' || role === 'admin' ? null : linkedSector,
+        linkedSector,
       };
     });
 
@@ -267,13 +269,15 @@ routes.put('/users/:id', requireAuth, mutationLimiter, requireRole(['admin']), a
     });
 
     const { identity, ...binding } = result.user;
+    const linkedSector = binding.role === 'admin' ? null : (binding.assignedSector || null);
     const safeUser = {
       ...identity,
       ...binding,
       identityId: identity.id,
       id: binding.id,
       matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
-      assignedSector: binding.assignedSector || null,
+      assignedSector: binding.role === 'leitor' || binding.role === 'admin' ? null : linkedSector,
+      linkedSector,
     };
 
     return res.json(safeUser);

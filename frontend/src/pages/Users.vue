@@ -18,7 +18,7 @@ const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
 watch(() => editingUser.value?.role, role => {
-  if (role === 'admin' || role === 'leitor') {
+  if (role === 'admin') {
     if (editingUser.value) editingUser.value.assignedSector = null;
   }
 });
@@ -86,7 +86,7 @@ const saveUserRole = async () => {
   try {
     const payload = {
       role: editingUser.value.role,
-      assignedSector: ['admin', 'leitor'].includes(editingUser.value.role) ? null : (editingUser.value.assignedSector || null),
+      assignedSector: editingUser.value.role === 'admin' ? null : (editingUser.value.assignedSector || null),
       expectedRole: editingUser.value._originalRole,
     };
 
@@ -95,8 +95,9 @@ const saveUserRole = async () => {
     const index = users.value.findIndex((u) => u.id === editingUser.value.id);
     if (index !== -1) {
       users.value[index].role = res.data.role;
-      users.value[index].persistedRole = res.data.role;
+      users.value[index].persistedRole = res.data.persistedRole || res.data.role;
       users.value[index].assignedSector = res.data.assignedSector;
+      users.value[index].linkedSector = res.data.linkedSector || null;
     }
 
     showNotification("success", "Permissões e setor vinculados com sucesso!");
@@ -115,7 +116,7 @@ const openEditModal = (user) => {
   if (!canManageUser(user)) return;
   editingUser.value = {
     ...user,
-    assignedSector: user.assignedSector || null,
+    assignedSector: user.assignedSector || user.linkedSector || null,
     _originalRole: user.persistedRole || user.role,
   };
   showEditModal.value = true;
@@ -153,7 +154,8 @@ const filteredUsers = computed(() => {
       u.nome?.toLowerCase().includes(term) ||
       u.usuario?.toLowerCase().includes(term) ||
       u.setor?.toLowerCase().includes(term) ||
-      u.assignedSector?.toLowerCase().includes(term)
+      u.assignedSector?.toLowerCase().includes(term) ||
+      u.linkedSector?.toLowerCase().includes(term)
   );
 });
 
@@ -251,11 +253,25 @@ onMounted(() => {
                     Todos os Setores (Master)
                   </span>
                   <span
+                    v-else-if="user.role === 'leitor' && user.linkedSector"
+                    class="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1 w-fit"
+                    title="Setor de referência; o Leitor continua consultando todos os setores"
+                  >
+                    <Layers class="w-3 h-3 text-sky-600" />
+                    Referência: {{ formatSectorName(user.linkedSector) }}
+                  </span>
+                  <span
                     v-else-if="user.assignedSector"
                     class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1 w-fit"
                   >
                     <Layers class="w-3 h-3 text-blue-600" />
                     {{ formatSectorName(user.assignedSector) }}
+                  </span>
+                  <span
+                    v-else-if="user.role === 'leitor'"
+                    class="text-xs text-gray-500 font-medium"
+                  >
+                    Todos os setores (leitura)
                   </span>
                   <span
                     v-else
@@ -331,9 +347,9 @@ onMounted(() => {
             <select
               v-model="editingUser.assignedSector"
               class="w-full px-3 py-2 border rounded-lg uppercase text-sm font-medium focus:ring-2 focus:ring-blue-500 bg-white"
-              :disabled="editingUser.role === 'admin' || editingUser.role === 'leitor'"
+              :disabled="editingUser.role === 'admin'"
             >
-              <option :value="null" :disabled="!['admin', 'leitor'].includes(editingUser.role)">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : editingUser.role === 'leitor' ? 'SEM VÍNCULO DE SETOR' : 'SELECIONE UM SETOR' }}</option>
+              <option :value="null" :disabled="!['admin', 'leitor'].includes(editingUser.role)">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : editingUser.role === 'leitor' ? 'SEM REFERÊNCIA — CONSULTA TODOS' : 'SELECIONE UM SETOR' }}</option>
               <option value="CORTE">CORTE</option>
               <option value="APOIO">APOIO</option>
               <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>
@@ -344,7 +360,7 @@ onMounted(() => {
               * Administradores Master possuem acesso automático a todos os setores.
             </p>
             <p v-else-if="editingUser.role === 'leitor'" class="text-xs text-gray-500 mt-1">
-              Leitores consultam o estoque de todos os setores da unidade sem vínculo setorial e não alteram estoque.
+              O setor é uma referência opcional. Leitores continuam consultando todos os setores da unidade e não alteram estoque.
             </p>
             <p v-else class="text-[11px] text-gray-500 mt-1">
               * Administrador de Setor aprova requisições e gerencia seu setor. Líderes e Movimentadores realizam operações no estoque deste setor.

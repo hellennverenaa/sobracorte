@@ -10,7 +10,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { confirmPendingChanges, unsavedChangesDialog, resolveUnsavedChanges, registerUnsavedChangesHost } from '@/composables/useUnsavedChanges'
-import { ROLE_LABELS } from '@/utils/domain'
+import { formatSectorName, ROLE_LABELS } from '@/utils/domain'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -107,6 +107,20 @@ const visibleMenuItems = computed(() => {
   })
 })
 
+const rbacSectorLabel = computed(() => {
+  const user = authStore.user
+  if (!user) return ''
+  if (user.isGlobalAdmin || user.role === 'admin') return 'Todos os setores (Admin Master)'
+  if (user.role === 'leitor') {
+    return user.linkedSector
+      ? `Referência: ${formatSectorName(user.linkedSector)} · leitura em todos`
+      : 'Consulta: todos os setores'
+  }
+  return user.assignedSector
+    ? `Setor RBAC: ${formatSectorName(user.assignedSector)}`
+    : 'Setor RBAC não vinculado'
+})
+
 async function handleUnitChange(event) {
   const targetCode = event.target.value
   if (!targetCode || targetCode === authStore.user?.unit?.code) return
@@ -179,6 +193,7 @@ async function handleUnitChange(event) {
           <div class="overflow-hidden">
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
             <p class="text-xs text-slate-500 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
+            <p class="text-[11px] text-slate-400 truncate" :title="rbacSectorLabel">{{ rbacSectorLabel }}</p>
             <p v-if="authStore.user?.authOrigin === 'EXTERNO'" class="text-xs text-slate-400 truncate" :title="`Função: ${authStore.user?.funcao} | Setor: ${authStore.user?.setor}`">
               Função: {{ authStore.user?.funcao }} · Setor: {{ authStore.user?.setor }}
             </p>

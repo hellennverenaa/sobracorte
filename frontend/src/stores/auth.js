@@ -31,6 +31,7 @@ function buildSessionUser(token, syncedUser, unit, isGlobalAdmin = false, access
     email: apiUser.email || `${apiUser.usuario.toLowerCase()}@grupodass.com.br`,
     setor: syncedUser?.setor || apiUser.setor || 'NÃO DEFINIDO',
     assignedSector: syncedUser?.assignedSector || null,
+    linkedSector: syncedUser?.linkedSector || null,
     funcao: syncedUser?.funcao || apiUser.funcao || 'NÃO DEFINIDO',
     role: syncedUser?.role || 'leitor',
     token,

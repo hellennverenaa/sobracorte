@@ -80,9 +80,10 @@ export class UserService {
         throw new UserConcurrencyConflictError();
       }
 
-      if (newRole !== 'admin' && newRole !== 'leitor') assignedStockSector({ role: newRole, assignedSector: newSector });
       const normalizedCurrentSector = currentUser.assignedSector || null;
-      const normalizedNewSector = newRole === 'admin' || newRole === 'leitor' ? null : (newSector || null);
+      const normalizedNewSector = newRole === 'admin' || (newRole === 'leitor' && !newSector)
+        ? null
+        : assignedStockSector({ role: newRole, assignedSector: newSector });
 
       // 4. Detecção de idempotência (sem alterações -> não gera log redundante)
       if (currentUser.role === newRole && normalizedCurrentSector === normalizedNewSector) {
