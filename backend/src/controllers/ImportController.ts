@@ -53,11 +53,11 @@ export class ImportController {
       // 2. Buscar localizações cadastradas para a unidade fabril atual
       const availableLocations = await prisma.location.findMany({
         where: { factoryUnitId },
-        select: { id: true, name: true, sector: true },
+        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
       });
       const availableCategories: AvailableImportCategory[] = await prisma.categoryConfig.findMany({
-        where: { factoryUnitId, OR: [{ sector: 'PRE_FABRICADO' }, { sector: null }] },
-        select: { name: true, sector: true },
+        where: { factoryUnitId },
+        select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
       });
 
       // 3. Validação de Lote em Memória (Pre-Flight) com validação de prateleiras existentes

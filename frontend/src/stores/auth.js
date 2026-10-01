@@ -160,7 +160,10 @@ export const useAuthStore = defineStore('auth', {
       try {
         const response = await authApi.post('/auth/me', null)
         const token = response.data?.data?.token
-        if (!token) throw new Error('Sessão inválida.')
+        if (!token) {
+          this.clearSession()
+          return false
+        }
         const synced = await api.post('/auth/check-user', null, {
           headers: { Authorization: `Bearer ${token}`, 'X-Dass-Unit': stored.unit.code },
         })
@@ -177,9 +180,18 @@ export const useAuthStore = defineStore('auth', {
           this.fetchAvailableUnits();
         }
         return true
-      } catch {
-        this.clearSession()
-        return false
+      } catch (error) {
+        const status = error?.response?.status
+        if ([401, 403, 409].includes(status)) {
+          this.clearSession()
+          return false
+        }
+
+        // Falhas de rede e erros 5xx são temporários: mantenha a sessão local
+        // para que o usuário possa continuar e tentar carregar os dados novamente.
+        this.user = stored
+        this.isAuthenticated = true
+        return true
       }
     },
 

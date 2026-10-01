@@ -33,12 +33,12 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2">
               <Tag class="w-4 h-4 text-indigo-500" /> Categorias de Materiais
             </h2>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">governa Material.type</span>
+            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">Categorias por setor e localização</span>
           </div>
           
           <!-- Formulário de adição (Oculto para perfil leitor) -->
           <div v-if="canManageSettings" class="px-6 py-4 border-b border-gray-100 bg-indigo-50/30">
-            <form @submit.prevent="addCategory" class="flex gap-4 items-end flex-wrap">
+            <form @submit.prevent="addCategory" class="space-y-4">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Categoria</label>
                 <input v-model="newCategory.name" required placeholder="Ex: TECIDO, COURO, TINTAS..."
@@ -46,45 +46,62 @@
                   style="text-transform: uppercase" />
               </div>
 
-              <div class="w-48 min-w-[160px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor</label>
-                <select v-model="newCategory.sector"
-                  :disabled="authStore.user?.role === 'admin_setor'"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium uppercase">
-                  <option value="">Geral / Livre</option>
-                  <option value="CORTE">Corte</option>
-                  <option value="APOIO">Apoio</option>
-                  <option value="PRE_FABRICADO">Pré-Fabricado</option>
-                  <option value="DISTRIBUICAO">Distribuição</option>
-                  <option value="MONTAGEM">Montagem</option>
-                </select>
-              </div>
-              
-              <div class="w-64 min-w-[180px]">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
-                <select v-model="newCategory.defaultUnitCode"
-                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
-                  <option value="">Nenhuma (Livre para escolha)</option>
-                  <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">
-                    {{ unit.name }} ({{ unit.symbol }})
-                  </option>
-                </select>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Setores em que a categoria pode ser usada</label>
+                <div class="flex flex-wrap gap-2">
+                  <label v-for="sector in categorySectorsOptions" :key="sector.id"
+                    class="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer"
+                    :class="newCategory.sectors.includes(sector.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-200 text-gray-600'">
+                    <input v-model="newCategory.sectors" type="checkbox" :value="sector.id"
+                      :disabled="isCategorySectorLocked && sector.id !== assignedCategorySector"
+                      class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    {{ sector.label }}
+                  </label>
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                  {{ isCategorySectorLocked ? 'A categoria ficará restrita ao seu setor.' : (newCategory.sectors.length ? 'Selecione um ou mais setores. Sem seleção, a categoria ficará disponível em todos.' : 'Geral / Livre: disponível em todos os setores.') }}
+                </p>
               </div>
 
-              <div class="flex items-center gap-2 pb-2">
-                <input type="checkbox" id="unitLockedCheck" v-model="newCategory.unitLocked"
-                  class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer" />
-                <label for="unitLockedCheck" class="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
-                  <Lock class="w-3.5 h-3.5 text-amber-600" />
-                  Bloquear Unidade
-                </label>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Classificação do item (opcional)</label>
+                  <select v-model="newCategory.componentType"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
+                    <option value="">Sem classificação estrutural</option>
+                    <option v-for="type in availableComponentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+                  </select>
+                  <p class="text-[11px] text-gray-500 mt-1">Ex.: Cabedal pode ser compartilhado entre Peças Cortadas e Distribuição.</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
+                  <select v-model="newCategory.defaultUnitCode"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
+                    <option value="">Nenhuma (Livre para escolha)</option>
+                    <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">
+                      {{ unit.name }} ({{ unit.symbol }})
+                    </option>
+                  </select>
+                </div>
+
+                <div class="flex items-center gap-2 pb-2">
+                  <input type="checkbox" id="unitLockedCheck" v-model="newCategory.unitLocked"
+                    class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer" />
+                  <label for="unitLockedCheck" class="text-xs font-bold text-gray-700 cursor-pointer flex items-center gap-1">
+                    <Lock class="w-3.5 h-3.5 text-amber-600" />
+                    Bloquear Unidade
+                  </label>
+                </div>
               </div>
 
-              <button type="submit" :disabled="loadingCategory"
-                class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50 ml-auto">
-                <Plus class="w-4 h-4" />
-                Adicionar
-              </button>
+              <div class="flex justify-end">
+                <button type="submit" :disabled="loadingCategory"
+                  class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-50">
+                  <Plus class="w-4 h-4" />
+                  Adicionar Categoria
+                </button>
+              </div>
             </form>
           </div>
 
@@ -97,7 +114,7 @@
                 class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium uppercase outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
                 <option value="TODOS">Todos os Setores</option>
                 <option value="CORTE">Corte</option>
-                <option value="APOIO">Apoio</option>
+                <option value="APOIO">Peças Cortadas / Cabedal</option>
                 <option value="PRE_FABRICADO">Pré-Fabricado</option>
                 <option value="DISTRIBUICAO">Distribuição</option>
                 <option value="MONTAGEM">Montagem</option>
@@ -111,7 +128,8 @@
             <thead class="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th class="px-6 py-3">Nome</th>
-                <th class="px-6 py-3 text-center">Setor</th>
+                <th class="px-6 py-3 text-center">Setores</th>
+                <th class="px-6 py-3 text-center">Classificação</th>
                 <th class="px-6 py-3 text-center">Unidade Padrão</th>
                 <th class="px-6 py-3 text-center">Regra de Trava</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ação</th>
@@ -122,8 +140,11 @@
                 <td class="px-6 py-3 font-bold text-gray-800 font-mono text-sm">{{ cat.name }}</td>
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-slate-50 text-slate-700 border-slate-200">
-                    {{ formatSectorName(cat.sector, 'Geral / Livre') }}
+                    {{ formatCategorySectors(cat) }}
                   </span>
+                </td>
+                <td class="px-6 py-3 text-center text-xs text-gray-600">
+                  {{ componentTypeLabel(cat.componentType) || '—' }}
                 </td>
                 <td class="px-6 py-3 text-center">
                   <span v-if="cat.defaultUnitCode" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
@@ -140,6 +161,10 @@
                   </span>
                 </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
+                  <button @click="openEditCategory(cat)"
+                    class="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50 mr-1" title="Editar categoria">
+                    <Pencil class="w-4 h-4" />
+                  </button>
                   <button @click="deleteCategory(cat)"
                     class="text-gray-300 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50" title="Excluir Categoria">
                     <Trash2 class="w-4 h-4" />
@@ -147,7 +172,7 @@
                 </td>
               </tr>
               <tr v-if="filteredCategories.length === 0">
-                <td :colspan="canManageSettings ? 5 : 4" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
+                <td :colspan="canManageSettings ? 6 : 5" class="px-6 py-8 text-center text-gray-400 text-sm italic">Nenhuma categoria cadastrada.</td>
               </tr>
             </tbody>
           </table>
@@ -190,7 +215,7 @@
                   >
                     <option value="">Geral / Livre</option>
                     <option value="CORTE">Corte</option>
-                    <option value="APOIO">Apoio</option>
+                    <option value="APOIO">Peças Cortadas / Cabedal</option>
                     <option value="PRE_FABRICADO">Pré-Fabricado</option>
                     <option value="DISTRIBUICAO">Distribuição</option>
                     <option value="MONTAGEM">Montagem</option>
@@ -325,7 +350,7 @@
                 >
                   <option value="">Geral / Livre</option>
                   <option value="CORTE">Corte</option>
-                  <option value="APOIO">Apoio</option>
+                  <option value="APOIO">Peças Cortadas / Cabedal</option>
                   <option value="PRE_FABRICADO">Pré-Fabricado</option>
                   <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem</option>
@@ -392,7 +417,7 @@
                 class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-400"
               >
                 <option value="CORTE">Modelo: Corte (Matéria-Prima)</option>
-                <option value="APOIO">Modelo: Apoio (Moldes/Peças)</option>
+                <option value="APOIO">Modelo: Peças Cortadas / Cabedal</option>
                 <option value="PRE_FABRICADO">Modelo: Pré-Fabricado (Solas)</option>
                 <option value="DISTRIBUICAO">Modelo: Distribuição</option>
                 <option value="MONTAGEM">Modelo: Montagem (Pés Órfãos)</option>
@@ -490,7 +515,7 @@
                   :disabled="authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS'"
                 >
                   <option value="CORTE">Corte (Matéria-Prima)</option>
-                  <option value="APOIO">Apoio (Moldes/Peças)</option>
+                  <option value="APOIO">Peças Cortadas / Cabedal</option>
                   <option value="PRE_FABRICADO">Pré-Fabricado (Solas)</option>
                   <option value="DISTRIBUICAO">Distribuição</option>
                   <option value="MONTAGEM">Montagem (Pés Órfãos)</option>
@@ -706,6 +731,75 @@
 
     </div>
 
+    <!-- MODAL DE EDIÇÃO DE CATEGORIA -->
+    <div v-if="showEditCategoryModal" ref="editCategoryDialog" role="dialog" aria-modal="true" aria-labelledby="edit-category-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden border border-gray-100">
+        <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+          <h3 id="edit-category-title" class="font-bold text-gray-800 flex items-center gap-2">
+            <Tag class="w-4 h-4 text-indigo-600" /> Editar Categoria
+          </h3>
+          <button type="button" @click="showEditCategoryModal = false" aria-label="Fechar edição de categoria" class="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+        </div>
+
+        <form @submit.prevent="saveEditCategory" class="p-6 space-y-5 text-xs">
+          <div>
+            <label class="block font-bold text-gray-500 uppercase mb-1">Nome da Categoria *</label>
+            <input v-model="editingCategory.name" required
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase bg-white" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-500 uppercase mb-2">Setores em que pode ser usada</label>
+            <div v-if="isCategorySectorLocked" class="inline-flex items-center px-3 py-2 border border-emerald-200 rounded-lg bg-emerald-50 text-emerald-800 font-bold">
+              {{ formatSectorName(assignedCategorySector, 'Setor não definido') }}
+            </div>
+            <div v-else class="flex flex-wrap gap-2">
+              <label v-for="sector in categorySectorsOptions" :key="sector.id"
+                class="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer"
+                :class="editingCategory.sectors.includes(sector.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-200 text-gray-600'">
+                <input v-model="editingCategory.sectors" type="checkbox" :value="sector.id"
+                  :disabled="isCategorySectorLocked && sector.id !== assignedCategorySector"
+                  class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                {{ sector.label }}
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500 mt-1">
+              {{ isCategorySectorLocked ? 'A edição preserva os setores já configurados para esta categoria.' : (editingCategory.sectors.length ? 'Sem setor selecionado, a categoria fica disponível para todos.' : 'Geral / Livre: disponível em todos os setores.') }}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <label class="block font-bold text-gray-500 uppercase mb-1">Classificação estrutural</label>
+              <select v-model="editingCategory.componentType" :disabled="isCategorySectorLocked" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-100">
+                <option value="">Sem classificação estrutural</option>
+                <option v-if="editingCategory.componentType && !availableEditComponentTypes.some(type => type.value === editingCategory.componentType)" :value="editingCategory.componentType">{{ componentTypeLabel(editingCategory.componentType) }}</option>
+                <option v-for="type in availableEditComponentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-gray-500 uppercase mb-1">Unidade Padrão</label>
+              <select v-model="editingCategory.defaultUnitCode" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                <option value="">Nenhuma (Livre para escolha)</option>
+                <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
+              </select>
+            </div>
+            <label class="flex items-center gap-2 pb-2 text-xs font-bold text-gray-700 cursor-pointer">
+              <input type="checkbox" v-model="editingCategory.unitLocked" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500" />
+              <Lock class="w-3.5 h-3.5 text-amber-600" /> Bloquear Unidade
+            </label>
+          </div>
+
+          <div class="pt-4 border-t flex justify-end gap-2">
+            <button type="button" @click="showEditCategoryModal = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg text-xs">Cancelar</button>
+            <button type="submit" :disabled="savingCategory || !editingCategory.name.trim()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-sm disabled:opacity-50">
+              {{ savingCategory ? 'Salvando...' : 'Salvar Alterações' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- MODAL DE EDIÇÃO DE LOCALIZAÇÃO (MULTI-CATEGORIA) -->
     <div v-if="showEditLocationModal" ref="editLocationDialog" role="dialog" aria-modal="true" aria-labelledby="edit-location-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
@@ -744,7 +838,7 @@
             >
               <option value="">Geral / Livre</option>
               <option value="CORTE">Corte</option>
-              <option value="APOIO">Apoio</option>
+              <option value="APOIO">Peças Cortadas / Cabedal</option>
               <option value="PRE_FABRICADO">Pré-Fabricado</option>
               <option value="DISTRIBUICAO">Distribuição</option>
               <option value="MONTAGEM">Montagem</option>
@@ -871,20 +965,101 @@ const categoryFilterSector = computed({
   get: () => settingsPersisted.filters.value.categoryFilterSector || 'TODOS',
   set: value => { settingsPersisted.filters.value.categoryFilterSector = value || 'TODOS' },
 })
+const categorySectorsOptions = [
+  { id: 'CORTE', label: 'Corte' },
+  { id: 'APOIO', label: 'Peças Cortadas / Cabedal' },
+  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado' },
+  { id: 'DISTRIBUICAO', label: 'Distribuição' },
+  { id: 'MONTAGEM', label: 'Montagem' },
+]
+const componentTypeOptions = [
+  { value: 'MATERIA_PRIMA', label: 'Matéria-prima' },
+  { value: 'PECA_CORTADA', label: 'Peça cortada' },
+  { value: 'CABEDAL', label: 'Cabedal' },
+  { value: 'SOLADO', label: 'Solado' },
+  { value: 'PE_PRONTO', label: 'Pé pronto' },
+]
+const componentTypeSectors = {
+  MATERIA_PRIMA: ['CORTE'],
+  PECA_CORTADA: ['APOIO'],
+  CABEDAL: ['APOIO', 'DISTRIBUICAO'],
+  SOLADO: ['PRE_FABRICADO', 'DISTRIBUICAO'],
+  PE_PRONTO: ['MONTAGEM'],
+}
+const isCategorySectorLocked = computed(() => authStore.user?.role === 'admin_setor')
+const assignedCategorySector = computed(() => normalizeCategorySector(authStore.user?.assignedSector))
+
+function normalizeCategorySector(value) {
+  return value === 'EXPEDICAO' ? 'DISTRIBUICAO' : value
+}
+
+function getCategorySectors(category) {
+  const sectors = Array.isArray(category?.sectors) && category.sectors.length
+    ? category.sectors
+    : category?.sector ? [category.sector] : []
+  return [...new Set(sectors.map(normalizeCategorySector).filter(Boolean))]
+}
+
+function categoryAppliesToSector(category, sector) {
+  const scopes = getCategorySectors(category)
+  return scopes.length === 0 || scopes.includes(normalizeCategorySector(sector))
+}
+
+function formatCategorySectors(category) {
+  const scopes = getCategorySectors(category)
+  if (!scopes.length) return 'Geral / Livre'
+  return scopes.map(sector => categorySectorsOptions.find(option => option.id === sector)?.label || formatSectorName(sector)).join(', ')
+}
+
+function componentTypeLabel(value) {
+  return componentTypeOptions.find(option => option.value === value)?.label || ''
+}
+
+function componentTypesForSectors(sectors) {
+  const normalized = (sectors || []).map(normalizeCategorySector)
+  if (!normalized.length) return []
+  return componentTypeOptions.filter(option => normalized.every(sector => componentTypeSectors[option.value].includes(sector)))
+}
+
+const availableComponentTypes = computed(() => componentTypesForSectors(newCategory.value.sectors))
+const availableEditComponentTypes = computed(() => componentTypesForSectors(editingCategory.value.sectors))
 const newCategory = ref({
   name: '',
-  sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+  sectors: isCategorySectorLocked.value && assignedCategorySector.value ? [assignedCategorySector.value] : [],
+  componentType: '',
   defaultUnitCode: '',
   unitLocked: false
+})
+
+const showEditCategoryModal = ref(false)
+const editCategoryDialog = ref(null)
+const savingCategory = ref(false)
+const editingCategory = ref({
+  id: 0,
+  name: '',
+  sectors: [],
+  componentType: '',
+  defaultUnitCode: '',
+  unitLocked: false,
+})
+
+watch(() => newCategory.value.sectors.join('|'), () => {
+  if (newCategory.value.componentType && !availableComponentTypes.value.some(type => type.value === newCategory.value.componentType)) {
+    newCategory.value.componentType = ''
+  }
+})
+
+watch(() => editingCategory.value.sectors.join('|'), () => {
+  if (!isCategorySectorLocked.value && editingCategory.value.componentType
+    && !availableEditComponentTypes.value.some(type => type.value === editingCategory.value.componentType)) {
+    editingCategory.value.componentType = ''
+  }
 })
 
 const filteredCategories = computed(() => {
   if (categoryFilterSector.value === 'TODOS') return categories.value
   const target = categoryFilterSector.value === 'EXPEDICAO' ? 'DISTRIBUICAO' : categoryFilterSector.value
-  return categories.value.filter(cat => {
-    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
-    return catSec === target
-  })
+  return categories.value.filter(cat => categoryAppliesToSector(cat, target))
 })
 
 async function addCategory() {
@@ -892,14 +1067,16 @@ async function addCategory() {
   try {
     const res = await api.post('/settings/categories', {
       name: newCategory.value.name.trim(),
-      sector: newCategory.value.sector || null,
+      sectors: newCategory.value.sectors,
+      componentType: newCategory.value.componentType || null,
       defaultUnitCode: newCategory.value.defaultUnitCode ? newCategory.value.defaultUnitCode : null,
       unitLocked: Boolean(newCategory.value.unitLocked)
     })
     showNotification('success', `Categoria "${newCategory.value.name}" criada com sucesso!`)
     newCategory.value = {
       name: '',
-      sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+      sectors: isCategorySectorLocked.value && assignedCategorySector.value ? [assignedCategorySector.value] : [],
+      componentType: '',
       defaultUnitCode: '',
       unitLocked: false
     }
@@ -908,6 +1085,40 @@ async function addCategory() {
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar categoria.'
     showNotification('error', msg)
+  }
+}
+
+function openEditCategory(category) {
+  editingCategory.value = {
+    id: category.id,
+      name: category.name || '',
+    sectors: getCategorySectors(category),
+    componentType: category.componentType || '',
+    defaultUnitCode: category.defaultUnitCode || '',
+    unitLocked: Boolean(category.unitLocked),
+  }
+  showEditCategoryModal.value = true
+}
+
+async function saveEditCategory() {
+  if (!editingCategory.value.name.trim() || savingCategory.value) return
+  savingCategory.value = true
+  try {
+    await api.put(`/settings/categories/${editingCategory.value.id}`, {
+      name: editingCategory.value.name.trim(),
+      sectors: isCategorySectorLocked.value ? undefined : editingCategory.value.sectors,
+      componentType: editingCategory.value.componentType || null,
+      defaultUnitCode: editingCategory.value.defaultUnitCode || null,
+      unitLocked: Boolean(editingCategory.value.unitLocked),
+    })
+    showNotification('success', `Categoria "${editingCategory.value.name}" atualizada com sucesso!`)
+    showEditCategoryModal.value = false
+    await fetchCategories()
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Erro ao atualizar categoria.'
+    showNotification('error', msg)
+  } finally {
+    savingCategory.value = false
   }
 }
 
@@ -973,35 +1184,20 @@ const filteredLocations = computed(() => {
 const availableCategoriesForNewLocation = computed(() => {
   const targetSector = newLocation.value.sector
   if (!targetSector) return categories.value
-  const normTarget = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector
-  return categories.value.filter(cat => {
-    if (!cat.sector) return true
-    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
-    return catSec === normTarget
-  })
+  return categories.value.filter(cat => categoryAppliesToSector(cat, targetSector))
 })
 
 const availableCategoriesForEditLocation = computed(() => {
   const targetSector = editingLocation.value.sector
   if (!targetSector) return categories.value
-  const normTarget = targetSector === 'EXPEDICAO' ? 'DISTRIBUICAO' : targetSector
-  return categories.value.filter(cat => {
-    if (!cat.sector) return true
-    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
-    return catSec === normTarget
-  })
+  return categories.value.filter(cat => categoryAppliesToSector(cat, targetSector))
 })
 
 watch(() => newLocation.value.sector, (newSec) => {
   if (newSec) {
-    const normTarget = newSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : newSec
     const validIds = new Set(
       categories.value
-        .filter(cat => {
-          if (!cat.sector) return true
-          const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
-          return catSec === normTarget
-        })
+        .filter(cat => categoryAppliesToSector(cat, newSec))
         .map(c => c.id)
     )
     newLocation.value.categoryIds = newLocation.value.categoryIds.filter(id => validIds.has(id))
@@ -1010,14 +1206,9 @@ watch(() => newLocation.value.sector, (newSec) => {
 
 watch(() => editingLocation.value.sector, (newSec) => {
   if (newSec) {
-    const normTarget = newSec === 'EXPEDICAO' ? 'DISTRIBUICAO' : newSec
     const validIds = new Set(
       categories.value
-        .filter(cat => {
-          if (!cat.sector) return true
-          const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector
-          return catSec === normTarget
-        })
+        .filter(cat => categoryAppliesToSector(cat, newSec))
         .map(c => c.id)
     )
     editingLocation.value.categoryIds = editingLocation.value.categoryIds.filter(id => validIds.has(id))
@@ -1159,6 +1350,7 @@ async function closeEditLocationModal() {
 }
 
 useModalFocus(() => showEditLocationModal.value, editLocationDialog, closeEditLocationModal)
+useModalFocus(() => showEditCategoryModal.value, editCategoryDialog, () => { showEditCategoryModal.value = false })
 
 async function addOrigin() {
   if (!newOrigin.value.trim()) return
@@ -1222,7 +1414,7 @@ const templateSector = computed({
 const importSector = ref(authStore.user?.assignedSector || 'CORTE')
 const preFabricadoCategoryNames = computed(() => {
   const names = categories.value
-    .filter(category => category.sector === null || category.sector === 'PRE_FABRICADO')
+    .filter(category => categoryAppliesToSector(category, 'PRE_FABRICADO'))
     .map(category => category.name)
   return names.length ? names.join(', ') : 'nenhuma categoria cadastrada'
 })
@@ -1254,21 +1446,23 @@ const sectorCsvPattern = computed(() => {
 
   if (sec === 'APOIO') {
     return {
-      title: 'Padrão Exigido para o Arquivo CSV — APOIO (Moldes & Peças Cortadas)',
+      title: 'Padrão Exigido para o Arquivo CSV — Peças Cortadas e Cabedal',
       columns: [
         { name: 'sku', req: true, desc: 'Código / SKU ou Molde da peça. Ex: MOL-001' },
         { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: true, desc: 'Nome / Descrição da peça avulsa. Ex: GASPEA LATERAL' },
-        { name: 'material_cor', req: false, desc: 'Material ou combinação da peça (aceita também combinacao ou cor). Se vazio, será usado PADRAO.' },
+        { name: 'tipo', req: false, desc: 'Categoria configurada. Para cabedal, use uma categoria classificada como Cabedal.' },
+        { name: 'material_cor', req: false, desc: 'Material da peça cortada ou combinação do cabedal (aceita também combinacao ou cor).' },
         { name: 'grade', req: false, desc: 'Grade/numeração quando aplicável. Ex: 40' },
+        { name: 'lado', req: false, desc: 'Obrigatório para Cabedal: E (esquerdo), D (direito) ou PAR. Ignorado para peça cortada.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box no apoio. Ex: AP-01' },
       ],
-      headerExample: 'sku;modelo;peca;material_cor;grade;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;tipo;material_cor;grade;lado;quantidade;prateleira',
       examples: [
-        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;SINTETICO PRETO;40;50;AP-01',
-        'MOL-002;AIR MAX SC;TALONEIRA TRASEIRA;COURO BRANCO;39;30;AP-02',
-        'MOL-003;VOMERO 17;LINGUETA SUPERIOR;MALHA CINZA;41;40;AP-03',
+        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;PEÇAS CORTADAS;SINTETICO PRETO;40;;50;AP-01',
+        'CAB-001;RACER SPEEDZONE;CABEDAL;CABEDAL;PRETO/BRANCO;40;PAR;8;AP-04',
+        'CAB-002;AIR MAX SC;CABEDAL;CABEDAL;BRANCO/PRETO;39;E;12;AP-05',
       ],
     }
   }

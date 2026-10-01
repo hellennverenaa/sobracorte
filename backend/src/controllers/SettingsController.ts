@@ -4,6 +4,28 @@ import { normalizeSector, requireActiveStockSector, SectorValidationError } from
 import { prisma } from '../prisma';
 import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
+import { categoryAppliesToSector, categoryScopeValue, categoryScopeWhere } from '../services/categoryScope';
+
+const COMPONENT_TYPES = ['MATERIA_PRIMA', 'PECA_CORTADA', 'SOLADO', 'CABEDAL', 'PE_PRONTO'] as const;
+
+function parseComponentType(value: unknown): typeof COMPONENT_TYPES[number] | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string' && COMPONENT_TYPES.includes(value as typeof COMPONENT_TYPES[number])) return value as typeof COMPONENT_TYPES[number];
+  throw new Error('Tipo de componente inválido.');
+}
+
+function componentTypeFitsSectors(componentType: string | null, sectors: string[]): boolean {
+  if (!componentType) return true;
+  if (sectors.length === 0) return false;
+  const supportedSectors: Record<string, string[]> = {
+    MATERIA_PRIMA: ['CORTE'],
+    PECA_CORTADA: ['APOIO'],
+    CABEDAL: ['APOIO', 'DISTRIBUICAO'],
+    SOLADO: ['PRE_FABRICADO', 'DISTRIBUICAO'],
+    PE_PRONTO: ['MONTAGEM'],
+  };
+  return sectors.every(sector => supportedSectors[componentType]?.includes(normalizeSector(sector)));
+}
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error
@@ -52,24 +74,28 @@ export class SettingsController {
         targetSector = assignedStockSector(requestStockAccess(req))! as any;
       }
 
-      const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (targetSector) {
-        whereClause.OR = [
-          { sector: targetSector as any },
-          { sector: null }
-        ];
-      }
+      const whereClause: any = {
+        factoryUnitId: req.tenant!.id,
+        ...(targetSector ? categoryScopeWhere(targetSector) : {}),
+      };
 
       const categories = await prisma.categoryConfig.findMany({
         where: whereClause,
-        orderBy: [{ sector: 'asc' }, { name: 'asc' }]
+        orderBy: [{ name: 'asc' }]
       });
 
       const categoriesWithCount = await Promise.all(
         categories.map(async (cat) => {
-          const stockCount = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)), type: cat.name } });
+          const stockCount = await prisma.stockItem.count({
+            where: {
+              factoryUnitId: req.tenant!.id,
+              ...sectorAccessWhere(requestStockAccess(req)),
+              OR: [{ categoryId: cat.id }, { type: cat.name }],
+            },
+          });
           return {
             ...cat,
+            sectors: cat.sectors.length ? cat.sectors : cat.sector ? [cat.sector] : [],
             linkedCount: stockCount,
           };
         })
@@ -90,16 +116,25 @@ export class SettingsController {
         return res.status(perm.status || 403).json({ error: perm.error });
       }
 
-      const { name, defaultUnitCode, unitLocked, sector } = req.body;
+      const { name, defaultUnitCode, unitLocked, sector, sectors: requestedSectors, componentType: rawComponentType } = req.body;
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
       }
 
-      let targetSector = sector ? requireActiveStockSector(sector) : (req.user?.assignedSector ? requireActiveStockSector(req.user.assignedSector) : 'CORTE');
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector as any;
+      const access = requestStockAccess(req);
+      const assignedSector = assignedStockSector(access);
+      const scope = categoryScopeValue(
+        requestedSectors,
+        sector,
+        requestedSectors === undefined && sector === undefined ? (assignedSector || 'CORTE') : undefined,
+      );
+      if (assignedSector && (scope.sectors.length !== 1 || scope.sectors[0] !== assignedSector)) {
+        return res.status(403).json({ error: `A categoria deve ficar restrita ao setor ${assignedSector}.` });
       }
-
+      const componentType = parseComponentType(rawComponentType);
+      if (!componentTypeFitsSectors(componentType, scope.sectors)) {
+        return res.status(400).json({ error: 'O tipo de componente escolhido não é compatível com todos os setores selecionados.' });
+      }
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
@@ -108,7 +143,9 @@ export class SettingsController {
         const cat = await tx.categoryConfig.create({
           data: {
             name: String(name).trim().toUpperCase(),
-            sector: targetSector as any,
+            sector: scope.legacySector,
+            sectors: scope.sectors,
+            componentType: componentType as any,
             defaultUnitCode: code || null,
             unitLocked: Boolean(unitLocked),
             factoryUnitId: req.tenant!.id
@@ -124,7 +161,7 @@ export class SettingsController {
             operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
             operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
             origem: 'Configurações - Categorias',
-            reason: `Criação de Categoria: ${cat.name} (Setor: ${targetSector || 'GERAL'})`
+            reason: `Criação de Categoria: ${cat.name} (Setores: ${scope.sectors.length ? scope.sectors.join(', ') : 'GERAL'})`
           }
         });
 
@@ -132,7 +169,7 @@ export class SettingsController {
       });
       res.status(201).json(category);
     } catch (error: unknown) {
-      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError || (error instanceof Error && error.message === 'Tipo de componente inválido.')) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa categoria já existe.' });
@@ -150,15 +187,31 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const { name, defaultUnitCode, unitLocked, sector } = req.body;
+      const { name, defaultUnitCode, unitLocked, sector, sectors: requestedSectors, componentType: rawComponentType } = req.body;
+      const assignedSector = assignedStockSector(requestStockAccess(req));
+      const existing = await prisma.categoryConfig.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) },
+      });
+      if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
 
-      let targetSector = sector !== undefined ? (sector ? requireActiveStockSector(sector) : null) : undefined;
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector as any;
+      const scopeWasProvided = requestedSectors !== undefined || sector !== undefined;
+      const scope = scopeWasProvided
+        ? categoryScopeValue(requestedSectors, sector)
+        : { sectors: existing.sectors, legacySector: existing.sector };
+      if (assignedSector && scopeWasProvided && (scope.sectors.length !== 1 || scope.sectors[0] !== assignedSector)) {
+        return res.status(403).json({ error: `A categoria deve ficar restrita ao setor ${assignedSector}.` });
+      }
+      const componentType = rawComponentType === undefined ? existing.componentType : parseComponentType(rawComponentType);
+      if (!componentTypeFitsSectors(componentType, scope.sectors)) {
+        return res.status(400).json({ error: 'O tipo de componente escolhido não é compatível com todos os setores selecionados.' });
+      }
+      if (rawComponentType !== undefined && componentType !== existing.componentType) {
+        const linkedItems = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, categoryId: id } });
+        if (linkedItems > 0) {
+          return res.status(400).json({ error: 'Não é possível alterar a classificação estrutural enquanto houver itens vinculados a esta categoria.' });
+        }
       }
 
-      const existing = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
-      if (!existing) return res.status(404).json({ error: 'Categoria não encontrada.' });
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
@@ -168,7 +221,7 @@ export class SettingsController {
         const newName = name ? String(name).trim().toUpperCase() : undefined;
         if (newName && newName !== existing.name) {
           await lockStockIdentityWrites(tx, req.tenant!.id);
-          const affected = await tx.stockItem.findMany({ where: { factoryUnitId: req.tenant!.id, type: existing.name } });
+          const affected = await tx.stockItem.findMany({ where: { factoryUnitId: req.tenant!.id, OR: [{ categoryId: id }, { type: existing.name }] } });
           for (const item of affected) {
             if (!('type' in stockIdentity(item))) continue;
             const matches = await findStockIdentityMatches(tx, req.tenant!.id, { ...item, type: newName });
@@ -177,11 +230,29 @@ export class SettingsController {
             }
           }
         }
+
+        if (scopeWasProvided && scope.sectors.length > 0) {
+          const [linkedItems, linkedLocations] = await Promise.all([
+            tx.stockItem.findMany({ where: { factoryUnitId: req.tenant!.id, categoryId: id }, select: { sector: true } }),
+            tx.location.findMany({
+              where: { factoryUnitId: req.tenant!.id, OR: [{ categoryId: id }, { categoryLinks: { some: { categoryId: id } } }] },
+              select: { sector: true },
+            }),
+          ]);
+          const normalizedScopes = new Set(scope.sectors.map(value => normalizeSector(value)));
+          if (linkedItems.some(item => !normalizedScopes.has(normalizeSector(item.sector)))
+            || linkedLocations.some(location => location.sector && !normalizedScopes.has(normalizeSector(location.sector)))) {
+            throw new Error('A categoria ainda está vinculada a itens ou localizações de setores que seriam removidos. Inclua esses setores ou remova os vínculos antes de salvar.');
+          }
+        }
+
         const cat = await tx.categoryConfig.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) },
           data: {
             name: newName,
-            sector: targetSector !== undefined ? (targetSector as any) : undefined,
+            sector: scopeWasProvided ? scope.legacySector : undefined,
+            sectors: scopeWasProvided ? scope.sectors : undefined,
+            componentType: componentType as any,
             defaultUnitCode: code,
             unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
           }
@@ -189,7 +260,7 @@ export class SettingsController {
 
         if (newName && newName !== existing.name) {
           await tx.stockItem.updateMany({
-            where: { factoryUnitId: req.tenant!.id, type: existing.name },
+            where: { factoryUnitId: req.tenant!.id, OR: [{ categoryId: id }, { type: existing.name }] },
             data: { type: newName },
           });
         }
@@ -203,7 +274,7 @@ export class SettingsController {
             operatorId: req.effectiveContext?.matriculaDass ? String(req.effectiveContext.matriculaDass) : (req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null)),
             operatorName: req.effectiveContext?.nome || req.user?.nome || req.user?.usuario || 'Administrador',
             origem: 'Configurações - Categorias',
-            reason: `Edição de Categoria: ${existing.name}${newName && newName !== existing.name ? ` para ${newName}` : ''}`
+            reason: `Edição de Categoria: ${existing.name}${newName && newName !== existing.name ? ` para ${newName}` : ''}${scopeWasProvided ? ` (Setores: ${scope.sectors.length ? scope.sectors.join(', ') : 'GERAL'})` : ''}`
           }
         });
 
@@ -214,6 +285,7 @@ export class SettingsController {
     } catch (error: unknown) {
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof Error && (error.message === 'Tipo de componente inválido.' || error.message.startsWith('A categoria ainda está vinculada'))) return res.status(400).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }
@@ -230,13 +302,16 @@ export class SettingsController {
       }
 
       const id = Number(req.params.id);
-      const category = await prisma.categoryConfig.findFirst({ where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) } });
+      const assignedSector = assignedStockSector(requestStockAccess(req));
+      const category = await prisma.categoryConfig.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) },
+      });
       if (!category) {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
 
       const stockCount = await prisma.stockItem.count({
-        where: { factoryUnitId: req.tenant!.id, type: category.name }
+        where: { factoryUnitId: req.tenant!.id, OR: [{ categoryId: id }, { type: category.name }] }
       });
       const totalActive = stockCount;
 
@@ -263,11 +338,15 @@ export class SettingsController {
           }
         });
 
+        await tx.stockItem.updateMany({
+          where: { factoryUnitId: req.tenant!.id, categoryId: id },
+          data: { categoryId: null },
+        });
         await tx.locationCategory.deleteMany({ where: { categoryId: id, factoryUnitId: req.tenant!.id } });
         await tx.location.updateMany({
           where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
         });
-        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) } });
+        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) } });
       });
 
       res.json({ message: 'Categoria excluída com sucesso.' });
@@ -357,7 +436,7 @@ export class SettingsController {
       // Suporta array de IDs ou único ID
       let idsToLink: number[] = [];
       if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-        idsToLink = categoryIds.map(Number).filter((id) => !isNaN(id) && id > 0);
+        idsToLink = Array.from(new Set(categoryIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)));
       } else if (categoryId) {
         idsToLink = [Number(categoryId)];
       }
@@ -371,10 +450,7 @@ export class SettingsController {
           factoryUnitId: req.tenant!.id,
         };
         if (targetSector) {
-          categoryWhere.OR = [
-            { sector: targetSector as any },
-            { sector: null }
-          ];
+          Object.assign(categoryWhere, categoryScopeWhere(targetSector));
         }
 
         const validCategories = await prisma.categoryConfig.findMany({
@@ -382,9 +458,9 @@ export class SettingsController {
           select: { id: true, name: true, sector: true }
         });
 
-        if (validCategories.length === 0) {
+        if (validCategories.length !== idsToLink.length) {
           return res.status(400).json({
-            error: `Nenhuma categoria válida encontrada para o setor ${targetSector || 'especificado'}.`
+            error: `Uma ou mais categorias não são válidas para o setor ${targetSector || 'especificado'}.`
           });
         }
 
@@ -466,20 +542,21 @@ export class SettingsController {
       if (Array.isArray(categoryIds)) {
         if (categoryIds.length > 0) {
           const effectiveSector = targetSector !== undefined ? targetSector : existing.sector;
+          const requestedIds = Array.from(new Set(categoryIds.map(Number).filter(n => Number.isSafeInteger(n) && n > 0)));
           const categoryWhere: any = {
-            id: { in: categoryIds.map(Number).filter(n => !isNaN(n) && n > 0) },
+            id: { in: requestedIds },
             factoryUnitId: req.tenant!.id,
           };
           if (effectiveSector) {
-            categoryWhere.OR = [
-              { sector: effectiveSector as any },
-              { sector: null }
-            ];
+            Object.assign(categoryWhere, categoryScopeWhere(effectiveSector));
           }
           const validCategories = await prisma.categoryConfig.findMany({
             where: categoryWhere,
             select: { id: true }
           });
+          if (validCategories.length !== requestedIds.length) {
+            return res.status(400).json({ error: `Uma ou mais categorias não são válidas para o setor ${effectiveSector || 'especificado'}.` });
+          }
           finalCategoryIds = validCategories.map(c => c.id);
         } else {
           finalCategoryIds = [];
@@ -491,9 +568,32 @@ export class SettingsController {
         if (targetSector !== undefined && targetSector !== null) {
           const links = await tx.stockItemLocation.findMany({
             where: { factoryUnitId: req.tenant!.id, locationId: id },
-            include: { stockItem: { select: { sector: true } } },
+            include: { stockItem: { select: { sector: true, categoryId: true } } },
           });
-          for (const link of links) assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
+          for (const link of links) {
+            assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
+            if (link.stockItem.categoryId && finalCategoryIds && finalCategoryIds.length > 0
+              && !finalCategoryIds.includes(link.stockItem.categoryId)) {
+              throw new Error('A localização não pode perder a categoria de um item que ainda possui saldo nela.');
+            }
+          }
+        }
+        if (targetSector !== undefined && finalCategoryIds === undefined) {
+          const currentCategoryLinks = await tx.locationCategory.findMany({
+            where: { factoryUnitId: req.tenant!.id, locationId: id },
+            include: { category: { select: { sector: true, sectors: true } } },
+          });
+          const currentCategories = currentCategoryLinks.map(link => link.category);
+          if (existing.categoryId && !currentCategoryLinks.some(link => link.categoryId === existing.categoryId)) {
+            const primaryCategory = await tx.categoryConfig.findFirst({
+              where: { id: existing.categoryId, factoryUnitId: req.tenant!.id },
+              select: { sector: true, sectors: true },
+            });
+            if (primaryCategory) currentCategories.push(primaryCategory);
+          }
+          if (targetSector && currentCategories.some(category => !categoryAppliesToSector(category, targetSector!))) {
+            throw new Error('A localização não pode mudar para um setor incompatível com suas categorias vinculadas.');
+          }
         }
         if (finalCategoryIds !== undefined) {
           // Remove vínculos antigos
@@ -550,6 +650,8 @@ export class SettingsController {
       if (error instanceof Error && error.message.includes('Movimentações entre setores não são permitidas')) {
         return res.status(400).json({ error: 'Não é possível vincular a localização a um setor diferente dos itens já alocados nela.' });
       }
+      if (error instanceof Error && error.message.startsWith('A localização ')) return res.status(400).json({ error: error.message });
+      if (error instanceof Error && error.message.startsWith('A categoria não pode')) return res.status(400).json({ error: error.message });
       console.error('Erro ao atualizar localização:', error);
       res.status(500).json({ error: 'Erro ao atualizar localização' });
     }

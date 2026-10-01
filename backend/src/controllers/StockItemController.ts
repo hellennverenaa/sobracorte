@@ -6,7 +6,7 @@ import { DuplicateStockItemError, StockItemService } from '../services/StockItem
 import { BatchCreateStockItemSchema } from '../types/stock.dto';
 import { ZodError } from 'zod';
 import { SectorType } from '../generated/prisma';
-import { lockStockIdentityWrites } from '../services/stockIdentity';
+import { lockStockIdentityWrites, StockCategoryError } from '../services/stockIdentity';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 const stockItemService = new StockItemService();
@@ -42,6 +42,7 @@ export class StockItemController {
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }
+      if (error instanceof StockCategoryError) return res.status(400).json({ error: error.message });
       if (error instanceof ZodError) {
         return res.status(400).json({
           error: 'Erro de validação dos dados.',

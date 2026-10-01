@@ -3,7 +3,7 @@ import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
-import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
+import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
 import { validateQuantity, normalizeUnit } from '../utils/unitHelper';
 
 export class StockMovementService {
@@ -34,9 +34,13 @@ export class StockMovementService {
       }
       const targetLocationId = locationId || item.locations[0]?.locationId;
       if (targetLocationId) {
-        const location = await tx.location.findFirst({ where: { id: targetLocationId, factoryUnitId } });
+        const location = await tx.location.findFirst({
+          where: { id: targetLocationId, factoryUnitId },
+          include: { categoryLinks: { select: { categoryId: true } } },
+        });
         if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
         assertStockLocationSector(location, item.sector);
+        assertStockLocationCategory(location, item.categoryId);
         if (type === 'TRANSFERENCIA' || type === 'ENTRADA') assertGeneralStockAccess(context, location);
       }
 
@@ -115,6 +119,7 @@ export class StockMovementService {
 
         const destLocation = await tx.location.findFirst({
           where: { id: destinationLocationId, factoryUnitId },
+          include: { categoryLinks: { select: { categoryId: true } } },
         });
         if (!destLocation) {
           throw new Error('A localização de destino não foi encontrada nesta unidade fabril.');
@@ -130,6 +135,7 @@ export class StockMovementService {
         }
 
         assertStockLocationSector(destLocation, item.sector);
+        assertStockLocationCategory(destLocation, item.categoryId);
         assertGeneralStockAccess(context, destLocation);
 
         // Debitar da prateleira de origem com decremento condicional

@@ -177,7 +177,7 @@ const currentFilteredVolume = computed(() => {
   if (selectedSector.value === 'APOIO') {
     return {
       isAllSectors: false,
-      label: 'Estoque de Peças (Apoio)',
+      label: 'Estoque de Peças Cortadas e Cabedais',
       mainCount: Number(setoresData.value.apoio?.totalQuantity || 0),
       mainUnit: unitTotals[0]?.unit || 'UND',
       itemsCount: setoresData.value.apoio?.itemsCount || 0
@@ -374,7 +374,7 @@ const currentFilteredPairsCard = computed(() => {
   const totalExits = Number(setoresData.value.apoio?.totalExits) || 0;
   return {
     type: 'APOIO',
-    title: 'Saídas de Peças (Apoio)',
+    title: 'Saídas de Peças Cortadas e Cabedais',
     badge: 'Eliminação de Sobras',
     badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
     mainCount: exitUnits.length === 1 ? exitsByUnit[exitUnits[0]] : totalExits,

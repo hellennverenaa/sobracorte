@@ -42,10 +42,21 @@ export async function createFactoryWithCatalog(
   });
 
   for (const category of catalog.categories) {
+    const componentType = category.sector === 'CORTE'
+      ? 'MATERIA_PRIMA'
+      : category.sector === 'APOIO'
+        ? 'PECA_CORTADA'
+        : category.sector === 'PRE_FABRICADO'
+          ? 'SOLADO'
+          : category.sector === 'DISTRIBUICAO'
+            ? (category.name.includes('SOLA') ? 'SOLADO' : 'CABEDAL')
+            : 'PE_PRONTO';
     await tx.categoryConfig.create({
       data: {
         name: category.name,
         sector: category.sector,
+        sectors: [category.sector],
+        componentType,
         defaultUnitCode: category.defaultUnitCode,
         unitLocked: category.unitLocked,
         factoryUnitId: factory.id,

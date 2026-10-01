@@ -9,12 +9,29 @@ export class DuplicateStockItemError extends Error {
     this.name = 'DuplicateStockItemError';
   }
 }
+export class StockCategoryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StockCategoryError';
+  }
+}
 
 
 /** Localizações gerais (sem setor) continuam compartilhadas. */
 export function assertStockLocationSector(location: { sector?: string | null }, sector: string) {
   if (location.sector && normalizeStockSector(location.sector) !== normalizeStockSector(sector)) {
     throw new Error('A localização pertence a outro setor. Movimentações entre setores não são permitidas.');
+  }
+}
+export function assertStockLocationCategory(
+  location: { categoryId?: number | null; categoryLinks?: Array<{ categoryId: number }> },
+  categoryId?: number | null,
+) {
+  if (!categoryId) return;
+  const linked = location.categoryId === categoryId
+    || location.categoryLinks?.some(link => link.categoryId === categoryId) === true;
+  if (!linked) {
+    throw new StockCategoryError('A localização não está vinculada à categoria selecionada. Vincule-a em Configurações ou escolha outra localização.');
   }
 }
 export function normalizeStockText(value: unknown) {
@@ -27,10 +44,12 @@ export function normalizeStockColor(value: unknown) {
 
 export function stockIdentity(data: Record<string, any>) {
   const sector = normalizeStockSector(data.sector);
-  const fields = sector === 'CORTE' ? ['code', 'name', 'type']
-    : sector === 'APOIO' ? ['pieceCode', 'productName', 'description', 'materialColor', 'sizeGrade']
-    : sector === 'MONTAGEM' ? ['sku', 'productName', 'color', 'sizeGrade', 'footSide']
-    : ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide'];
+  const fields = sector === 'CORTE' ? ['code', 'name', 'type', 'categoryId']
+    : sector === 'APOIO' && data.componentType === 'CABEDAL'
+      ? ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide', 'categoryId']
+      : sector === 'APOIO' ? ['pieceCode', 'productName', 'type', 'description', 'materialColor', 'sizeGrade', 'categoryId']
+    : sector === 'MONTAGEM' ? ['sku', 'productName', 'color', 'sizeGrade', 'footSide', 'categoryId']
+    : ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide', 'categoryId'];
   return Object.fromEntries(fields.map(field => [field,
     field === 'color' ? normalizeStockColor(data[field]) : normalizeStockText(data[field]),
   ]));
@@ -43,11 +62,13 @@ export async function lockStockIdentityWrites(tx: Pick<StockTransactionClient, '
 export async function findStockIdentityMatches(tx: StockTransactionClient, factoryUnitId: number, data: Record<string, any>) {
   const sector = normalizeStockSector(data.sector);
   const identity = stockIdentity(data);
-  const AND = Object.entries(identity).filter(([field]) => field !== 'color').map(([field, value]): Prisma.StockItemWhereInput => field === 'footSide'
-    ? { footSide: value ? value as FootSide : null }
-    : value
-    ? { [field]: { equals: value, mode: 'insensitive' } }
-    : { OR: [{ [field]: null }, { [field]: '' }] });
+  const AND = Object.entries(identity).filter(([field]) => field !== 'color').map(([field, value]): Prisma.StockItemWhereInput => {
+    if (field === 'footSide') return { footSide: value ? value as FootSide : null };
+    if (field === 'categoryId') return { categoryId: value ? Number(value) : null };
+    return value
+      ? { [field]: { equals: value, mode: 'insensitive' } }
+      : { OR: [{ [field]: null }, { [field]: '' }] };
+  });
   const candidates = await tx.stockItem.findMany({
     where: { factoryUnitId, sector: sector === 'DISTRIBUICAO' ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : sector as SectorType, AND },
   });

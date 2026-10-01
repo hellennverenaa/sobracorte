@@ -39,7 +39,7 @@ const canManageUser = user => user.role !== 'admin' || auth.user?.isGlobalAdmin 
 
 const sectorOptions = [
   { value: "CORTE", label: "Corte" },
-  { value: "APOIO", label: "Apoio" },
+  { value: "APOIO", label: "Peças Cortadas / Cabedal" },
   { value: "PRE_FABRICADO", label: "Pré-Fabricado" },
   { value: "DISTRIBUICAO", label: "Distribuição" },
   { value: "MONTAGEM", label: "Montagem" },
@@ -351,7 +351,7 @@ onMounted(() => {
             >
               <option :value="null" :disabled="!['admin', 'leitor'].includes(editingUser.role)">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : editingUser.role === 'leitor' ? 'SEM REFERÊNCIA — CONSULTA TODOS' : 'SELECIONE UM SETOR' }}</option>
               <option value="CORTE">CORTE</option>
-              <option value="APOIO">APOIO</option>
+              <option value="APOIO">PEÇAS CORTADAS / CABEDAL</option>
               <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>
               <option value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
               <option value="MONTAGEM">MONTAGEM</option>

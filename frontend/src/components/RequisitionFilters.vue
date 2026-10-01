@@ -22,7 +22,7 @@
         class="w-full border border-slate-200 p-2 rounded-xl outline-none focus:border-indigo-500 bg-white text-xs font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed">
         <option v-if="!sectorLocked" value="">Todos os Setores</option>
         <option value="CORTE">Corte</option>
-        <option value="APOIO">Apoio</option>
+        <option value="APOIO">Peças Cortadas / Cabedal</option>
         <option value="PRE_FABRICADO">Pré-Fabricado</option>
         <option value="DISTRIBUICAO">Distribuição</option>
         <option value="MONTAGEM">Montagem</option>

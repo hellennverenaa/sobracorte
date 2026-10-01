@@ -227,12 +227,15 @@ model CategoryConfig {
   id            Int         @id @default(autoincrement())
   name          String
   sector        SectorType? // Setor vinculado à categoria (CORTE, APOIO, etc.)
+  sectors       SectorType[] @default([]) // Setores em que a categoria pode ser usada; vazio com sector nulo significa geral
+  componentType ComponentType? // Classificação estrutural do item, usada para distinguir peça cortada de cabedal em APOIO
   unitLocked    Boolean     @default(false)
   defaultUnitCode String?
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
   locations     Location[]
   locationLinks LocationCategory[]
+  stockItems    StockItem[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
@@ -261,6 +264,7 @@ model StockItem {
   id            Int            @id @default(autoincrement())
   factoryUnitId Int
   sector        SectorType     @default(CORTE)
+  categoryId    Int?
   componentType ComponentType? @default(MATERIA_PRIMA)
   quantity      Decimal        @default(0) @db.Decimal(18, 3)
   observation   String?        @default("")
@@ -292,6 +296,7 @@ model StockItem {
 
   // Relações Multi-Tenant Compostas
   factoryUnit   FactoryUnit         @relation(fields: [factoryUnitId], references: [id])
+  category      CategoryConfig?     @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     StockItemLocation[]
   movements     StockMovement[]
 
@@ -301,6 +306,7 @@ model StockItem {
   @@index([factoryUnitId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([factoryUnitId, name])
   @@index([factoryUnitId, type])
+  @@index([factoryUnitId, categoryId])
   @@index([factoryUnitId, quantity(sort: Desc)])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, sector, productName, sizeGrade])

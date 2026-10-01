@@ -4,7 +4,8 @@ import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
-import { assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem } from './stockIdentity';
+import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError } from './stockIdentity';
+import { categoryScopeWhere } from './categoryScope';
 export { DuplicateStockItemError } from './stockIdentity';
 
 export class StockItemService {
@@ -20,156 +21,197 @@ export class StockItemService {
 
       await lockStockIdentityWrites(tx, factoryUnitId);
 
-      const items = dto.items.flatMap((item) => {
-        if ((item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO' || item.sector === 'MONTAGEM') && item.footSide === 'PAR') {
-          return [{ ...item, footSide: 'E' as const }, { ...item, footSide: 'D' as const }];
+      for (const originalItem of dto.items) {
+        assertStockSectorAccess(context, originalItem.sector);
+        const item: any = originalItem;
+        const category = item.categoryId
+          ? await tx.categoryConfig.findFirst({
+            where: { id: item.categoryId, factoryUnitId, ...categoryScopeWhere(item.sector) },
+          })
+          : null;
+        if (item.categoryId && !category) {
+          throw new StockCategoryError('A categoria selecionada não existe nesta unidade ou não se aplica ao setor do cadastro.');
         }
-        return [item];
-      });
 
-      for (const item of items) {
-        assertStockSectorAccess(context, item.sector);
+        const allowedComponentBySector: Record<string, ComponentType[]> = {
+          CORTE: ['MATERIA_PRIMA'],
+          APOIO: ['PECA_CORTADA', 'CABEDAL'],
+          PRE_FABRICADO: ['SOLADO'],
+          DISTRIBUICAO: ['CABEDAL', 'SOLADO'],
+          EXPEDICAO: ['CABEDAL', 'SOLADO'],
+          MONTAGEM: ['PE_PRONTO'],
+        };
+        if (category?.componentType && !allowedComponentBySector[item.sector]?.includes(category.componentType)) {
+          throw new StockCategoryError('A classificação da categoria não é compatível com o setor escolhido.');
+        }
+        if (category && item.type && String(item.type).trim().toUpperCase() !== category.name.trim().toUpperCase()) {
+          throw new StockCategoryError('O tipo do material deve corresponder à categoria selecionada.');
+        }
+
+        if (category?.unitLocked && normalizeUnit(item.unit, item.sector) !== category.defaultUnitCode) {
+          throw new UnitValidationError(`A categoria ${category.name} exige a unidade ${category.defaultUnitCode}.`);
+        }
+
+        let apoioComponentType: ComponentType = 'PECA_CORTADA';
+        if (item.sector === 'APOIO') {
+          apoioComponentType = (category?.componentType || item.componentType || 'PECA_CORTADA') as ComponentType;
+          if (apoioComponentType !== 'PECA_CORTADA' && apoioComponentType !== 'CABEDAL') {
+            throw new StockCategoryError('No setor Peças Cortadas, selecione uma categoria do tipo Peça Cortada ou Cabedal.');
+          }
+          if (category?.componentType && item.componentType && category.componentType !== item.componentType) {
+            throw new StockCategoryError('O tipo do item não corresponde ao tipo definido na categoria selecionada.');
+          }
+        }
+
         validateQuantity(item.quantity, item.unit, item.sector);
         if ('minStock' in item) validateQuantity(item.minStock, item.unit, item.sector, true);
-        if (item.sector === 'CORTE') {
-          const category = await tx.categoryConfig.findFirst({ where: { factoryUnitId, name: item.type, OR: [{ sector: 'CORTE' }, { sector: null }] } });
-          if (category?.unitLocked && normalizeUnit(item.unit) !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
-        }
-        const locationName = item.location.trim().toUpperCase();
 
-        // 1. Localizar ou criar a prateleira/localização
-        let loc = await tx.location.findUnique({
-          where: {
-            factoryUnitId_name: {
-              factoryUnitId,
-              name: locationName,
-            },
-          },
-        });
+        const shouldSplitPair = item.footSide === 'PAR' && (
+          item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO'
+          || item.sector === 'EXPEDICAO' || item.sector === 'MONTAGEM'
+          || (item.sector === 'APOIO' && apoioComponentType === 'CABEDAL')
+        );
+        const items = shouldSplitPair
+          ? [{ ...item, footSide: 'E' }, { ...item, footSide: 'D' }]
+          : [item];
 
-        if (!loc) {
-          loc = await tx.location.create({
+        for (const expandedItem of items) {
+          const locationName = expandedItem.location.trim().toUpperCase();
+          let loc = await tx.location.findUnique({
+            where: { factoryUnitId_name: { factoryUnitId, name: locationName } },
+            include: { categoryLinks: { select: { categoryId: true } } },
+          });
+
+          if (!loc && expandedItem.categoryId) {
+            throw new StockCategoryError('A localização selecionada não existe ou não está vinculada à categoria. Cadastre e vincule-a em Configurações.');
+          }
+          if (!loc) {
+            loc = await tx.location.create({
+              data: {
+                name: locationName,
+                sector: normalizeStockSector(expandedItem.sector) as SectorType,
+                factoryUnitId,
+              },
+              include: { categoryLinks: { select: { categoryId: true } } },
+            });
+          }
+
+          assertStockLocationSector(loc, expandedItem.sector);
+          assertStockLocationCategory(loc, expandedItem.categoryId);
+          assertGeneralStockAccess(context, loc);
+
+          const baseData = {
+            factoryUnitId,
+            sector: normalizeStockSector(expandedItem.sector) as SectorType,
+            categoryId: expandedItem.categoryId || null,
+            quantity: expandedItem.quantity,
+            unit: normalizeUnit(expandedItem.unit, expandedItem.sector),
+            observation: expandedItem.observation || '',
+          };
+
+          let sectorSpecificData: Record<string, any> = {};
+          switch (expandedItem.sector) {
+            case 'CORTE':
+              sectorSpecificData = {
+                componentType: (category?.componentType || 'MATERIA_PRIMA') as ComponentType,
+                code: expandedItem.code.trim().toUpperCase(),
+                name: expandedItem.name.trim().toUpperCase(),
+                type: (expandedItem.type || category?.name || 'GERAL').trim().toUpperCase(),
+                minStock: expandedItem.minStock || 0,
+              };
+              break;
+            case 'APOIO':
+              if (apoioComponentType === 'CABEDAL') {
+                sectorSpecificData = {
+                  componentType: 'CABEDAL' as ComponentType,
+                  type: (expandedItem.type || category?.name || 'CABEDAL').trim().toUpperCase(),
+                  sku: expandedItem.sku.trim().toUpperCase(),
+                  productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
+                  description: expandedItem.description ? expandedItem.description.trim().toUpperCase() : 'CABEDAL',
+                  color: normalizeStockColor(expandedItem.color || expandedItem.materialColor),
+                  sizeGrade: expandedItem.sizeGrade.trim().toUpperCase(),
+                  footSide: expandedItem.footSide,
+                };
+              } else {
+                sectorSpecificData = {
+                  componentType: 'PECA_CORTADA' as ComponentType,
+                  type: (expandedItem.type || category?.name || null)?.trim().toUpperCase() || null,
+                  pieceCode: expandedItem.pieceCode.trim().toUpperCase(),
+                  productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
+                  description: expandedItem.description.trim().toUpperCase(),
+                  materialColor: expandedItem.materialColor.trim().toUpperCase(),
+                  sizeGrade: expandedItem.sizeGrade.trim().toUpperCase(),
+                  footSide: null,
+                };
+              }
+              break;
+            case 'PRE_FABRICADO':
+              sectorSpecificData = {
+                componentType: (category?.componentType || 'SOLADO') as ComponentType,
+                type: (expandedItem.type || category?.name || 'EVA').trim().toUpperCase(),
+                sku: (expandedItem.sku || expandedItem.productName).trim().toUpperCase(),
+                productName: expandedItem.productName.trim().toUpperCase(),
+                color: normalizeStockColor(expandedItem.color),
+                sizeGrade: expandedItem.sizeGrade.trim().toUpperCase(),
+                footSide: expandedItem.footSide === 'PAR' ? null : expandedItem.footSide || null,
+              };
+              break;
+            case 'DISTRIBUICAO':
+            case 'EXPEDICAO': {
+              const distType = (expandedItem.type || 'CABEDAL').trim().toUpperCase();
+              const materialComponentType = category?.componentType || (distType === 'SOLA_PROCESSADA' ? 'SOLADO' : 'CABEDAL');
+              sectorSpecificData = {
+                componentType: materialComponentType as ComponentType,
+                type: distType,
+                sku: expandedItem.sku.trim().toUpperCase(),
+                productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
+                color: normalizeStockColor(expandedItem.color),
+                sizeGrade: expandedItem.sizeGrade.trim().toUpperCase(),
+                footSide: expandedItem.footSide === 'PAR' ? null : expandedItem.footSide || null,
+              };
+              break;
+            }
+            case 'MONTAGEM':
+              sectorSpecificData = {
+                componentType: (category?.componentType || 'PE_PRONTO') as ComponentType,
+                sku: expandedItem.sku.trim().toUpperCase(),
+                productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
+                color: normalizeStockColor(expandedItem.color) || null,
+                sizeGrade: expandedItem.sizeGrade.trim().toUpperCase(),
+                footSide: expandedItem.footSide === 'PAR' ? null : expandedItem.footSide,
+              };
+              break;
+          }
+
+          const itemForIdentity = { ...baseData, ...sectorSpecificData };
+          await rejectDuplicateStockItem(tx, factoryUnitId, itemForIdentity);
+          const stockItem = await tx.stockItem.create({ data: itemForIdentity });
+
+          await tx.stockItemLocation.create({
+            data: { stockItemId: stockItem.id, locationId: loc.id, factoryUnitId, quantity: expandedItem.quantity },
+          });
+
+          await tx.stockMovement.create({
             data: {
-              name: locationName,
-              sector: normalizeStockSector(item.sector) as SectorType,
               factoryUnitId,
+              stockItemId: stockItem.id,
+              sector: expandedItem.sector as SectorType,
+              type: 'ENTRADA',
+              quantity: expandedItem.quantity,
+              destinationLocationId: loc.id,
+              destinationLocationName: loc.name,
+              ...movementSnapshot(stockItem),
+              destinationStockItemId: stockItem.id,
+              destinationSector: stockItem.sector,
+              origem: 'Saldo Inicial / Entrada no Setor',
+              reason: expandedItem.observation || (expandedItem.sector === 'CORTE' ? 'Entrada em lote no Estoque de Corte' : 'Entrada em lote via terminal de chão de fábrica'),
+              operatorId: operatorId || null,
+              operatorName: operatorName || 'Sistema / Operador',
             },
           });
+
+          createdItems.push({ id: stockItem.id, sector: stockItem.sector, quantity: stockItem.quantity, location: loc.name });
         }
-
-        assertStockLocationSector(loc, item.sector);
-        assertGeneralStockAccess(context, loc);
-
-        const baseData = {
-          factoryUnitId,
-          sector: normalizeStockSector(item.sector) as SectorType,
-          quantity: item.quantity,
-          unit: normalizeUnit((item as any).unit, item.sector),
-          observation: item.observation || '',
-        };
-
-        let sectorSpecificData = {};
-
-        switch (item.sector) {
-          case 'CORTE':
-            sectorSpecificData = {
-              componentType: 'MATERIA_PRIMA' as ComponentType,
-              code: item.code.trim().toUpperCase(),
-              name: item.name.trim().toUpperCase(),
-              type: (item.type || 'GERAL').trim().toUpperCase(),
-              minStock: item.minStock || 0,
-            };
-            break;
-          case 'APOIO':
-            sectorSpecificData = {
-              componentType: 'PECA_CORTADA' as ComponentType,
-              pieceCode: item.pieceCode.trim().toUpperCase(),
-              productName: item.productName ? item.productName.trim().toUpperCase() : null,
-              description: item.description.trim().toUpperCase(),
-              materialColor: item.materialColor.trim().toUpperCase(),
-              sizeGrade: item.sizeGrade.trim().toUpperCase(),
-            };
-            break;
-
-          case 'PRE_FABRICADO':
-            sectorSpecificData = {
-              componentType: 'SOLADO' as ComponentType,
-              type: (item.type || 'EVA').trim().toUpperCase(),
-              sku: (item.sku || item.productName).trim().toUpperCase(),
-              productName: item.productName.trim().toUpperCase(),
-              color: normalizeStockColor(item.color),
-              sizeGrade: item.sizeGrade.trim().toUpperCase(),
-              footSide: item.footSide || null,
-            };
-            break;
-
-          case 'DISTRIBUICAO':
-          case 'EXPEDICAO':
-            const distType = (item.type || 'CABEDAL').trim().toUpperCase();
-            sectorSpecificData = {
-              componentType: distType === 'SOLA_PROCESSADA' ? ('SOLADO' as ComponentType) : ('CABEDAL' as ComponentType),
-              type: distType,
-              sku: item.sku.trim().toUpperCase(),
-              productName: item.productName ? item.productName.trim().toUpperCase() : null,
-              color: normalizeStockColor(item.color),
-              sizeGrade: item.sizeGrade.trim().toUpperCase(),
-              footSide: item.footSide || null,
-            };
-            break;
-
-          case 'MONTAGEM':
-            sectorSpecificData = {
-              componentType: 'PE_PRONTO' as ComponentType,
-              sku: item.sku.trim().toUpperCase(),
-              productName: item.productName ? item.productName.trim().toUpperCase() : null,
-              color: normalizeStockColor(item.color) || null,
-              sizeGrade: item.sizeGrade.trim().toUpperCase(),
-              footSide: item.footSide,
-            };
-            break;
-        }
-
-        await rejectDuplicateStockItem(tx, factoryUnitId, item.sector === 'CORTE' ? item : { ...baseData, ...sectorSpecificData });
-        const stockItem = await tx.stockItem.create({
-          data: {
-            ...baseData,
-            ...sectorSpecificData,
-          },
-        });
-
-        await tx.stockItemLocation.create({
-          data: {
-            stockItemId: stockItem.id,
-            locationId: loc.id,
-            factoryUnitId,
-            quantity: item.quantity,
-          },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            factoryUnitId,
-            stockItemId: stockItem.id,
-            sector: item.sector as SectorType,
-            type: 'ENTRADA',
-            quantity: item.quantity,
-            destinationLocationId: loc.id,
-            destinationLocationName: loc.name,
-            ...movementSnapshot(stockItem),
-            destinationStockItemId: stockItem.id, destinationSector: stockItem.sector,
-            origem: 'Saldo Inicial / Entrada no Setor',
-            reason: item.observation || (item.sector === 'CORTE' ? 'Entrada em lote no Estoque de Corte' : 'Entrada em lote via terminal de chão de fábrica'),
-            operatorId: operatorId || null,
-            operatorName: operatorName || 'Sistema / Operador',
-          },
-        });
-
-        createdItems.push({
-          id: stockItem.id,
-          sector: stockItem.sector,
-          quantity: stockItem.quantity,
-          location: loc.name,
-        });
       }
 
       return {
@@ -246,9 +288,12 @@ export class StockItemService {
             ...base,
             OR: searchTerms.flatMap((term) => [
               { pieceCode: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
               { productName: { contains: term, mode: 'insensitive' } },
               { description: { contains: term, mode: 'insensitive' } },
               { materialColor: { contains: term, mode: 'insensitive' } },
+              { color: { contains: term, mode: 'insensitive' } },
+              { type: { contains: term, mode: 'insensitive' } },
               { sizeGrade: { contains: term, mode: 'insensitive' } },
             ]),
           }, sec);
@@ -367,7 +412,7 @@ export class StockItemService {
             ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
           ],
         },
-        select: { id: true, name: true, sector: true },
+        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -376,8 +421,8 @@ export class StockItemService {
         orderBy: { name: 'asc' },
       }),
       prisma.categoryConfig.findMany({
-        where: { factoryUnitId, ...(!isStockMaster(context) ? { OR: [{ sector: targetSector as SectorType }, { sector: null }, ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : [])] } : {}) },
-        select: { id: true, name: true, sector: true },
+        where: { factoryUnitId, ...(!isStockMaster(context) ? categoryScopeWhere(targetSector) : {}) },
+        select: { id: true, name: true, sector: true, sectors: true, componentType: true },
         orderBy: { name: 'asc' },
       }),
     ]);
@@ -479,9 +524,9 @@ export class StockItemService {
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
       },
       filterOptions: {
-        locations: locations.map((l) => ({ id: l.id, name: l.name, sector: l.sector })),
+        locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
         origins: origins.map((o) => ({ id: o.id, name: o.name })),
-        categories: categories.map((c) => ({ id: c.id, name: c.name })),
+        categories: categories.map((c) => ({ id: c.id, name: c.name, sector: c.sector, sectors: c.sectors, componentType: c.componentType })),
       },
     };
   }
@@ -512,7 +557,7 @@ export class StockItemService {
     };
     const searchFields: Record<string, string[]> = {
       CORTE: ['code', 'name', 'type'],
-      APOIO: ['pieceCode', 'productName', 'description', 'materialColor', 'sizeGrade'],
+      APOIO: ['pieceCode', 'sku', 'productName', 'description', 'materialColor', 'color', 'type', 'sizeGrade'],
       PRE_FABRICADO: ['sku', 'productName', 'type', 'color', 'sizeGrade'],
       DISTRIBUICAO: ['sku', 'productName', 'type', 'color', 'sizeGrade'],
       MONTAGEM: ['sku', 'productName', 'color', 'sizeGrade'],
@@ -560,7 +605,7 @@ export class StockItemService {
       prisma.stockItem.count({ where: whereForSector('MONTAGEM') }),
       prisma.location.findMany({
         where: { factoryUnitId },
-        select: { id: true, name: true, sector: true },
+        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -570,7 +615,7 @@ export class StockItemService {
       }),
       prisma.categoryConfig.findMany({
         where: { factoryUnitId },
-        select: { id: true, name: true, sector: true },
+        select: { id: true, name: true, sector: true, sectors: true, componentType: true },
         orderBy: { name: 'asc' },
       }),
     ]);
@@ -628,9 +673,9 @@ export class StockItemService {
         montagem: { total: montagemCount, data: pageSectorItems('MONTAGEM') },
       },
       filterOptions: {
-        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
+        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, categoryId: item.categoryId, categoryLinks: item.categoryLinks })),
         origins: origins.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
-        categories: categories.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
+        categories: categories.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, sectors: item.sectors, componentType: item.componentType })),
       },
     };
   }

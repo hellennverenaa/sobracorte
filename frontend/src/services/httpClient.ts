@@ -114,7 +114,12 @@ async function refreshSession(authApi: HttpClient, api: HttpClient) {
   const response = await authApi.post('/auth/me', null)
   const newToken = (response.data as any)?.data?.token
   const user = getStoredUser()
-  if (!newToken || !user) throw new Error('Não foi possível renovar a sessão.')
+  if (!newToken) {
+    const error = new Error('Não foi possível renovar a sessão.')
+    ;(error as any).code = 'INVALID_SESSION'
+    throw error
+  }
+  if (!user) throw new Error('Não há uma sessão armazenada para renovar.')
 
   const synced = await api.post('/auth/check-user', null, {
     headers: { Authorization: `Bearer ${newToken}`, 'X-Dass-Unit': user.unit?.code || '' },
@@ -184,9 +189,12 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
         if (refreshedUser?.token) retryHeaders.set('Authorization', `Bearer ${refreshedUser.token}`)
         return request<T>(url, { ...config, headers: Object.fromEntries(retryHeaders.entries()), _retry: true })
       } catch (refreshError) {
-        localStorage.removeItem('user')
-        sessionStorage.removeItem('expirationTime')
-        if (typeof window !== 'undefined') window.location.reload()
+        const status = (refreshError as any)?.response?.status
+        if ([401, 403, 409].includes(status) || (refreshError as any)?.code === 'INVALID_SESSION') {
+          localStorage.removeItem('user')
+          sessionStorage.removeItem('expirationTime')
+          if (typeof window !== 'undefined') window.location.reload()
+        }
         throw refreshError
       }
     }

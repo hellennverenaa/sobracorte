@@ -66,15 +66,21 @@ const inventoryTypeOptions = computed(() => {
       'EVA', 'BORRACHA', 'CABEDAL', 'SOLA_PROCESSADA',
     ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }
-  if (activeTab.value === 'CORTE') {
-    return [...new Set(stockStore.filterCategories
-      .filter(category => !category.sector || normalizeSector(category.sector) === 'CORTE')
-      .map(category => category.name)
-      .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }
-  if (activeTab.value === 'PRE_FABRICADO') return ['BORRACHA', 'EVA'];
-  if (activeTab.value === 'DISTRIBUICAO' || activeTab.value === 'EXPEDICAO') return ['CABEDAL', 'SOLA_PROCESSADA'];
-  return [];
+  const configured = stockStore.filterCategories
+    .filter(category => {
+      const scopes = Array.isArray(category.sectors) && category.sectors.length
+        ? category.sectors
+        : category.sector ? [category.sector] : [];
+      return scopes.length === 0 || scopes.some(sector => normalizeSector(sector) === normalizeSector(activeTab.value));
+    })
+    .map(category => category.name)
+    .filter(Boolean);
+  const fallback = activeTab.value === 'PRE_FABRICADO'
+    ? ['BORRACHA', 'EVA']
+    : activeTab.value === 'DISTRIBUICAO' || activeTab.value === 'EXPEDICAO'
+      ? ['CABEDAL', 'SOLA_PROCESSADA']
+      : [];
+  return [...new Set(configured.length ? configured : fallback)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 });
 
 const hasInventoryFilters = computed(() => Boolean(
@@ -254,9 +260,15 @@ const itemAllocatedLocations = computed(() => {
 
 const itemSectorLocations = computed(() => {
   const itemSector = selectedItem.value?.sector || activeTab.value;
+  const itemCategoryId = Number(selectedItem.value?.categoryId || 0);
   return stockStore.filterLocations.filter(location => {
-    if (!location.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
-    return normalizeSector(location.sector) === normalizeSector(itemSector);
+    const sameSector = !location.sector
+      ? authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true
+      : normalizeSector(location.sector) === normalizeSector(itemSector);
+    if (!sameSector) return false;
+    if (!itemCategoryId) return true;
+    return Number(location.categoryId) === itemCategoryId
+      || location.categoryLinks?.some(link => Number(link.categoryId) === itemCategoryId) === true;
   });
 });
 
@@ -715,9 +727,10 @@ onMounted(() => {
               <!-- Headers APOIO -->
               <tr v-if="activeTab === 'APOIO'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição da Peça</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Peça / Cabedal</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Combinação / Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Quantidade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
@@ -807,12 +820,18 @@ onMounted(() => {
                 <!-- Colunas APOIO -->
                 <template v-if="activeTab === 'APOIO'">
                   <td class="px-4 py-3">
-                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.pieceCode }}</span>
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.componentType === 'CABEDAL' ? item.sku : item.pieceCode }}</span>
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
                   </td>
-                  <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.description }}</td>
-                  <td class="px-4 py-3 text-sm text-gray-600">{{ item.materialColor }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-700 font-medium">
+                    <span class="block">{{ item.description || item.type || '—' }}</span>
+                    <span class="text-[10px] uppercase text-gray-400">{{ item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada' }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-sm text-gray-600">{{ item.color || item.materialColor || '—' }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
+                  <td class="px-4 py-3 text-center text-xs font-semibold text-gray-700">
+                    {{ item.footSide === 'E' ? 'Esquerdo' : item.footSide === 'D' ? 'Direito' : item.footSide === 'PAR' ? 'Par' : '—' }}
+                  </td>
                   <td class="px-4 py-3 text-center">
                     <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}

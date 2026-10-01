@@ -48,6 +48,7 @@ export const MovementTypeEnum = z.enum([
 // 🔹 1. CORTE: Matéria-Prima
 export const CorteItemSchema = z.object({
   sector: z.literal('CORTE'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   code: z.string().trim().min(1, 'Código da matéria-prima é obrigatório'),
   name: z.string().trim().min(1, 'Descrição/Nome é obrigatório'),
   quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
@@ -67,25 +68,42 @@ export const CorteItemSchema = z.object({
 // 🔹 2. APOIO: Peças Cortadas / Moldes
 export const ApoioItemSchema = z.object({
   sector: z.literal('APOIO'),
-  pieceCode: z.string().trim().min(1, 'Código do Molde/Peça é obrigatório'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  componentType: z.enum(['PECA_CORTADA', 'CABEDAL']).optional(),
+  type: z.string().trim().optional().default(''),
+  pieceCode: z.string().trim().optional().default(''),
+  sku: z.string().trim().optional().default(''),
   productName: z.string().trim().optional().default(''),
-  description: z.string().trim().min(1, 'Descrição da peça é obrigatória'),
-  materialColor: z.string().trim().min(1, 'Material e Cor são obrigatórios'),
-  sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
+  description: z.string().trim().optional().default(''),
+  materialColor: z.string().trim().optional().default(''),
+  color: z.string().trim().optional().default(''),
+  sizeGrade: z.string().trim().optional().default(''),
+  footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
   unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   observation: z.string().trim().optional().default(''),
+}).superRefine((item, ctx) => {
+  if (item.componentType === 'CABEDAL') {
+    if (!item.sku.trim()) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'SKU do cabedal é obrigatório.' });
+    if (!item.sizeGrade.trim()) ctx.addIssue({ code: 'custom', path: ['sizeGrade'], message: 'Grade do cabedal é obrigatória.' });
+    if (!(item.color || item.materialColor).trim()) ctx.addIssue({ code: 'custom', path: ['color'], message: 'Combinação/cor do cabedal é obrigatória.' });
+    if (!item.footSide) ctx.addIssue({ code: 'custom', path: ['footSide'], message: 'Selecione o lado do cabedal.' });
+  } else {
+    if (!item.pieceCode.trim()) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Código da peça cortada é obrigatório.' });
+    if (!item.description.trim()) ctx.addIssue({ code: 'custom', path: ['description'], message: 'Descrição da peça é obrigatória.' });
+    if (!item.sizeGrade.trim()) ctx.addIssue({ code: 'custom', path: ['sizeGrade'], message: 'Grade da peça é obrigatória.' });
+    if (!item.materialColor.trim()) ctx.addIssue({ code: 'custom', path: ['materialColor'], message: 'Material e cor são obrigatórios.' });
+  }
 });
 
 // 🔹 3. PRÉ-FABRICADO: Solas por Produto
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
-  type: z.enum(['EVA', 'BORRACHA'], {
-    message: 'Material do solado (EVA ou BORRACHA) é obrigatório',
-  }),
+  type: z.string().trim().min(1, 'Categoria do solado é obrigatória'),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
@@ -98,11 +116,10 @@ export const PreFabricadoItemSchema = z.object({
 // 🔹 4. DISTRIBUIÇÃO: Cabedais e Solas Processadas por SKU
 export const DistribuicaoItemSchema = z.object({
   sector: z.literal('DISTRIBUICAO'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
-  type: z.enum(['CABEDAL', 'SOLA_PROCESSADA'], {
-    message: 'Tipo de material (CABEDAL ou SOLA_PROCESSADA) é obrigatório',
-  }),
+  type: z.string().trim().min(1, 'Tipo de material é obrigatório'),
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
@@ -115,6 +132,7 @@ export const DistribuicaoItemSchema = z.object({
 // 🔹 4.1 EXPEDIÇÃO: Mantido para retrocompatibilidade
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   type: z.enum(['CABEDAL', 'SOLA_PROCESSADA']).optional().default('CABEDAL'),
@@ -130,6 +148,7 @@ export const ExpedicaoItemSchema = z.object({
 // 🔹 5. MONTAGEM: Pés Prontos / Órfãos
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
+  categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   color: z.string().trim().optional().default(''),

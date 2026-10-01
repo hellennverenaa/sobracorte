@@ -56,7 +56,7 @@ const availableCombinations = computed(() => {
 });
 
 async function fetchCombinations(sector: SectorType) {
-  if (sector !== 'PRE_FABRICADO' && sector !== 'DISTRIBUICAO' && sector !== 'MONTAGEM') {
+  if (sector !== 'APOIO' && sector !== 'PRE_FABRICADO' && sector !== 'DISTRIBUICAO' && sector !== 'MONTAGEM') {
     return;
   }
   if (combinationsCache.value[sector]) {
@@ -86,6 +86,7 @@ function addCombinationLocally(color: string, sector: SectorType) {
 
 const formData = reactive({
   location: '',
+  categoryId: '',
   quantity: 1,
   observation: '',
   sizeGrade: '',
@@ -99,6 +100,7 @@ const formData = reactive({
   materialColor: '',
   productName: '',
   sku: '',
+  componentType: 'PECA_CORTADA' as 'PECA_CORTADA' | 'CABEDAL',
   footSide: 'E' as 'E' | 'D' | 'PAR',
 });
 const savedForm = ref(JSON.stringify(formData));
@@ -108,11 +110,10 @@ async function cancelForm() {
   if (!isSubmitting.value && await confirmDiscard()) emit('cancel');
 }
 
-const isUnitLocked = computed(() => {
-  if (activeSector.value !== 'CORTE' || !formData.type) return false;
-  const cat = dbCategories.value.find(c => c.name === formData.type);
-  return Boolean(cat?.unitLocked);
-});
+const selectedCategory = computed(() => dbCategories.value.find(category => Number(category.id) === Number(formData.categoryId)) || null);
+const isApoioCabedal = computed(() => activeSector.value === 'APOIO' && formData.componentType === 'CABEDAL');
+const supportsPair = computed(() => isApoioCabedal.value || ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value));
+const isUnitLocked = computed(() => Boolean(selectedCategory.value?.unitLocked));
 
 const allSectors = [
   { id: 'CORTE' as SectorType, icon: Scissors },
@@ -120,7 +121,10 @@ const allSectors = [
   { id: 'PRE_FABRICADO' as SectorType, icon: Layers },
   { id: 'DISTRIBUICAO' as SectorType, icon: Box },
   { id: 'MONTAGEM' as SectorType, icon: Footprints },
-].map((sector) => ({ ...sector, label: SECTOR_OPTIONS.find((option) => option.id === sector.id)?.label || sector.id }));
+].map((sector) => {
+  const option = SECTOR_OPTIONS.find((candidate) => candidate.id === sector.id);
+  return { ...sector, label: option?.shortLabel || option?.label || sector.id };
+});
 
 const availableSectors = computed(() => {
   if (isSectorLocked.value && userSector.value) {
@@ -132,10 +136,20 @@ const availableSectors = computed(() => {
 const availableCategories = computed(() => {
   const currentSec = activeSector.value;
   return dbCategories.value.filter(cat => {
-    if (!cat.sector) return true;
-    const catSec = cat.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : cat.sector;
-    return catSec === currentSec;
+    const sectors = Array.isArray(cat.sectors) && cat.sectors.length
+      ? cat.sectors
+      : cat.sector ? [cat.sector] : [];
+    if (sectors.length === 0) return true;
+    return sectors.some((sector: string) => (sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : sector) === currentSec);
   });
+});
+
+const availableMaterialTypes = computed(() => {
+  const names = availableCategories.value.map(category => String(category.name || '').trim().toUpperCase()).filter(Boolean);
+  if (names.length) return [...new Set(names)];
+  if (activeSector.value === 'PRE_FABRICADO') return ['EVA', 'BORRACHA'];
+  if (activeSector.value === 'DISTRIBUICAO') return ['CABEDAL', 'SOLA_PROCESSADA'];
+  return [];
 });
 
 async function fetchDynamicSettings() {
@@ -153,8 +167,13 @@ async function fetchDynamicSettings() {
     dbLocations.value = locsRes.data || [];
 
     const catsForSector = availableCategories.value;
-    if (catsForSector.length > 0 && !formData.type) {
+    if (activeSector.value === 'CORTE' && catsForSector.length > 0 && !formData.type) {
       formData.type = catsForSector[0].name;
+      onCategoryChange();
+    } else if (activeSector.value === 'PRE_FABRICADO' || activeSector.value === 'DISTRIBUICAO') {
+      if (!availableMaterialTypes.value.includes(String(formData.type).toUpperCase())) {
+        formData.type = availableMaterialTypes.value[0] || (activeSector.value === 'PRE_FABRICADO' ? 'EVA' : 'CABEDAL');
+      }
       onCategoryChange();
     }
   } catch (err) {
@@ -165,77 +184,39 @@ async function fetchDynamicSettings() {
 }
 
 function onCategoryChange() {
-  const selected = dbCategories.value.find(c => c.name === formData.type);
+  const normalizedType = String(formData.type || '').trim().toUpperCase();
+  const selected = availableCategories.value.find(category => String(category.name || '').trim().toUpperCase() === normalizedType);
+  formData.categoryId = selected ? String(selected.id) : '';
   if (selected && selected.defaultUnitCode) {
     formData.unit = selected.defaultUnitCode;
   }
-  // Resetar a prateleira quando a categoria for alterada
   formData.location = '';
+}
+
+function onConfiguredCategoryChange() {
+  const selected = selectedCategory.value;
+  formData.location = '';
+  if (selected?.defaultUnitCode) formData.unit = selected.defaultUnitCode;
+  if (activeSector.value === 'APOIO' && (selected?.componentType === 'CABEDAL' || selected?.componentType === 'PECA_CORTADA')) {
+    formData.componentType = selected.componentType;
+  }
+  if (activeSector.value === 'APOIO') formData.type = selected?.name || '';
 }
 
 const availableLocations = computed(() => {
   const currentSec = activeSector.value;
-  const sectorLocs = dbLocations.value.filter(loc => {
-    if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
+  let sectorLocs = dbLocations.value.filter(loc => {
+    if (!loc.sector) return true;
     const locSec = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
     return locSec === currentSec;
   });
 
-  if (currentSec === 'CORTE') {
-    if (!formData.type) return sectorLocs;
-
-    const categoriaSelecionada = String(formData.type).toUpperCase().trim();
-    const catObj = dbCategories.value.find(
-      c => String(c.name).toUpperCase().trim() === categoriaSelecionada
+  if (formData.categoryId) {
+    const categoryId = Number(formData.categoryId);
+    sectorLocs = sectorLocs.filter(location =>
+      Number(location.categoryId) === categoryId
+      || location.categoryLinks?.some((link: any) => Number(link.categoryId) === categoryId)
     );
-
-    return sectorLocs.filter(loc => {
-      if (loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0) {
-        const matchLink = loc.categoryLinks.some((link: any) => 
-          (catObj && link.categoryId === catObj.id) ||
-          (link.category && String(link.category.name).toUpperCase().trim() === categoriaSelecionada)
-        );
-        if (matchLink) return true;
-      }
-      if (catObj && loc.categoryId && loc.categoryId === catObj.id) {
-        return true;
-      }
-      if (loc.category && String(loc.category.name).toUpperCase().trim() === categoriaSelecionada) {
-        return true;
-      }
-      return false;
-    });
-  }
-
-  if (currentSec === 'PRE_FABRICADO' && formData.type) {
-    const materialSelected = formData.type.toUpperCase().trim();
-    return sectorLocs.filter(loc => {
-      const hasLinks = loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0;
-      if (!hasLinks && !loc.categoryId) {
-        return true;
-      }
-      const matchLink = loc.categoryLinks?.some((link: any) =>
-        link.category && String(link.category.name).toUpperCase().trim().includes(materialSelected)
-      );
-      const matchCat = loc.category && String(loc.category.name).toUpperCase().trim().includes(materialSelected);
-      return matchLink || matchCat;
-    });
-  }
-
-  if ((currentSec === 'DISTRIBUICAO' || (currentSec as string) === 'EXPEDICAO') && formData.type) {
-    const materialSelected = formData.type.toUpperCase().trim();
-    return sectorLocs.filter(loc => {
-      const hasLinks = loc.categoryLinks && Array.isArray(loc.categoryLinks) && loc.categoryLinks.length > 0;
-      if (!hasLinks && !loc.categoryId) {
-        return true;
-      }
-      const searchTarget = materialSelected === 'SOLA_PROCESSADA' ? 'SOLA' : 'CABEDAL';
-      const matchLink = loc.categoryLinks?.some((link: any) =>
-        link.category && String(link.category.name).toUpperCase().trim().includes(searchTarget)
-      );
-      const matchCat = loc.category && String(loc.category.name).toUpperCase().trim().includes(searchTarget);
-      return matchLink || matchCat;
-    });
   }
 
   return sectorLocs;
@@ -287,10 +268,22 @@ function selectSector(sector: SectorType) {
     return;
   }
   activeSector.value = sector;
-  if (sector === 'PRE_FABRICADO') {
-    formData.type = 'EVA';
+  formData.categoryId = '';
+  formData.location = '';
+  if (sector === 'CORTE') {
+    formData.type = availableCategories.value[0]?.name || 'OUTROS';
+    onCategoryChange();
+  } else if (sector === 'PRE_FABRICADO') {
+    formData.type = availableMaterialTypes.value[0] || 'EVA';
+    onCategoryChange();
   } else if (sector === 'DISTRIBUICAO') {
-    formData.type = 'CABEDAL';
+    formData.type = availableMaterialTypes.value[0] || 'CABEDAL';
+    onCategoryChange();
+  } else if (sector === 'APOIO') {
+    formData.componentType = 'PECA_CORTADA';
+    formData.type = '';
+  } else {
+    formData.type = '';
   }
 
   fetchCombinations(sector);
@@ -303,6 +296,7 @@ function selectSector(sector: SectorType) {
 
 function resetForm() {
   formData.location = '';
+  formData.categoryId = '';
   formData.quantity = 1;
   formData.observation = '';
   formData.sizeGrade = '';
@@ -310,16 +304,17 @@ function resetForm() {
   formData.code = '';
   formData.name = '';
   formData.unit = activeSector.value === 'CORTE' ? 'M²' : 'UN';
-  formData.type = activeSector.value === 'PRE_FABRICADO' 
-    ? 'EVA' 
-    : (activeSector.value === 'DISTRIBUICAO' 
-        ? 'CABEDAL' 
-        : (dbCategories.value.length > 0 ? dbCategories.value[0].name : ''));
+  formData.type = activeSector.value === 'PRE_FABRICADO'
+    ? availableMaterialTypes.value[0] || 'EVA'
+    : (activeSector.value === 'DISTRIBUICAO'
+      ? availableMaterialTypes.value[0] || 'CABEDAL'
+      : (activeSector.value === 'CORTE' ? (availableCategories.value[0]?.name || '') : ''));
   formData.pieceCode = '';
   formData.description = '';
   formData.materialColor = '';
   formData.productName = '';
   formData.sku = '';
+  formData.componentType = 'PECA_CORTADA';
   formData.footSide = 'E';
 
   onCategoryChange();
@@ -355,6 +350,7 @@ async function handleSubmit() {
 
   let payloadItem: any = {
     sector: activeSector.value,
+    categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
     location: formData.location.trim().toUpperCase(),
     quantity: Number(formData.quantity),
     observation: formData.observation.trim(),
@@ -368,6 +364,7 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
+        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim().toUpperCase(),
         unit: (formData.unit || 'M²').trim().toUpperCase(),
@@ -376,19 +373,40 @@ async function handleSubmit() {
       break;
 
     case 'APOIO':
-      if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim()) {
-        errorMessage.value = 'COD. PRODUTO / SKU, Descrição da Peça e Grade são obrigatórios.';
-        return;
+      if (isApoioCabedal.value) {
+        if (!formData.sku.trim() || !formData.productName.trim() || !formData.color.trim() || !formData.sizeGrade.trim()) {
+          errorMessage.value = 'SKU, Modelo/Linha, Combinação/Cor e Grade são obrigatórios para cadastrar um cabedal.';
+          return;
+        }
+        payloadItem = {
+          ...payloadItem,
+          componentType: 'CABEDAL',
+          type: selectedCategory.value?.name || 'CABEDAL',
+          sku: formData.sku.trim().toUpperCase(),
+          productName: formData.productName.trim().toUpperCase(),
+          description: formData.description.trim().toUpperCase() || 'CABEDAL',
+          color: formData.color.trim().toUpperCase(),
+          sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+          footSide: formData.footSide || 'E',
+          unit: 'UN',
+        };
+      } else {
+        if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim() || !formData.materialColor.trim()) {
+          errorMessage.value = 'Código do produto, descrição, material/cor e grade são obrigatórios para peças cortadas.';
+          return;
+        }
+        payloadItem = {
+          ...payloadItem,
+          componentType: 'PECA_CORTADA',
+          type: selectedCategory.value?.name || '',
+          pieceCode: formData.pieceCode.trim().toUpperCase(),
+          productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
+          description: formData.description.trim().toUpperCase(),
+          materialColor: formData.materialColor.trim().toUpperCase(),
+          sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+          unit: 'UN',
+        };
       }
-      payloadItem = {
-        ...payloadItem,
-        pieceCode: formData.pieceCode.trim().toUpperCase(),
-        productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
-        description: formData.description.trim().toUpperCase(),
-        materialColor: (formData.materialColor || 'PADRAO').trim().toUpperCase(),
-        sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        unit: 'UN',
-      };
       break;
 
     case 'PRE_FABRICADO':
@@ -398,6 +416,7 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
+        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
         type: formData.type.trim().toUpperCase(),
         sku: (formData.sku || formData.productName).trim().toUpperCase(),
         productName: formData.productName.trim().toUpperCase(),
@@ -416,6 +435,7 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
+        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
         sector: 'DISTRIBUICAO',
         type: formData.type.trim().toUpperCase(),
         sku: formData.sku.trim().toUpperCase(),
@@ -434,6 +454,7 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
+        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
@@ -447,7 +468,7 @@ async function handleSubmit() {
   isSubmitting.value = true;
   try {
     await stockStore.createBatch([payloadItem]);
-    successMessage.value = formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value)
+    successMessage.value = formData.footSide === 'PAR' && (['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value) || isApoioCabedal.value)
       ? `Par cadastrado com sucesso no setor ${activeSector.value}!`
       : `Item cadastrado com sucesso no setor ${activeSector.value}!`;
     if (payloadItem.color) {
@@ -499,7 +520,7 @@ onMounted(async () => {
             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'"
         >
           <component :is="sec.icon" class="w-3.5 h-3.5" />
-          {{ sec.label.split(' ')[0] }}
+          {{ sec.label }}
         </button>
       </div>
     </div>
@@ -581,62 +602,93 @@ onMounted(async () => {
 
       <!-- 2. APOIO -->
       <div v-if="activeSector === 'APOIO'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
-          <input
-            ref="firstInputRef"
-            v-model="formData.pieceCode"
-            type="text"
-            placeholder="Ex: MOL-GAS-01"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600"
-            required
-          />
+        <div class="md:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material cadastrado *</label>
+            <select v-model="formData.componentType" :disabled="Boolean(selectedCategory?.componentType)"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold disabled:bg-gray-100">
+              <option value="PECA_CORTADA">Peça cortada</option>
+              <option value="CABEDAL">Cabedal</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria para filtrar localização (opcional)</label>
+            <select v-model="formData.categoryId" @change="onConfiguredCategoryChange"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
+              <option value="">Sem categoria (todas as localizações do setor)</option>
+              <option v-for="cat in availableCategories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
+            </select>
+          </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
-          <input
-            v-model="formData.productName"
-            type="text"
-            placeholder="Ex: RACER SPEEDZONE"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
-            required
-          />
-        </div>
+        <template v-if="isApoioCabedal">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Produto / SKU *</label>
+            <input ref="firstInputRef" v-model="formData.sku" type="text" placeholder="Ex: SKU-MODELO-01"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+            <input v-model="formData.productName" type="text" placeholder="Ex: RACER SPEEDZONE"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição do Cabedal</label>
+            <input v-model="formData.description" type="text" placeholder="Ex: Cabedal externo"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
+            <input v-model="formData.color" :list="'combinations-list-' + activeSector" type="text" placeholder="Ex: PRETO/BRANCO"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required autocomplete="off"
+              @keydown="handleColorKeydown" @input="handleColorInput" />
+            <datalist :id="'combinations-list-' + activeSector"><option v-for="comb in availableCombinations" :key="comb" :value="comb" /></datalist>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
+            <input v-model="formData.sizeGrade" @input="handleSizeGradeInput" type="text" placeholder="Ex: 38 ou 37,5"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required />
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Cabedal *</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button v-for="side in [{ value: 'E', label: 'Esquerdo' }, { value: 'D', label: 'Direito' }, { value: 'PAR', label: 'Par (E + D)' }]" :key="side.value"
+                type="button" @click="formData.footSide = side.value"
+                class="py-2 rounded font-bold text-xs transition-all border"
+                :class="formData.footSide === side.value ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'">
+                {{ side.label }}
+              </button>
+            </div>
+          </div>
+        </template>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição da Peça *</label>
-          <input
-            v-model="formData.description"
-            type="text"
-            placeholder="Ex: Gáspea Externa"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
-            required
-          />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor</label>
-          <input
-            v-model="formData.materialColor"
-            type="text"
-            placeholder="Ex: Napa Sintética Branca"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm"
-            required
-          />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
-          <input
-            v-model="formData.sizeGrade"
-            @input="handleSizeGradeInput"
-            type="text"
-            placeholder="Ex: 38 ou 37,5"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold"
-            required
-          />
-        </div>
+        <template v-else>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Produto *</label>
+            <input ref="firstInputRef" v-model="formData.pieceCode" type="text" placeholder="Ex: MOL-GAS-01"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
+            <input v-model="formData.productName" type="text" placeholder="Ex: RACER SPEEDZONE"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição da Peça *</label>
+            <input v-model="formData.description" type="text" placeholder="Ex: Gáspea Externa"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material / Cor *</label>
+            <input v-model="formData.materialColor" type="text" placeholder="Ex: Napa Sintética Branca"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm" required />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
+            <input v-model="formData.sizeGrade" @input="handleSizeGradeInput" type="text" placeholder="Ex: 38 ou 37,5"
+              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required />
+          </div>
+        </template>
       </div>
 
       <!-- 3. PRÉ-FABRICADO (Solas) -->
@@ -668,11 +720,11 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material do Solado *</label>
           <select
             v-model="formData.type"
+            @change="onCategoryChange"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
             required
           >
-            <option value="EVA">EVA (Sola Não Processada)</option>
-            <option value="BORRACHA">Borracha</option>
+            <option v-for="type in availableMaterialTypes" :key="type" :value="type">{{ type === 'EVA' ? 'EVA (Sola Não Processada)' : type }}</option>
           </select>
         </div>
 
@@ -774,11 +826,11 @@ onMounted(async () => {
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo de Material *</label>
           <select
             v-model="formData.type"
+            @change="onCategoryChange"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
             required
           >
-            <option value="CABEDAL">Cabedal</option>
-            <option value="SOLA_PROCESSADA">Sola Processada</option>
+            <option v-for="type in availableMaterialTypes" :key="type" :value="type">{{ type.replace(/_/g, ' ') }}</option>
           </select>
         </div>
 
@@ -854,6 +906,14 @@ onMounted(async () => {
 
       <!-- 5. MONTAGEM -->
       <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="md:col-span-5">
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria para filtrar localização (opcional)</label>
+          <select v-model="formData.categoryId" @change="onConfiguredCategoryChange"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
+            <option value="">Sem categoria (todas as localizações do setor)</option>
+            <option v-for="cat in availableCategories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
+          </select>
+        </div>
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -950,7 +1010,7 @@ onMounted(async () => {
       <!-- Campos Comuns -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-gray-100">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector) ? 'Quantidade de Pares' : 'Quantidade Inicial' }} *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : 'Quantidade Inicial' }} *</label>
           <input
             v-model="formData.quantity"
             :step="isIntegerQuantitySector ? 1 : 0.001"
@@ -963,7 +1023,7 @@ onMounted(async () => {
             autocomplete="off"
           />
           <span v-if="isIntegerQuantitySector" class="text-[10px] text-gray-400 mt-0.5 block">
-            {{ formData.footSide === 'PAR' && ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector) ? 'Cada par cadastra 1 pé esquerdo e 1 direito' : 'Estoque inicial do item (apenas números inteiros)' }}
+            {{ formData.footSide === 'PAR' && supportsPair ? 'Cada par cadastra 1 pé esquerdo e 1 direito' : 'Estoque inicial do item (apenas números inteiros)' }}
           </span>
           <span v-else class="text-[10px] text-gray-400 mt-0.5 block">
             Estoque inicial do item (permite decimais ex: 12.5 m²)
@@ -979,7 +1039,7 @@ onMounted(async () => {
             :disabled="availableLocations.length === 0"
           >
             <option value="" disabled selected>
-              {{ availableLocations.length === 0 ? '(Nenhuma prateleira vinculada a esta categoria)' : 'Selecione a Prateleira...' }}
+              {{ availableLocations.length === 0 ? (formData.categoryId ? '(Nenhuma prateleira vinculada à categoria selecionada)' : '(Nenhuma prateleira cadastrada para este setor)') : 'Selecione a Prateleira...' }}
             </option>
             <option v-for="loc in availableLocations" :key="loc.id" :value="loc.name">
               {{ loc.name }}

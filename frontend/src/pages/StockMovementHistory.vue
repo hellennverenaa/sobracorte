@@ -178,7 +178,7 @@ onMounted(() => {
           >
             <option v-if="!lockedSector" value="">TODOS OS SETORES</option>
             <option v-if="!lockedSector || lockedSector === 'CORTE'" value="CORTE">CORTE</option>
-            <option v-if="!lockedSector || lockedSector === 'APOIO'" value="APOIO">APOIO</option>
+            <option v-if="!lockedSector || lockedSector === 'APOIO'" value="APOIO">PEÇAS CORTADAS / CABEDAL</option>
             <option v-if="!lockedSector || lockedSector === 'PRE_FABRICADO'" value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
             <option v-if="!lockedSector || lockedSector === 'DISTRIBUICAO'" value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
             <option v-if="!lockedSector || lockedSector === 'MONTAGEM'" value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
