@@ -6,6 +6,31 @@ import { useAuthStore } from '@/stores/auth';
 export type SectorType = 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
 export type InventorySectorFilter = SectorType | 'TODOS';
 
+type SectorInventoryData = { total: number; data: any[] };
+
+const emptySectorInventoryData = (): SectorInventoryData => ({ total: 0, data: [] });
+
+function normalizeSectorInventoryData(value: any): SectorInventoryData {
+  const data = Array.isArray(value?.data) ? value.data : [];
+  const total = Number(value?.total);
+  return { total: Number.isFinite(total) ? total : data.length, data };
+}
+
+function normalizeSectorCollections(value: any): StockState['sectors'] {
+  const sectors = value && typeof value === 'object' ? value : {};
+  const distribution = sectors.distribuicao ?? sectors.expedicao;
+  const expedition = sectors.expedicao ?? sectors.distribuicao;
+  return {
+    todos: normalizeSectorInventoryData(sectors.todos),
+    corte: normalizeSectorInventoryData(sectors.corte),
+    apoio: normalizeSectorInventoryData(sectors.apoio),
+    preFabricado: normalizeSectorInventoryData(sectors.preFabricado),
+    distribuicao: normalizeSectorInventoryData(distribution),
+    expedicao: normalizeSectorInventoryData(expedition),
+    montagem: normalizeSectorInventoryData(sectors.montagem),
+  };
+}
+
 export interface MatchingPair {
   sku: string;
   productName?: string;
@@ -116,22 +141,23 @@ export const useStockStore = defineStore('stock', {
   getters: {
     loading: (state) => state.pendingOperations > 0,
     currentSectorData(state) {
+      const sectors = (state.sectors || {}) as Partial<StockState['sectors']>;
       switch (state.activeSector) {
         case 'TODOS':
-          return state.sectors.todos;
+          return sectors.todos || emptySectorInventoryData();
         case 'CORTE':
-          return state.sectors.corte;
+          return sectors.corte || emptySectorInventoryData();
         case 'APOIO':
-          return state.sectors.apoio;
+          return sectors.apoio || emptySectorInventoryData();
         case 'PRE_FABRICADO':
-          return state.sectors.preFabricado;
+          return sectors.preFabricado || emptySectorInventoryData();
         case 'DISTRIBUICAO':
         case 'EXPEDICAO':
-          return state.sectors.distribuicao || state.sectors.expedicao || { total: 0, data: [] };
+          return sectors.distribuicao || sectors.expedicao || emptySectorInventoryData();
         case 'MONTAGEM':
-          return state.sectors.montagem;
+          return sectors.montagem || emptySectorInventoryData();
         default:
-          return { total: 0, data: [] };
+          return emptySectorInventoryData();
       }
     },
   },
@@ -183,7 +209,7 @@ export const useStockStore = defineStore('stock', {
         const data = response.data;
 
         this.metrics = data.metrics;
-        this.sectors = data.sectors;
+        this.sectors = normalizeSectorCollections(data.sectors);
         if (data.pagination) {
           this.pagination = data.pagination;
         }

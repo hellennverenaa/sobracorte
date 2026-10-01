@@ -29,6 +29,7 @@ const route = useRoute();
 const router = useRouter();
 const stockStore = useStockStore();
 const authStore = useAuthStore();
+const currentSectorItems = computed(() => stockStore.currentSectorData?.data ?? []);
 
 const validSectors: SectorType[] = SECTOR_OPTIONS.filter(option => option.id !== 'TODOS').map(option => option.id as SectorType);
 const validSectorFilters: InventorySectorFilter[] = ['TODOS', ...validSectors];
@@ -760,7 +761,7 @@ onMounted(() => {
 
             <tbody>
               <tr
-                v-for="item in stockStore.currentSectorData.data"
+                v-for="item in currentSectorItems"
                 :key="item.id"
                 class="hover:bg-gray-50 border-b last:border-b-0 transition-colors"
               >
@@ -1002,7 +1003,7 @@ onMounted(() => {
                 </td>
               </tr>
 
-              <tr v-if="!stockStore.loading && !stockStore.error && stockStore.currentSectorData.data.length === 0">
+              <tr v-if="!stockStore.loading && !stockStore.error && currentSectorItems.length === 0">
                 <td colspan="8" class="p-8 text-center text-gray-400 font-medium text-sm">
                   {{ activeTab === 'TODOS' ? 'Nenhum item encontrado na unidade.' : 'Nenhum item encontrado para este setor.' }}
                 </td>
