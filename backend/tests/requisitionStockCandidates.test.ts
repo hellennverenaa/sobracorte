@@ -3,7 +3,8 @@ import test from 'node:test';
 import { prisma } from '../src/prisma';
 import { RequisitionService } from '../src/services/RequisitionService';
 import { findRequisitionStockCandidates, findUnverifiedRequisitionStockMatches } from '../src/services/requisitionStock';
-import { RequisitionItemInputSchema } from '../src/types/stock.dto';
+import { StockItemService } from '../src/services/StockItemService';
+import { CheckStockAvailabilitySchema, RequisitionItemInputSchema } from '../src/types/stock.dto';
 
 const stockItem = (overrides: Record<string, unknown> = {}) => ({
   id: 101,
@@ -68,6 +69,32 @@ const mountingRequest = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const apoioPieceRequest = (overrides: Record<string, unknown> = {}) => ({
+  requestSector: 'APOIO' as const,
+  type: 'PECA_CORTADA',
+  pieceCode: 'CUT-101',
+  description: 'GASPEA EXTERNA',
+  modelName: 'RACER SPEEDZONE',
+  color: 'BLACK',
+  sizeGrade: '40',
+  footSide: 'E',
+  requestUnit: 'UN',
+  ...overrides,
+});
+
+const apoioUpperRequest = (overrides: Record<string, unknown> = {}) => ({
+  requestSector: 'APOIO' as const,
+  type: 'CABEDAL',
+  sku: 'CAB-204',
+  description: 'CABEDAL EXTERNO',
+  modelName: 'RACER SPEEDZONE',
+  color: 'BLACK/WHITE',
+  sizeGrade: '40',
+  footSide: 'PAR',
+  requestUnit: 'PAR',
+  ...overrides,
+});
+
 test('sugere Peças Cortadas pelo modelo e variantes, com confirmação explícita', async () => {
   const tx = transactionFor([stockItem({ footSide: null })]);
   const candidates = await findRequisitionStockCandidates(tx, 7, mountingRequest());
@@ -85,6 +112,111 @@ test('não sugere correspondência por modelo quando uma variante informada dive
   const tx = transactionFor([stockItem({ materialColor: 'RED' })]);
   const candidates = await findRequisitionStockCandidates(tx, 7, mountingRequest());
   assert.deepEqual(candidates, []);
+});
+
+test('APOIO encontra peça cortada pelo pieceCode e rejeita tipo, modelo, material, grade e lado incompatíveis', async () => {
+  const exact = stockItem({
+    id: 401,
+    componentType: 'PECA_CORTADA',
+    type: 'PECA_CORTADA',
+    pieceCode: 'CUT-101',
+    sku: null,
+    materialColor: 'BLACK',
+    sizeGrade: '40',
+    footSide: 'E',
+    quantity: 7,
+    locations: [{ quantity: 7, location: { name: 'AP-01' } }],
+  });
+  const wrongIdentifierField = stockItem({ id: 402, pieceCode: 'OTHER', sku: 'CUT-101' });
+  const wrongComponent = stockItem({ id: 403, componentType: 'CABEDAL', type: 'CABEDAL', sku: 'CUT-101', pieceCode: null });
+  const wrongModel = stockItem({ id: 404, productName: 'OTHER MODEL' });
+  const wrongMaterial = stockItem({ id: 405, materialColor: 'RED' });
+  const wrongGrade = stockItem({ id: 406, sizeGrade: '41' });
+  const wrongSide = stockItem({ id: 407, footSide: 'D' });
+  const candidates = await findRequisitionStockCandidates(transactionFor([
+    exact, wrongIdentifierField, wrongComponent, wrongModel, wrongMaterial, wrongGrade, wrongSide,
+  ]), 7, apoioPieceRequest({ description: 'DESCRIÇÃO INFORMADA PELO SOLICITANTE' }));
+
+  assert.equal(candidates.length, 1);
+  assert.deepEqual(candidates[0].sourceStockItemIds, [401]);
+  assert.equal(candidates[0].quantity, 7);
+  assert.deepEqual(candidates[0].locations, ['AP-01 (7)']);
+});
+
+test('APOIO encontra cabedal pelo SKU, incluindo PAR completo, sem aceitar variantes incompatíveis', async () => {
+  const exact = stockItem({
+    id: 411,
+    componentType: 'CABEDAL',
+    type: 'CABEDAL',
+    sku: 'CAB-204',
+    pieceCode: null,
+    description: 'CABEDAL EXTERNO',
+    color: 'BLACK/WHITE',
+    sizeGrade: '40',
+    footSide: 'PAR',
+    quantity: 5,
+    locations: [{ quantity: 5, location: { name: 'AP-04' } }],
+  });
+  const wrongIdentifierField = stockItem({ id: 412, componentType: 'PECA_CORTADA', type: 'PECA_CORTADA', pieceCode: 'CAB-204', sku: null });
+  const wrongModel = stockItem({ id: 413, componentType: 'CABEDAL', type: 'CABEDAL', sku: 'CAB-204', productName: 'OTHER MODEL', footSide: 'PAR' });
+  const wrongColor = stockItem({ id: 414, componentType: 'CABEDAL', type: 'CABEDAL', sku: 'CAB-204', color: 'BLACK', footSide: 'PAR' });
+  const wrongGrade = stockItem({ id: 415, componentType: 'CABEDAL', type: 'CABEDAL', sku: 'CAB-204', sizeGrade: '41', footSide: 'PAR' });
+  const wrongSide = stockItem({ id: 416, componentType: 'CABEDAL', type: 'CABEDAL', sku: 'CAB-204', footSide: 'E' });
+  const candidates = await findRequisitionStockCandidates(transactionFor([
+    exact, wrongIdentifierField, wrongModel, wrongColor, wrongGrade, wrongSide,
+  ]), 7, apoioUpperRequest());
+
+  assert.equal(candidates.length, 1);
+  assert.deepEqual(candidates[0].sourceStockItemIds, [411]);
+  assert.equal(candidates[0].quantity, 5);
+  assert.deepEqual(candidates[0].locations, ['AP-04 (5)']);
+});
+
+test('variantes não informadas mantêm candidatos separados, cada um com seu próprio saldo e localização', async () => {
+  const first = stockItem({ id: 421, pieceCode: 'CUT-101', footSide: null, materialColor: 'BLACK', sizeGrade: '40', quantity: 3,
+    locations: [{ quantity: 3, location: { name: 'AP-01' } }] });
+  const second = stockItem({ id: 422, pieceCode: 'CUT-101', footSide: null, materialColor: 'WHITE', sizeGrade: '41', quantity: 8,
+    locations: [{ quantity: 8, location: { name: 'AP-02' } }] });
+  const candidates = await findRequisitionStockCandidates(transactionFor([first, second]), 7, apoioPieceRequest({
+    color: undefined,
+    sizeGrade: undefined,
+    footSide: undefined,
+  }));
+
+  assert.deepEqual(candidates.map(candidate => candidate.sourceStockItemIds), [[421], [422]]);
+  assert.deepEqual(candidates.map(candidate => candidate.quantity), [3, 8]);
+  assert.deepEqual(candidates.map(candidate => candidate.locations), [['AP-01 (3)'], ['AP-02 (8)']]);
+});
+
+test('APOIO não usa correspondência parcial nem outro campo de identificador quando não há item exato', async () => {
+  const rows = [
+    stockItem({ id: 431, pieceCode: 'CUT-101-ALT', sku: null }),
+    stockItem({ id: 432, pieceCode: 'OTHER', sku: 'CUT-101' }),
+  ];
+  const candidates = await findRequisitionStockCandidates(transactionFor(rows), 7, apoioPieceRequest());
+  assert.deepEqual(candidates, []);
+});
+
+test('autocomplete APOIO consulta somente o identificador exato do componente e não agrega variantes', async t => {
+  const originalFindMany = (prisma.stockItem as any).findMany;
+  const queries: any[] = [];
+  const cutPieceRows = [
+    { id: 441, componentType: 'PECA_CORTADA', pieceCode: 'CUT-101', sku: null, productName: 'MODEL', description: 'GASPEA', sizeGrade: '40', materialColor: 'BLACK', color: null, footSide: 'E', quantity: 2 },
+    { id: 442, componentType: 'PECA_CORTADA', pieceCode: 'CUT-101', sku: null, productName: 'MODEL', description: 'GASPEA', sizeGrade: '41', materialColor: 'WHITE', color: null, footSide: 'D', quantity: 6 },
+  ];
+  (prisma.stockItem as any).findMany = async ({ where }: any) => {
+    queries.push(where);
+    return cutPieceRows;
+  };
+  t.after(() => { (prisma.stockItem as any).findMany = originalFindMany; });
+
+  const suggestions = await new StockItemService().getSearchSuggestions('APOIO' as any, 'CUT-101', 7, 'PECA_CORTADA');
+  assert.deepEqual(queries[0].componentType, 'PECA_CORTADA');
+  assert.deepEqual(queries[0].OR, [{ pieceCode: { equals: 'CUT-101', mode: 'insensitive' } }]);
+  assert.deepEqual(suggestions.map((suggestion: any) => [suggestion.id, suggestion.availableQuantity, suggestion.sizeGrades[0]]), [
+    [441, 2, '40'],
+    [442, 6, '41'],
+  ]);
 });
 
 test('estoque não verificado compara SKU somente com campos de código, sem confundir modelo ou descrição', async () => {
@@ -136,4 +268,20 @@ test('DTO mantém falsa a confirmação ausente, preservando payloads legados', 
     reason: 'REPOSIÇÃO',
   });
   assert.equal(parsed.confirmSourceSuggestion, false);
+});
+
+test('DTO exige identificador coerente com o componente solicitado em APOIO', () => {
+  const cabedal = CheckStockAvailabilitySchema.safeParse({
+    requestSector: 'APOIO', type: 'CABEDAL', sku: 'CAB-204', description: 'CABEDAL',
+  });
+  const cutPiece = CheckStockAvailabilitySchema.safeParse({
+    requestSector: 'APOIO', type: 'PECA_CORTADA', pieceCode: 'CUT-101', description: 'GASPEA',
+  });
+  const wrongField = CheckStockAvailabilitySchema.safeParse({
+    requestSector: 'APOIO', type: 'PECA_CORTADA', sku: 'CUT-101', description: 'GASPEA',
+  });
+
+  assert.equal(cabedal.success, true);
+  assert.equal(cutPiece.success, true);
+  assert.equal(wrongField.success, false);
 });

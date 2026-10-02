@@ -89,6 +89,8 @@ interface UnverifiedRequisitionStockMatch {
 }
 
 interface SkuSuggestion {
+  id?: number;
+  componentType?: string;
   sku: string;
   modelName: string;
   description: string;
@@ -105,6 +107,7 @@ interface StagedRequisitionItem {
   sourceSector: string;
   sourceMatchReason: string;
   sku?: string;
+  pieceCode?: string;
   modelName?: string;
   description: string;
   type?: string;
@@ -155,6 +158,7 @@ const reasonErrorVisible = ref(false);
 const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
 const formItem = ref({
   sku: '',
+  pieceCode: '',
   modelName: '',
   description: '',
   type: '',
@@ -202,6 +206,7 @@ type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'a
 interface AvailabilityRequest {
   requestSector: typeof currentSector.value;
   sku?: string;
+  pieceCode?: string;
   modelName?: string;
   description: string;
   type?: string;
@@ -232,6 +237,14 @@ const availabilityResult = ref<{
 
 const selectedSourceCandidate = computed(() => availabilityResult.value.candidates
   .find(candidate => candidate.id === availabilityResult.value.selectedCandidateId) || null);
+
+const apoioIdentifier = computed({
+  get: () => formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode,
+  set: (value: string) => {
+    if (formItem.value.type === 'CABEDAL') formItem.value.sku = value;
+    else formItem.value.pieceCode = value;
+  },
+});
 
 // Autocomplete
 const suggestions = ref<SkuSuggestion[]>([]);
@@ -279,11 +292,15 @@ const sectorIcons = { CORTE: Scissors, APOIO: Wrench, PRE_FABRICADO: Layers, DIS
 const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
+const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
 
 // Consulta de disponibilidade em tempo real. A resposta só vale para a identidade
 // exata que iniciou a requisição; qualquer edição invalida o resultado anterior.
 function buildAvailabilityRequest(): AvailabilityRequest {
-  const sku = formItem.value.sku?.trim().toUpperCase();
+  const isApoio = currentSector.value === 'APOIO';
+  const isApoioCutPiece = isApoio && formItem.value.type === 'PECA_CORTADA';
+  const sku = (isApoio ? (isApoioCutPiece ? '' : formItem.value.sku) : formItem.value.sku)?.trim().toUpperCase();
+  const pieceCode = isApoioCutPiece ? formItem.value.pieceCode.trim().toUpperCase() : '';
   const modelName = formItem.value.modelName?.trim().toUpperCase();
   const type = formItem.value.type?.trim().toUpperCase();
   let description = formItem.value.description?.trim();
@@ -301,8 +318,9 @@ function buildAvailabilityRequest(): AvailabilityRequest {
   return {
     requestSector: currentSector.value,
     sku: sku || undefined,
+    pieceCode: pieceCode || undefined,
     modelName: modelName || undefined,
-    description: (description || sku || 'CALÇADO COMPLETO').toUpperCase(),
+    description: (description || sku || pieceCode || (isApoio ? 'CABEDAL' : 'CALÇADO COMPLETO')).toUpperCase(),
     type: type || undefined,
     sizeGrade: formItem.value.sizeGrade?.trim().toUpperCase() || undefined,
     color: formItem.value.color?.trim().toUpperCase() || undefined,
@@ -314,6 +332,7 @@ function availabilityIdentityKey(request: AvailabilityRequest) {
   return JSON.stringify([
     request.requestSector,
     request.sku || '',
+    request.pieceCode || '',
     request.modelName || '',
     request.description,
     request.type || '',
@@ -324,10 +343,48 @@ function availabilityIdentityKey(request: AvailabilityRequest) {
 }
 
 function hasEnoughIdentityToCheck(request: AvailabilityRequest) {
-  if (request.requestSector === 'CORTE') return Boolean(request.sku || formItem.value.description.trim());
-  if (request.requestSector === 'APOIO') return Boolean(request.sku && formItem.value.description.trim());
-  return Boolean(request.sku);
+  const hasSku = Boolean(request.sku);
+  const hasGrade = Boolean(request.sizeGrade);
+  const hasSide = Boolean(request.footSide);
+  const hasColor = Boolean(request.color);
+  const hasModel = Boolean(request.modelName);
+
+  if (request.requestSector === 'CORTE') {
+    return hasSku && Boolean(formItem.value.description.trim());
+  }
+  if (request.requestSector === 'APOIO') {
+    if (request.type === 'CABEDAL') return hasSku && hasColor && hasGrade && hasSide;
+    return Boolean(request.pieceCode)
+      && Boolean(formItem.value.description.trim())
+      && hasColor
+      && hasGrade;
+  }
+  if (request.requestSector === 'PRE_FABRICADO') {
+    return hasSku && Boolean(request.type) && hasModel && hasGrade && hasSide;
+  }
+  if (request.requestSector === 'DISTRIBUICAO' || request.requestSector === 'EXPEDICAO') {
+    return hasSku && Boolean(request.type) && hasModel && hasColor && hasGrade && hasSide;
+  }
+  if (request.requestSector === 'MONTAGEM') {
+    return hasSku && hasModel && hasColor && hasGrade && hasSide;
+  }
+  return false;
 }
+
+const hasPrimaryItemIdentity = computed(() => {
+  if (currentSector.value === 'CORTE') {
+    return Boolean(formItem.value.sku.trim() && formItem.value.description.trim());
+  }
+  if (currentSector.value === 'APOIO') {
+    return Boolean((formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode).trim());
+  }
+  if (currentSector.value === 'MONTAGEM') {
+    return Boolean(formItem.value.sku.trim());
+  }
+  return Boolean(formItem.value.sku.trim());
+});
+
+const availabilityIdentityComplete = computed(() => hasEnoughIdentityToCheck(buildAvailabilityRequest()));
 
 async function checkCurrentItemAvailability(request: AvailabilityRequest, identityKey: string, requestVersion: number) {
   try {
@@ -374,6 +431,7 @@ watch(
   () => [
     currentSector.value,
     formItem.value.sku,
+    formItem.value.pieceCode,
     formItem.value.modelName,
     formItem.value.description,
     formItem.value.type,
@@ -421,7 +479,7 @@ function onSkuInput() {
   formItem.value.footSide = null;
   availableGrades.value = [];
   availableFootSides.value = [];
-  const q = formItem.value.sku.trim();
+  const q = (currentSector.value === 'APOIO' ? apoioIdentifier.value : formItem.value.sku).trim();
   if (q.length < 2) {
     suggestions.value = [];
     showSuggestions.value = false;
@@ -435,6 +493,7 @@ function onSkuInput() {
       const res = await api.get('/inventory/search-suggestions', {
         params: {
           sector: currentSector.value,
+          ...(currentSector.value === 'APOIO' ? { componentType: formItem.value.type } : {}),
           q,
         },
       });
@@ -452,7 +511,13 @@ function onSkuInput() {
 function selectSuggestion(sug: SkuSuggestion) {
   if (autocompleteTimer) clearTimeout(autocompleteTimer);
   autocompleteRequestVersion++;
-  formItem.value.sku = sug.sku;
+  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') {
+    formItem.value.pieceCode = sug.sku;
+    formItem.value.sku = '';
+  } else {
+    formItem.value.sku = sug.sku;
+    if (currentSector.value === 'APOIO') formItem.value.pieceCode = '';
+  }
   formItem.value.modelName = sug.modelName;
   formItem.value.color = sug.color || '';
   formItem.value.sizeGrade = '';
@@ -464,6 +529,7 @@ function selectSuggestion(sug: SkuSuggestion) {
   const suggestedSides = new Set(sug.footSides || []);
   availableFootSides.value = ['E', 'D'].filter(side => suggestedSides.has(side)) as Array<'E' | 'D'>;
   if (suggestedSides.has('E') && suggestedSides.has('D')) availableFootSides.value.push('PAR');
+  if (suggestedSides.has('PAR')) availableFootSides.value.push('PAR');
   if (availableFootSides.value.length === 1) formItem.value.footSide = availableFootSides.value[0];
   if (availableGrades.value.length === 1) {
     formItem.value.sizeGrade = availableGrades.value[0];
@@ -477,9 +543,12 @@ function onSectorChange() {
   autocompleteRequestVersion++;
   formItem.value = {
     sku: '',
+    pieceCode: '',
     modelName: '',
     description: '',
-    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
+    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA'
+      : currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL'
+        : currentSector.value === 'APOIO' ? 'PECA_CORTADA' : '',
     color: '',
     unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
@@ -487,6 +556,20 @@ function onSectorChange() {
     quantityRequested: 1,
     reason: formItem.value.reason, // preserva o motivo comum se digitado
   };
+  availableGrades.value = [];
+  availableFootSides.value = [];
+  suggestions.value = [];
+  showSuggestions.value = false;
+}
+
+function onApoioComponentChange() {
+  formItem.value.sku = '';
+  formItem.value.pieceCode = '';
+  formItem.value.modelName = '';
+  formItem.value.description = '';
+  formItem.value.color = '';
+  formItem.value.sizeGrade = '';
+  formItem.value.footSide = null;
   availableGrades.value = [];
   availableFootSides.value = [];
   suggestions.value = [];
@@ -576,14 +659,20 @@ function addCurrentItem() {
       return;
     }
   } else if (currentSector.value === 'APOIO') {
-    if (!formItem.value.sku.trim()) {
-      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+    const apoioCode = formItem.value.type === 'CABEDAL'
+      ? formItem.value.sku.trim()
+      : formItem.value.pieceCode.trim();
+    if (!['CABEDAL', 'PECA_CORTADA'].includes(formItem.value.type) || !apoioCode) {
+      showToast(formItem.value.type === 'CABEDAL'
+        ? 'O SKU do cabedal é obrigatório.'
+        : 'O código da peça cortada é obrigatório.', 'error');
       return;
     }
-    if (!finalDesc) {
-      showToast('A Peça / Molde Solicitado é obrigatório.', 'error');
+    if (!finalDesc && formItem.value.type === 'PECA_CORTADA') {
+      showToast('A descrição da peça cortada é obrigatória.', 'error');
       return;
     }
+    finalDesc = finalDesc || 'CABEDAL';
   } else if (currentSector.value === 'CORTE') {
     if (!finalDesc && !formItem.value.sku.trim()) {
       showToast('A Descrição / Tipo do material é obrigatória.', 'error');
@@ -632,7 +721,12 @@ function addCurrentItem() {
       && availabilityResult.value.confirmedSourceCandidateId === selectedSourceCandidate.value!.id,
     sourceSector: selectedSourceCandidate.value!.sourceSector,
     sourceMatchReason: selectedSourceCandidate.value!.reason,
-    sku: formItem.value.sku.trim().toUpperCase() || undefined,
+    sku: currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA'
+      ? undefined
+      : formItem.value.sku.trim().toUpperCase() || undefined,
+    pieceCode: currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA'
+      ? formItem.value.pieceCode.trim().toUpperCase() || undefined
+      : undefined,
     modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
     description: (finalDesc || 'CALÇADO COMPLETO').toUpperCase(),
     type: formItem.value.type.trim().toUpperCase() || undefined,
@@ -654,9 +748,12 @@ function addCurrentItem() {
   const lastReason = formItem.value.reason;
   formItem.value = {
     sku: '',
+    pieceCode: '',
     modelName: '',
     description: '',
-    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA' : (currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
+    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA'
+      : currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL'
+        : currentSector.value === 'APOIO' ? 'PECA_CORTADA' : '',
     color: '',
     unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
@@ -706,6 +803,7 @@ async function submitRequisition() {
         sourceCandidateId: item.sourceCandidateId,
         confirmSourceSuggestion: item.confirmSourceSuggestion,
         sku: item.sku,
+        pieceCode: item.pieceCode,
         modelName: item.modelName,
         description: item.description,
         type: item.type,
@@ -941,7 +1039,7 @@ onMounted(() => {
               <tr>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">CÓDIGO / DATA</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">SETOR & SOLICITANTE</th>
-                <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">ITEM / SKU & MODELO</th>
+                <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase">IDENTIFICADOR / MODELO</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">GRADE / LADO</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-right">QTD. SOLIC.</th>
                 <th class="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase text-center">DISPONIBILIDADE EM SOBRAS</th>
@@ -977,6 +1075,9 @@ onMounted(() => {
                 <!-- Item / SKU & Modelo -->
                 <td class="px-4 py-3">
                   <div v-if="item.sku" class="font-bold text-slate-900 font-mono text-[11.5px]">{{ item.sku }}</div>
+                  <div v-if="item.sku" class="text-[9px] font-semibold uppercase text-slate-400">
+                    {{ item.requestSector === 'APOIO' && item.type === 'PECA_CORTADA' ? 'Código da peça' : 'SKU' }}
+                  </div>
                   <div v-if="item.modelName" class="text-[11px] text-slate-700 font-medium">{{ item.modelName }}</div>
                   <div v-if="item.color" class="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded inline-block my-0.5 border border-indigo-100 font-mono">
                     {{ item.color }}
@@ -1203,7 +1304,7 @@ onMounted(() => {
                   >
                     <button
                       v-for="sug in suggestions"
-                      :key="sug.sku"
+                      :key="sug.id || sug.sku"
                       type="button"
                       @click="selectSuggestion(sug)"
                       class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
@@ -1230,34 +1331,31 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Unidade</label>
-                  <input v-model="formItem.unit" readonly class="w-full border border-slate-200 p-2.5 rounded-xl bg-slate-50" />
-                </div>
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
-                  <input
-                    v-model.number="formItem.quantityRequested"
-                    type="number"
-                    :min="requestIntegerOnly ? 1 : 0.001"
-                    :step="requestIntegerOnly ? 1 : 0.001"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-              </div>
             </div>
 
             <!-- CAMPOS PARA APOIO -->
             <div v-else-if="currentSector === 'APOIO'" class="space-y-3">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo / Componente *</label>
+                  <select
+                    v-model="formItem.type"
+                    @change="onApoioComponentChange"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="PECA_CORTADA">Peça cortada</option>
+                    <option value="CABEDAL">Cabedal</option>
+                  </select>
+                </div>
                 <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">
+                    {{ formItem.type === 'CABEDAL' ? 'SKU do cabedal *' : 'Código da peça *' }}
+                  </label>
                   <input
-                    v-model="formItem.sku"
+                    v-model="apoioIdentifier"
                     @input="onSkuInput"
                     type="text"
-                    placeholder="Ex: MOLDE-PEGASUS..."
+                    :placeholder="formItem.type === 'CABEDAL' ? 'Ex: CAB-PEG-40-PTO...' : 'Ex: MOL-GAS-01...'"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
 
@@ -1267,14 +1365,19 @@ onMounted(() => {
                   >
                     <button
                       v-for="sug in suggestions"
-                      :key="sug.sku"
+                      :key="sug.id || sug.sku"
                       type="button"
                       @click="selectSuggestion(sug)"
                       class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
                     >
                       <div>
                         <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.description }}</span>
+                        <span class="text-slate-700 ml-1.5">{{ sug.modelName }} · {{ sug.description }}</span>
+                        <div class="text-[10px] text-slate-400">
+                          <span v-if="sug.color">{{ sug.color }} · </span>
+                          <span v-if="sug.sizeGrades.length">Grade {{ sug.sizeGrades.join(', ') }} · </span>
+                          <span v-if="sug.footSides.length">Lado {{ sug.footSides.join('/') }}</span>
+                        </div>
                       </div>
                       <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                         {{ sug.availableQuantity }} PÇS
@@ -1283,8 +1386,8 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
+                <div v-if="hasPrimaryItemIdentity">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / Linha</label>
                   <input
                     v-model="formItem.modelName"
                     type="text"
@@ -1294,32 +1397,66 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Peça / Molde Solicitado *</label>
+              <div v-if="hasPrimaryItemIdentity" class="space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">
+                    {{ formItem.type === 'CABEDAL' ? 'Descrição do cabedal' : 'Peça / Molde solicitado *' }}
+                  </label>
                   <input
                     v-model="formItem.description"
                     type="text"
-                    placeholder="Ex: Reforço Traseiro, Gáspea Cortada..."
+                    :placeholder="formItem.type === 'CABEDAL' ? 'Ex: Cabedal externo' : 'Ex: Reforço traseiro, gáspea cortada...'"
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">
+                    {{ formItem.type === 'CABEDAL' ? 'Cor / Combinação *' : 'Material / Cor *' }}
+                  </label>
                   <input
-                    v-model.number="formItem.quantityRequested"
-                    type="number"
-                    :min="requestIntegerOnly ? 1 : 0.001"
-                    :step="requestIntegerOnly ? 1 : 0.001"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                    v-model="formItem.color"
+                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9/\-]/g, '').toUpperCase()"
+                    type="text"
+                    placeholder="Ex: PRETO/BRANCO"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
+                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
+                    <option value="">Selecione a grade</option>
+                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
+                  </select>
+                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
+                </div>
+              </div>
+
+              <div v-if="formItem.type === 'CABEDAL'" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado (E / D / PAR) *</label>
+                  <div class="flex gap-1">
+                    <button
+                      v-for="side in apoioSideOptions"
+                      :key="side"
+                      type="button"
+                      @click="formItem.footSide = formItem.footSide === side ? null : side"
+                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
+                      :class="formItem.footSide === side
+                        ? side === 'E' ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                          : side === 'D' ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                            : 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    >{{ side === 'E' ? 'Pé esquerdo' : side === 'D' ? 'Pé direito' : 'Par' }}</button>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
 
             <!-- CAMPOS PARA PRÉ-FABRICADO (SOLAS) -->
             <div v-else-if="currentSector === 'PRE_FABRICADO'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Sola *</label>
                   <select
@@ -1332,8 +1469,8 @@ onMounted(() => {
                     <option value="PU">PU</option>
                   </select>
                 </div>
-                <div class="relative sm:col-span-2">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / Modelo Solado *</label>
+                <div class="relative">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Código / SKU do solado *</label>
                   <input
                     v-model="formItem.sku"
                     @input="onSkuInput"
@@ -1366,19 +1503,23 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div v-if="hasPrimaryItemIdentity" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
-                  <input
-                    v-model="formItem.sizeGrade"
-                    type="text"
-                    placeholder="Ex: 39/40"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / Linha *</label>
+                  <input v-model="formItem.modelName" type="text" placeholder="Ex: RACER SPEEDZONE" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
+                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
+                    <option value="">Selecione a grade</option>
+                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
+                  </select>
+                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
                 </div>
 
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
                   <div class="flex gap-1">
                     <button
                       type="button"
@@ -1413,22 +1554,13 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
-                  <input
-                    v-model.number="formItem.quantityRequested"
-                    type="number"
-                    :min="requestIntegerOnly ? 1 : 0.001"
-                    :step="requestIntegerOnly ? 1 : 0.001"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
+              </div>
               </div>
             </div>
 
             <!-- CAMPOS PARA DISTRIBUIÇÃO (CABEDAIS & SOLAS PROCESSADAS) -->
             <div v-else-if="currentSector === 'DISTRIBUICAO' || currentSector === 'EXPEDICAO'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Insumo *</label>
                   <select
@@ -1472,8 +1604,8 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha</label>
+                <div v-if="hasPrimaryItemIdentity">
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
                   <input
                     v-model="formItem.modelName"
                     type="text"
@@ -1483,19 +1615,18 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div v-if="hasPrimaryItemIdentity" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
-                  <input
-                    v-model="formItem.sizeGrade"
-                    type="text"
-                    placeholder="Ex: 39/40"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
+                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
+                    <option value="">Selecione a grade</option>
+                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
+                  </select>
+                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
                 </div>
 
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Cor / Combinação</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Cor / Combinação *</label>
                   <input
                     v-model="formItem.color"
                     @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
@@ -1506,7 +1637,7 @@ onMounted(() => {
                 </div>
 
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
                   <div class="flex gap-1">
                     <button
                       type="button"
@@ -1541,22 +1672,12 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
-                  <input
-                    v-model.number="formItem.quantityRequested"
-                    type="number"
-                    :min="requestIntegerOnly ? 1 : 0.001"
-                    :step="requestIntegerOnly ? 1 : 0.001"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
               </div>
             </div>
 
             <!-- CAMPOS PARA MONTAGEM (PÉS PRONTOS / CALÇADOS MONTADOS) -->
             <div v-else-if="currentSector === 'MONTAGEM'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 gap-3">
                 <div class="relative">
                   <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
                   <input
@@ -1590,7 +1711,10 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
+              </div>
+
+              <div v-if="hasPrimaryItemIdentity" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="lg:col-span-2">
                   <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
                   <input
                     v-model="formItem.modelName"
@@ -1599,11 +1723,9 @@ onMounted(() => {
                     class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                   />
                 </div>
-              </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Combinação / Cor</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Combinação / Cor *</label>
                   <input
                     v-model="formItem.color"
                     @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
@@ -1614,17 +1736,16 @@ onMounted(() => {
                 </div>
 
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho</label>
-                  <input
-                    v-model="formItem.sizeGrade"
-                    type="text"
-                    placeholder="Ex: 39/40"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
+                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
+                    <option value="">Selecione a grade</option>
+                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
+                  </select>
+                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
                 </div>
 
                 <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo</label>
+                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
                   <div class="flex gap-1">
                     <button
                       type="button"
@@ -1659,47 +1780,55 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade *</label>
-                  <input
-                    v-model.number="formItem.quantityRequested"
-                    type="number"
-                    :min="requestIntegerOnly ? 1 : 0.001"
-                    :step="requestIntegerOnly ? 1 : 0.001"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
               </div>
             </div>
 
-            <!-- Motivo do Defeito -->
-            <div>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
-              <input
-                ref="reasonInput"
-                v-model="formItem.reason"
-                type="text"
-                placeholder="Ex: Quebra de agulha na costura, rasgo no corte, mancha de cola..."
-                :aria-invalid="reasonErrorVisible && !formItem.reason.trim()"
-                :aria-describedby="reasonErrorVisible && !formItem.reason.trim() ? 'requisition-reason-error' : undefined"
-                class="w-full border p-2.5 rounded-xl font-medium uppercase outline-none bg-white"
-                :class="reasonErrorVisible && !formItem.reason.trim()
-                  ? 'border-rose-500 focus:border-rose-600'
-                  : 'border-slate-200 focus:border-indigo-500'"
-              />
-              <p
-                v-if="reasonErrorVisible && !formItem.reason.trim()"
-                id="requisition-reason-error"
-                role="alert"
-                class="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-rose-700"
-              >
-                <AlertCircle class="w-3.5 h-3.5 shrink-0" />
-                Informe o motivo da avaria ou do defeito para incluir este item.
-              </p>
+            <!-- Dados comuns: aparecem depois que o item está identificado -->
+            <div v-if="availabilityIdentityComplete" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start">
+              <div class="sm:col-span-3">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
+                <input
+                  ref="reasonInput"
+                  v-model="formItem.reason"
+                  type="text"
+                  placeholder="Ex: quebra de agulha, rasgo, mancha de cola..."
+                  :aria-invalid="reasonErrorVisible && !formItem.reason.trim()"
+                  :aria-describedby="reasonErrorVisible && !formItem.reason.trim() ? 'requisition-reason-error' : undefined"
+                  class="w-full border p-2.5 rounded-xl font-medium uppercase outline-none bg-white"
+                  :class="reasonErrorVisible && !formItem.reason.trim()
+                    ? 'border-rose-500 focus:border-rose-600'
+                    : 'border-slate-200 focus:border-indigo-500'"
+                />
+                <p
+                  v-if="reasonErrorVisible && !formItem.reason.trim()"
+                  id="requisition-reason-error"
+                  role="alert"
+                  class="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-rose-700"
+                >
+                  <AlertCircle class="w-3.5 h-3.5 shrink-0" />
+                  Informe o motivo da avaria ou do defeito para incluir este item.
+                </p>
+              </div>
+              <div>
+                <label class="block font-bold text-slate-600 uppercase mb-1">Quantidade * <span class="font-medium normal-case text-slate-400">({{ selectedSourceCandidate?.unit || formItem.unit }})</span></label>
+                <input
+                  v-model.number="formItem.quantityRequested"
+                  type="number"
+                  :min="requestIntegerOnly ? 1 : 0.001"
+                  :step="requestIntegerOnly ? 1 : 0.001"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-bold outline-none focus:border-indigo-500 bg-white"
+                />
+              </div>
             </div>
 
             <!-- INDICADOR DE SALDO EM TEMPO REAL E AVISO INDUSTRIAL -->
             <div class="pt-2" aria-live="polite">
+              <p
+                v-if="hasPrimaryItemIdentity && !availabilityIdentityComplete"
+                class="px-1 text-[11px] text-slate-500"
+              >
+                Complete as variantes obrigatórias para consultar o saldo disponível.
+              </p>
               <div
                 v-if="availabilityResult.status === 'checking'"
                 class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2.5 text-blue-800"
@@ -1776,40 +1905,46 @@ onMounted(() => {
                   :key="candidate.id"
                   class="space-y-1.5"
                 >
-                  <label
+                  <div
                     class="flex cursor-pointer items-start gap-2.5 rounded-xl border bg-white p-3 transition"
                     :class="availabilityResult.selectedCandidateId === candidate.id ? 'border-indigo-400 bg-indigo-50/70 ring-1 ring-indigo-300' : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/30'"
                   >
                     <input
                       type="radio"
                       name="requisition-source-candidate"
+                      :id="`source-candidate-${candidate.id}`"
                       :checked="availabilityResult.selectedCandidateId === candidate.id"
                       @change="selectSourceCandidate(candidate)"
                       class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span class="min-w-0 flex-1">
-                      <span class="flex flex-wrap items-center justify-between gap-1">
-                        <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
-                        <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
-                      </span>
-                      <span class="mt-1 block text-[10.5px] text-slate-600">
-                        <template v-for="(sourceItem, index) in candidate.items" :key="sourceItem.id">
-                          <span v-if="index > 0"> + </span>
-                          <span v-if="sourceItem.modelName">Modelo/linha: {{ sourceItem.modelName }}</span>
-                          <span v-if="sourceItem.description">{{ sourceItem.modelName ? ' · ' : '' }}{{ sourceItem.description }}</span>
-                          <span v-if="candidate.sourceSector === 'APOIO' && sourceItem.componentType"> · Componente: {{ formatSourceComponent(sourceItem) }}</span>
-                          <span v-if="sourceItem.color"> · Cor: {{ sourceItem.color }}</span>
-                          <span v-if="sourceItem.sizeGrade"> · Grade: {{ sourceItem.sizeGrade }}</span>
-                          <span v-if="sourceItem.footSide"> · {{ sourceItem.footSide === 'E' ? 'pé esquerdo' : sourceItem.footSide === 'D' ? 'pé direito' : 'par' }}</span>
-                        </template>
-                        <span v-if="candidate.sourceQuantityPerRequestUnit !== 1 || candidate.sourceUnits.some(unit => unit !== candidate.unit)"> · consumo {{ candidate.sourceQuantityPerRequestUnit }} {{ candidate.sourceUnits.join('/') }} por {{ candidate.unit }}</span>
-                      </span>
-                      <span class="mt-1 block text-[10.5px] font-semibold text-indigo-700">Compatibilidade: {{ candidate.reason }}</span>
-                      <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-                        <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
-                      </span>
+                      <label :for="`source-candidate-${candidate.id}`" class="block cursor-pointer">
+                        <span class="flex flex-wrap items-center justify-between gap-1">
+                          <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
+                          <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
+                        </span>
+                        <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+                          <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
+                        </span>
+                      </label>
+                      <details class="mt-1 text-[10.5px] text-slate-600">
+                        <summary class="w-fit cursor-pointer font-semibold text-indigo-700">Ver detalhes do item</summary>
+                        <span class="mt-1 block">
+                          <template v-for="(sourceItem, index) in candidate.items" :key="sourceItem.id">
+                            <span v-if="index > 0"> + </span>
+                            <span v-if="sourceItem.modelName">Modelo/linha: {{ sourceItem.modelName }}</span>
+                            <span v-if="sourceItem.description">{{ sourceItem.modelName ? ' · ' : '' }}{{ sourceItem.description }}</span>
+                            <span v-if="candidate.sourceSector === 'APOIO' && sourceItem.componentType"> · Componente: {{ formatSourceComponent(sourceItem) }}</span>
+                            <span v-if="sourceItem.color"> · Cor: {{ sourceItem.color }}</span>
+                            <span v-if="sourceItem.sizeGrade"> · Grade: {{ sourceItem.sizeGrade }}</span>
+                            <span v-if="sourceItem.footSide"> · {{ sourceItem.footSide === 'E' ? 'pé esquerdo' : sourceItem.footSide === 'D' ? 'pé direito' : 'par' }}</span>
+                          </template>
+                          <span v-if="candidate.sourceQuantityPerRequestUnit !== 1 || candidate.sourceUnits.some(unit => unit !== candidate.unit)"> · consumo {{ candidate.sourceQuantityPerRequestUnit }} {{ candidate.sourceUnits.join('/') }} por {{ candidate.unit }}</span>
+                        </span>
+                        <span class="mt-1 block font-semibold text-indigo-700">Compatibilidade: {{ candidate.reason }}</span>
+                      </details>
                     </span>
-                  </label>
+                  </div>
                   <label v-if="candidate.requiresConfirmation" class="ml-8 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10.5px] text-amber-950">
                     <input
                       type="checkbox"
@@ -1829,10 +1964,14 @@ onMounted(() => {
                 </p>
               </div>
 
-              <div
+              <details
                 v-if="availabilityResult.unverifiedStockMatches.length"
                 class="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950"
               >
+                <summary class="cursor-pointer list-inside font-black tracking-tight text-xs uppercase">
+                  Estoque para conferência ({{ availabilityResult.unverifiedStockMatches.length }})
+                </summary>
+                <div class="pt-2">
                 <div class="flex items-start gap-2.5">
                   <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div class="min-w-0 flex-1">
@@ -1844,7 +1983,7 @@ onMounted(() => {
                 </div>
                 <ul class="mt-2.5 space-y-1.5" aria-label="Estoque encontrado para conferência de compatibilidade">
                   <li
-                  v-for="match in availabilityResult.unverifiedStockMatches"
+                    v-for="match in availabilityResult.unverifiedStockMatches"
                     :key="match.id"
                     class="rounded-lg border border-amber-200/80 bg-white/80 px-2.5 py-2 text-[10.5px]"
                   >
@@ -1878,7 +2017,8 @@ onMounted(() => {
                     </span>
                   </li>
                 </ul>
-              </div>
+                </div>
+              </details>
             </div>
 
             <!-- Botão Adicionar Item -->
@@ -1925,9 +2065,12 @@ onMounted(() => {
                   </span>
                   <div>
                     <div class="font-bold text-slate-900 font-mono text-[11.5px]">
-                      {{ staged.sku || staged.description }}
+                      {{ staged.pieceCode || staged.sku || staged.description }}
                       <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-sans bg-slate-100 text-slate-700">
                         {{ formatSectorName(staged.requestSector) }}
+                      </span>
+                      <span v-if="staged.requestSector === 'APOIO' && staged.type" class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-sans bg-indigo-50 text-indigo-700">
+                        {{ staged.type === 'PECA_CORTADA' ? 'Peça cortada' : 'Cabedal' }}
                       </span>
                     </div>
                     <div class="text-[11px] text-slate-600">
@@ -2122,7 +2265,9 @@ onMounted(() => {
 
           <div class="space-y-2">
             <div>
-              <span class="text-slate-400 font-bold uppercase block text-[10px]">COD. PRODUTO / SKU & Modelo</span>
+              <span class="text-slate-400 font-bold uppercase block text-[10px]">
+                {{ viewingItem.requestSector === 'APOIO' && viewingItem.type === 'PECA_CORTADA' ? 'Código da peça & modelo' : 'SKU & modelo' }}
+              </span>
               <p class="font-mono font-bold text-slate-900 text-sm">
                 {{ viewingItem.sku || '-' }} — {{ viewingItem.modelName || 'GERAL' }}<span v-if="viewingItem.type"> · {{ viewingItem.type }}</span>
               </p>

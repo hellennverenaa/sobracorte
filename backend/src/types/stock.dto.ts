@@ -231,11 +231,30 @@ export const RequisitionStatusEnum = z.enum([
   'CANCELADA',
 ]);
 
+function validateApoioRequisitionIdentity(
+  item: { requestSector: string; type?: string; sku?: string; pieceCode?: string },
+  ctx: z.RefinementCtx,
+) {
+  if (item.requestSector !== 'APOIO') return;
+  if (item.type !== 'CABEDAL' && item.type !== 'PECA_CORTADA') {
+    ctx.addIssue({ code: 'custom', path: ['type'], message: 'Selecione Cabedal ou Peça cortada para requisições de Peças Cortadas.' });
+    return;
+  }
+  if (item.type === 'CABEDAL') {
+    if (!item.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'Informe o SKU do cabedal.' });
+    if (item.pieceCode) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Cabedal deve ser identificado pelo SKU.' });
+  } else {
+    if (!item.pieceCode) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Informe o código da peça cortada.' });
+    if (item.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'Peça cortada deve ser identificada pelo código da peça.' });
+  }
+}
+
 export const RequisitionItemInputSchema = z.object({
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sourceCandidateId: z.string().trim().min(1).max(300).optional(),
   confirmSourceSuggestion: z.boolean().optional().default(false),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  pieceCode: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().optional().default('CALÇADO COMPLETO').transform((val) => (val && val.trim().length > 0 ? val.trim().toUpperCase() : 'CALÇADO COMPLETO')),
   type: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
@@ -244,7 +263,7 @@ export const RequisitionItemInputSchema = z.object({
   footSide: FootSideEnum.optional().nullable(),
   quantityRequested: quantityInput(z.coerce.number().positive('Quantidade solicitada deve ser maior que zero')),
   reason: z.string().trim().min(1, 'Motivo do defeito/avaria é obrigatório').transform((val) => val.toUpperCase()),
-});
+}).superRefine(validateApoioRequisitionIdentity);
 
 export const CreateRequisitionPayloadSchema = z.union([
   RequisitionItemInputSchema,
@@ -256,13 +275,14 @@ export const CreateRequisitionPayloadSchema = z.union([
 export const CheckStockAvailabilitySchema = z.object({
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
+  pieceCode: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().min(1, 'Descrição / Peça / Material é obrigatório').transform((val) => val.toUpperCase()),
   type: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   color: z.string().trim().optional().transform((val) => val ? normalizeStockColor(val) : undefined),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
-});
+}).superRefine(validateApoioRequisitionIdentity);
 
 export const RequisitionFilterSchema = z.object({
   status: RequisitionStatusEnum.optional(),

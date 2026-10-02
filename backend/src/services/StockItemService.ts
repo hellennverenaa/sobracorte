@@ -721,7 +721,12 @@ export class StockItemService {
   /**
    * Sugestões de autocomplete inteligente por setor
    */
-  async getSearchSuggestions(sector: SectorType | 'TODOS', query: string, factoryUnitId: number) {
+  async getSearchSuggestions(
+    sector: SectorType | 'TODOS',
+    query: string,
+    factoryUnitId: number,
+    componentType?: 'CABEDAL' | 'PECA_CORTADA',
+  ) {
     const rawQ = query ? query.trim() : '';
 
     if (sector === 'TODOS') {
@@ -784,25 +789,52 @@ export class StockItemService {
       }));
     }
 
+    const apoioIdentifierField = componentType === 'CABEDAL' ? 'sku' : 'pieceCode';
     const items = await prisma.stockItem.findMany({
       where: {
         factoryUnitId,
         sector,
-        quantity: { gt: 0 },
+        ...(sector === 'APOIO' ? {
+          quantity: { gt: 0 },
+          ...(componentType ? { componentType } : {}),
+        } : { quantity: { gt: 0 } }),
         ...(rawQ
           ? {
-              OR: [
-                { sku: { contains: rawQ, mode: 'insensitive' } },
-                { pieceCode: { contains: rawQ, mode: 'insensitive' } },
-                { productName: { contains: rawQ, mode: 'insensitive' } },
-                { description: { contains: rawQ, mode: 'insensitive' } },
-              ],
+              OR: sector === 'APOIO'
+                ? componentType
+                  ? [{ [apoioIdentifierField]: { equals: rawQ, mode: 'insensitive' } }]
+                  : [
+                      { sku: { equals: rawQ, mode: 'insensitive' } },
+                      { pieceCode: { equals: rawQ, mode: 'insensitive' } },
+                    ]
+                : [
+                    { sku: { contains: rawQ, mode: 'insensitive' } },
+                    { pieceCode: { contains: rawQ, mode: 'insensitive' } },
+                    { productName: { contains: rawQ, mode: 'insensitive' } },
+                    { description: { contains: rawQ, mode: 'insensitive' } },
+                  ],
             }
           : {}),
       },
       take: 50,
       orderBy: { updatedAt: 'desc' },
     });
+
+    if (sector === 'APOIO') {
+      return items
+        .map(item => ({
+          id: item.id,
+          componentType: item.componentType,
+          sku: item.componentType === 'CABEDAL' ? item.sku || '' : item.pieceCode || '',
+          modelName: item.productName || '',
+          description: item.description || item.name || item.materialColor || '',
+          sizeGrades: item.sizeGrade ? [item.sizeGrade] : [],
+          color: item.color || item.materialColor || '',
+          footSides: item.footSide ? [item.footSide] : [],
+          availableQuantity: Number(item.quantity || 0),
+        }))
+        .filter(item => item.sku);
+    }
 
     // Agrupar por SKU / pieceCode para retornar modelos e grades disponíveis
     const groupMap = new Map<string, {

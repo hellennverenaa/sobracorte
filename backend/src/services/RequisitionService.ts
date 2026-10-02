@@ -86,7 +86,7 @@ export class RequisitionService {
    */
   async checkStockAvailability(
     req: {
-      requestSector: SectorType; sku?: string | null; modelName?: string | null;
+      requestSector: SectorType; sku?: string | null; pieceCode?: string | null; modelName?: string | null;
       description: string; type?: string | null; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
       sourceCandidateId?: string | null;
     },
@@ -175,6 +175,7 @@ export class RequisitionService {
         const candidates = await findRequisitionStockCandidates(tx, factoryUnitId, {
           requestSector: item.requestSector as SectorType,
           sku: item.sku || null,
+          pieceCode: item.pieceCode || null,
           modelName: item.modelName || null,
           description: item.description,
           type: item.type || null,
@@ -191,7 +192,8 @@ export class RequisitionService {
           if (legacyChoices.length === 1) selected = legacyChoices[0];
         }
         if (!candidates.length) {
-          const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
+          const itemIdentifier = item.sku || item.pieceCode;
+          const itemLabel = itemIdentifier ? `${itemIdentifier} - ${item.description}` : item.description;
           throw new Error(
             `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor. Para usar matéria-prima de Corte sem SKU compartilhado, é necessária uma regra especial de compatibilidade.`
           );
@@ -224,7 +226,8 @@ export class RequisitionService {
             sourceSector: selected.sourceSector,
             sourceQuantityPerRequestUnit: selected.sourceQuantityPerRequestUnit,
             sourceMatchReason: selected.reason,
-            sku: item.sku || null,
+            // O tipo da requisição identifica se este código legado é SKU ou pieceCode.
+            sku: item.sku || item.pieceCode || null,
             modelName: item.modelName || null,
             type: item.type || null,
             description: persistedRequisitionDescription(item),

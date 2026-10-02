@@ -1,11 +1,12 @@
 import type { StockTransactionClient } from '../prisma';
-import { Prisma, SectorType, FootSide } from '../generated/prisma';
+import { Prisma, SectorType, FootSide, ComponentType } from '../generated/prisma';
 import { normalizeStockColor, normalizeStockSector, normalizeStockText, stockIdentity } from './stockIdentity';
 import { normalizeUnit } from '../utils/unitHelper';
 
 export type RequestIdentity = {
   requestSector: SectorType;
   sku?: string | null;
+  pieceCode?: string | null;
   modelName?: string | null;
   description: string;
   type?: string | null;
@@ -78,10 +79,25 @@ export async function findRequisitionStock(tx: StockTransactionClient, factoryUn
   const exact = (field: string, value?: string | null) => {
     if (normalizeStockText(value)) AND.push({ [field]: { equals: normalizeStockText(value), mode: 'insensitive' } });
   };
-  exact(sector === 'CORTE' ? 'code' : sector === 'APOIO' ? 'pieceCode' : 'sku', req.sku);
+  const requestedComponent = normalizeStockText(req.type);
+  if (sector === 'APOIO' && requestedComponent
+    && requestedComponent !== 'CABEDAL' && requestedComponent !== 'PECA_CORTADA') return [];
+  const apoioComponent = sector === 'APOIO'
+    ? requestedComponent === 'CABEDAL' ? ComponentType.CABEDAL : ComponentType.PECA_CORTADA
+    : undefined;
+  if (sector === 'APOIO') {
+    // O campo certo depende do componente. `sku` fica reservado ao cabedal;
+    // código de peça cortada nunca é procurado em SKU ou texto livre.
+    exact(apoioComponent === 'CABEDAL' ? 'sku' : 'pieceCode', apoioComponent === 'CABEDAL'
+      ? req.sku
+      : req.pieceCode || req.sku);
+    AND.push({ componentType: apoioComponent });
+  } else {
+    exact(sector === 'CORTE' ? 'code' : 'sku', req.sku);
+  }
   if (sector !== 'CORTE') exact('productName', req.modelName);
-  if (sector === 'CORTE' || sector === 'APOIO') exact(sector === 'CORTE' ? 'name' : 'description', req.description);
-  exact('type', inferredType(req, sector));
+  if (sector === 'CORTE') exact('name', req.description);
+  if (sector !== 'APOIO') exact('type', inferredType(req, sector));
   exact('sizeGrade', req.sizeGrade);
 
   const items = await tx.stockItem.findMany({
@@ -90,14 +106,12 @@ export async function findRequisitionStock(tx: StockTransactionClient, factoryUn
       sector: sectorWhere(sector),
       AND,
       ...(side ? { footSide: side } : {}),
-      ...(sector === 'APOIO' && !req.type ? { componentType: { not: 'CABEDAL' } } : {}),
     },
     include: { locations: { include: { location: true } } },
   });
   return items.filter(item => {
-    const isCutPiece = sector === 'APOIO' && item.componentType !== 'CABEDAL';
+    const isCutPiece = sector === 'APOIO' && item.componentType === 'PECA_CORTADA';
     if (req.color && normalizeStockColor(isCutPiece ? item.materialColor : item.color) !== normalizeStockColor(req.color)) return false;
-    if (sector === 'APOIO' && item.componentType === 'CABEDAL' && req.footSide && !side && item.footSide !== req.footSide) return false;
     if (!req.footSide && item.footSide) return false;
     return true;
   });
@@ -111,8 +125,12 @@ function mapFieldMatches(mapped: string | null | undefined, requested: string | 
 }
 
 function mappingMatchesRequest(mapping: any, req: RequestIdentity) {
+  const requestSector = normalizeStockSector(req.requestSector);
+  const requestIdentifier = requestSector === 'APOIO'
+    ? normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku
+    : req.sku;
   const identityMatches = mapping.requestSku
-    ? mapFieldMatches(mapping.requestSku, req.sku)
+    ? mapFieldMatches(mapping.requestSku, requestIdentifier)
     : mapFieldMatches(mapping.requestDescription, req.description);
   return identityMatches
     && mapFieldMatches(mapping.requestModelName, req.modelName)
@@ -325,10 +343,14 @@ export async function findRequisitionStockCandidates(
   const requestUnit = req.requestUnit || (req.footSide === 'PAR' ? 'PAR' : requestSector === 'CORTE' ? 'M²' : 'UN');
 
   if (req.footSide === 'PAR') {
-    const [left, right] = await Promise.all([
+    const [left, right, completePairs] = await Promise.all([
       findRequisitionStock(tx, factoryUnitId, req, 'E'),
       findRequisitionStock(tx, factoryUnitId, req, 'D'),
+      findRequisitionStock(tx, factoryUnitId, req, 'PAR'),
     ]);
+    for (const item of completePairs) {
+      add(makeCandidate([item], requestSector, requestUnit, 1, `Material compatível no setor ${requestSector}.`));
+    }
     for (const pair of pairItems([...left, ...right])) {
       add(makeCandidate(pair, requestSector, requestUnit, 1, `Material compatível no setor ${requestSector}.`));
     }
@@ -369,8 +391,11 @@ export async function findRequisitionStockCandidates(
   // Código compartilhado: permite sugerir o registro do setor fornecedor se a
   // unidade, o produto e as variantes preenchidas não entrarem em conflito.
   // O usuário ainda precisa confirmar que o material realmente atende ao pedido.
-  const codeIdentity = normalizeStockText(req.sku);
-  const codeRows = codeIdentity
+  const codeIdentity = requestSector === 'APOIO'
+    ? normalizeStockText(normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku)
+    : normalizeStockText(req.sku);
+  const allowAutomaticCrossSectorMatches = requestSector !== 'APOIO';
+  const codeRows = codeIdentity && allowAutomaticCrossSectorMatches
     ? await tx.stockItem.findMany({
       where: {
         factoryUnitId,
@@ -413,7 +438,7 @@ export async function findRequisitionStockCandidates(
   // requester to confirm. Raw materials in Corte still require a shared SKU or
   // an explicit compatibility rule.
   const modelIdentity = normalizeStockText(req.modelName);
-  if (modelIdentity) {
+  if (modelIdentity && allowAutomaticCrossSectorMatches) {
     const modelRows = await tx.stockItem.findMany({
       where: {
         factoryUnitId,
@@ -448,9 +473,12 @@ export async function findRequisitionStockCandidates(
 
   // Relacionamentos explícitos podem ligar qualquer setor fornecedor ao produto solicitado.
   {
-    const skuIdentity = normalizeStockText(req.sku);
+    const requestIdentifier = requestSector === 'APOIO'
+      ? normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku
+      : req.sku;
+    const skuIdentity = normalizeStockText(requestIdentifier);
     const descriptionIdentity = normalizeStockText(req.description);
-    const mappings = await tx.requisitionStockCompatibility.findMany({
+    const mappings = requestSector === 'APOIO' ? [] : await tx.requisitionStockCompatibility.findMany({
       where: {
         factoryUnitId,
         requestSector: requestSector as SectorType,
@@ -529,6 +557,7 @@ export async function findUnverifiedRequisitionStockMatches(
 
   // Compare like-for-like identifiers. A requested SKU must not match a free-form
   // material name or description that happens to contain the same text.
+  if (requestSector === 'APOIO') return [];
   addComparisons(req.sku, 'SKU informado', ['sku', 'code', 'pieceCode']);
   addComparisons(req.modelName, 'modelo/linha informado', ['productName']);
   if (!req.sku && !req.modelName && (requestSector === 'CORTE' || requestSector === 'APOIO')) {

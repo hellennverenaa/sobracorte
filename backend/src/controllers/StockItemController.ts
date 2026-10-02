@@ -130,15 +130,19 @@ export class StockItemController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const { sector, q } = req.query;
+      const { sector, q, componentType } = req.query;
       const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
       const targetSector = requestedSector === 'TODOS'
         ? 'TODOS' as const
         : requireActiveStockSector(requestedSector) as SectorType;
 
       const query = q ? String(q) : '';
+      const requestedComponent = String(componentType || '').trim().toUpperCase();
+      const apoioComponent = ['CABEDAL', 'PECA_CORTADA'].includes(requestedComponent)
+        ? requestedComponent as 'CABEDAL' | 'PECA_CORTADA'
+        : undefined;
 
-      const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id);
+      const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id, apoioComponent);
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
