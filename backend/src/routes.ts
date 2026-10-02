@@ -321,6 +321,11 @@ routes.post('/settings/categories',   requireAuth, mutationLimiter, requireRole(
 routes.put('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
 routes.delete('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteCategory);
 
+routes.get('/settings/component-subtypes', requireAuth, authenticatedLimiter, settingsController.getComponentSubtypes);
+routes.post('/settings/component-subtypes', requireAuth, mutationLimiter, requireRole(['admin']), settingsController.createComponentSubtype);
+routes.put('/settings/component-subtypes/:id', requireAuth, mutationLimiter, requireRole(['admin']), settingsController.updateComponentSubtype);
+routes.delete('/settings/component-subtypes/:id', requireAuth, mutationLimiter, requireRole(['admin']), settingsController.deleteComponentSubtype);
+
 routes.get('/settings/units', requireAuth, authenticatedLimiter, settingsController.getUnits);
 
 routes.get('/settings/locations',    requireAuth, authenticatedLimiter, settingsController.getLocations);

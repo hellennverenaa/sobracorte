@@ -65,6 +65,7 @@ model FactoryUnit {
   nativeIdentities   AuthIdentity[] @relation("IdentityNativeUnit")
   userRoleBindings   UserRoleBinding[]
   categories         CategoryConfig[]
+  componentSubtypes  ComponentSubtypeConfig[]
   origins            OriginConfig[]
   locationCategories LocationCategory[]
   stockItems         StockItem[]
@@ -228,6 +229,8 @@ model CategoryConfig {
   name          String
   sector        SectorType? // Setor vinculado à categoria (CORTE, APOIO, etc.)
   sectors       SectorType[] @default([]) // Setores em que a categoria pode ser usada; vazio com sector nulo significa geral
+  subtypeId     Int?
+  subtype       ComponentSubtypeConfig? @relation(fields: [subtypeId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   componentType ComponentType? // Classificação estrutural do item, usada para distinguir peça cortada de cabedal em APOIO
   unitLocked    Boolean     @default(false)
   defaultUnitCode String?
@@ -240,6 +243,23 @@ model CategoryConfig {
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
   @@index([factoryUnitId, sector])
+  @@index([factoryUnitId, subtypeId])
+  @@schema("sobra_corte")
+}
+
+// Opções editáveis exibidas ao classificar uma categoria. componentType preserva
+// a classificação interna opcional usada pelos fluxos especializados de estoque.
+model ComponentSubtypeConfig {
+  id            Int            @id @default(autoincrement())
+  name          String
+  sectors       SectorType[]   @default([])
+  componentType ComponentType?
+  factoryUnitId Int
+  factoryUnit   FactoryUnit    @relation(fields: [factoryUnitId], references: [id])
+  categories    CategoryConfig[]
+
+  @@unique([factoryUnitId, name])
+  @@unique([id, factoryUnitId])
   @@schema("sobra_corte")
 }
 

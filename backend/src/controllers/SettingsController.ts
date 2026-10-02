@@ -14,17 +14,34 @@ function parseComponentType(value: unknown): typeof COMPONENT_TYPES[number] | nu
   throw new Error('Tipo de componente inválido.');
 }
 
-function componentTypeFitsSectors(componentType: string | null, sectors: string[]): boolean {
-  if (!componentType) return true;
-  if (sectors.length === 0) return false;
-  const supportedSectors: Record<string, string[]> = {
-    MATERIA_PRIMA: ['CORTE'],
-    PECA_CORTADA: ['APOIO'],
-    CABEDAL: ['APOIO', 'DISTRIBUICAO'],
-    SOLADO: ['PRE_FABRICADO', 'DISTRIBUICAO'],
-    PE_PRONTO: ['MONTAGEM'],
-  };
-  return sectors.every(sector => supportedSectors[componentType]?.includes(normalizeSector(sector)));
+function hasRequestField(body: unknown, field: string): boolean {
+  return typeof body === 'object' && body !== null && Object.prototype.hasOwnProperty.call(body, field);
+}
+
+function parseSubtypeId(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Subtipo inválido.');
+  return id;
+}
+
+function parseSubtypeSectors(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Escolha pelo menos um setor para o subtipo.');
+  }
+  return Array.from(new Set(value.map(sector => requireActiveStockSector(sector))));
+}
+
+function subtypeFitsSectors(subtypeSectors: string[], categorySectors: string[]): boolean {
+  return categorySectors.length > 0
+    && categorySectors.every(sector => subtypeSectors.includes(normalizeSector(sector)));
+}
+
+function checkSubtypeManagementPermission(req: Request): { allowed: boolean; status?: number; error?: string } {
+  const role = req.effectiveContext?.effectiveRole ?? req.user?.role;
+  const isGlobal = req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin;
+  if (isGlobal || role === 'admin') return { allowed: true };
+  return { allowed: false, status: 403, error: 'Somente um Administrador Master pode gerenciar os subtipos de material.' };
 }
 
 function hasPrismaCode(error: unknown, code: string): boolean {
@@ -81,7 +98,8 @@ export class SettingsController {
 
       const categories = await prisma.categoryConfig.findMany({
         where: whereClause,
-        orderBy: [{ name: 'asc' }]
+        orderBy: [{ name: 'asc' }],
+        include: { subtype: { select: { id: true, name: true } } },
       });
 
       const categoriesWithCount = await Promise.all(
@@ -109,6 +127,179 @@ export class SettingsController {
     }
   }
 
+  async getComponentSubtypes(req: Request, res: Response) {
+    try {
+      const assignedSector = assignedStockSector(requestStockAccess(req));
+      const subtypes = await prisma.componentSubtypeConfig.findMany({
+        where: {
+          factoryUnitId: req.tenant!.id,
+          ...(assignedSector ? { sectors: { has: assignedSector as any } } : {}),
+        },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          sectors: true,
+          _count: { select: { categories: true } },
+        },
+      });
+      res.json(subtypes);
+    } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      console.error('Erro ao buscar subtipos de material:', error);
+      res.status(500).json({ error: 'Erro ao buscar subtipos de material.' });
+    }
+  }
+
+  async createComponentSubtype(req: Request, res: Response) {
+    try {
+      const perm = checkSubtypeManagementPermission(req);
+      if (!perm.allowed) return res.status(perm.status || 403).json({ error: perm.error });
+
+      const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+      if (!name) return res.status(400).json({ error: 'Informe o nome do subtipo.' });
+      const sectors = parseSubtypeSectors(req.body.sectors);
+      const existing = await prisma.componentSubtypeConfig.findFirst({
+        where: { factoryUnitId: req.tenant!.id, name: { equals: name, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (existing) return res.status(409).json({ error: 'Já existe um subtipo com esse nome nesta unidade fabril.' });
+
+      const subtype = await prisma.$transaction(async (tx) => {
+        const created = await tx.componentSubtypeConfig.create({
+          data: { name, sectors: sectors as any, factoryUnitId: req.tenant!.id },
+          include: { _count: { select: { categories: true } } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'CRIACAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Subtipos',
+            reason: `Criação de Subtipo: ${created.name} (Setores: ${sectors.join(', ')})`,
+          },
+        });
+        return created;
+      });
+      res.status(201).json(subtype);
+    } catch (error: unknown) {
+      if (error instanceof SectorValidationError || (error instanceof Error && error.message.startsWith('Escolha pelo menos'))) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (hasPrismaCode(error, 'P2002')) return res.status(409).json({ error: 'Já existe um subtipo com esse nome nesta unidade fabril.' });
+      console.error('Erro ao criar subtipo de material:', error);
+      res.status(500).json({ error: 'Erro ao criar subtipo de material.' });
+    }
+  }
+
+  async updateComponentSubtype(req: Request, res: Response) {
+    try {
+      const perm = checkSubtypeManagementPermission(req);
+      if (!perm.allowed) return res.status(perm.status || 403).json({ error: perm.error });
+
+      const id = Number(req.params.id);
+      const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+      if (!name) return res.status(400).json({ error: 'Informe o nome do subtipo.' });
+      const sectors = parseSubtypeSectors(req.body.sectors);
+      const existing = await prisma.componentSubtypeConfig.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id },
+      });
+      if (!existing) return res.status(404).json({ error: 'Subtipo não encontrado.' });
+
+      const duplicate = await prisma.componentSubtypeConfig.findFirst({
+        where: { factoryUnitId: req.tenant!.id, id: { not: id }, name: { equals: name, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (duplicate) return res.status(409).json({ error: 'Já existe um subtipo com esse nome nesta unidade fabril.' });
+
+      const usedCategories = await prisma.categoryConfig.findMany({
+        where: { factoryUnitId: req.tenant!.id, subtypeId: id },
+        select: { name: true, sectors: true },
+      });
+      const incompatible = usedCategories.find(category => !subtypeFitsSectors(sectors, category.sectors));
+      if (incompatible) {
+        return res.status(400).json({
+          error: `O subtipo continua vinculado à categoria “${incompatible.name}”, cujos setores não são atendidos pelos novos setores escolhidos.`,
+        });
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.componentSubtypeConfig.update({
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } },
+          data: { name, sectors: sectors as any },
+          include: { _count: { select: { categories: true } } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EDICAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Subtipos',
+            reason: `Edição de Subtipo: ${existing.name}${name !== existing.name ? ` para ${name}` : ''} (Setores: ${sectors.join(', ')})`,
+          },
+        });
+        return result;
+      });
+      res.json(updated);
+    } catch (error: unknown) {
+      if (error instanceof SectorValidationError || (error instanceof Error && error.message.startsWith('Escolha pelo menos'))) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (hasPrismaCode(error, 'P2002')) return res.status(409).json({ error: 'Já existe um subtipo com esse nome nesta unidade fabril.' });
+      console.error('Erro ao atualizar subtipo de material:', error);
+      res.status(500).json({ error: 'Erro ao atualizar subtipo de material.' });
+    }
+  }
+
+  async deleteComponentSubtype(req: Request, res: Response) {
+    try {
+      const perm = checkSubtypeManagementPermission(req);
+      if (!perm.allowed) return res.status(perm.status || 403).json({ error: perm.error });
+
+      const id = Number(req.params.id);
+      const subtype = await prisma.componentSubtypeConfig.findFirst({
+        where: { id, factoryUnitId: req.tenant!.id },
+      });
+      if (!subtype) return res.status(404).json({ error: 'Subtipo não encontrado.' });
+
+      const linkedCategories = await prisma.categoryConfig.count({
+        where: { factoryUnitId: req.tenant!.id, subtypeId: id },
+      });
+      if (linkedCategories > 0) {
+        return res.status(409).json({
+          error: `Este subtipo está em uso por ${linkedCategories} categoria(s). Edite essas categorias antes de excluí-lo.`,
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.componentSubtypeConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id } } });
+        await tx.stockMovement.create({
+          data: {
+            factoryUnitId: req.tenant!.id,
+            sector: 'CONFIGURACOES',
+            type: 'EXCLUSAO_CONFIGURACAO',
+            quantity: 0,
+            operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
+            operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
+            origem: 'Configurações - Subtipos',
+            reason: `Exclusão de Subtipo: ${subtype.name}`,
+          },
+        });
+      });
+      res.json({ message: 'Subtipo excluído com sucesso.' });
+    } catch (error: unknown) {
+      if (hasPrismaCode(error, 'P2003')) return res.status(409).json({ error: 'Este subtipo ainda está vinculado a categorias.' });
+      console.error('Erro ao excluir subtipo de material:', error);
+      res.status(500).json({ error: 'Erro ao excluir subtipo de material.' });
+    }
+  }
+
   async createCategory(req: Request, res: Response) {
     try {
       const perm = checkSettingsPermission(req);
@@ -131,10 +322,30 @@ export class SettingsController {
       if (assignedSector && (scope.sectors.length !== 1 || scope.sectors[0] !== assignedSector)) {
         return res.status(403).json({ error: `A categoria deve ficar restrita ao setor ${assignedSector}.` });
       }
-      const componentType = parseComponentType(rawComponentType);
-      if (!componentTypeFitsSectors(componentType, scope.sectors)) {
-        return res.status(400).json({ error: 'O tipo de componente escolhido não é compatível com todos os setores selecionados.' });
+      const subtypeFieldProvided = hasRequestField(req.body, 'subtypeId');
+      const requestedSubtypeId = subtypeFieldProvided ? parseSubtypeId(req.body.subtypeId) : null;
+      let selectedSubtype = null as { id: number; sectors: string[]; componentType: string | null } | null;
+      if (requestedSubtypeId) {
+        selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
+          where: { id: requestedSubtypeId, factoryUnitId: req.tenant!.id },
+          select: { id: true, sectors: true, componentType: true },
+        });
+        if (!selectedSubtype) return res.status(400).json({ error: 'O subtipo escolhido não está disponível nesta unidade fabril.' });
+      } else if (!subtypeFieldProvided && rawComponentType !== undefined) {
+        const legacyComponentType = parseComponentType(rawComponentType);
+        if (legacyComponentType) {
+          selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
+            where: { factoryUnitId: req.tenant!.id, componentType: legacyComponentType as any },
+            select: { id: true, sectors: true, componentType: true },
+          });
+          if (!selectedSubtype) return res.status(400).json({ error: 'O tipo de material escolhido não está configurado nesta unidade fabril.' });
+        }
       }
+      if (selectedSubtype && !subtypeFitsSectors(selectedSubtype.sectors, scope.sectors)) {
+        return res.status(400).json({ error: 'O subtipo escolhido não é compatível com todos os setores selecionados.' });
+      }
+      const subtypeId = selectedSubtype?.id ?? null;
+      const componentType = selectedSubtype?.componentType ?? null;
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
@@ -145,6 +356,7 @@ export class SettingsController {
             name: String(name).trim().toUpperCase(),
             sector: scope.legacySector,
             sectors: scope.sectors,
+            subtypeId,
             componentType: componentType as any,
             defaultUnitCode: code || null,
             unitLocked: Boolean(unitLocked),
@@ -169,7 +381,7 @@ export class SettingsController {
       });
       res.status(201).json(category);
     } catch (error: unknown) {
-      if (error instanceof SectorValidationError || (error instanceof Error && error.message === 'Tipo de componente inválido.')) return res.status(400).json({ error: error.message });
+      if (error instanceof SectorValidationError || (error instanceof Error && (error.message === 'Tipo de componente inválido.' || error.message.startsWith('Subtipo inválido.')))) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
         return res.status(409).json({ error: 'Essa categoria já existe.' });
@@ -201,11 +413,45 @@ export class SettingsController {
       if (assignedSector && scopeWasProvided && (scope.sectors.length !== 1 || scope.sectors[0] !== assignedSector)) {
         return res.status(403).json({ error: `A categoria deve ficar restrita ao setor ${assignedSector}.` });
       }
-      const componentType = rawComponentType === undefined ? existing.componentType : parseComponentType(rawComponentType);
-      if (!componentTypeFitsSectors(componentType, scope.sectors)) {
-        return res.status(400).json({ error: 'O tipo de componente escolhido não é compatível com todos os setores selecionados.' });
+      const subtypeFieldProvided = hasRequestField(req.body, 'subtypeId');
+      const subtypeIdWasProvided = subtypeFieldProvided || rawComponentType !== undefined;
+      let subtypeId = existing.subtypeId;
+      let componentType = existing.componentType;
+      let selectedSubtype = null as { id: number; sectors: string[]; componentType: string | null } | null;
+      if (subtypeFieldProvided) {
+        subtypeId = parseSubtypeId(req.body.subtypeId);
+        if (subtypeId) {
+          selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
+            where: { id: subtypeId, factoryUnitId: req.tenant!.id },
+            select: { id: true, sectors: true, componentType: true },
+          });
+          if (!selectedSubtype) return res.status(400).json({ error: 'O subtipo escolhido não está disponível nesta unidade fabril.' });
+        }
+      } else if (rawComponentType !== undefined) {
+        const legacyComponentType = parseComponentType(rawComponentType);
+        if (legacyComponentType) {
+          selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
+            where: { factoryUnitId: req.tenant!.id, componentType: legacyComponentType as any },
+            select: { id: true, sectors: true, componentType: true },
+          });
+          if (!selectedSubtype) return res.status(400).json({ error: 'O tipo de material escolhido não está configurado nesta unidade fabril.' });
+          subtypeId = selectedSubtype.id;
+        } else {
+          subtypeId = null;
+        }
+      } else if (subtypeId) {
+        selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
+          where: { id: subtypeId, factoryUnitId: req.tenant!.id },
+          select: { id: true, sectors: true, componentType: true },
+        });
       }
-      if (rawComponentType !== undefined && componentType !== existing.componentType) {
+      if (subtypeFieldProvided || rawComponentType !== undefined) {
+        componentType = selectedSubtype?.componentType ?? null;
+      }
+      if (selectedSubtype && !subtypeFitsSectors(selectedSubtype.sectors, scope.sectors)) {
+        return res.status(400).json({ error: 'O subtipo escolhido não é compatível com todos os setores selecionados.' });
+      }
+      if (subtypeIdWasProvided && componentType !== existing.componentType) {
         const linkedItems = await prisma.stockItem.count({ where: { factoryUnitId: req.tenant!.id, categoryId: id } });
         if (linkedItems > 0) {
           return res.status(400).json({ error: 'Não é possível alterar a classificação estrutural enquanto houver itens vinculados a esta categoria.' });
@@ -252,6 +498,7 @@ export class SettingsController {
             name: newName,
             sector: scopeWasProvided ? scope.legacySector : undefined,
             sectors: scopeWasProvided ? scope.sectors : undefined,
+            subtypeId: subtypeIdWasProvided ? subtypeId : undefined,
             componentType: componentType as any,
             defaultUnitCode: code,
             unitLocked: unitLocked !== undefined ? Boolean(unitLocked) : undefined
@@ -285,7 +532,7 @@ export class SettingsController {
     } catch (error: unknown) {
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
-      if (error instanceof Error && (error.message === 'Tipo de componente inválido.' || error.message.startsWith('A categoria ainda está vinculada'))) return res.status(400).json({ error: error.message });
+      if (error instanceof Error && (error.message === 'Tipo de componente inválido.' || error.message.startsWith('Subtipo inválido.') || error.message.startsWith('O subtipo') || error.message.startsWith('O tipo de material') || error.message.startsWith('A categoria ainda está vinculada'))) return res.status(400).json({ error: error.message });
       if (error instanceof DuplicateStockItemError) {
         return res.status(409).json({ error: error.message });
       }
