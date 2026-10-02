@@ -1,4 +1,4 @@
-import { validateQuantity, normalizeUnit } from '../utils/unitHelper';
+import { validateQuantity } from '../utils/unitHelper';
 import { assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma, type StockTransactionClient } from '../prisma';
@@ -7,13 +7,18 @@ import {
   RequisitionItemInputDTO,
   RequisitionFilterDTO, 
   FulfillRequisitionDTO, 
-  CheckStockAvailabilityDTO,
   OperatorContext 
 } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
 import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
 import { debitStockItem } from './stockDebit';
-import { assertCompatiblePair, findRequisitionStock } from './requisitionStock';
+import {
+  findPersistedRequisitionSource,
+  findRequisitionStockCandidates,
+  findUnverifiedRequisitionStockMatches,
+  RequisitionStockCandidate,
+  UnverifiedRequisitionStockMatch,
+} from './requisitionStock';
 
 function persistedRequisitionDescription(item: RequisitionItemInputDTO) {
   const sector = normalizeStockSector(item.requestSector);
@@ -36,13 +41,18 @@ export class RequisitionService {
    * Contagem de requisições pendentes para notificações e sininho
    */
   async getPendingCount(factoryUnitId: number, sector?: SectorType) {
+    const normalized = sector ? normalizeStockSector(sector) : undefined;
+    const sectorValues = normalized === 'DISTRIBUICAO'
+      ? ['DISTRIBUICAO', 'EXPEDICAO'] as SectorType[]
+      : normalized ? [normalized as SectorType] : [];
     const where: Prisma.MaterialRequisitionWhereInput = {
       factoryUnitId,
       status: 'PENDENTE',
-      ...(sector ? {
-        requestSector: sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO'
-          ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] as SectorType[] }
-          : sector,
+      ...(normalized ? {
+        OR: [
+          { sourceSector: { in: sectorValues } },
+          { sourceSector: null, requestSector: { in: sectorValues } },
+        ],
       } : {}),
     };
 
@@ -78,27 +88,67 @@ export class RequisitionService {
     req: {
       requestSector: SectorType; sku?: string | null; modelName?: string | null;
       description: string; type?: string | null; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
+      sourceCandidateId?: string | null;
     },
     factoryUnitId: number,
     client: StockTransactionClient = prisma,
-  ): Promise<{ quantity: number; locations: string[]; pairsDetail?: { esq: number; dir: number }; ambiguous?: boolean; unit?: string }> {
-    const items = await findRequisitionStock(client, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
-    let selected = items;
-    let pairsDetail;
-    if (req.footSide === 'PAR') {
-      const rightItems = await findRequisitionStock(client, factoryUnitId, req, 'D');
-      if (items.length > 1 || rightItems.length > 1) return { quantity: 0, locations: [], ambiguous: true };
-      if (!items.length || !rightItems.length) return { quantity: 0, locations: [], pairsDetail: { esq: Number(items[0]?.quantity || 0), dir: Number(rightItems[0]?.quantity || 0) } };
-      try { assertCompatiblePair(items[0], rightItems[0]); }
-      catch { return { quantity: 0, locations: [], ambiguous: true }; }
-      pairsDetail = { esq: Number(items[0].quantity), dir: Number(rightItems[0].quantity) };
-      selected = [...items, ...rightItems];
-    } else if (items.length > 1) {
-      return { quantity: 0, locations: [], ambiguous: true };
-    }
-    const locations = [...new Set(selected.flatMap(item => item.locations.filter(link => Number(link.quantity) > 0)
-      .map(link => `${link.location.name} (${link.quantity})`)))];
-    return { unit: items[0]?.unit ? normalizeUnit(items[0].unit) : undefined, quantity: pairsDetail ? Math.min(pairsDetail.esq, pairsDetail.dir) : Number(items[0]?.quantity || 0), locations, ...(pairsDetail ? { pairsDetail } : {}) };
+  ): Promise<{
+    quantity: number;
+    locations: string[];
+    pairsDetail?: { esq: number; dir: number };
+    ambiguous?: boolean;
+    unit?: string;
+    candidates: RequisitionStockCandidate[];
+    unverifiedStockMatches: UnverifiedRequisitionStockMatch[];
+  }> {
+    const candidates = await findRequisitionStockCandidates(client, factoryUnitId, req);
+    const offeredStockItemIds = candidates.flatMap(candidate => candidate.sourceStockItemIds);
+    const unverifiedStockMatches = await findUnverifiedRequisitionStockMatches(
+      client,
+      factoryUnitId,
+      req,
+      offeredStockItemIds,
+    );
+    const selected = req.sourceCandidateId ? candidates.find(candidate => candidate.id === req.sourceCandidateId) : undefined;
+    const legacyChoice = !req.sourceCandidateId && candidates.length === 1 ? candidates[0] : undefined;
+    const choice = selected || legacyChoice;
+    return {
+      unit: choice?.unit,
+      quantity: choice?.quantity || 0,
+      locations: choice?.locations || [],
+      ambiguous: !choice && candidates.length > 1,
+      candidates,
+      unverifiedStockMatches,
+    };
+  }
+
+  private async getSelectedSourceCandidate(req: any, factoryUnitId: number, tx: StockTransactionClient) {
+    const persisted = await findPersistedRequisitionSource(tx, factoryUnitId, req);
+    if (persisted) return persisted;
+    if (Array.isArray(req.sourceStockItemIds) && req.sourceStockItemIds.length) return null;
+    const candidates = await findRequisitionStockCandidates(tx, factoryUnitId, {
+      ...req,
+      requestUnit: req.requestUnit || undefined,
+    });
+    const legacyCandidates = candidates.filter(candidate => candidate.sourceCompatibilityIds.length === 0
+      && normalizeStockSector(candidate.sourceSector) === normalizeStockSector(req.requestSector));
+    return legacyCandidates.length === 1 ? legacyCandidates[0] : null;
+  }
+
+  private async getSelectedSourceStockInfo(req: any, factoryUnitId: number, tx: StockTransactionClient) {
+    const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx);
+    return candidate ? {
+      quantity: candidate.quantity,
+      unit: candidate.unit,
+      locations: candidate.locations,
+      sourceSector: candidate.sourceSector,
+      sourceMatchReason: candidate.reason,
+      sourceStockItems: candidate.items,
+      pairsDetail: req.footSide === 'PAR' ? {
+        esq: Number(candidate.stockRows.find((item: any) => item.footSide === 'E')?.quantity || 0),
+        dir: Number(candidate.stockRows.find((item: any) => item.footSide === 'D')?.quantity || 0),
+      } : undefined,
+    } : { quantity: 0, unit: req.requestUnit || undefined, locations: [], sourceSector: req.sourceSector || req.requestSector, sourceMatchReason: req.sourceMatchReason || null, sourceStockItems: [], pairsDetail: undefined };
   }
 
   /**
@@ -120,44 +170,60 @@ export class RequisitionService {
       // O mesmo lock das baixas protege disponibilidade, código e criação.
       await lockStockIdentityWrites(tx, factoryUnitId);
       // 1. Validar disponibilidade sob o lock, sem reservar saldo.
+      const selectedCandidates: RequisitionStockCandidate[] = [];
       for (const item of rawItems) {
-        const stockInfo = await this.checkStockAvailability(
-          {
-            requestSector: item.requestSector as SectorType,
-            sku: item.sku || null,
-            modelName: item.modelName || null,
-            description: item.description,
-            type: item.type || null,
-            sizeGrade: item.sizeGrade || null,
-            color: item.color || null,
-            footSide: item.footSide || null,
-          },
-          factoryUnitId,
-          tx,
-        );
-
-        if (stockInfo.unit) validateQuantity(item.quantityRequested, stockInfo.unit, item.requestSector);
-        if (stockInfo.ambiguous) throw new Error('Há materiais ambíguos no estoque. Especifique a identificação completa ou regularize duplicatas.');
-        if (stockInfo.quantity <= 0) {
+        const candidates = await findRequisitionStockCandidates(tx, factoryUnitId, {
+          requestSector: item.requestSector as SectorType,
+          sku: item.sku || null,
+          modelName: item.modelName || null,
+          description: item.description,
+          type: item.type || null,
+          sizeGrade: item.sizeGrade || null,
+          color: item.color || null,
+          footSide: item.footSide || null,
+        });
+        let selected = item.sourceCandidateId
+          ? candidates.find(candidate => candidate.id === item.sourceCandidateId)
+          : undefined;
+        if (!selected && !item.sourceCandidateId) {
+          const legacyChoices = candidates.filter(candidate => candidate.sourceCompatibilityIds.length === 0
+            && normalizeStockSector(candidate.sourceSector) === normalizeStockSector(item.requestSector));
+          if (legacyChoices.length === 1) selected = legacyChoices[0];
+        }
+        if (!candidates.length) {
           const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
           throw new Error(
-            `MATERIAL INDISPONÍVEL EM SOBRAS DASS (${itemLabel}). Favor acionar a programação regular de corte/compra.`
+            `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor; para Corte e Peças Cortadas, confirme também o vínculo de produto/BOM.`
           );
         }
+        if (!selected) throw new Error('Escolha uma origem de estoque compatível para cada item da requisição.');
+        validateQuantity(item.quantityRequested, selected.unit, item.requestSector);
+        if (item.quantityRequested > selected.quantity) {
+          throw new Error(`A quantidade solicitada excede o saldo equivalente da origem escolhida (${selected.quantity} ${selected.unit}).`);
+        }
+        selectedCandidates.push(selected);
       }
 
       // 2. Gerar código compartilhado e persistir todas as linhas atomicamente.
       const code = await this.generateNextCode(tx, factoryUnitId);
 
       const results = [];
-      for (const item of rawItems) {
+      for (const [index, item] of rawItems.entries()) {
         const sec = normalizeStockSector(item.requestSector);
+        const selected = selectedCandidates[index];
         const created = await tx.materialRequisition.create({
           data: {
             code,
             requestSector: sec as SectorType,
+            requestUnit: selected.unit,
+            sourceStockItemIds: selected.sourceStockItemIds,
+            sourceCompatibilityIds: selected.sourceCompatibilityIds,
+            sourceSector: selected.sourceSector,
+            sourceQuantityPerRequestUnit: selected.sourceQuantityPerRequestUnit,
+            sourceMatchReason: selected.reason,
             sku: item.sku || null,
             modelName: item.modelName || null,
+            type: item.type || null,
             description: persistedRequisitionDescription(item),
             sizeGrade: item.sizeGrade || null,
             color: item.color || null,
@@ -177,13 +243,16 @@ export class RequisitionService {
     // 4. Retornar itens enriquecidos com saldo
     const enriched = await Promise.all(
       createdItems.map(async (req) => {
-        const stockInfo = await this.checkStockAvailability(req, factoryUnitId);
+        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma);
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
           unit: stockInfo.unit,
           locations: stockInfo.locations,
           pairsDetail: stockInfo.pairsDetail,
+          sourceSector: stockInfo.sourceSector,
+          sourceMatchReason: stockInfo.sourceMatchReason,
+          sourceStockItems: stockInfo.sourceStockItems,
         };
       })
     );
@@ -235,13 +304,16 @@ export class RequisitionService {
     // Cruzar cada requisição com o saldo físico em estoque
     const enriched = await Promise.all(
       requisitions.map(async (req) => {
-        const stockInfo = await this.checkStockAvailability(req, factoryUnitId);
+        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma);
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
           unit: stockInfo.unit,
           locations: stockInfo.locations,
           pairsDetail: stockInfo.pairsDetail,
+          sourceSector: stockInfo.sourceSector,
+          sourceMatchReason: stockInfo.sourceMatchReason,
+          sourceStockItems: stockInfo.sourceStockItems,
         };
       })
     );
@@ -268,9 +340,10 @@ export class RequisitionService {
       if (req.status !== 'PENDENTE' && req.status !== 'ATENDIDA_PARCIAL') {
         throw new Error('Apenas requisições pendentes ou atendidas parcialmente podem receber baixa.');
       }
+      const sourceSector = req.sourceSector || req.requestSector;
       if (context.role !== 'admin') {
-        if (context.role !== 'admin_setor' || !context.assignedSector || normalizeStockSector(context.assignedSector) !== normalizeStockSector(req.requestSector)) {
-          const error: any = new Error('Acesso negado: apenas administradores do setor podem atender esta requisição.');
+        if (context.role !== 'admin_setor' || !context.assignedSector || normalizeStockSector(context.assignedSector) !== normalizeStockSector(sourceSector)) {
+          const error: any = new Error('Acesso negado: apenas administradores do setor fornecedor podem atender esta requisição.');
           error.status = 403;
           throw error;
         }
@@ -279,18 +352,17 @@ export class RequisitionService {
       if (!amount.isPositive() || amount.decimalPlaces() > 3 || amount.gt(new Prisma.Decimal(req.quantityRequested).minus(req.quantityFulfilled))) {
         throw new Error('A quantidade informada é inválida ou excede a pendência da requisição.');
       }
-      const candidates = await findRequisitionStock(tx, factoryUnitId, req, req.footSide === 'PAR' ? 'E' : undefined);
-      if (candidates.length > 1) throw new Error('Há mais de um material compatível. Regularize duplicatas ou especifique a identificação completa.');
-      if (!candidates.length) throw new Error('Material compatível não encontrado para atender esta requisição.');
-      const items = [candidates[0]];
-      if (req.footSide === 'PAR') {
-        const rightItems = await findRequisitionStock(tx, factoryUnitId, req, 'D');
-        if (rightItems.length !== 1) throw new Error('O pé direito está ausente ou possui cadastros ambíguos.');
-        assertCompatiblePair(items[0], rightItems[0]);
-        items.push(rightItems[0]);
-      }
+      validateQuantity(dto.quantity, req.requestUnit || 'UN', req.requestSector);
+      const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx);
+      if (!candidate) throw new Error('A origem escolhida não está mais compatível ou não possui saldo. Atualize a requisição antes de atender.');
+      if (candidate.sourceSector !== sourceSector) throw new Error('A origem de estoque da requisição não corresponde mais ao setor fornecedor registrado.');
+      if (amount.gt(new Prisma.Decimal(candidate.quantity))) throw new Error(`Saldo insuficiente na origem escolhida. Disponível: ${candidate.quantity} ${candidate.unit}.`);
+      const sourceQuantity = amount.mul(new Prisma.Decimal(req.sourceQuantityPerRequestUnit || 1));
+      if (sourceQuantity.decimalPlaces() > 3) throw new Error('A conversão configurada para a origem gera quantidade com mais de três casas decimais.');
+      const items = candidate.sourceStockItemIds.map(id => candidate.stockRows.find((entry: any) => Number(entry.id) === id));
+      if (items.some(item => !item)) throw new Error('Um dos materiais da origem escolhida não está mais disponível.');
       for (const item of items.sort((a, b) => a.id - b.id)) {
-        const { debits } = await debitStockItem(tx, item, dto.quantity, dto.locationId);
+        const { debits } = await debitStockItem(tx, item, Number(sourceQuantity), dto.locationId);
         for (const debit of debits) {
           await tx.stockMovement.create({
             data: {
@@ -299,7 +371,7 @@ export class RequisitionService {
               ...movementSnapshot(item),
               sourceStockItemId: item.id, sourceSector: item.sector,
               origem: req.footSide === 'PAR' ? `Atendimento de Requisição (Pé ${item.footSide === 'E' ? 'Esquerdo' : 'Direito'})` : 'Atendimento de Requisição',
-              reason: `Atendimento digital da requisição ${req.code}${dto.observation ? ' - ' + dto.observation : ''}`,
+              reason: `Atendimento digital da requisição ${req.code} · setor solicitante ${req.requestSector}; origem ${sourceSector}${req.sourceMatchReason ? ` · ${req.sourceMatchReason}` : ''}${dto.observation ? ' - ' + dto.observation : ''}`,
               operatorId: operatorId || null, operatorName: operatorName || 'Operador',
             },
           });

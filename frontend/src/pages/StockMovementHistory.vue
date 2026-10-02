@@ -3,7 +3,7 @@ import { ref, onMounted, reactive, computed } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
-import { normalizeSector } from '@/utils/domain';
+import { formatSectorName, normalizeSector } from '@/utils/domain';
 import { formatDate } from '@/utils/format';
 import { 
   History, RefreshCw, User, Download
@@ -41,7 +41,7 @@ function exportCSV() {
   const rows = stockStore.history.data.map(mov => [
     mov.id,
     formatDate(mov.createdAt),
-    mov.sector,
+    formatSectorName(mov.sector, mov.sector),
     mov.type,
     `"${formatItemDetails(mov.stockItem, mov).replace(/"/g, '""')}"`,
     mov.quantity,
@@ -178,7 +178,7 @@ onMounted(() => {
           >
             <option v-if="!lockedSector" value="">TODOS OS SETORES</option>
             <option v-if="!lockedSector || lockedSector === 'CORTE'" value="CORTE">CORTE</option>
-            <option v-if="!lockedSector || lockedSector === 'APOIO'" value="APOIO">PEÇAS CORTADAS / CABEDAL</option>
+            <option v-if="!lockedSector || lockedSector === 'APOIO'" value="APOIO">{{ formatSectorName('APOIO').toUpperCase() }}</option>
             <option v-if="!lockedSector || lockedSector === 'PRE_FABRICADO'" value="PRE_FABRICADO">PRÉ-FABRICADO (SOLAS)</option>
             <option v-if="!lockedSector || lockedSector === 'DISTRIBUICAO'" value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
             <option v-if="!lockedSector || lockedSector === 'MONTAGEM'" value="MONTAGEM">MONTAGEM (PÉS ÓRFÃOS)</option>
@@ -254,7 +254,7 @@ onMounted(() => {
 
                 <td class="px-4 py-3 text-center">
                   <span class="px-2 py-0.5 text-xs bg-gray-100 rounded-full font-bold text-gray-600 border border-gray-200 uppercase">
-                    {{ mov.sector }}
+                    {{ formatSectorName(mov.sector, mov.sector).toUpperCase() }}
                   </span>
                 </td>
 

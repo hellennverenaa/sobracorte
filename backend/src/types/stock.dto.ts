@@ -233,6 +233,7 @@ export const RequisitionStatusEnum = z.enum([
 
 export const RequisitionItemInputSchema = z.object({
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
+  sourceCandidateId: z.string().trim().min(1).max(300).optional(),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   modelName: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   description: z.string().trim().optional().default('CALÇADO COMPLETO').transform((val) => (val && val.trim().length > 0 ? val.trim().toUpperCase() : 'CALÇADO COMPLETO')),

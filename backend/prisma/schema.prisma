@@ -72,6 +72,7 @@ model FactoryUnit {
   stockItemLocations StockItemLocation[]
   stockMovements     StockMovement[]
   requisitions       MaterialRequisition[]
+  requisitionStockCompatibilities RequisitionStockCompatibility[]
   materialDeletionAudits MaterialDeletionAudit[]
   roleChangeAudits   RoleChangeAudit[]
 
@@ -319,6 +320,7 @@ model StockItem {
   category      CategoryConfig?     @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     StockItemLocation[]
   movements     StockMovement[]
+  requisitionCompatibilityLinks RequisitionStockCompatibility[]
 
   // 🚀 ÍNDICES COMPOSTOS ESTRATÉGICOS
   @@unique([id, factoryUnitId])
@@ -418,8 +420,15 @@ model MaterialRequisition {
   id                String            @id @default(uuid())
   code              String            // Ex: REQ-2026-0001
   requestSector     SectorType        // Setor solicitante: CORTE, APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM
+  requestUnit       String?           // Unidade na qual a quantidade solicitada é expressa
+  sourceStockItemIds Int[]            @default([]) // Item(ns) fornecedor(es) selecionado(s), sem misturar setores
+  sourceCompatibilityIds Int[]        @default([]) // Vínculos BOM aplicados quando a origem é de outro setor
+  sourceSector      SectorType?       // Setor que fornecerá o saldo
+  sourceQuantityPerRequestUnit Decimal @default(1) @db.Decimal(18, 6)
+  sourceMatchReason String?           // Motivo de compatibilidade exibido ao solicitante
   sku               String?           // COD. PRODUTO / SKU (caixa alta)
   modelName         String?           // NOME DO MODELO / LINHA (caixa alta)
+  type              String?           // Tipo solicitado, para preservar a identidade selecionada
   description       String            // Peça / Material solicitado
   color             String?           // Cor / Combinação do item
   sizeGrade         String?           // Grade / Tamanho (ex: 39/40)
@@ -440,9 +449,42 @@ model MaterialRequisition {
   @@index([factoryUnitId, code])
   @@index([factoryUnitId, status, createdAt(sort: Desc)])
   @@index([factoryUnitId, requestSector, status])
+  @@index([factoryUnitId, sourceSector, status], map: "MaterialRequisition_supplier_status_idx")
   @@index([factoryUnitId, sku])
   @@index([factoryUnitId, sku, color])
   @@unique([id, factoryUnitId])
+  @@schema("sobra_corte")
+}
+
+// Vínculo explícito entre um produto solicitado e uma sobra de outro setor.
+// Campos de variante vazios são curingas definidos pelo administrador.
+model RequisitionStockCompatibility {
+  id                       Int         @id @default(autoincrement())
+  factoryUnitId            Int
+  requestSector            SectorType
+  requestSku               String?
+  requestDescription       String?
+  requestModelName         String?
+  requestType              String?
+  requestColor             String?
+  requestSizeGrade         String?
+  requestFootSide          FootSide?
+  matchKey                 String
+  requestUnit              String
+  sourceStockItemId        Int
+  sourceSector             SectorType
+  sourceQuantityPerRequestUnit Decimal @default(1) @db.Decimal(18, 6)
+  reason                   String
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+
+  factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id], onDelete: Cascade)
+  sourceStockItem StockItem @relation(fields: [sourceStockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+
+  @@unique([factoryUnitId, requestSector, matchKey, sourceStockItemId])
+  @@index([factoryUnitId, requestSector, requestSku], map: "RequisitionStockCompatibility_target_idx")
+  @@index([factoryUnitId, requestSector, requestDescription], map: "RequisitionStockCompatibility_target_description_idx")
+  @@index([factoryUnitId, sourceSector, sourceStockItemId])
   @@schema("sobra_corte")
 }
 

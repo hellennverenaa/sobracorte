@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { formatNumber } from '@/utils/format';
+import { formatSectorName } from '@/utils/domain';
 import { useModalFocus } from '@/composables/useModalFocus';
 const props = defineProps({ item: Object, unit: String });
 const emit = defineEmits(['close']);
@@ -26,7 +27,7 @@ useModalFocus(() => Boolean(props.item), detailDialog, () => emit('close'));
 
             <div>
               <label class="block text-xs font-bold text-gray-500 uppercase">Setor</label>
-              <div class="text-gray-900 font-bold">{{ item.sector }}</div>
+              <div class="text-gray-900 font-bold">{{ formatSectorName(item.sector, item.sector) }}</div>
             </div>
 
             <div v-if="item.name || item.description">

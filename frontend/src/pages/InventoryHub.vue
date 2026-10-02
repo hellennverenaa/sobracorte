@@ -17,7 +17,7 @@ import { useInventoryQuery } from '@/composables/useInventoryQuery';
 import { useSettings } from '@/composables/useSettings';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useModalFocus } from '@/composables/useModalFocus';
-import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
+import { formatSectorName, normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
@@ -1041,7 +1041,7 @@ onMounted(() => {
               </span>
               <span>de</span>
               <span class="font-bold text-gray-900">{{ formatNumber(stockStore.pagination.total) }}</span>
-              <span>{{ activeTab === 'TODOS' ? 'itens encontrados em todos os setores' : `itens encontrados no setor ${activeTab}` }}</span>
+              <span>{{ activeTab === 'TODOS' ? 'itens encontrados em todos os setores' : `itens encontrados no setor ${formatSectorName(activeTab)}` }}</span>
             </div>
 
             <div class="flex items-center gap-1">
@@ -1117,7 +1117,7 @@ onMounted(() => {
                   {{ getItemIdentifier(selectedItem) }}
                 </span>
                 <span class="px-2 py-0.5 text-[11px] rounded-full font-bold bg-blue-100 text-blue-900 border border-blue-200 uppercase">
-                  SETOR {{ selectedItem.sector }}
+                  SETOR {{ formatSectorName(selectedItem.sector, selectedItem.sector) }}
                 </span>
               </div>
 
@@ -1278,7 +1278,7 @@ onMounted(() => {
                 class="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-amber-800 text-xs"
               >
                 <AlertCircle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>Não há outra prateleira cadastrada no setor <strong>{{ selectedItem?.sector || activeTab }}</strong> para transferir. Cadastre prateleiras adicionais no menu <strong>Configurações</strong>.</span>
+                <span>Não há outra prateleira cadastrada no setor <strong>{{ formatSectorName(selectedItem?.sector || activeTab) }}</strong> para transferir. Cadastre prateleiras adicionais no menu <strong>Configurações</strong>.</span>
               </div>
               <div v-else class="space-y-2">
                 <select
@@ -1289,7 +1289,7 @@ onMounted(() => {
                 >
                   <option :value="null" disabled>Selecione a prateleira de destino...</option>
                   <option v-for="loc in availableDestinationLocations" :key="loc.id" :value="loc.id">
-                    {{ loc.name }} {{ loc.sector ? `[${loc.sector}]` : '' }}
+                    {{ loc.name }} {{ loc.sector ? `[${formatSectorName(loc.sector)}]` : '' }}
                   </option>
                 </select>
 

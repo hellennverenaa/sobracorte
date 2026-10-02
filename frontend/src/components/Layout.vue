@@ -194,8 +194,8 @@ async function handleUnitChange(event) {
             <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
             <p class="text-xs text-slate-500 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
             <p class="text-[11px] text-slate-400 truncate" :title="rbacSectorLabel">{{ rbacSectorLabel }}</p>
-            <p v-if="authStore.user?.authOrigin === 'EXTERNO'" class="text-xs text-slate-400 truncate" :title="`Função: ${authStore.user?.funcao} | Setor: ${authStore.user?.setor}`">
-              Função: {{ authStore.user?.funcao }} · Setor: {{ authStore.user?.setor }}
+            <p v-if="authStore.user?.authOrigin === 'EXTERNO'" class="text-xs text-slate-400 truncate" :title="`Função: ${authStore.user?.funcao} | Setor: ${formatSectorName(authStore.user?.setor, authStore.user?.setor || '-')}`">
+              Função: {{ authStore.user?.funcao }} · Setor: {{ formatSectorName(authStore.user?.setor, authStore.user?.setor || '-') }}
             </p>
             <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
           </div>

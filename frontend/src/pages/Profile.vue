@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import Layout from '@/components/Layout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { formatSectorName } from '@/utils/domain'
 import { User, Mail, Shield, CheckCircle, AlertTriangle } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
@@ -50,7 +51,7 @@ async function handleUpdateProfile() {
         <div class="text-center md:text-left flex-grow">
           <h1 class="text-3xl font-bold text-gray-900">{{ user.nome }}</h1>
           <p class="text-gray-500 font-medium">{{ user.email }}</p>
-          <p v-if="user.authOrigin === 'EXTERNO'" class="text-sm text-gray-500 mt-1">Função: {{ user.funcao }} · Setor: {{ user.setor }}</p>
+          <p v-if="user.authOrigin === 'EXTERNO'" class="text-sm text-gray-500 mt-1">Função: {{ user.funcao }} · Setor: {{ formatSectorName(user.setor, user.setor || '-') }}</p>
           <div class="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border"
             :class="user.role === 'admin' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-200'">
             <Shield class="w-3 h-3" /> {{ roleMap[user.role] || user.role }}

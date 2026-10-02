@@ -25,7 +25,10 @@ export class RequisitionController {
       const parsed = CheckStockAvailabilitySchema.parse(req.body);
       requireActiveStockSector(parsed.requestSector);
       const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id);
-      return res.json(result);
+      return res.json({
+        ...result,
+        candidates: result.candidates.map(({ stockRows, ...candidate }) => candidate),
+      });
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });

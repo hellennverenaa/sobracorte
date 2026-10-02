@@ -6,8 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { getDatesFromPeriod, useReports } from '@/composables/useReports'
 import ToastNotification from '@/components/ToastNotification.vue'
-import { requestErrorMessage } from '@/utils/domain'
-import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
+import { formatSectorName, normalizeSector, requestErrorMessage, SECTOR_OPTIONS } from '@/utils/domain'
 import {
   FileSpreadsheet,
   Printer,
@@ -191,7 +190,7 @@ async function downloadExcel() {
       if (filters.value.search) params.append('search', filters.value.search)
 
       endpoint = `/reports/requisitions/export?${params.toString()}`
-      const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
+      const secName = sectorFilenameSuffix(filters.value.sector)
       defaultFilename = `SobrasDASS_Requisicoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
     } else {
       const params = new URLSearchParams({
@@ -206,7 +205,7 @@ async function downloadExcel() {
       if (filters.value.search) params.append('search', filters.value.search)
 
       endpoint = `/reports/movements/export?${params.toString()}`
-      const secName = filters.value.sector !== 'TODOS' ? `_${filters.value.sector}` : ''
+      const secName = sectorFilenameSuffix(filters.value.sector)
       defaultFilename = `SobrasDASS_Movimentacoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
     }
 
@@ -255,13 +254,21 @@ function getSectorLabel(val) {
 function getSectorShort(sec) {
   const map = {
     CORTE: 'CORTE',
-    APOIO: 'APOIO',
+    APOIO: formatSectorName('APOIO'),
     PRE_FABRICADO: 'PRÉ-FAB.',
     DISTRIBUICAO: 'DISTRIB.',
     EXPEDICAO: 'DISTRIB.',
     MONTAGEM: 'MONTAGEM'
   }
   return map[sec] || sec || 'CORTE'
+}
+
+function sectorFilenameSuffix(sector) {
+  if (!sector || sector === 'TODOS') return ''
+  const slug = formatSectorName(sector, sector)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  return `_${slug}`
 }
 
 function getOperationLabel(val) {

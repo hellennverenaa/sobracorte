@@ -25,10 +25,14 @@ const route = useRoute();
 const router = useRouter();
 
 interface RequisitionItem {
-  unit?: string;
   id: string;
   code: string;
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
+  sourceSector?: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | null;
+  sourceMatchReason?: string | null;
+  sourceStockItems?: Array<Record<string, any>>;
+  type?: string;
+  unit?: string;
   sku?: string;
   modelName?: string;
   description: string;
@@ -47,6 +51,40 @@ interface RequisitionItem {
   pairsDetail?: { esq: number; dir: number };
 }
 
+interface RequisitionStockCandidate {
+  id: string;
+  sourceStockItemIds: number[];
+  sourceCompatibilityIds: number[];
+  sourceSector: string;
+  sourceQuantityPerRequestUnit: number;
+  quantity: number;
+  unit: string;
+  sourceUnits: string[];
+  locations: string[];
+  items: Array<Record<string, any>>;
+  reason: string;
+  rank: number;
+}
+
+interface UnverifiedRequisitionStockMatch {
+  id: number;
+  sourceSector: string;
+  hasProductLink: boolean;
+  code?: string | null;
+  pieceCode?: string | null;
+  sku?: string | null;
+  modelName?: string | null;
+  description?: string | null;
+  type?: string | null;
+  componentType?: string | null;
+  color?: string | null;
+  sizeGrade?: string | null;
+  footSide?: 'E' | 'D' | 'PAR' | null;
+  unit: string;
+  quantity: number;
+  locations: string[];
+}
+
 interface SkuSuggestion {
   sku: string;
   modelName: string;
@@ -59,6 +97,9 @@ interface SkuSuggestion {
 
 interface StagedRequisitionItem {
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
+  sourceCandidateId: string;
+  sourceSector: string;
+  sourceMatchReason: string;
   sku?: string;
   modelName?: string;
   description: string;
@@ -170,12 +211,21 @@ const availabilityResult = ref<{
   identityKey?: string;
   quantity: number;
   locations: string[];
+  candidates: RequisitionStockCandidate[];
+  unverifiedStockMatches: UnverifiedRequisitionStockMatch[];
+  selectedCandidateId: string | null;
   pairsDetail?: { esq: number; dir: number };
 }>({
   status: 'idle',
   quantity: 0,
   locations: [],
+  candidates: [],
+  unverifiedStockMatches: [],
+  selectedCandidateId: null,
 });
+
+const selectedSourceCandidate = computed(() => availabilityResult.value.candidates
+  .find(candidate => candidate.id === availabilityResult.value.selectedCandidateId) || null);
 
 // Autocomplete
 const suggestions = ref<SkuSuggestion[]>([]);
@@ -205,7 +255,7 @@ onMounted(fetchUnits);
 function integerQuantity(unit: string | undefined, sector: string) {
   return sector !== 'CORTE' || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
 }
-const requestIntegerOnly = computed(() => integerQuantity(formItem.value.unit, currentSector.value));
+const requestIntegerOnly = computed(() => integerQuantity(selectedSourceCandidate.value?.unit || formItem.value.unit, currentSector.value));
 const fulfillIntegerOnly = computed(() => integerQuantity(fulfillingItem.value?.unit, fulfillingItem.value?.requestSector || ''));
 const fulfillInitial = ref('');
 
@@ -278,18 +328,20 @@ async function checkCurrentItemAvailability(request: AvailabilityRequest, identi
     const res = await api.post('/requisitions/check-availability', request);
     if (requestVersion !== availabilityRequestVersion || identityKey !== availabilityIdentityKey(buildAvailabilityRequest())) return;
 
-    if (res.data?.unit) formItem.value.unit = res.data.unit;
-    const quantity = Number(res.data?.quantity) || 0;
+    const candidates = (res.data?.candidates || []) as RequisitionStockCandidate[];
+    const unverifiedStockMatches = (res.data?.unverifiedStockMatches || []) as UnverifiedRequisitionStockMatch[];
     availabilityResult.value = {
-      status: res.data?.ambiguous ? 'ambiguous' : quantity > 0 ? 'available' : 'unavailable',
+      status: candidates.length ? 'available' : 'unavailable',
       identityKey,
-      quantity,
-      locations: res.data?.locations || [],
-      pairsDetail: res.data?.pairsDetail,
+      quantity: 0,
+      locations: [],
+      candidates,
+      unverifiedStockMatches,
+      selectedCandidateId: null,
     };
   } catch {
     if (requestVersion !== availabilityRequestVersion || identityKey !== availabilityIdentityKey(buildAvailabilityRequest())) return;
-    availabilityResult.value = { status: 'error', identityKey, quantity: 0, locations: [] };
+    availabilityResult.value = { status: 'error', identityKey, quantity: 0, locations: [], candidates: [], unverifiedStockMatches: [], selectedCandidateId: null };
   }
 }
 
@@ -301,12 +353,12 @@ function scheduleAvailabilityCheck() {
   reasonErrorVisible.value = false;
 
   if (!hasEnoughIdentityToCheck(request)) {
-    availabilityResult.value = { status: 'idle', quantity: 0, locations: [] };
+    availabilityResult.value = { status: 'idle', quantity: 0, locations: [], candidates: [], unverifiedStockMatches: [], selectedCandidateId: null };
     return;
   }
 
   const identityKey = availabilityIdentityKey(request);
-  availabilityResult.value = { status: 'checking', identityKey, quantity: 0, locations: [] };
+  availabilityResult.value = { status: 'checking', identityKey, quantity: 0, locations: [], candidates: [], unverifiedStockMatches: [], selectedCandidateId: null };
   availabilityDebounce = setTimeout(() => {
     void checkCurrentItemAvailability(request, identityKey, requestVersion);
   }, 300);
@@ -330,7 +382,8 @@ watch(
 const currentAvailabilityMatches = computed(() =>
   availabilityResult.value.status === 'available'
   && availabilityResult.value.identityKey === availabilityIdentityKey(buildAvailabilityRequest())
-  && availabilityResult.value.quantity > 0,
+  && Boolean(selectedSourceCandidate.value)
+  && selectedSourceCandidate.value!.quantity > 0,
 );
 
 const currentQuantityIsValid = computed(() => {
@@ -432,6 +485,30 @@ function onSectorChange() {
   showSuggestions.value = false;
 }
 
+function selectSourceCandidate(candidate: RequisitionStockCandidate) {
+  availabilityResult.value = {
+    ...availabilityResult.value,
+    selectedCandidateId: candidate.id,
+    quantity: candidate.quantity,
+    locations: [...candidate.locations],
+  };
+  formItem.value.unit = candidate.unit;
+}
+
+function sourceCandidateItemLabel(candidate: RequisitionStockCandidate) {
+  const item = candidate.items[0] || {};
+  const label = item.code || item.pieceCode || item.sku || item.modelName || item.description || `Item #${item.id}`;
+  return `${label}${item.type || item.componentType ? ` · ${item.type || item.componentType}` : ''}`;
+}
+
+function sourceItemSummary(items?: Array<Record<string, any>>) {
+  return (items || []).map(item => {
+    const code = item.code || item.pieceCode || item.sku || item.modelName || `Item #${item.id}`;
+    const description = item.description || item.modelName || item.name;
+    return description && description !== code ? `${code} — ${description}` : code;
+  }).join(' + ');
+}
+
 function openCreate() {
   stagedItems.value = [];
   reasonErrorVisible.value = false;
@@ -479,6 +556,7 @@ function addCurrentItem() {
       showToast('A Descrição / Tipo do material é obrigatória.', 'error');
       return;
     }
+    finalDesc = finalDesc || formItem.value.sku.trim();
   }
 
   if (!Number.isFinite(formItem.value.quantityRequested) || !/^\d+(?:\.\d{1,3})?$/.test(String(formItem.value.quantityRequested)) || (requestIntegerOnly.value && !Number.isInteger(formItem.value.quantityRequested))) {
@@ -500,22 +578,25 @@ function addCurrentItem() {
     if (availabilityResult.value.status === 'checking') {
       showToast('Aguarde a confirmação do saldo para o item selecionado.', 'error');
     } else if (availabilityResult.value.status === 'ambiguous') {
-      showToast('Há mais de um material compatível. Especifique a identificação antes de continuar.', 'error');
+      showToast('Escolha a origem do estoque que atenderá esta requisição.', 'error');
     } else if (availabilityResult.value.status === 'error') {
       showToast('Não foi possível consultar o saldo. Tente novamente antes de continuar.', 'error');
     } else {
-      showToast('MATERIAL INDISPONÍVEL EM SOBRAS DASS. A requisição exige saldo positivo no estoque de sobras.', 'error');
+      showToast('Selecione uma origem compatível com saldo disponível para continuar.', 'error');
     }
     return;
   }
 
-  if (formItem.value.quantityRequested > availabilityResult.value.quantity) {
-    showToast(`Quantidade solicitada (${formItem.value.quantityRequested}) excede o saldo físico disponível (${availabilityResult.value.quantity}).`, 'error');
+  if (!selectedSourceCandidate.value || formItem.value.quantityRequested > selectedSourceCandidate.value.quantity) {
+    showToast(`Quantidade solicitada (${formItem.value.quantityRequested}) excede o saldo equivalente disponível (${selectedSourceCandidate.value?.quantity || 0} ${selectedSourceCandidate.value?.unit || ''}).`, 'error');
     return;
   }
 
   stagedItems.value.push({
     requestSector: currentSector.value,
+    sourceCandidateId: selectedSourceCandidate.value!.id,
+    sourceSector: selectedSourceCandidate.value!.sourceSector,
+    sourceMatchReason: selectedSourceCandidate.value!.reason,
     sku: formItem.value.sku.trim().toUpperCase() || undefined,
     modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
     description: (finalDesc || 'CALÇADO COMPLETO').toUpperCase(),
@@ -525,9 +606,13 @@ function addCurrentItem() {
     footSide: formItem.value.footSide || null,
     quantityRequested: formItem.value.quantityRequested,
     reason: formItem.value.reason.trim().toUpperCase(),
-    stockAvailable: availabilityResult.value.quantity,
-    locations: [...availabilityResult.value.locations],
-    pairsDetail: availabilityResult.value.pairsDetail,
+    unit: selectedSourceCandidate.value!.unit,
+    stockAvailable: selectedSourceCandidate.value!.quantity,
+    locations: [...selectedSourceCandidate.value!.locations],
+    pairsDetail: selectedSourceCandidate.value!.items.length > 1 ? {
+      esq: Number(selectedSourceCandidate.value!.items.find(item => item.footSide === 'E')?.quantity || 0),
+      dir: Number(selectedSourceCandidate.value!.items.find(item => item.footSide === 'D')?.quantity || 0),
+    } : undefined,
   });
 
   // Limpar formulário mantendo o setor
@@ -583,6 +668,7 @@ async function submitRequisition() {
     const payload = {
       items: stagedItems.value.map((item) => ({
         requestSector: item.requestSector,
+        sourceCandidateId: item.sourceCandidateId,
         sku: item.sku,
         modelName: item.modelName,
         description: item.description,
@@ -618,8 +704,8 @@ function canFulfill(item: RequisitionItem) {
   if (isMasterAdmin.value) return true;
   if (authStore.user?.role === 'admin_setor') {
     const userSec = userAssignedSector.value;
-    const reqSec = (item.requestSector === 'EXPEDICAO' || item.requestSector === 'CABEDAIS') ? 'DISTRIBUICAO' : item.requestSector;
-    return Boolean(userSec && userSec === reqSec);
+    const sourceSec = (item.sourceSector || item.requestSector) === 'EXPEDICAO' ? 'DISTRIBUICAO' : (item.sourceSector || item.requestSector);
+    return Boolean(userSec && userSec === sourceSec);
   }
   return false;
 }
@@ -777,7 +863,7 @@ onMounted(() => {
             <AlertCircle class="w-5 h-5" />
           </div>
           <div>
-            <p class="text-[11px] font-bold text-rose-600 uppercase">Sem Saldo (Acionar Corte)</p>
+            <p class="text-[11px] font-bold text-rose-600 uppercase">Sem saldo compatível</p>
             <p class="text-lg font-black text-rose-800">{{ stats.pendingNoStock }}</p>
           </div>
         </div>
@@ -844,8 +930,11 @@ onMounted(() => {
                   <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                     {{ formatSectorName(item.requestSector) }}
                   </span>
-                  <span class="block text-[11px] text-slate-600 font-medium mt-0.5 truncate max-w-[140px]">
+                    <span class="block text-[11px] text-slate-600 font-medium mt-0.5 truncate max-w-[140px]">
                     {{ item.requesterName || 'Operador' }}
+                  </span>
+                  <span v-if="item.sourceSector" class="mt-1 block text-[10px] font-semibold text-indigo-700">
+                    Fornecedor: {{ formatSectorName(item.sourceSector) }}
                   </span>
                 </td>
 
@@ -892,8 +981,9 @@ onMounted(() => {
                   <div v-if="item.stockAvailable >= (item.quantityRequested - item.quantityFulfilled)" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold text-[10.5px]">
                       <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600" />
-                      {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : 'un.' }} em estoque
+                      {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : (item.unit || 'un.') }} em estoque
                     </span>
+                    <span v-if="item.sourceMatchReason" class="max-w-[220px] truncate text-[10px] text-emerald-700">{{ item.sourceMatchReason }}</span>
                     <span v-if="item.locations.length > 0" class="text-[10px] text-emerald-600 mt-0.5 truncate max-w-[200px] flex items-center gap-0.5">
                       <MapPin class="w-3 h-3 shrink-0" />
                       {{ item.locations.join(', ') }}
@@ -903,8 +993,9 @@ onMounted(() => {
                   <div v-else-if="item.stockAvailable > 0" class="inline-flex flex-col items-center">
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-bold text-[10.5px]">
                       <Clock class="w-3.5 h-3.5 text-amber-600" />
-                      Parcial: {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : 'un.' }}
+                      Parcial: {{ item.stockAvailable }} {{ item.footSide === 'PAR' ? 'pares' : (item.unit || 'un.') }}
                     </span>
+                    <span v-if="item.sourceMatchReason" class="max-w-[220px] truncate text-[10px] text-amber-700">{{ item.sourceMatchReason }}</span>
                     <span v-if="item.locations.length > 0" class="text-[10px] text-amber-600 mt-0.5 truncate max-w-[200px] flex items-center gap-0.5">
                       <MapPin class="w-3 h-3 shrink-0" />
                       {{ item.locations.join(', ') }}
@@ -914,7 +1005,7 @@ onMounted(() => {
                   <div v-else>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full font-bold text-[10.5px]">
                       <AlertCircle class="w-3.5 h-3.5 text-rose-600" />
-                      0 disponível (Acionar Corte)
+                      0 disponível compatível
                     </span>
                   </div>
                 </td>
@@ -1629,38 +1720,100 @@ onMounted(() => {
               </div>
 
               <div
-                v-else-if="availabilityResult.status === 'unavailable'"
+                v-else-if="availabilityResult.status === 'unavailable' && !availabilityResult.unverifiedStockMatches.length"
                 class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800"
               >
                 <ShieldAlert class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
-                  <p class="font-black tracking-tight text-xs uppercase">MATERIAL INDISPONÍVEL EM SOBRAS DASS</p>
-                  <p class="text-[11px] text-rose-700 mt-0.5">A requisição exige saldo positivo no estoque de sobras. Favor acionar a programação regular de corte/compra.</p>
+                  <p class="font-black tracking-tight text-xs uppercase">Nenhuma origem compatível com saldo positivo</p>
+                  <p class="text-[11px] text-rose-700 mt-0.5">Confirme as variantes e o saldo do fornecedor. Para aproveitar sobras de Corte ou Peças Cortadas, também é necessário um vínculo explícito de produto/BOM em Configurações.</p>
                 </div>
               </div>
 
               <div
                 v-else-if="availabilityResult.status === 'available'"
-                class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-emerald-800"
+                class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5"
               >
-                <CheckCircle2 class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div class="flex-1">
-                  <div class="flex justify-between items-center">
-                    <p class="font-black text-xs uppercase">
-                      DISPONÍVEL EM SOBRAS: {{ availabilityResult.quantity }} {{ formItem.footSide === 'PAR' ? 'PARES COMPLETOS' : 'UNIDADES' }}
-                    </p>
-                    <span v-if="availabilityResult.pairsDetail" class="text-[10.5px] font-bold text-emerald-700">
-                      (E: {{ availabilityResult.pairsDetail.esq }} | D: {{ availabilityResult.pairsDetail.dir }})
+                <p class="font-black text-xs uppercase text-slate-800">Escolha de qual setor sairá o material</p>
+                <label
+                  v-for="candidate in availabilityResult.candidates"
+                  :key="candidate.id"
+                  class="flex cursor-pointer items-start gap-2.5 rounded-xl border bg-white p-3 transition"
+                  :class="availabilityResult.selectedCandidateId === candidate.id ? 'border-indigo-400 bg-indigo-50/70 ring-1 ring-indigo-300' : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/30'"
+                >
+                  <input
+                    type="radio"
+                    name="requisition-source-candidate"
+                    :checked="availabilityResult.selectedCandidateId === candidate.id"
+                    @change="selectSourceCandidate(candidate)"
+                    class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="flex flex-wrap items-center justify-between gap-1">
+                      <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
+                      <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
                     </span>
+                    <span class="mt-1 block text-[10.5px] text-slate-600">
+                      <template v-for="(sourceItem, index) in candidate.items" :key="sourceItem.id">
+                        <span v-if="index > 0"> + </span>
+                        {{ sourceItem.color || sourceItem.description || sourceItem.modelName || 'Componente' }}
+                        <span v-if="sourceItem.sizeGrade"> · grade {{ sourceItem.sizeGrade }}</span>
+                        <span v-if="sourceItem.footSide"> · {{ sourceItem.footSide === 'E' ? 'pé esquerdo' : sourceItem.footSide === 'D' ? 'pé direito' : 'par' }}</span>
+                      </template>
+                      <span v-if="candidate.sourceQuantityPerRequestUnit !== 1 || candidate.sourceUnits.some(unit => unit !== candidate.unit)"> · consumo {{ candidate.sourceQuantityPerRequestUnit }} {{ candidate.sourceUnits.join('/') }} por {{ candidate.unit }}</span>
+                    </span>
+                    <span class="mt-1 block text-[10.5px] font-semibold text-indigo-700">Compatibilidade: {{ candidate.reason }}</span>
+                    <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+                      <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
+                    </span>
+                  </span>
+                </label>
+                <p v-if="selectedSourceCandidate && formItem.quantityRequested > selectedSourceCandidate.quantity" class="text-[11px] font-bold text-rose-700">
+                  A quantidade solicitada excede o saldo equivalente da origem escolhida.
+                </p>
+              </div>
+
+              <div
+                v-if="availabilityResult.unverifiedStockMatches.length"
+                class="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950"
+              >
+                <div class="flex items-start gap-2.5">
+                  <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div class="min-w-0 flex-1">
+                    <p class="font-black tracking-tight text-xs uppercase">Encontramos estoque em outro setor</p>
+                    <p class="text-[11px] text-amber-900 mt-0.5">
+                      O identificador coincide, mas isso não confirma que o material substitui o solicitado. Um Admin Master precisa criar ou revisar o vínculo de produto/BOM em Configurações &gt; Vínculos de produto. Até a compatibilidade ser confirmada, esses itens não podem ser selecionados.
+                    </p>
                   </div>
-                  <p v-if="availabilityResult.locations.length > 0" class="text-[11px] text-emerald-700 mt-0.5 flex items-center gap-1">
-                    <MapPin class="w-3.5 h-3.5 shrink-0" />
-                    <span>Prateleiras: {{ availabilityResult.locations.join(', ') }}</span>
-                  </p>
-                  <p v-if="formItem.quantityRequested > availabilityResult.quantity" class="text-[11px] text-rose-700 font-bold mt-1">
-                    A quantidade solicitada excede o saldo disponível.
-                  </p>
                 </div>
+                <ul class="mt-2.5 space-y-1.5" aria-label="Estoque encontrado para conferência de compatibilidade">
+                  <li
+                  v-for="match in availabilityResult.unverifiedStockMatches"
+                    :key="match.id"
+                    class="rounded-lg border border-amber-200/80 bg-white/80 px-2.5 py-2 text-[10.5px]"
+                  >
+                    <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                      <strong class="text-amber-950">{{ formatSectorName(match.sourceSector) }} · {{ match.description || match.modelName || match.type || 'Material' }}</strong>
+                      <strong class="text-amber-800">Saldo: {{ match.quantity }} {{ match.unit }}</strong>
+                    </div>
+                    <div class="mt-0.5 flex flex-wrap gap-x-2 text-amber-900">
+                      <span v-if="match.pieceCode">Cód. peça: {{ match.pieceCode }}</span>
+                      <span v-if="match.code">Código: {{ match.code }}</span>
+                      <span v-if="match.sku">SKU: {{ match.sku }}</span>
+                      <span v-if="match.type">Tipo: {{ match.type }}</span>
+                      <span v-if="match.componentType">Componente: {{ match.componentType }}</span>
+                      <span v-if="match.color">Cor: {{ match.color }}</span>
+                      <span v-if="match.sizeGrade">Grade: {{ match.sizeGrade }}</span>
+                      <span v-if="match.footSide">{{ match.footSide === 'E' ? 'Pé esquerdo' : match.footSide === 'D' ? 'Pé direito' : 'Par' }}</span>
+                    </div>
+                    <span class="mt-0.5 block text-amber-800">
+                      {{ match.hasProductLink ? 'Há vínculo para este setor; confira variantes e compatibilidade.' : 'Ainda não há vínculo deste item para o setor solicitante.' }}
+                    </span>
+                    <span v-if="match.locations.length" class="mt-0.5 flex items-center gap-1 text-amber-800">
+                      <MapPin class="size-3 shrink-0" /> {{ match.locations.join(', ') }}
+                    </span>
+                  </li>
+                </ul>
               </div>
             </div>
 
@@ -1725,7 +1878,8 @@ onMounted(() => {
                 <div class="flex items-center gap-3">
                   <div class="text-right">
                     <span class="font-black text-slate-900 text-xs block">Qtd: {{ staged.quantityRequested }}</span>
-                    <span class="text-[10px] font-bold text-emerald-600">Disp: {{ staged.stockAvailable }} un.</span>
+                    <span class="text-[10px] font-bold text-emerald-600">Origem: {{ formatSectorName(staged.sourceSector) }}</span>
+                    <span class="text-[10px] font-bold text-emerald-600">Disp: {{ staged.stockAvailable }} {{ staged.footSide === 'PAR' ? 'pares' : (staged.unit || 'un.') }}</span>
                   </div>
 
                   <button
@@ -1797,9 +1951,19 @@ onMounted(() => {
               {{ fulfillingItem.sku || fulfillingItem.description }} — {{ fulfillingItem.modelName || 'GERAL' }}
             </div>
             <div class="text-emerald-800 font-medium">{{ fulfillingItem.description }}</div>
+            <div class="text-[10.5px] font-semibold text-emerald-800">A baixa será feita diretamente neste estoque fornecedor; não haverá transferência para outro setor.</div>
+            <div class="text-[11px] font-bold text-emerald-800">
+              Estoque fornecedor: {{ formatSectorName(fulfillingItem.sourceSector || fulfillingItem.requestSector) }}
+            </div>
+            <div v-if="fulfillingItem.sourceStockItems?.length" class="text-[10.5px] text-emerald-800">
+              Material que será baixado: {{ sourceItemSummary(fulfillingItem.sourceStockItems) }}
+            </div>
+            <div v-if="fulfillingItem.sourceMatchReason" class="text-[10.5px] text-emerald-700">
+              Compatibilidade: {{ fulfillingItem.sourceMatchReason }}
+            </div>
             <div class="text-[11px] text-emerald-700">
               Solicitado: <strong>{{ fulfillingItem.quantityRequested }}</strong> | 
-              Disponível em Sobras: <strong>{{ fulfillingItem.stockAvailable }} {{ fulfillingItem.footSide === 'PAR' ? 'pares' : 'un.' }}</strong>
+              Disponível em Sobras: <strong>{{ fulfillingItem.stockAvailable }} {{ fulfillingItem.footSide === 'PAR' ? 'pares' : (fulfillingItem.unit || 'un.') }}</strong>
             </div>
             <div v-if="fulfillingItem.locations.length > 0" class="text-[10.5px] text-emerald-600 pt-1 flex items-center gap-1">
               <MapPin class="w-3.5 h-3.5 shrink-0" />
@@ -1826,7 +1990,7 @@ onMounted(() => {
             <input
               v-model="fulfillObservation"
               type="text"
-              placeholder="Ex: Entregue em mãos para o setor solicitante..."
+              placeholder="Ex: Material consumido diretamente pelo setor solicitante..."
               class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-emerald-500"
             />
           </div>
@@ -1876,6 +2040,7 @@ onMounted(() => {
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">Setor Solicitante</span>
               <span class="font-bold text-slate-800">{{ formatSectorName(viewingItem.requestSector) }}</span>
+              <span v-if="viewingItem.sourceSector" class="block mt-1 text-[10px] text-indigo-700">Fornecedor: {{ formatSectorName(viewingItem.sourceSector) }}</span>
             </div>
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">Data de Abertura</span>
@@ -1895,7 +2060,7 @@ onMounted(() => {
             <div>
               <span class="text-slate-400 font-bold uppercase block text-[10px]">COD. PRODUTO / SKU & Modelo</span>
               <p class="font-mono font-bold text-slate-900 text-sm">
-                {{ viewingItem.sku || '-' }} — {{ viewingItem.modelName || 'GERAL' }}
+                {{ viewingItem.sku || '-' }} — {{ viewingItem.modelName || 'GERAL' }}<span v-if="viewingItem.type"> · {{ viewingItem.type }}</span>
               </p>
             </div>
             <div>
@@ -1936,8 +2101,13 @@ onMounted(() => {
                 Disponibilidade no Sobras DASS:
               </span>
               <span class="font-black text-sm" :class="viewingItem.stockAvailable > 0 ? 'text-emerald-700' : 'text-rose-700'">
-                {{ viewingItem.stockAvailable }} {{ viewingItem.footSide === 'PAR' ? 'pares' : 'un.' }}
+                {{ viewingItem.stockAvailable }} {{ viewingItem.footSide === 'PAR' ? 'pares' : (viewingItem.unit || 'un.') }}
               </span>
+            </div>
+            <div v-if="viewingItem.sourceStockItems?.length || viewingItem.sourceMatchReason" class="mt-2 space-y-1 text-[10.5px] text-slate-700">
+              <p v-if="viewingItem.sourceStockItems?.length"><strong>Origem baixada:</strong> {{ sourceItemSummary(viewingItem.sourceStockItems) }}</p>
+              <p v-if="viewingItem.sourceMatchReason"><strong>Compatibilidade:</strong> {{ viewingItem.sourceMatchReason }}</p>
+              <p class="font-semibold text-indigo-700">O atendimento baixa diretamente do estoque fornecedor.</p>
             </div>
             <div v-if="viewingItem.locations.length > 0" class="mt-2 text-[11px] text-slate-600">
               <span class="font-bold block">Localizações / Prateleiras sugeridas:</span>

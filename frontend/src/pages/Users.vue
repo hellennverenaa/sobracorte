@@ -9,7 +9,7 @@ import ToastNotification from "@/components/ToastNotification.vue";
 import { useToast } from "@/composables/useToast";
 import { useConfirmModal } from "@/composables/useConfirmModal";
 import { formatDate } from "@/utils/format";
-import { formatSectorName } from "@/utils/domain";
+import { formatSectorName, SECTOR_OPTIONS } from "@/utils/domain";
 
 const auth = useAuthStore();
 const users = ref([]);
@@ -37,13 +37,9 @@ const roleOptions = [
 const assignableRoles = computed(() => roleOptions.filter(option => option.value !== 'admin' || auth.user?.isGlobalAdmin));
 const canManageUser = user => user.role !== 'admin' || auth.user?.isGlobalAdmin === true;
 
-const sectorOptions = [
-  { value: "CORTE", label: "Corte" },
-  { value: "APOIO", label: "Peças Cortadas / Cabedal" },
-  { value: "PRE_FABRICADO", label: "Pré-Fabricado" },
-  { value: "DISTRIBUICAO", label: "Distribuição" },
-  { value: "MONTAGEM", label: "Montagem" },
-];
+const sectorOptions = SECTOR_OPTIONS
+  .filter(sector => sector.id !== 'TODOS')
+  .map(sector => ({ value: sector.id, label: sector.shortLabel || sector.label }));
 
 const fetchUsers = async () => {
   loading.value = true;
@@ -233,7 +229,7 @@ onMounted(() => {
                 </td>
 
                 <td class="px-6 py-4">
-                  <p class="text-sm font-medium text-gray-800">{{ user.setor || "-" }}</p>
+                  <p class="text-sm font-medium text-gray-800">{{ formatSectorName(user.setor, user.setor || "-") }}</p>
                   <p class="text-xs text-gray-500">{{ user.funcao || "-" }}</p>
                 </td>
 
@@ -350,11 +346,7 @@ onMounted(() => {
               :disabled="editingUser.role === 'admin'"
             >
               <option :value="null" :disabled="!['admin', 'leitor'].includes(editingUser.role)">{{ editingUser.role === 'admin' ? 'TODOS OS SETORES / IRRESTRITO (MASTER)' : editingUser.role === 'leitor' ? 'SEM REFERÊNCIA — CONSULTA TODOS' : 'SELECIONE UM SETOR' }}</option>
-              <option value="CORTE">CORTE</option>
-              <option value="APOIO">PEÇAS CORTADAS / CABEDAL</option>
-              <option value="PRE_FABRICADO">PRÉ-FABRICADO</option>
-              <option value="DISTRIBUICAO">DISTRIBUIÇÃO</option>
-              <option value="MONTAGEM">MONTAGEM</option>
+              <option v-for="sector in sectorOptions" :key="sector.value" :value="sector.value">{{ sector.label }}</option>
             </select>
             <p v-if="editingUser.role === 'admin'" class="text-xs text-gray-500 mt-1">
               * Administradores Master possuem acesso automático a todos os setores.

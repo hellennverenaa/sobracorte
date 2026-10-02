@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useDashboard } from '@/composables/useDashboard'
 import ToastNotification from '@/components/ToastNotification.vue'
 import { requestErrorMessage } from '@/utils/domain'
-import { normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
+import { formatSectorName, normalizeSector, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatNumber, formatDate } from "@/utils/format"
 import {
   Activity, Clock, RefreshCw, Layers, Scissors, Box,
@@ -957,7 +957,7 @@ onUnmounted(() => {
                     {{ hoveredSector.percent.toFixed(0) }}%
                   </span>
                   <span class="text-[7px] font-bold text-slate-500 uppercase mt-0.5 truncate max-w-[50px]">
-                    {{ hoveredSector.sector }}
+                    {{ formatSectorName(hoveredSector.sector, hoveredSector.sector) }}
                   </span>
                 </div>
                 <div v-else class="flex flex-col items-center justify-center w-full h-full text-center">
@@ -1077,7 +1077,7 @@ onUnmounted(() => {
                     </span>
                     <div class="min-w-0">
                       <p class="font-bold text-slate-800 truncate text-[11px]">{{ item.name }}</p>
-                      <p class="text-[9px] text-slate-400 font-mono">Cód: {{ item.code }}{{ item.type ? ` · ${item.type}` : (item.sector ? ` · ${item.sector}` : '') }}</p>
+                      <p class="text-[9px] text-slate-400 font-mono">Cód: {{ item.code }}{{ item.type ? ` · ${item.type}` : (item.sector ? ` · ${formatSectorName(item.sector, item.sector)}` : '') }}</p>
                     </div>
                   </div>
                   <div class="text-right shrink-0 ml-2">

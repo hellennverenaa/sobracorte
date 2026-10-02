@@ -1,7 +1,7 @@
 export const SECTOR_OPTIONS = [
   { id: 'TODOS', label: 'Todos os Setores' },
   { id: 'CORTE', label: 'Corte (Matéria-Prima)', shortLabel: 'Corte' },
-  { id: 'APOIO', label: 'Peças Cortadas / Cabedal', shortLabel: 'Peças Cortadas' },
+  { id: 'APOIO', label: 'Peças Cortadas', shortLabel: 'Peças Cortadas' },
   { id: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', shortLabel: 'Pré-Fabricado' },
   { id: 'DISTRIBUICAO', label: 'Distribuição', shortLabel: 'Distribuição' },
   { id: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', shortLabel: 'Montagem' },

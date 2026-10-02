@@ -239,11 +239,7 @@
               <select v-model="categoryFilterSector"
                 class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium uppercase outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
                 <option value="TODOS">Todos os Setores</option>
-                <option value="CORTE">Corte</option>
-                <option value="APOIO">Peças Cortadas (APOIO)</option>
-                <option value="PRE_FABRICADO">Pré-Fabricado</option>
-                <option value="DISTRIBUICAO">Distribuição</option>
-                <option value="MONTAGEM">Montagem</option>
+                <option v-for="sector in categorySectorsOptions" :key="sector.id" :value="sector.id">{{ sector.label }}</option>
               </select>
             </div>
           </div>
@@ -310,6 +306,8 @@
           </table>
         </div>
       </div>
+
+      <RequisitionStockCompatibilitySettings v-if="activeTab === 'compatibility' && isMasterAdmin" />
 
       <!-- ABA 3: LOCALIZAÇÕES                       -->
       <div v-if="activeTab === 'locations'" class="space-y-6">
@@ -508,11 +506,7 @@
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400 bg-white font-medium uppercase"
                 >
                   <option value="">Geral / Livre</option>
-                  <option value="CORTE">Corte</option>
-                  <option value="APOIO">Peças Cortadas / Cabedal</option>
-                  <option value="PRE_FABRICADO">Pré-Fabricado</option>
-                  <option value="DISTRIBUICAO">Distribuição</option>
-                  <option value="MONTAGEM">Montagem</option>
+                  <option v-for="sector in operationalSectorOptions" :key="sector.id" :value="sector.id">{{ sector.label }}</option>
                 </select>
               </div>
 
@@ -575,11 +569,7 @@
                 v-model="templateSector"
                 class="px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-400"
               >
-                <option value="CORTE">Modelo: Corte (Matéria-Prima)</option>
-                <option value="APOIO">Modelo: Peças Cortadas / Cabedal</option>
-                <option value="PRE_FABRICADO">Modelo: Pré-Fabricado (Solas)</option>
-                <option value="DISTRIBUICAO">Modelo: Distribuição</option>
-                <option value="MONTAGEM">Modelo: Montagem (Pés Órfãos)</option>
+                <option v-for="sector in operationalSectorOptions" :key="sector.id" :value="sector.id">Modelo: {{ sector.label }}</option>
               </select>
               <button @click="downloadCSVTemplate(templateSector)"
                 class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-200 transition flex items-center gap-2 shrink-0 cursor-pointer">
@@ -673,11 +663,7 @@
                   class="px-2.5 py-1 bg-white border border-blue-200 rounded-lg font-bold text-blue-900 outline-none"
                   :disabled="authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS'"
                 >
-                  <option value="CORTE">Corte (Matéria-Prima)</option>
-                  <option value="APOIO">Peças Cortadas / Cabedal</option>
-                  <option value="PRE_FABRICADO">Pré-Fabricado (Solas)</option>
-                  <option value="DISTRIBUICAO">Distribuição</option>
-                  <option value="MONTAGEM">Montagem (Pés Órfãos)</option>
+                  <option v-for="sector in operationalSectorOptions" :key="sector.id" :value="sector.id">{{ sector.label }}</option>
                 </select>
                 <span class="text-slate-500 text-[11px]">(Utilizado caso a planilha não contenha a coluna 'setor')</span>
               </div>
@@ -1015,11 +1001,7 @@
               class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium uppercase"
             >
               <option value="">Geral / Livre (todos os setores)</option>
-              <option value="CORTE">Corte</option>
-              <option value="APOIO">Peças Cortadas (APOIO)</option>
-              <option value="PRE_FABRICADO">Pré-Fabricado</option>
-              <option value="DISTRIBUICAO">Distribuição</option>
-              <option value="MONTAGEM">Montagem</option>
+              <option v-for="sector in operationalSectorOptions" :key="sector.id" :value="sector.id">{{ sector.label }}</option>
             </select>
           </div>
 
@@ -1095,7 +1077,8 @@ import { useSettings } from '@/composables/useSettings'
 import PageState from '@/components/PageState.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import SettingsTabNav from '@/components/SettingsTabNav.vue'
-import { formatSectorName } from '@/utils/domain'
+import RequisitionStockCompatibilitySettings from '@/components/RequisitionStockCompatibilitySettings.vue'
+import { formatSectorName, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatDate } from '@/utils/format'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
@@ -1120,6 +1103,7 @@ const tabs = computed(() => {
     { key: 'categories',   label: 'Categorias',                 icon: Tag },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
     { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
+    ...(isMasterAdmin.value ? [{ key: 'compatibility', label: 'Vínculos de produto', icon: GitBranch }] : []),
     { key: 'import',       label: 'Importar CSV',               icon: FileSpreadsheet },
     ...(isMasterAdmin.value ? [{ key: 'factory_unit', label: 'Unidade Fabril', icon: Building2 }] : [])
   ]
@@ -1143,13 +1127,10 @@ const categoryFilterSector = computed({
   get: () => settingsPersisted.filters.value.categoryFilterSector || 'TODOS',
   set: value => { settingsPersisted.filters.value.categoryFilterSector = value || 'TODOS' },
 })
-const categorySectorsOptions = [
-  { id: 'CORTE', label: 'Corte' },
-  { id: 'APOIO', label: 'Peças Cortadas (APOIO)' },
-  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado' },
-  { id: 'DISTRIBUICAO', label: 'Distribuição' },
-  { id: 'MONTAGEM', label: 'Montagem' },
-]
+const operationalSectorOptions = SECTOR_OPTIONS
+  .filter(sector => sector.id !== 'TODOS')
+  .map(sector => ({ id: sector.id, label: sector.shortLabel || sector.label }))
+const categorySectorsOptions = operationalSectorOptions
 const legacyComponentTypeLabels = {
   MATERIA_PRIMA: 'Matéria-prima',
   PECA_CORTADA: 'Peça cortada',
@@ -1827,7 +1808,7 @@ const sectorCsvPattern = computed(() => {
         { name: 'grade', req: false, desc: 'Grade/numeração quando aplicável. Ex: 40' },
         { name: 'lado', req: false, desc: 'Obrigatório para Cabedal: E (esquerdo), D (direito) ou PAR. Ignorado para peça cortada.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
-        { name: 'prateleira', req: false, desc: 'Localização ou box no apoio. Ex: AP-01' },
+        { name: 'prateleira', req: false, desc: 'Localização ou box em Peças Cortadas. Ex: AP-01' },
       ],
       headerExample: 'sku;modelo;peca;tipo;material_cor;grade;lado;quantidade;prateleira',
       examples: [
@@ -1903,7 +1884,10 @@ function downloadCSVTemplate(targetSector = templateSector.value || 'CORTE') {
   templateSector.value = targetSector
   const pat = sectorCsvPattern.value
   const content = `${pat.headerExample}\n${pat.examples.join('\n')}\n`
-  const fileName = `modelo_importacao_${targetSector.toLowerCase()}.csv`
+  const sectorSlug = formatSectorName(targetSector, targetSector)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  const fileName = `modelo_importacao_${sectorSlug}.csv`
 
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
