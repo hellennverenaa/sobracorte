@@ -153,6 +153,7 @@ const isSubmitting = ref(false);
 const stagedItems = ref<StagedRequisitionItem[]>([]);
 const reasonInput = ref<HTMLInputElement | null>(null);
 const reasonErrorVisible = ref(false);
+const requestMode = ref<'RAW_MATERIAL' | 'PRODUCT_REUSE'>('PRODUCT_REUSE');
 
 // Formulário do item corrente
 const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
@@ -292,7 +293,30 @@ const sectorIcons = { CORTE: Scissors, APOIO: Wrench, PRE_FABRICADO: Layers, DIS
 const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
+const reuseSectorOptions = sectorOptions.filter(option => option.id !== 'CORTE');
 const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
+const isRawMaterialRequest = computed(() => requestMode.value === 'RAW_MATERIAL');
+const isApoioCutPiece = computed(() => currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA');
+const showFootSide = computed(() => currentSector.value !== 'APOIO' || formItem.value.type === 'CABEDAL');
+const requestIdentifierLabel = computed(() => {
+  if (currentSector.value === 'CORTE') return 'Código da matéria-prima *';
+  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Código da peça *';
+  if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'SKU do cabedal *';
+  return 'Código do produto / SKU *';
+});
+const requestIdentifierPlaceholder = computed(() => {
+  if (currentSector.value === 'CORTE') return 'Ex: COU-BOV-01, SINT-PTO...';
+  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Ex: MOL-GAS-01...';
+  if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'Ex: CAB-PEG-40-PTO...';
+  return 'Ex: SKU do produto ou componente...';
+});
+const currentIdentifier = computed({
+  get: () => currentSector.value === 'APOIO' ? apoioIdentifier.value : formItem.value.sku,
+  set: (value: string) => {
+    if (currentSector.value === 'APOIO') apoioIdentifier.value = value;
+    else formItem.value.sku = value;
+  },
+});
 
 // Consulta de disponibilidade em tempo real. A resposta só vale para a identidade
 // exata que iniciou a requisição; qualquer edição invalida o resultado anterior.
@@ -353,9 +377,10 @@ function hasEnoughIdentityToCheck(request: AvailabilityRequest) {
     return hasSku && Boolean(formItem.value.description.trim());
   }
   if (request.requestSector === 'APOIO') {
-    if (request.type === 'CABEDAL') return hasSku && hasColor && hasGrade && hasSide;
+    if (request.type === 'CABEDAL') return hasSku && hasModel && hasColor && hasGrade && hasSide;
     return Boolean(request.pieceCode)
       && Boolean(formItem.value.description.trim())
+      && hasModel
       && hasColor
       && hasGrade;
   }
@@ -562,6 +587,12 @@ function onSectorChange() {
   showSuggestions.value = false;
 }
 
+function onRequestModeChange(mode: 'RAW_MATERIAL' | 'PRODUCT_REUSE') {
+  requestMode.value = mode;
+  currentSector.value = mode === 'RAW_MATERIAL' ? 'CORTE' : 'MONTAGEM';
+  onSectorChange();
+}
+
 function onApoioComponentChange() {
   formItem.value.sku = '';
   formItem.value.pieceCode = '';
@@ -628,6 +659,7 @@ function sourceItemSummary(items?: Array<Record<string, any>>) {
 function openCreate() {
   stagedItems.value = [];
   reasonErrorVisible.value = false;
+  requestMode.value = 'PRODUCT_REUSE';
   currentSector.value = 'MONTAGEM';
   onSectorChange();
   createInitial.value = JSON.stringify(formItem.value);
@@ -674,8 +706,8 @@ function addCurrentItem() {
     }
     finalDesc = finalDesc || 'CABEDAL';
   } else if (currentSector.value === 'CORTE') {
-    if (!finalDesc && !formItem.value.sku.trim()) {
-      showToast('A Descrição / Tipo do material é obrigatória.', 'error');
+    if (!finalDesc || !formItem.value.sku.trim()) {
+      showToast('O código e a descrição da matéria-prima são obrigatórios.', 'error');
       return;
     }
     finalDesc = finalDesc || formItem.value.sku.trim();
@@ -1257,529 +1289,191 @@ onMounted(() => {
         </div>
 
         <div class="p-6 overflow-y-auto space-y-5 text-xs flex-1">
-          <!-- 1. Seleção de Setor Adaptativo -->
+          <!-- 1. Fluxo da solicitação -->
           <div>
-            <label class="block font-bold text-slate-700 uppercase mb-1.5">1. Selecione o Setor Solicitante *</label>
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <label class="block font-bold text-slate-700 uppercase mb-1.5">1. O que você precisa solicitar? *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
-                v-for="sec in sectorOptions"
-                :key="sec.id"
                 type="button"
-                @click="currentSector = sec.id as any; onSectorChange()"
-                class="p-2.5 rounded-xl border font-bold flex flex-col items-center gap-1.5 transition-all text-[11px]"
-                :class="currentSector === sec.id
+                @click="onRequestModeChange('RAW_MATERIAL')"
+                class="p-3 rounded-xl border font-bold flex items-center gap-2.5 text-left transition-all"
+                :class="requestMode === 'RAW_MATERIAL'
                   ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm ring-1 ring-indigo-600'
                   : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
               >
-                <component :is="sec.icon" class="w-4 h-4" />
-                <span class="truncate">{{ formatSectorName(sec.id) }}</span>
+                <Scissors class="w-4 h-4 shrink-0" />
+                <span>
+                  <span class="block text-xs">Matéria-prima para Corte</span>
+                  <span class="block mt-0.5 text-[10px] font-medium opacity-75">Buscar somente no estoque de matéria-prima</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                @click="onRequestModeChange('PRODUCT_REUSE')"
+                class="p-3 rounded-xl border font-bold flex items-center gap-2.5 text-left transition-all"
+                :class="requestMode === 'PRODUCT_REUSE'
+                  ? 'bg-indigo-50 border-indigo-600 text-indigo-700 shadow-sm ring-1 ring-indigo-600'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+              >
+                <Layers class="w-4 h-4 shrink-0" />
+                <span>
+                  <span class="block text-xs">Reutilizar produto ou componente</span>
+                  <span class="block mt-0.5 text-[10px] font-medium opacity-75">Localizar saldo compatível nos setores produtivos</span>
+                </span>
               </button>
             </div>
           </div>
 
-          <!-- 2. Formulário Adaptativo por Setor -->
           <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
             <h4 class="font-bold text-slate-800 uppercase text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-2">
               <Plus class="w-3.5 h-3.5 text-indigo-600" />
-              <span>Adicionar Item do Setor: {{ formatSectorName(currentSector) }}</span>
+              <span>{{ isRawMaterialRequest ? 'Solicitar matéria-prima para Corte' : `Reutilizar produto ou componente · ${formatSectorName(currentSector)}` }}</span>
             </h4>
 
-            <!-- CAMPOS PARA CORTE -->
-            <div v-if="currentSector === 'CORTE'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Código / Material *</label>
-                  <input
-                    v-model="formItem.sku"
-                    @input="onSkuInput"
-                    type="text"
-                    placeholder="Ex: COU-BOV-01, SINT-PTO..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-
-                  <!-- Dropdown Sugestões Corte -->
-                  <div
-                    v-if="showSuggestions && suggestions.length > 0"
-                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
-                  >
-                    <button
-                      v-for="sug in suggestions"
-                      :key="sug.id || sug.sku"
-                      type="button"
-                      @click="selectSuggestion(sug)"
-                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
-                    >
-                      <div>
-                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.description }}</span>
-                      </div>
-                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {{ sug.availableQuantity }} UN/M²
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Descrição / Tipo *</label>
-                  <input
-                    v-model="formItem.description"
-                    type="text"
-                    placeholder="Ex: Couro Bovino Preto Premium..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-              </div>
-
+            <p v-if="isRawMaterialRequest" class="text-[11px] text-slate-600">
+              Informe o código e a descrição do material. A busca fica restrita às matérias-primas cadastradas no Corte.
+            </p>
+            <div v-else>
+              <label class="block font-bold text-slate-600 uppercase mb-1">Setor solicitante *</label>
+              <select
+                v-model="currentSector"
+                @change="onSectorChange"
+                class="w-full sm:max-w-sm border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+              >
+                <option v-for="sector in reuseSectorOptions" :key="sector.id" :value="sector.id">{{ formatSectorName(sector.id) }}</option>
+              </select>
+              <p class="mt-1 text-[10px] text-slate-500">A busca considera produto/componente e variantes exatas; matérias-primas do Corte têm um fluxo separado.</p>
             </div>
 
-            <!-- CAMPOS PARA APOIO -->
-            <div v-else-if="currentSector === 'APOIO'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo / Componente *</label>
-                  <select
-                    v-model="formItem.type"
-                    @change="onApoioComponentChange"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                  >
-                    <option value="PECA_CORTADA">Peça cortada</option>
-                    <option value="CABEDAL">Cabedal</option>
-                  </select>
-                </div>
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">
-                    {{ formItem.type === 'CABEDAL' ? 'SKU do cabedal *' : 'Código da peça *' }}
-                  </label>
-                  <input
-                    v-model="apoioIdentifier"
-                    @input="onSkuInput"
-                    type="text"
-                    :placeholder="formItem.type === 'CABEDAL' ? 'Ex: CAB-PEG-40-PTO...' : 'Ex: MOL-GAS-01...'"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div v-if="['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(currentSector)" class="sm:col-span-1">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Tipo / componente *</label>
+                <select
+                  v-if="currentSector === 'APOIO'"
+                  v-model="formItem.type"
+                  @change="onApoioComponentChange"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                >
+                  <option value="PECA_CORTADA">Peça cortada</option>
+                  <option value="CABEDAL">Cabedal</option>
+                </select>
+                <select
+                  v-else-if="currentSector === 'PRE_FABRICADO'"
+                  v-model="formItem.type"
+                  @change="onApoioComponentChange"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                >
+                  <option value="EVA">EVA</option>
+                  <option value="BORRACHA">Borracha</option>
+                  <option value="TPU">TPU</option>
+                  <option value="PU">PU</option>
+                </select>
+                <select
+                  v-else
+                  v-model="formItem.type"
+                  @change="onApoioComponentChange"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
+                >
+                  <option value="CABEDAL">Cabedal</option>
+                  <option value="SOLA_PROCESSADA">Sola processada</option>
+                </select>
+              </div>
+              <div v-else-if="currentSector === 'MONTAGEM'" class="sm:col-span-1">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Produto solicitado</label>
+                <div class="w-full border border-slate-200 p-2.5 rounded-xl font-medium text-slate-600 bg-white">Pé pronto / calçado completo</div>
+              </div>
 
-                  <div
-                    v-if="showSuggestions && suggestions.length > 0"
-                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+              <div class="relative" :class="isRawMaterialRequest ? 'sm:col-span-2' : ''">
+                <label class="block font-bold text-slate-600 uppercase mb-1">{{ requestIdentifierLabel }}</label>
+                <input
+                  v-model="currentIdentifier"
+                  @input="onSkuInput"
+                  type="text"
+                  :placeholder="requestIdentifierPlaceholder"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                />
+                <div
+                  v-if="showSuggestions && suggestions.length > 0"
+                  class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                >
+                  <button
+                    v-for="sug in suggestions"
+                    :key="sug.id || sug.sku"
+                    type="button"
+                    @click="selectSuggestion(sug)"
+                    class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
                   >
-                    <button
-                      v-for="sug in suggestions"
-                      :key="sug.id || sug.sku"
-                      type="button"
-                      @click="selectSuggestion(sug)"
-                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
-                    >
-                      <div>
-                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.modelName }} · {{ sug.description }}</span>
-                        <div class="text-[10px] text-slate-400">
-                          <span v-if="sug.color">{{ sug.color }} · </span>
-                          <span v-if="sug.sizeGrades.length">Grade {{ sug.sizeGrades.join(', ') }} · </span>
-                          <span v-if="sug.footSides.length">Lado {{ sug.footSides.join('/') }}</span>
-                        </div>
-                      </div>
-                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {{ sug.availableQuantity }} PÇS
+                    <span class="min-w-0">
+                      <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
+                      <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
+                      <span class="block text-[10px] text-slate-400">
+                        <span v-if="sug.color">{{ sug.color }} · </span>
+                        <span v-if="sug.sizeGrades?.length">Grade {{ sug.sizeGrades.join(', ') }} · </span>
+                        <span v-if="sug.footSides?.length">Lado {{ sug.footSides.join('/') }}</span>
                       </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="hasPrimaryItemIdentity">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / Linha</label>
-                  <input
-                    v-model="formItem.modelName"
-                    type="text"
-                    placeholder="Ex: RACER SPEEDZONE"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+                    </span>
+                    <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                      {{ sug.availableQuantity }} {{ isRawMaterialRequest ? 'UN/M²' : 'un.' }}
+                    </span>
+                  </button>
                 </div>
               </div>
 
-              <div v-if="hasPrimaryItemIdentity" class="space-y-3">
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div class="sm:col-span-2">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">
-                    {{ formItem.type === 'CABEDAL' ? 'Descrição do cabedal' : 'Peça / Molde solicitado *' }}
-                  </label>
-                  <input
-                    v-model="formItem.description"
-                    type="text"
-                    :placeholder="formItem.type === 'CABEDAL' ? 'Ex: Cabedal externo' : 'Ex: Reforço traseiro, gáspea cortada...'"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">
-                    {{ formItem.type === 'CABEDAL' ? 'Cor / Combinação *' : 'Material / Cor *' }}
-                  </label>
-                  <input
-                    v-model="formItem.color"
-                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9/\-]/g, '').toUpperCase()"
-                    type="text"
-                    placeholder="Ex: PRETO/BRANCO"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
-                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
-                    <option value="">Selecione a grade</option>
-                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
-                  </select>
-                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
-                </div>
+              <div v-if="!isRawMaterialRequest">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / linha *</label>
+                <input
+                  v-model="formItem.modelName"
+                  type="text"
+                  placeholder="Ex: RACER SPEEDZONE"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                />
               </div>
 
-              <div v-if="formItem.type === 'CABEDAL'" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="sm:col-span-2">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado (E / D / PAR) *</label>
-                  <div class="flex gap-1">
-                    <button
-                      v-for="side in apoioSideOptions"
-                      :key="side"
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === side ? null : side"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
-                      :class="formItem.footSide === side
-                        ? side === 'E' ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                          : side === 'D' ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                            : 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >{{ side === 'E' ? 'Pé esquerdo' : side === 'D' ? 'Pé direito' : 'Par' }}</button>
-                  </div>
-                </div>
-              </div>
-              </div>
-            </div>
-
-            <!-- CAMPOS PARA PRÉ-FABRICADO (SOLAS) -->
-            <div v-else-if="currentSector === 'PRE_FABRICADO'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Sola *</label>
-                  <select
-                    v-model="formItem.type"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                  >
-                    <option value="EVA">EVA</option>
-                    <option value="BORRACHA">Borracha</option>
-                    <option value="TPU">TPU</option>
-                    <option value="PU">PU</option>
-                  </select>
-                </div>
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Código / SKU do solado *</label>
-                  <input
-                    v-model="formItem.sku"
-                    @input="onSkuInput"
-                    type="text"
-                    placeholder="Ex: SOLA-PEGASUS, PEG-40..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-
-                  <div
-                    v-if="showSuggestions && suggestions.length > 0"
-                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
-                  >
-                    <button
-                      v-for="sug in suggestions"
-                      :key="sug.sku"
-                      type="button"
-                      @click="selectSuggestion(sug)"
-                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
-                    >
-                      <div>
-                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
-                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
-                      </div>
-                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {{ sug.availableQuantity }} un.
-                      </span>
-                    </button>
-                  </div>
-                </div>
+              <div v-if="isRawMaterialRequest || isApoioCutPiece">
+                <label class="block font-bold text-slate-600 uppercase mb-1">{{ isRawMaterialRequest ? 'Descrição / tipo do material *' : 'Peça / molde solicitado *' }}</label>
+                <input
+                  v-model="formItem.description"
+                  type="text"
+                  :placeholder="isRawMaterialRequest ? 'Ex: couro bovino preto, sintético...' : 'Ex: reforço traseiro, gáspea cortada...'"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                />
               </div>
 
-              <div v-if="hasPrimaryItemIdentity" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / Linha *</label>
-                  <input v-model="formItem.modelName" type="text" placeholder="Ex: RACER SPEEDZONE" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
-                </div>
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
-                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
-                    <option value="">Selecione a grade</option>
-                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
-                  </select>
-                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
-                  <div class="flex gap-1">
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
-                      :class="formItem.footSide === 'E'
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Esq.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
-                      :class="formItem.footSide === 'D'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Dir.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10.5px]"
-                      :class="formItem.footSide === 'PAR'
-                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Par
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-              </div>
-            </div>
-
-            <!-- CAMPOS PARA DISTRIBUIÇÃO (CABEDAIS & SOLAS PROCESSADAS) -->
-            <div v-else-if="currentSector === 'DISTRIBUICAO' || currentSector === 'EXPEDICAO'" class="space-y-3">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Tipo de Insumo *</label>
-                  <select
-                    v-model="formItem.type"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                  >
-                    <option value="CABEDAL">Cabedal</option>
-                    <option value="SOLA_PROCESSADA">Sola Processada</option>
-                  </select>
-                </div>
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
-                  <input
-                    v-model="formItem.sku"
-                    @input="onSkuInput"
-                    type="text"
-                    placeholder="Ex: CAB-PEG-01..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-
-                  <div
-                    v-if="showSuggestions && suggestions.length > 0"
-                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
-                  >
-                    <button
-                      v-for="sug in suggestions"
-                      :key="sug.sku"
-                      type="button"
-                      @click="selectSuggestion(sug)"
-                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
-                    >
-                      <div>
-                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
-                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
-                      </div>
-                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {{ sug.availableQuantity }} un.
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div v-if="hasPrimaryItemIdentity">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
-                  <input
-                    v-model="formItem.modelName"
-                    type="text"
-                    placeholder="Ex: RACER SPEEDZONE"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
+              <div v-if="!isRawMaterialRequest && currentSector !== 'PRE_FABRICADO'">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Material / cor *</label>
+                <input
+                  v-model="formItem.color"
+                  @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
+                  type="text"
+                  placeholder="Ex: PRETO/BRANCO"
+                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                />
               </div>
 
-              <div v-if="hasPrimaryItemIdentity" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
-                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
-                    <option value="">Selecione a grade</option>
-                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
-                  </select>
-                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Cor / Combinação *</label>
-                  <input
-                    v-model="formItem.color"
-                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
-                    type="text"
-                    placeholder="Ex: BRANCO/GOMA"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
-                  <div class="flex gap-1">
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'E'
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Esq.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'D'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Dir.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'PAR'
-                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Par
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            <!-- CAMPOS PARA MONTAGEM (PÉS PRONTOS / CALÇADOS MONTADOS) -->
-            <div v-else-if="currentSector === 'MONTAGEM'" class="space-y-3">
-              <div class="grid grid-cols-1 gap-3">
-                <div class="relative">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">COD. PRODUTO / SKU *</label>
-                  <input
-                    v-model="formItem.sku"
-                    @input="onSkuInput"
-                    type="text"
-                    placeholder="Ex: NKE-PEG-38-BLK..."
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-
-                  <div
-                    v-if="showSuggestions && suggestions.length > 0"
-                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
-                  >
-                    <button
-                      v-for="sug in suggestions"
-                      :key="sug.sku"
-                      type="button"
-                      @click="selectSuggestion(sug)"
-                      class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
-                    >
-                      <div>
-                        <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                        <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
-                        <div v-if="sug.sizeGrades.length > 0" class="text-[10px] text-slate-400">Grades: {{ sug.sizeGrades.join(', ') }}</div>
-                      </div>
-                      <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        {{ sug.availableQuantity }} un.
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
+              <div v-if="!isRawMaterialRequest">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Grade / tamanho *</label>
+                <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
+                  <option value="">Selecione a grade</option>
+                  <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
+                </select>
+                <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
               </div>
 
-              <div v-if="hasPrimaryItemIdentity" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div class="lg:col-span-2">
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Nome do Modelo / Linha *</label>
-                  <input
-                    v-model="formItem.modelName"
-                    type="text"
-                    placeholder="Ex: RACER SPEEDZONE"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
+              <div v-if="!isRawMaterialRequest && showFootSide">
+                <label class="block font-bold text-slate-600 uppercase mb-1">Lado (E / D / PAR) *</label>
+                <div class="flex gap-1">
+                  <button
+                    v-for="side in apoioSideOptions"
+                    :key="side"
+                    type="button"
+                    @click="formItem.footSide = formItem.footSide === side ? null : side"
+                    class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
+                    :class="formItem.footSide === side
+                      ? side === 'E' ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                        : 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                  >{{ side === 'E' ? 'Pé esquerdo' : side === 'D' ? 'Pé direito' : 'Par' }}</button>
                 </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Combinação / Cor *</label>
-                  <input
-                    v-model="formItem.color"
-                    @input="formItem.color = formItem.color.replace(/\s+/g, '').replace(/[^A-Za-z0-9\/\-]/g, '').toUpperCase()"
-                    type="text"
-                    placeholder="Ex: BRANCO/PRETO"
-                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Grade / Tamanho *</label>
-                  <select v-if="availableGrades.length" v-model="formItem.sizeGrade" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white">
-                    <option value="">Selecione a grade</option>
-                    <option v-for="grade in availableGrades" :key="grade" :value="grade">{{ grade }}</option>
-                  </select>
-                  <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
-                </div>
-
-                <div>
-                  <label class="block font-bold text-slate-600 uppercase mb-1">Lado / Tipo *</label>
-                  <div class="flex gap-1">
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'E' ? null : 'E'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'E'
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Esq.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'D' ? null : 'D'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'D'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Pé Dir.
-                    </button>
-                    <button
-                      type="button"
-                      @click="formItem.footSide = formItem.footSide === 'PAR' ? null : 'PAR'"
-                      class="flex-1 py-2 rounded-xl font-bold border transition-all text-center text-[10px]"
-                      :class="formItem.footSide === 'PAR'
-                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    >
-                      Par
-                    </button>
-                  </div>
-                </div>
-
               </div>
             </div>
 

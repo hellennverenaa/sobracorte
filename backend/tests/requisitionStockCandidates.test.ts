@@ -197,6 +197,87 @@ test('APOIO não usa correspondência parcial nem outro campo de identificador q
   assert.deepEqual(candidates, []);
 });
 
+test('matéria-prima do Corte consulta somente o estoque local e não cruza por código', async () => {
+  const rawMaterial = stockItem({
+    id: 451,
+    sector: 'CORTE',
+    componentType: null,
+    code: 'RAW-451',
+    sku: null,
+    pieceCode: null,
+    productName: null,
+    name: 'COURO PRETO',
+    description: 'COURO PRETO',
+    type: 'MATERIA_PRIMA',
+    color: null,
+    materialColor: null,
+    sizeGrade: null,
+    footSide: null,
+    unit: 'M²',
+    quantity: 12,
+    locations: [{ quantity: 12, location: { name: 'CORTE-01' } }],
+  });
+  const sameTextAsFinishedSku = stockItem({
+    id: 452,
+    sector: 'MONTAGEM',
+    componentType: null,
+    code: null,
+    sku: 'RAW-451',
+    type: 'PE_PRONTO',
+  });
+  const request = {
+    requestSector: 'CORTE' as const,
+    sku: 'RAW-451',
+    description: 'COURO PRETO',
+    requestUnit: 'M²',
+  };
+  const tx = transactionFor([rawMaterial, sameTextAsFinishedSku]);
+  const candidates = await findRequisitionStockCandidates(tx, 7, request);
+  const unverified = await findUnverifiedRequisitionStockMatches(tx, 7, request);
+
+  assert.deepEqual(candidates.map(candidate => [candidate.sourceSector, candidate.sourceStockItemIds]), [['CORTE', [451]]]);
+  assert.deepEqual(candidates[0].locations, ['CORTE-01 (12)']);
+  assert.deepEqual(unverified, []);
+});
+
+test('busca de produto ou componente não sugere matéria-prima do Corte por SKU/modelo', async () => {
+  const rawMaterial = stockItem({
+    id: 453,
+    sector: 'CORTE',
+    componentType: null,
+    code: null,
+    sku: 'SHOE-99',
+    type: 'MATERIA_PRIMA',
+    productName: 'RACER SPEEDZONE',
+    color: 'BLACK',
+    sizeGrade: '40',
+    footSide: 'E',
+  });
+  const tx = transactionFor([rawMaterial]);
+  const candidates = await findRequisitionStockCandidates(tx, 7, mountingRequest());
+  const unverified = await findUnverifiedRequisitionStockMatches(tx, 7, mountingRequest());
+
+  assert.deepEqual(candidates, []);
+  assert.deepEqual(unverified, []);
+});
+
+test('entre candidatos compatíveis, estoque de etapas mais prontas aparece primeiro', async () => {
+  const montage = stockItem({ id: 461, sector: 'MONTAGEM', componentType: null, sku: 'COMP-461', type: 'EVA' });
+  const apoio = stockItem({ id: 462, sector: 'APOIO', componentType: null, sku: 'COMP-461', type: 'EVA' });
+  const candidates = await findRequisitionStockCandidates(transactionFor([apoio, montage]), 7, {
+    requestSector: 'PRE_FABRICADO',
+    sku: 'COMP-461',
+    modelName: 'RACER SPEEDZONE',
+    description: 'EVA - RACER SPEEDZONE',
+    type: 'EVA',
+    sizeGrade: '40',
+    footSide: 'E',
+    requestUnit: 'UN',
+  });
+
+  assert.deepEqual(candidates.map(candidate => candidate.sourceSector), ['MONTAGEM', 'APOIO']);
+});
+
 test('autocomplete APOIO consulta somente o identificador exato do componente e não agrega variantes', async t => {
   const originalFindMany = (prisma.stockItem as any).findMany;
   const queries: any[] = [];

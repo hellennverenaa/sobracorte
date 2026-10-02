@@ -29,21 +29,17 @@ O papel `leitor` sem setor é uma exceção prevista e deve continuar podendo co
 - Testes unitários de autenticação: passaram.
 - Verificação TypeScript do backend (`tsc --noEmit`): passou.
 
-## 2. P2 — Compatibilidade de Cabedal nas requisições de Peças Cortadas — PENDENTE
+## 2. P2 — Compatibilidade de Cabedal nas requisições de Peças Cortadas — VALIDADO
 
-### O que falta validar
+### Ajustes e validação executada
 
-O estoque interno APOIO pode guardar peças cortadas e cabedais, mas a busca de requisição precisa usar a identidade adequada ao tipo de material. Peça cortada usa código da peça (`pieceCode`); cabedal pode ser identificado por SKU. Uma busca que use apenas o código de peça pode ocultar cabedais ou sugerir registros incorretos.
-
-Validar e alinhar o formulário e a busca do backend para distinguir tipo/componente, SKU ou código da peça, modelo, material/cor, grade e lado (`E`, `D` ou `PAR`). A busca precisa permanecer restrita aos identificadores e variantes informados, sem sugerir outros materiais apenas porque compartilham parte do texto.
-
-### Critérios de validação
-
-- Cabedal em APOIO encontrado pelo SKU e variantes compatíveis.
-- Peça cortada encontrada pelo código da peça e variantes compatíveis.
-- Tipo, modelo, cor/material, grade e lado incompatíveis não aparecem como substituições.
-- Saldo e localização são exibidos para cada candidato sem somar itens diferentes.
-- Testes cobrem busca exata, variantes incompletas e ausência de correspondência.
+- O formulário tem um modo próprio para matéria-prima do Corte e um formulário compartilhado para reutilização de produtos/componentes nos demais setores.
+- Matéria-prima usa o código interno do material e consulta somente o estoque do Corte. Ela não aparece como substituta de SKU/modelo de produto acabado.
+- Em APOIO, peça cortada consulta `pieceCode` e cabedal consulta SKU. O formulário coleta modelo e variantes relevantes; lado não é exigido para peça cortada porque o cadastro desse componente não guarda lado.
+- A busca automática rejeita tipo, modelo, cor/material, grade, lado e unidade incompatíveis. Variantes ausentes geram candidatos separados e não somam saldo entre itens; cada candidato informa seu próprio saldo e localização.
+- Entre candidatos compatíveis, a lista prioriza itens de etapas de produção mais prontas.
+- Os testes focados de busca de requisição passaram: 15 aprovados, 0 falharam. Cobrem busca exata, variantes incompatíveis e incompletas, falta de correspondência, isolamento da matéria-prima do Corte e prioridade de candidatos.
+- Build de produção do frontend e verificação TypeScript (`tsc --noEmit`) do backend passaram. `git diff --check` passou.
 
 ## 3. P3 — Automatizar a validação do nome “Peças Cortadas” — VALIDADO
 
