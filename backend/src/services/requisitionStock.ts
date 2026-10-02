@@ -27,6 +27,8 @@ export type RequisitionStockCandidate = {
   items: Array<Record<string, unknown>>;
   stockRows: any[];
   reason: string;
+  requiresConfirmation: boolean;
+  confirmationDetails: string[];
   rank: number;
 };
 
@@ -34,6 +36,7 @@ export type UnverifiedRequisitionStockMatch = {
   id: number;
   sourceSector: SectorType;
   hasProductLink: boolean;
+  matchReasons: string[];
   code?: string | null;
   pieceCode?: string | null;
   sku?: string | null;
@@ -138,6 +141,101 @@ function candidateRank(requestSector: string, sourceSector: string) {
   return 50;
 }
 
+type AutomaticMatchMode = 'code' | 'model';
+
+function automaticMatchCheck(
+  item: Record<string, any>,
+  req: RequestIdentity,
+  requestUnit: string,
+  mode: AutomaticMatchMode,
+) {
+  const requestSector = normalizeStockSector(req.requestSector);
+  const sourceSector = normalizeStockSector(item.sector);
+  const sourceType = normalizeStockText(sourceSector === 'APOIO' ? item.componentType || item.type : item.type);
+  const expectedType = normalizeStockText(inferredType(req, requestSector));
+  const montageCabedal = requestSector === 'MONTAGEM' && sourceSector === 'DISTRIBUICAO';
+  const confirmationDetails: string[] = [];
+
+  if (!['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(sourceSector)) {
+    return { eligible: false, confirmationDetails };
+  }
+  if (sourceSector === requestSector) return { eligible: false, confirmationDetails };
+  if (mode === 'code' && ['CORTE', 'APOIO'].includes(sourceSector)
+    && normalizeStockText(item.sku) !== normalizeStockText(req.sku)) {
+    return { eligible: false, confirmationDetails };
+  }
+  // Corte tracks raw material, not the finished product model. It can only be
+  // linked automatically through a genuinely shared SKU; model-only matches need
+  // an explicit product relationship.
+  if (mode === 'model' && sourceSector === 'CORTE') {
+    return { eligible: false, confirmationDetails };
+  }
+  if (mode === 'model') {
+    if (montageCabedal) {
+      if (sourceType !== 'CABEDAL') return { eligible: false, confirmationDetails };
+    } else if (requestSector === 'MONTAGEM' && sourceSector === 'APOIO') {
+      if (!['PECA_CORTADA', 'CABEDAL'].includes(sourceType)) return { eligible: false, confirmationDetails };
+    } else if (!expectedType || !sourceType || sourceType !== expectedType) {
+      return { eligible: false, confirmationDetails };
+    }
+  } else if (montageCabedal && sourceType !== 'CABEDAL') {
+    return { eligible: false, confirmationDetails };
+  }
+
+  const targetUnit = normalizeUnit(requestUnit, requestSector);
+  const sourceUnit = normalizeUnit(item.unit, sourceSector);
+  if (req.footSide === 'PAR') {
+    // A pair is made from one discrete left item and one discrete right item;
+    // no unit conversion or un-sided stock is inferred.
+    if (sourceUnit !== 'UN' || !['E', 'D'].includes(item.footSide)) {
+      return { eligible: false, confirmationDetails };
+    }
+  } else if (sourceUnit !== targetUnit || item.footSide === 'PAR') {
+    return { eligible: false, confirmationDetails };
+  }
+
+  const compareVariant = (
+    requested: unknown,
+    supplied: unknown,
+    label: string,
+    normalize: (value: unknown) => string = normalizeStockText,
+  ) => {
+    const target = normalize(requested);
+    const source = normalize(supplied);
+    if (!target) return true;
+    if (!source) {
+      confirmationDetails.push(`${label} não está cadastrado no estoque fornecedor`);
+      return true;
+    }
+    return target === source;
+  };
+
+  if (req.modelName && item.productName && normalizeStockText(req.modelName) !== normalizeStockText(item.productName)) {
+    return { eligible: false, confirmationDetails };
+  }
+  if (req.modelName && !item.productName) confirmationDetails.push('modelo/linha não está cadastrado no estoque fornecedor');
+
+  const sourceColor = item.color || item.materialColor;
+  if (!compareVariant(req.color, sourceColor, 'cor', normalizeStockColor)) {
+    return { eligible: false, confirmationDetails };
+  }
+  if (!compareVariant(req.sizeGrade, item.sizeGrade, 'grade/tamanho')) {
+    return { eligible: false, confirmationDetails };
+  }
+
+  const requestedSide = req.footSide;
+  if (requestedSide === 'E' || requestedSide === 'D') {
+    if (item.footSide && item.footSide !== requestedSide) return { eligible: false, confirmationDetails };
+    if (!item.footSide) confirmationDetails.push('lado do pé não está cadastrado no estoque fornecedor');
+  }
+  if (expectedType && sourceType && sourceType !== expectedType && !montageCabedal) {
+    return { eligible: false, confirmationDetails };
+  }
+  if (expectedType && !sourceType) confirmationDetails.push('tipo/componente não está cadastrado no estoque fornecedor');
+
+  return { eligible: true, confirmationDetails: [...new Set(confirmationDetails)] };
+}
+
 function makeCandidate(
   items: any[],
   requestSector: string,
@@ -145,6 +243,8 @@ function makeCandidate(
   sourceQuantityPerRequestUnit: number,
   reason: string,
   compatibilityIds: number[] = [],
+  requiresConfirmation = false,
+  confirmationDetails: string[] = [],
 ) : RequisitionStockCandidate | null {
   if (!items.length || !Number.isFinite(sourceQuantityPerRequestUnit) || sourceQuantityPerRequestUnit <= 0) return null;
   const availableInRequestUnits = items.map(item => Number(item.quantity || 0) / sourceQuantityPerRequestUnit);
@@ -186,6 +286,8 @@ function makeCandidate(
       quantity: Number(item.quantity || 0),
     })),
     reason,
+    requiresConfirmation,
+    confirmationDetails,
     rank: candidateRank(requestSector, sourceSector),
   };
 }
@@ -209,7 +311,8 @@ function pairItems(items: any[]) {
 
 /**
  * Busca alternativas de origem sem agregar saldos de produtos ou setores diferentes.
- * Itens de Corte e Peças Cortadas só entram por vínculos explícitos de produto/BOM.
+ * Peças Cortadas também podem ser sugeridas por modelo/variantes; matéria-prima de Corte
+ * sem SKU compartilhado continua exigindo regra explícita de compatibilidade.
  */
 export async function findRequisitionStockCandidates(
   tx: StockTransactionClient,
@@ -254,11 +357,91 @@ export async function findRequisitionStockCandidates(
     });
     if (req.footSide === 'PAR') {
       for (const pair of pairItems(linked)) {
-        add(makeCandidate(pair, requestSector, 'PAR', 1, 'SKU, modelo, cor, grade e lados compatíveis; cabedal disponível em Distribuição.'));
+        add(makeCandidate(pair, requestSector, 'PAR', 1, 'SKU, modelo, cor, grade e lados compatíveis; cabedal disponível em Distribuição.', [], true));
       }
     } else {
       for (const item of linked) {
-        add(makeCandidate([item], requestSector, requestUnit, 1, 'SKU, modelo, cor, grade e lado compatíveis; cabedal disponível em Distribuição.'));
+        add(makeCandidate([item], requestSector, requestUnit, 1, 'SKU, modelo, cor, grade e lado compatíveis; cabedal disponível em Distribuição.', [], true));
+      }
+    }
+  }
+
+  // Código compartilhado: permite sugerir o registro do setor fornecedor se a
+  // unidade, o produto e as variantes preenchidas não entrarem em conflito.
+  // O usuário ainda precisa confirmar que o material realmente atende ao pedido.
+  const codeIdentity = normalizeStockText(req.sku);
+  const codeRows = codeIdentity
+    ? await tx.stockItem.findMany({
+      where: {
+        factoryUnitId,
+        quantity: { gt: 0 },
+        OR: (['sku', 'code', 'pieceCode'] as const).map((field): Prisma.StockItemWhereInput => ({
+          [field]: { equals: codeIdentity, mode: 'insensitive' as const },
+        })),
+      },
+      include: { locations: { include: { location: true } } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: 500,
+    })
+    : [];
+  const crossSectorCodeRows = codeRows.filter(item => normalizeStockSector(item.sector) !== requestSector);
+  const eligibleCodeMatches = crossSectorCodeRows
+    .map(item => ({ item, match: automaticMatchCheck(item, req, requestUnit, 'code') }))
+    .filter(entry => entry.match.eligible);
+  const sectorsWithCompatibleExactCode = new Set(eligibleCodeMatches.map(({ item }) => normalizeStockSector(item.sector)));
+  const exactCodeReason = 'Código correspondente; confira o componente e as variantes antes de confirmar.';
+
+  if (req.footSide === 'PAR') {
+    for (const sourceSector of new Set(eligibleCodeMatches.map(({ item }) => normalizeStockSector(item.sector)))) {
+      const sectorItems = eligibleCodeMatches
+        .filter(({ item }) => normalizeStockSector(item.sector) === sourceSector)
+        .map(({ item }) => item);
+      for (const pair of pairItems(sectorItems)) {
+        const details = [...new Set(pair.flatMap(item => automaticMatchCheck(item, req, requestUnit, 'code').confirmationDetails))];
+        add(makeCandidate(pair, requestSector, requestUnit, 1, exactCodeReason, [], true, details));
+      }
+    }
+  } else {
+    for (const { item, match } of eligibleCodeMatches) {
+      add(makeCandidate([item], requestSector, requestUnit, 1, exactCodeReason, [], true, match.confirmationDetails));
+    }
+  }
+
+  // Model fallback uses an exact model/line and rejects conflicts in any
+  // requested variant. Component type must also match, except for Montagem,
+  // where Cabedal and Peças Cortadas are shown as explicit suggestions for the
+  // requester to confirm. Raw materials in Corte still require a shared SKU or
+  // an explicit compatibility rule.
+  const modelIdentity = normalizeStockText(req.modelName);
+  if (modelIdentity) {
+    const modelRows = await tx.stockItem.findMany({
+      where: {
+        factoryUnitId,
+        quantity: { gt: 0 },
+        productName: { equals: modelIdentity, mode: 'insensitive' },
+      },
+      include: { locations: { include: { location: true } } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: 500,
+    });
+    const eligible = modelRows.filter(item => {
+      const sourceSector = normalizeStockSector(item.sector);
+      if (sourceSector === requestSector || sectorsWithCompatibleExactCode.has(sourceSector)) return false;
+      return automaticMatchCheck(item, req, requestUnit, 'model').eligible;
+    });
+    const modelReason = 'Modelo/linha e variantes preenchidas coincidem; confirme que este material atende ao produto solicitado.';
+    if (req.footSide === 'PAR') {
+      for (const sourceSector of new Set(eligible.map(item => normalizeStockSector(item.sector)))) {
+        const sectorItems = eligible.filter(item => normalizeStockSector(item.sector) === sourceSector);
+        for (const pair of pairItems(sectorItems)) {
+          const details = [...new Set(pair.flatMap(item => automaticMatchCheck(item, req, requestUnit, 'model').confirmationDetails))];
+          add(makeCandidate(pair, requestSector, requestUnit, 1, modelReason, [], true, details));
+        }
+      }
+    } else {
+      for (const item of eligible) {
+        const match = automaticMatchCheck(item, req, requestUnit, 'model');
+        add(makeCandidate([item], requestSector, requestUnit, 1, modelReason, [], true, match.confirmationDetails));
       }
     }
   }
@@ -328,19 +511,34 @@ export async function findUnverifiedRequisitionStockMatches(
   alreadyOfferedStockItemIds: number[] = [],
 ): Promise<UnverifiedRequisitionStockMatch[]> {
   const requestSector = normalizeStockSector(req.requestSector);
-  const identifiers = new Set<string>();
-  if (req.sku) identifiers.add(normalizeStockText(req.sku));
-  if (req.modelName) identifiers.add(normalizeStockText(req.modelName));
-  if ((requestSector === 'CORTE' || requestSector === 'APOIO') && req.description) {
-    identifiers.add(normalizeStockText(req.description));
-  }
-  const values = [...identifiers].filter(Boolean);
-  if (!values.length) return [];
+  type StockIdentityField = 'sku' | 'code' | 'pieceCode' | 'productName' | 'name' | 'description';
+  const fieldLabels: Record<StockIdentityField, string> = {
+    sku: 'SKU',
+    code: 'código do material',
+    pieceCode: 'código da peça',
+    productName: 'modelo/linha',
+    name: 'nome do material',
+    description: 'descrição da peça',
+  };
+  const comparisons: Array<{ field: StockIdentityField; requestField: string; value: string }> = [];
+  const addComparisons = (value: string | null | undefined, requestField: string, fields: StockIdentityField[]) => {
+    const normalizedValue = normalizeStockText(value);
+    if (!normalizedValue) return;
+    for (const field of fields) comparisons.push({ field, requestField, value: normalizedValue });
+  };
 
-  const fields = ['sku', 'code', 'pieceCode', 'productName', 'name', 'description'];
-  const OR: Prisma.StockItemWhereInput[] = values.flatMap(value => fields.map(field => ({
+  // Compare like-for-like identifiers. A requested SKU must not match a free-form
+  // material name or description that happens to contain the same text.
+  addComparisons(req.sku, 'SKU informado', ['sku', 'code', 'pieceCode']);
+  addComparisons(req.modelName, 'modelo/linha informado', ['productName']);
+  if (!req.sku && !req.modelName && (requestSector === 'CORTE' || requestSector === 'APOIO')) {
+    addComparisons(req.description, 'descrição informada', ['description', 'name']);
+  }
+  if (!comparisons.length) return [];
+
+  const OR: Prisma.StockItemWhereInput[] = comparisons.map(({ field, value }) => ({
     [field]: { equals: value, mode: 'insensitive' },
-  })));
+  }));
   const rows = await tx.stockItem.findMany({
     where: { factoryUnitId, quantity: { gt: 0 }, OR },
     include: { locations: { include: { location: true } } },
@@ -362,26 +560,32 @@ export async function findUnverifiedRequisitionStockMatches(
   const linkedItemIds = new Set(productLinks.map(link => link.sourceStockItemId));
   return crossSectorRows
     .slice(0, 10)
-    .map(item => ({
-      id: item.id,
-      sourceSector: normalizeStockSector(item.sector) as SectorType,
-      hasProductLink: linkedItemIds.has(item.id),
-      code: item.code,
-      pieceCode: item.pieceCode,
-      sku: item.sku,
-      modelName: item.productName,
-      description: item.description || item.name,
-      type: item.type,
-      componentType: item.componentType,
-      color: item.color || item.materialColor,
-      sizeGrade: item.sizeGrade,
-      footSide: item.footSide,
-      unit: item.unit || 'UN',
-      quantity: Number(item.quantity || 0),
-      locations: [...new Set(item.locations
-        .filter(link => Number(link.quantity) > 0)
-        .map(link => `${link.location.name} (${link.quantity})`))],
-    }));
+    .map(item => {
+      const matchReasons = [...new Set(comparisons
+        .filter(({ field, value }) => normalizeStockText(item[field]) === value)
+        .map(({ field, requestField, value }) => `${requestField} “${value}” → ${fieldLabels[field]}`))];
+      return {
+        id: item.id,
+        sourceSector: normalizeStockSector(item.sector) as SectorType,
+        hasProductLink: linkedItemIds.has(item.id),
+        matchReasons,
+        code: item.code,
+        pieceCode: item.pieceCode,
+        sku: item.sku,
+        modelName: item.productName,
+        description: item.description || item.name,
+        type: item.type,
+        componentType: item.componentType,
+        color: item.color || item.materialColor,
+        sizeGrade: item.sizeGrade,
+        footSide: item.footSide,
+        unit: item.unit || 'UN',
+        quantity: Number(item.quantity || 0),
+        locations: [...new Set(item.locations
+          .filter(link => Number(link.quantity) > 0)
+          .map(link => `${link.location.name} (${link.quantity})`))],
+      };
+    });
 }
 
 /** Reconstitui a origem gravada na requisição, mesmo se o vínculo de produto for removido depois. */
@@ -404,7 +608,6 @@ export async function findPersistedRequisitionSource(
   const compatibilityIds = Array.isArray(req.sourceCompatibilityIds)
     ? req.sourceCompatibilityIds.map(Number).filter((id: number) => Number.isSafeInteger(id) && id > 0)
     : [];
-  if (sourceSector !== normalizeStockSector(req.requestSector) && !compatibilityIds.length) return null;
   return makeCandidate(
     items,
     normalizeStockSector(req.requestSector),

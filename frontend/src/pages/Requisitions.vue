@@ -63,6 +63,8 @@ interface RequisitionStockCandidate {
   locations: string[];
   items: Array<Record<string, any>>;
   reason: string;
+  requiresConfirmation: boolean;
+  confirmationDetails: string[];
   rank: number;
 }
 
@@ -70,6 +72,7 @@ interface UnverifiedRequisitionStockMatch {
   id: number;
   sourceSector: string;
   hasProductLink: boolean;
+  matchReasons: string[];
   code?: string | null;
   pieceCode?: string | null;
   sku?: string | null;
@@ -98,6 +101,7 @@ interface SkuSuggestion {
 interface StagedRequisitionItem {
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
   sourceCandidateId: string;
+  confirmSourceSuggestion: boolean;
   sourceSector: string;
   sourceMatchReason: string;
   sku?: string;
@@ -214,6 +218,7 @@ const availabilityResult = ref<{
   candidates: RequisitionStockCandidate[];
   unverifiedStockMatches: UnverifiedRequisitionStockMatch[];
   selectedCandidateId: string | null;
+  confirmedSourceCandidateId?: string | null;
   pairsDetail?: { esq: number; dir: number };
 }>({
   status: 'idle',
@@ -222,6 +227,7 @@ const availabilityResult = ref<{
   candidates: [],
   unverifiedStockMatches: [],
   selectedCandidateId: null,
+  confirmedSourceCandidateId: null,
 });
 
 const selectedSourceCandidate = computed(() => availabilityResult.value.candidates
@@ -383,6 +389,8 @@ const currentAvailabilityMatches = computed(() =>
   availabilityResult.value.status === 'available'
   && availabilityResult.value.identityKey === availabilityIdentityKey(buildAvailabilityRequest())
   && Boolean(selectedSourceCandidate.value)
+  && (!selectedSourceCandidate.value!.requiresConfirmation
+    || availabilityResult.value.confirmedSourceCandidateId === selectedSourceCandidate.value!.id)
   && selectedSourceCandidate.value!.quantity > 0,
 );
 
@@ -489,16 +497,41 @@ function selectSourceCandidate(candidate: RequisitionStockCandidate) {
   availabilityResult.value = {
     ...availabilityResult.value,
     selectedCandidateId: candidate.id,
+    confirmedSourceCandidateId: null,
     quantity: candidate.quantity,
     locations: [...candidate.locations],
   };
   formItem.value.unit = candidate.unit;
 }
 
+function setSourceSuggestionConfirmation(candidate: RequisitionStockCandidate, event: Event) {
+  if (availabilityResult.value.selectedCandidateId !== candidate.id) return;
+  const checked = (event.target as HTMLInputElement).checked;
+  availabilityResult.value = {
+    ...availabilityResult.value,
+    confirmedSourceCandidateId: checked ? candidate.id : null,
+  };
+}
+
 function sourceCandidateItemLabel(candidate: RequisitionStockCandidate) {
   const item = candidate.items[0] || {};
   const label = item.code || item.pieceCode || item.sku || item.modelName || item.description || `Item #${item.id}`;
-  return `${label}${item.type || item.componentType ? ` · ${item.type || item.componentType}` : ''}`;
+  const itemType = candidate.sourceSector === 'APOIO' ? formatSourceComponent(item) : item.type || formatSourceComponent(item);
+  const details = [itemType, item.modelName && item.modelName !== label ? `Modelo ${item.modelName}` : '']
+    .filter(Boolean).join(' · ');
+  return `${label}${details ? ` · ${details}` : ''}`;
+}
+
+function formatSourceComponent(item: Record<string, any>) {
+  const labels: Record<string, string> = {
+    MATERIA_PRIMA: 'Matéria-prima',
+    PECA_CORTADA: 'Peça cortada',
+    SOLADO: 'Solado',
+    CABEDAL: 'Cabedal',
+    PE_PRONTO: 'Pé pronto',
+  };
+  const value = item.componentType || item.type || '';
+  return labels[value] || String(value).replaceAll('_', ' ');
 }
 
 function sourceItemSummary(items?: Array<Record<string, any>>) {
@@ -595,6 +628,8 @@ function addCurrentItem() {
   stagedItems.value.push({
     requestSector: currentSector.value,
     sourceCandidateId: selectedSourceCandidate.value!.id,
+    confirmSourceSuggestion: selectedSourceCandidate.value!.requiresConfirmation
+      && availabilityResult.value.confirmedSourceCandidateId === selectedSourceCandidate.value!.id,
     sourceSector: selectedSourceCandidate.value!.sourceSector,
     sourceMatchReason: selectedSourceCandidate.value!.reason,
     sku: formItem.value.sku.trim().toUpperCase() || undefined,
@@ -669,6 +704,7 @@ async function submitRequisition() {
       items: stagedItems.value.map((item) => ({
         requestSector: item.requestSector,
         sourceCandidateId: item.sourceCandidateId,
+        confirmSourceSuggestion: item.confirmSourceSuggestion,
         sku: item.sku,
         modelName: item.modelName,
         description: item.description,
@@ -1726,7 +1762,7 @@ onMounted(() => {
                 <ShieldAlert class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <p class="font-black tracking-tight text-xs uppercase">Nenhuma origem compatível com saldo positivo</p>
-                  <p class="text-[11px] text-rose-700 mt-0.5">Confirme as variantes e o saldo do fornecedor. Para aproveitar sobras de Corte ou Peças Cortadas, também é necessário um vínculo explícito de produto/BOM em Configurações.</p>
+                  <p class="text-[11px] text-rose-700 mt-0.5">Confirme as variantes e o saldo no fornecedor. Para usar matéria-prima de Corte sem SKU compartilhado, é necessária uma regra especial em Configurações.</p>
                 </div>
               </div>
 
@@ -1734,40 +1770,60 @@ onMounted(() => {
                 v-else-if="availabilityResult.status === 'available'"
                 class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5"
               >
-                <p class="font-black text-xs uppercase text-slate-800">Escolha de qual setor sairá o material</p>
-                <label
+                <p class="font-black text-xs uppercase text-slate-800">Escolha a sobra que atende ao pedido</p>
+                <div
                   v-for="candidate in availabilityResult.candidates"
                   :key="candidate.id"
-                  class="flex cursor-pointer items-start gap-2.5 rounded-xl border bg-white p-3 transition"
-                  :class="availabilityResult.selectedCandidateId === candidate.id ? 'border-indigo-400 bg-indigo-50/70 ring-1 ring-indigo-300' : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/30'"
+                  class="space-y-1.5"
                 >
-                  <input
-                    type="radio"
-                    name="requisition-source-candidate"
-                    :checked="availabilityResult.selectedCandidateId === candidate.id"
-                    @change="selectSourceCandidate(candidate)"
-                    class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span class="min-w-0 flex-1">
-                    <span class="flex flex-wrap items-center justify-between gap-1">
-                      <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
-                      <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
+                  <label
+                    class="flex cursor-pointer items-start gap-2.5 rounded-xl border bg-white p-3 transition"
+                    :class="availabilityResult.selectedCandidateId === candidate.id ? 'border-indigo-400 bg-indigo-50/70 ring-1 ring-indigo-300' : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50/30'"
+                  >
+                    <input
+                      type="radio"
+                      name="requisition-source-candidate"
+                      :checked="availabilityResult.selectedCandidateId === candidate.id"
+                      @change="selectSourceCandidate(candidate)"
+                      class="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="flex flex-wrap items-center justify-between gap-1">
+                        <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
+                        <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
+                      </span>
+                      <span class="mt-1 block text-[10.5px] text-slate-600">
+                        <template v-for="(sourceItem, index) in candidate.items" :key="sourceItem.id">
+                          <span v-if="index > 0"> + </span>
+                          <span v-if="sourceItem.modelName">Modelo/linha: {{ sourceItem.modelName }}</span>
+                          <span v-if="sourceItem.description">{{ sourceItem.modelName ? ' · ' : '' }}{{ sourceItem.description }}</span>
+                          <span v-if="candidate.sourceSector === 'APOIO' && sourceItem.componentType"> · Componente: {{ formatSourceComponent(sourceItem) }}</span>
+                          <span v-if="sourceItem.color"> · Cor: {{ sourceItem.color }}</span>
+                          <span v-if="sourceItem.sizeGrade"> · Grade: {{ sourceItem.sizeGrade }}</span>
+                          <span v-if="sourceItem.footSide"> · {{ sourceItem.footSide === 'E' ? 'pé esquerdo' : sourceItem.footSide === 'D' ? 'pé direito' : 'par' }}</span>
+                        </template>
+                        <span v-if="candidate.sourceQuantityPerRequestUnit !== 1 || candidate.sourceUnits.some(unit => unit !== candidate.unit)"> · consumo {{ candidate.sourceQuantityPerRequestUnit }} {{ candidate.sourceUnits.join('/') }} por {{ candidate.unit }}</span>
+                      </span>
+                      <span class="mt-1 block text-[10.5px] font-semibold text-indigo-700">Compatibilidade: {{ candidate.reason }}</span>
+                      <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+                        <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
+                      </span>
                     </span>
-                    <span class="mt-1 block text-[10.5px] text-slate-600">
-                      <template v-for="(sourceItem, index) in candidate.items" :key="sourceItem.id">
-                        <span v-if="index > 0"> + </span>
-                        {{ sourceItem.color || sourceItem.description || sourceItem.modelName || 'Componente' }}
-                        <span v-if="sourceItem.sizeGrade"> · grade {{ sourceItem.sizeGrade }}</span>
-                        <span v-if="sourceItem.footSide"> · {{ sourceItem.footSide === 'E' ? 'pé esquerdo' : sourceItem.footSide === 'D' ? 'pé direito' : 'par' }}</span>
-                      </template>
-                      <span v-if="candidate.sourceQuantityPerRequestUnit !== 1 || candidate.sourceUnits.some(unit => unit !== candidate.unit)"> · consumo {{ candidate.sourceQuantityPerRequestUnit }} {{ candidate.sourceUnits.join('/') }} por {{ candidate.unit }}</span>
+                  </label>
+                  <label v-if="candidate.requiresConfirmation" class="ml-8 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10.5px] text-amber-950">
+                    <input
+                      type="checkbox"
+                      :checked="availabilityResult.confirmedSourceCandidateId === candidate.id"
+                      :disabled="availabilityResult.selectedCandidateId !== candidate.id"
+                      @change="setSourceSuggestionConfirmation(candidate, $event)"
+                      class="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500 disabled:opacity-50"
+                    />
+                    <span>
+                      Confirmo que este item do setor fornecedor atende ao produto pedido e que conferi o modelo, o componente e as variantes.
+                      <span v-if="candidate.confirmationDetails.length" class="mt-1 block text-amber-800">Conferir: {{ candidate.confirmationDetails.join('; ') }}.</span>
                     </span>
-                    <span class="mt-1 block text-[10.5px] font-semibold text-indigo-700">Compatibilidade: {{ candidate.reason }}</span>
-                    <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-                      <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
-                    </span>
-                  </span>
-                </label>
+                  </label>
+                </div>
                 <p v-if="selectedSourceCandidate && formItem.quantityRequested > selectedSourceCandidate.quantity" class="text-[11px] font-bold text-rose-700">
                   A quantidade solicitada excede o saldo equivalente da origem escolhida.
                 </p>
@@ -1780,9 +1836,9 @@ onMounted(() => {
                 <div class="flex items-start gap-2.5">
                   <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div class="min-w-0 flex-1">
-                    <p class="font-black tracking-tight text-xs uppercase">Encontramos estoque em outro setor</p>
+                    <p class="font-black tracking-tight text-xs uppercase">Estoque encontrado para conferência</p>
                     <p class="text-[11px] text-amber-900 mt-0.5">
-                      O identificador coincide, mas isso não confirma que o material substitui o solicitado. Um Admin Master precisa criar ou revisar o vínculo de produto/BOM em Configurações &gt; Vínculos de produto. Até a compatibilidade ser confirmada, esses itens não podem ser selecionados.
+                      Estas linhas coincidiram por código ou modelo, mas não passaram pela conferência automática de tipo, variantes ou unidade. Confira os dados. Para relações especiais entre componentes ou conversões, um Admin Master pode cadastrar uma regra em Configurações.
                     </p>
                   </div>
                 </div>
@@ -1806,8 +1862,16 @@ onMounted(() => {
                       <span v-if="match.sizeGrade">Grade: {{ match.sizeGrade }}</span>
                       <span v-if="match.footSide">{{ match.footSide === 'E' ? 'Pé esquerdo' : match.footSide === 'D' ? 'Pé direito' : 'Par' }}</span>
                     </div>
+                    <span v-if="match.modelName" class="mt-0.5 block text-amber-900">Modelo/Linha: {{ match.modelName }}</span>
+                    <span v-if="match.matchReasons.length" class="mt-0.5 block text-amber-800">Correspondência: {{ match.matchReasons.join('; ') }}</span>
                     <span class="mt-0.5 block text-amber-800">
-                      {{ match.hasProductLink ? 'Há vínculo para este setor; confira variantes e compatibilidade.' : 'Ainda não há vínculo deste item para o setor solicitante.' }}
+                      {{ match.sourceSector === 'CORTE' && !match.hasProductLink
+                        ? 'Para aproveitar matéria-prima de Corte sem SKU compartilhado, um Admin Master precisa cadastrar a relação especial em Configurações.'
+                        : match.sourceSector === 'APOIO' && !match.hasProductLink
+                          ? 'Peças Cortadas são sugeridas por modelo e variantes. Este item não passou nessa conferência; uma relação fora desse padrão pode ser cadastrada como regra especial.'
+                        : match.hasProductLink
+                          ? 'Há uma regra cadastrada, mas ela não correspondeu a todos os dados desta solicitação.'
+                          : 'Não foi sugerido porque os dados cadastrados não confirmam todas as variantes e a unidade do pedido.' }}
                     </span>
                     <span v-if="match.locations.length" class="mt-0.5 flex items-center gap-1 text-amber-800">
                       <MapPin class="size-3 shrink-0" /> {{ match.locations.join(', ') }}

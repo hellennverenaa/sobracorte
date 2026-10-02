@@ -1,11 +1,10 @@
 <template>
   <section class="space-y-6">
     <div class="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5">
-      <h2 class="text-base font-bold text-indigo-950">Vincular sobras a um produto solicitado</h2>
+      <h2 class="text-base font-bold text-indigo-950">Regras especiais entre produtos e materiais</h2>
       <p class="mt-1 max-w-4xl text-xs leading-relaxed text-indigo-900">
-        Use este cadastro quando a peça fornecedora não compartilha o SKU do produto pedido. Informe o mesmo código usado na requisição; para Corte sem código, use a descrição exata.
-        O vínculo fica restrito à unidade fabril, ao setor solicitante e às variantes preenchidas. Campos de variante vazios funcionam como curingas definidos pelo administrador.
-        A quantidade informada diz quanto do item fornecedor é consumido para atender uma unidade solicitada.
+        O sistema sugere automaticamente materiais com SKU compartilhado e, quando o modelo e as variantes batem, também Peças Cortadas. Use esta configuração para matéria-prima de Corte sem SKU compartilhado, relações especiais entre componentes ou conversões de unidade.
+        Cada regra vale somente para esta unidade fabril, setor e variantes. Informe quanto do material fornecedor é consumido por unidade solicitada.
       </p>
     </div>
 
@@ -100,7 +99,7 @@
         <div v-if="error" role="alert" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">{{ error }}</div>
         <div class="flex justify-end">
           <button type="submit" :disabled="saving || !form.sourceStockItemId" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
-            {{ saving ? 'Salvando...' : 'Criar vínculo de produto/BOM' }}
+            {{ saving ? 'Salvando...' : 'Salvar regra especial' }}
           </button>
         </div>
       </form>
@@ -112,7 +111,7 @@
         <button type="button" @click="loadMappings" class="text-xs font-bold text-indigo-700 hover:text-indigo-900">Atualizar</button>
       </div>
       <div v-if="loadingMappings" class="px-5 py-8 text-center text-sm text-slate-500">Carregando vínculos...</div>
-      <div v-else-if="mappings.length === 0" class="px-5 py-8 text-center text-sm text-slate-500">Nenhum vínculo de produto/BOM cadastrado nesta unidade.</div>
+      <div v-else-if="mappings.length === 0" class="px-5 py-8 text-center text-sm text-slate-500">Nenhuma regra especial cadastrada para esta unidade fabril.</div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full text-left text-xs">
           <thead class="bg-slate-50 text-[10px] uppercase text-slate-500">

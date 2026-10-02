@@ -1103,7 +1103,7 @@ const tabs = computed(() => {
     { key: 'categories',   label: 'Categorias',                 icon: Tag },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
     { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
-    ...(isMasterAdmin.value ? [{ key: 'compatibility', label: 'Vínculos de produto', icon: GitBranch }] : []),
+    ...(isMasterAdmin.value ? [{ key: 'compatibility', label: 'Regras especiais', icon: GitBranch }] : []),
     { key: 'import',       label: 'Importar CSV',               icon: FileSpreadsheet },
     ...(isMasterAdmin.value ? [{ key: 'factory_unit', label: 'Unidade Fabril', icon: Building2 }] : [])
   ]

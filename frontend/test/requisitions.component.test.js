@@ -34,7 +34,7 @@ test('consulta de requisições expõe erro recuperável e persiste filtros por 
   assert.equal(state.requisitions.value.length, 1)
   state.filterStatus.value = 'PENDENTE'
   await flushPromises()
-  assert.match(localStorage.getItem('sobracorte:filters:requisitions:TESTE'), /PENDENTE/)
+  assert.match(localStorage.getItem('sobracorte:filters:requisitions_read_all:TESTE'), /PENDENTE/)
 
   api.get = async () => { throw new Error('offline') }
   await state.loadRequisitions()

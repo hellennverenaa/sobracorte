@@ -35,6 +35,11 @@ useModalFocus(() => Boolean(props.item), detailDialog, () => emit('close'));
               <div class="text-gray-900 font-medium">{{ item.name || item.description }}</div>
             </div>
 
+            <div v-if="item.productName">
+              <label class="block text-xs font-bold text-gray-500 uppercase">Nome do Modelo / Linha</label>
+              <div class="text-gray-900 font-medium">{{ item.productName }}</div>
+            </div>
+
             <div v-if="item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO' || item.type">
               <label class="block text-xs font-bold text-gray-500 uppercase">
                 {{ item.sector === 'DISTRIBUICAO' ? 'Tipo de Material' : 'Material do Solado' }}

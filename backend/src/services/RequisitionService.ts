@@ -193,10 +193,13 @@ export class RequisitionService {
         if (!candidates.length) {
           const itemLabel = item.sku ? `${item.sku} - ${item.description}` : item.description;
           throw new Error(
-            `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor; para Corte e Peças Cortadas, confirme também o vínculo de produto/BOM.`
+            `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor. Para usar matéria-prima de Corte sem SKU compartilhado, é necessária uma regra especial de compatibilidade.`
           );
         }
         if (!selected) throw new Error('Escolha uma origem de estoque compatível para cada item da requisição.');
+        if (selected.requiresConfirmation && item.confirmSourceSuggestion !== true) {
+          throw new Error('Confirme que a sugestão de estoque fornecedor atende ao produto e às variantes solicitadas.');
+        }
         validateQuantity(item.quantityRequested, selected.unit, item.requestSector);
         if (item.quantityRequested > selected.quantity) {
           throw new Error(`A quantidade solicitada excede o saldo equivalente da origem escolhida (${selected.quantity} ${selected.unit}).`);

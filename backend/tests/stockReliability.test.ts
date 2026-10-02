@@ -10,8 +10,10 @@ const item = (id = 1, footSide = 'E', quantity = 131): any => ({ id, factoryUnit
   locations: [{ locationId: 1, quantity: quantity - 43, location: { name: 'A' } }, { locationId: 2, quantity: 43, location: { name: 'B' } }] });
 const matches = (record: any, where: any): boolean => Object.entries(where).every(([key, value]: any) => {
   if (key === 'AND') return value.every((part: any) => matches(record, part));
+  if (key === 'OR') return value.some((part: any) => matches(record, part));
   if (value?.in) return value.in.includes(record[key]);
-  if (value?.mode) return String(record[key] || '').toUpperCase() === value.equals;
+  if (value?.not) return record[key] !== value.not;
+  if (value?.equals !== undefined) return String(record[key] || '').toUpperCase() === String(value.equals).toUpperCase();
   return record[key] === value;
 });
 
@@ -54,6 +56,7 @@ test('baixa multilateral, rollback e operações concorrentes preservam saldo e 
           req.status = data.status; return structuredClone(req);
         },
       },
+      requisitionStockCompatibility: { findMany: async () => [] },
     };
     try { return await callback(tx); }
     catch (error) { if (locked) ({ records, movements, req } = JSON.parse(snapshot!)); throw error; }
@@ -86,7 +89,7 @@ test('baixa multilateral, rollback e operações concorrentes preservam saldo e 
 });
 
 test('seleção exata respeita APOIO, grade, cor, SKU e modelo; pares incompatíveis são recusados', async () => {
-  const record = { ...item(), sector: 'APOIO', pieceCode: 'SKU', description: 'LINGUETA', materialColor: 'AZUL+BRANCO', footSide: null };
+  const record = { ...item(), sector: 'APOIO', componentType: 'PECA_CORTADA', pieceCode: 'SKU', description: 'LINGUETA', materialColor: 'AZUL+BRANCO', footSide: null };
   const rows = [record, { ...record, id: 2, pieceCode: 'OUTRO' }, { ...record, id: 3, sizeGrade: '41' }];
   const tx: any = { stockItem: { findMany: async ({ where }: any) => rows.filter(row => matches(row, where)) } };
   const req: any = { requestSector: 'APOIO', sku: 'SKU', modelName: 'MODELO', description: 'LINGUETA', color: ' azul + branco ', sizeGrade: '40' };

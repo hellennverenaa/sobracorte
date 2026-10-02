@@ -721,7 +721,7 @@ onMounted(() => {
 
               <!-- Headers APOIO -->
               <tr v-if="activeTab === 'APOIO'">
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">COD. PRODUTO / SKU</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">CÓD. PEÇA / SKU · MODELO</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Peça / Cabedal</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Combinação / Cor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
@@ -816,7 +816,7 @@ onMounted(() => {
                 <template v-if="activeTab === 'APOIO'">
                   <td class="px-4 py-3">
                     <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.componentType === 'CABEDAL' ? item.sku : item.pieceCode }}</span>
-                    <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
+                    <span v-if="item.productName" class="text-xs font-bold text-gray-700 block"><span class="font-medium text-gray-500">Modelo/Linha:</span> {{ item.productName }}</span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">
                     <span class="block">{{ item.description || item.type || '—' }}</span>
