@@ -32,6 +32,26 @@ export class StockMovementService {
       if (sector && normalizeStockSector(sector) !== normalizeStockSector(item.sector)) {
         throw new Error('O item não pertence ao setor informado para a movimentação.');
       }
+
+      const selectedOrigin = origem?.trim();
+      if (selectedOrigin) {
+        const itemSector = normalizeStockSector(item.sector) as SectorType;
+        const allowedSectors: SectorType[] = itemSector === 'DISTRIBUICAO'
+          ? ['DISTRIBUICAO', 'EXPEDICAO']
+          : [itemSector];
+        const origin = await tx.originConfig.findFirst({
+          where: {
+            factoryUnitId,
+            name: selectedOrigin.toLocaleUpperCase('pt-BR'),
+            OR: [{ sector: null }, ...allowedSectors.map(allowedSector => ({ sector: allowedSector }))],
+          },
+          select: { id: true },
+        });
+        if (!origin) {
+          throw new Error('A origem selecionada não está cadastrada para o setor deste item. Atualize as origens em Configurações.');
+        }
+      }
+
       const targetLocationId = locationId || item.locations[0]?.locationId;
       if (targetLocationId) {
         const location = await tx.location.findFirst({

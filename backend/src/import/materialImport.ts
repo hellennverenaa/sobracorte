@@ -8,7 +8,7 @@ import { categoryScopeWhere } from '../services/categoryScope';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 export interface AvailableLocation {
-  id?: number;
+  id: number;
   name: string;
   sector: SectorType | null;
   categoryId?: number | null;
@@ -16,7 +16,7 @@ export interface AvailableLocation {
 }
 
 export interface AvailableImportCategory {
-  id: number;
+  id?: number;
   name: string;
   sector: SectorType | null;
   sectors?: SectorType[];
@@ -627,7 +627,7 @@ export function importStockData(item: ValidatedImportItem, factoryUnitId: number
   };
   const apoio = item.sector === 'APOIO';
   const apoioCabedal = apoio && item.componentType === 'CABEDAL';
-  const isSolaDist = item.sector === 'DISTRIBUICAO' && item.type === 'SOLA_PROCESSADA';
+  const isSolaDist = ['DISTRIBUICAO', 'EXPEDICAO'].includes(item.sector) && item.type === 'SOLA_PROCESSADA';
   return {
     ...base,
     componentType: (item.componentType || (apoio ? 'PECA_CORTADA' : item.sector === 'PRE_FABRICADO' || isSolaDist ? 'SOLADO' : item.sector === 'MONTAGEM' ? 'PE_PRONTO' : 'CABEDAL')) as ComponentType,
@@ -689,7 +689,7 @@ async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[
       where: { factoryUnitId, id: { in: [...new Set(categorizedItems.map(item => item.categoryId!))] } },
       select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
     });
-    const byId = new Map(allCategories.map((category: any) => [category.id, category]));
+    const byId = new Map<number, AvailableImportCategory>(allCategories.map((category: AvailableImportCategory) => [category.id!, category]));
     for (const item of categorizedItems) {
       const category = byId.get(item.categoryId!);
       if (!category || !categoryAppliesToSector(category, item.sector)) {
@@ -708,7 +708,7 @@ async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[
           ? 'PECA_CORTADA'
           : item.sector === 'PRE_FABRICADO'
             ? 'SOLADO'
-            : item.sector === 'DISTRIBUICAO'
+            : item.sector === 'DISTRIBUICAO' || item.sector === 'EXPEDICAO'
               ? (item.type === 'SOLA_PROCESSADA' ? 'SOLADO' : 'CABEDAL')
               : 'PE_PRONTO';
       if (category.componentType && (item.componentType || fallbackComponentType) !== category.componentType) {

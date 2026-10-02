@@ -4,9 +4,12 @@ import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
-import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError } from './stockIdentity';
+import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError, StockOriginError } from './stockIdentity';
 import { categoryScopeWhere } from './categoryScope';
 export { DuplicateStockItemError } from './stockIdentity';
+
+// Esses setores já exigiam um tipo de material; categoria continua opcional em APOIO e MONTAGEM.
+const CATEGORY_REQUIRED_SECTORS = new Set(['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO']);
 
 export class StockItemService {
   /**
@@ -24,6 +27,9 @@ export class StockItemService {
       for (const originalItem of dto.items) {
         assertStockSectorAccess(context, originalItem.sector);
         const item: any = originalItem;
+        if (CATEGORY_REQUIRED_SECTORS.has(item.sector) && !item.categoryId) {
+          throw new StockCategoryError(`Selecione uma categoria configurada para o setor ${item.sector}.`);
+        }
         const category = item.categoryId
           ? await tx.categoryConfig.findFirst({
             where: { id: item.categoryId, factoryUnitId, ...categoryScopeWhere(item.sector) },
@@ -48,9 +54,33 @@ export class StockItemService {
           throw new StockCategoryError('O tipo do material deve corresponder à categoria selecionada.');
         }
 
-        if (category?.unitLocked && normalizeUnit(item.unit, item.sector) !== category.defaultUnitCode) {
-          throw new UnitValidationError(`A categoria ${category.name} exige a unidade ${category.defaultUnitCode}.`);
+        const selectedOrigin = String(item.origem || '').trim();
+        const normalizedItemSector = normalizeStockSector(item.sector) as SectorType;
+        const originSectors: SectorType[] = normalizedItemSector === 'DISTRIBUICAO'
+          ? ['DISTRIBUICAO', 'EXPEDICAO']
+          : [normalizedItemSector];
+        const configuredOrigin = selectedOrigin
+          ? await tx.originConfig.findFirst({
+            where: {
+              factoryUnitId,
+              name: selectedOrigin.toLocaleUpperCase('pt-BR'),
+              OR: [{ sector: null }, ...originSectors.map(sector => ({ sector }))],
+            },
+            select: { name: true },
+          })
+          : null;
+        if (selectedOrigin && !configuredOrigin) {
+          throw new StockOriginError('A origem selecionada não está cadastrada para o setor deste item. Atualize as origens em Configurações.');
         }
+
+        if (category?.unitLocked && !category.defaultUnitCode) {
+          throw new UnitValidationError(`A categoria ${category.name} está configurada para bloquear a unidade, mas não possui uma unidade padrão.`);
+        }
+        const sectorDefaultUnit = item.sector === 'CORTE' ? 'M²' : 'UN';
+        const effectiveUnit = normalizeUnit(
+          category?.unitLocked ? category.defaultUnitCode : item.unit || category?.defaultUnitCode || sectorDefaultUnit,
+          item.sector,
+        );
 
         let apoioComponentType: ComponentType = 'PECA_CORTADA';
         if (item.sector === 'APOIO') {
@@ -63,8 +93,8 @@ export class StockItemService {
           }
         }
 
-        validateQuantity(item.quantity, item.unit, item.sector);
-        if ('minStock' in item) validateQuantity(item.minStock, item.unit, item.sector, true);
+        validateQuantity(item.quantity, effectiveUnit, item.sector);
+        if ('minStock' in item) validateQuantity(item.minStock, effectiveUnit, item.sector, true);
 
         const shouldSplitPair = item.footSide === 'PAR' && (
           item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO'
@@ -105,7 +135,7 @@ export class StockItemService {
             sector: normalizeStockSector(expandedItem.sector) as SectorType,
             categoryId: expandedItem.categoryId || null,
             quantity: expandedItem.quantity,
-            unit: normalizeUnit(expandedItem.unit, expandedItem.sector),
+            unit: effectiveUnit,
             observation: expandedItem.observation || '',
           };
 
@@ -116,7 +146,7 @@ export class StockItemService {
                 componentType: (category?.componentType || 'MATERIA_PRIMA') as ComponentType,
                 code: expandedItem.code.trim().toUpperCase(),
                 name: expandedItem.name.trim().toUpperCase(),
-                type: (expandedItem.type || category?.name || 'GERAL').trim().toUpperCase(),
+                type: (category?.name || expandedItem.type || '').trim().toUpperCase(),
                 minStock: expandedItem.minStock || 0,
               };
               break;
@@ -124,7 +154,7 @@ export class StockItemService {
               if (apoioComponentType === 'CABEDAL') {
                 sectorSpecificData = {
                   componentType: 'CABEDAL' as ComponentType,
-                  type: (expandedItem.type || category?.name || 'CABEDAL').trim().toUpperCase(),
+                  type: (category?.name || expandedItem.type || '').trim().toUpperCase() || null,
                   sku: expandedItem.sku.trim().toUpperCase(),
                   productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
                   description: expandedItem.description ? expandedItem.description.trim().toUpperCase() : 'CABEDAL',
@@ -148,7 +178,7 @@ export class StockItemService {
             case 'PRE_FABRICADO':
               sectorSpecificData = {
                 componentType: (category?.componentType || 'SOLADO') as ComponentType,
-                type: (expandedItem.type || category?.name || 'EVA').trim().toUpperCase(),
+                type: (category?.name || expandedItem.type || '').trim().toUpperCase(),
                 sku: (expandedItem.sku || expandedItem.productName).trim().toUpperCase(),
                 productName: expandedItem.productName.trim().toUpperCase(),
                 color: normalizeStockColor(expandedItem.color),
@@ -158,7 +188,7 @@ export class StockItemService {
               break;
             case 'DISTRIBUICAO':
             case 'EXPEDICAO': {
-              const distType = (expandedItem.type || 'CABEDAL').trim().toUpperCase();
+              const distType = (category?.name || expandedItem.type || (expandedItem.sector === 'EXPEDICAO' ? 'CABEDAL' : '')).trim().toUpperCase();
               const materialComponentType = category?.componentType || (distType === 'SOLA_PROCESSADA' ? 'SOLADO' : 'CABEDAL');
               sectorSpecificData = {
                 componentType: materialComponentType as ComponentType,
@@ -174,6 +204,7 @@ export class StockItemService {
             case 'MONTAGEM':
               sectorSpecificData = {
                 componentType: (category?.componentType || 'PE_PRONTO') as ComponentType,
+                type: (category?.name || expandedItem.type || '').trim().toUpperCase() || null,
                 sku: expandedItem.sku.trim().toUpperCase(),
                 productName: expandedItem.productName ? expandedItem.productName.trim().toUpperCase() : null,
                 color: normalizeStockColor(expandedItem.color) || null,
@@ -203,7 +234,7 @@ export class StockItemService {
               ...movementSnapshot(stockItem),
               destinationStockItemId: stockItem.id,
               destinationSector: stockItem.sector,
-              origem: 'Saldo Inicial / Entrada no Setor',
+              origem: configuredOrigin?.name || 'Saldo Inicial / Entrada no Setor',
               reason: expandedItem.observation || (expandedItem.sector === 'CORTE' ? 'Entrada em lote no Estoque de Corte' : 'Entrada em lote via terminal de chão de fábrica'),
               operatorId: operatorId || null,
               operatorName: operatorName || 'Sistema / Operador',
@@ -416,8 +447,15 @@ export class StockItemService {
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
-        where: { factoryUnitId, ...(!isStockMaster(context) ? { OR: [{ sector: targetSector as SectorType }, { sector: null }, ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : [])] } : {}) },
-        select: { id: true, name: true },
+        where: {
+          factoryUnitId,
+          OR: [
+            { sector: targetSector },
+            { sector: null },
+            ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
+          ],
+        },
+        select: { id: true, name: true, sector: true },
         orderBy: { name: 'asc' },
       }),
       prisma.categoryConfig.findMany({
@@ -525,7 +563,7 @@ export class StockItemService {
       },
       filterOptions: {
         locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
-        origins: origins.map((o) => ({ id: o.id, name: o.name })),
+        origins: origins.map((o) => ({ id: o.id, name: o.name, sector: o.sector })),
         categories: categories.map((c) => ({ id: c.id, name: c.name, sector: c.sector, sectors: c.sectors, componentType: c.componentType })),
       },
     };

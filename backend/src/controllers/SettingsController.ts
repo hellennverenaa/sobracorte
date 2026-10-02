@@ -2,6 +2,7 @@ import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccess
 import { Request, Response } from 'express';
 import { normalizeSector, requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 import { prisma } from '../prisma';
+import { ComponentType, SectorType } from '../generated/prisma';
 import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 import { categoryAppliesToSector, categoryScopeValue, categoryScopeWhere } from '../services/categoryScope';
@@ -324,7 +325,7 @@ export class SettingsController {
       }
       const subtypeFieldProvided = hasRequestField(req.body, 'subtypeId');
       const requestedSubtypeId = subtypeFieldProvided ? parseSubtypeId(req.body.subtypeId) : null;
-      let selectedSubtype = null as { id: number; sectors: string[]; componentType: string | null } | null;
+      let selectedSubtype = null as { id: number; sectors: SectorType[]; componentType: ComponentType | null } | null;
       if (requestedSubtypeId) {
         selectedSubtype = await prisma.componentSubtypeConfig.findFirst({
           where: { id: requestedSubtypeId, factoryUnitId: req.tenant!.id },
@@ -417,7 +418,7 @@ export class SettingsController {
       const subtypeIdWasProvided = subtypeFieldProvided || rawComponentType !== undefined;
       let subtypeId = existing.subtypeId;
       let componentType = existing.componentType;
-      let selectedSubtype = null as { id: number; sectors: string[]; componentType: string | null } | null;
+      let selectedSubtype = null as { id: number; sectors: SectorType[]; componentType: ComponentType | null } | null;
       if (subtypeFieldProvided) {
         subtypeId = parseSubtypeId(req.body.subtypeId);
         if (subtypeId) {
@@ -493,7 +494,7 @@ export class SettingsController {
         }
 
         const cat = await tx.categoryConfig.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) } as any,
           data: {
             name: newName,
             sector: scopeWasProvided ? scope.legacySector : undefined,
@@ -593,7 +594,7 @@ export class SettingsController {
         await tx.location.updateMany({
           where: { factoryUnitId: req.tenant!.id, categoryId: id }, data: { categoryId: null },
         });
-        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) } });
+        await tx.categoryConfig.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...(assignedSector ? categoryScopeWhere(assignedSector) : {}) } as any });
       });
 
       res.json({ message: 'Categoria excluída com sucesso.' });
@@ -969,9 +970,12 @@ export class SettingsController {
       let targetSector = sectorFilter ? requireActiveStockSector(sectorFilter) : undefined;
 
       const whereClause: any = { factoryUnitId: req.tenant!.id };
-      if (assignedStockSector(requestStockAccess(req))) {
+      const assignedSector = assignedStockSector(requestStockAccess(req));
+      if (assignedSector) {
         whereClause.OR = [
-          sectorAccessWhere(requestStockAccess(req))
+          { sector: assignedSector },
+          { sector: null },
+          ...(assignedSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' }] : []),
         ];
       } else if (targetSector) {
         whereClause.OR = [

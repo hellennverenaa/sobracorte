@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted, computed } from 'vue';
+import { ref, reactive, nextTick, onMounted, computed, watch } from 'vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { normalizeSector, requestErrorMessage, SECTOR_OPTIONS } from '@/utils/domain';
 import PageState from '@/components/PageState.vue';
+import CategorySelector from '@/components/CategorySelector.vue';
 import { 
   Scissors, Wrench, Layers, Box, Footprints, 
   Plus, Check, AlertCircle, Lock
@@ -46,6 +47,7 @@ const firstInputRef = ref<HTMLInputElement | null>(null);
 const dbCategories = ref<any[]>([]);
 const dbUnits = ref<any[]>([]);
 const dbLocations = ref<any[]>([]);
+const dbOrigins = ref<any[]>([]);
 const loadingSettings = ref(false);
 const settingsError = ref('');
 
@@ -87,6 +89,7 @@ function addCombinationLocally(color: string, sector: SectorType) {
 const formData = reactive({
   location: '',
   categoryId: '',
+  origem: '',
   quantity: 1,
   observation: '',
   sizeGrade: '',
@@ -94,7 +97,7 @@ const formData = reactive({
   code: '',
   name: '',
   unit: activeSector.value === 'CORTE' ? 'M²' : 'UN',
-  type: activeSector.value === 'PRE_FABRICADO' ? 'EVA' : (activeSector.value === 'DISTRIBUICAO' ? 'CABEDAL' : ''),
+  type: '',
   pieceCode: '',
   description: '',
   materialColor: '',
@@ -114,6 +117,11 @@ const selectedCategory = computed(() => dbCategories.value.find(category => Numb
 const isApoioCabedal = computed(() => activeSector.value === 'APOIO' && formData.componentType === 'CABEDAL');
 const supportsPair = computed(() => isApoioCabedal.value || ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value));
 const isUnitLocked = computed(() => Boolean(selectedCategory.value?.unitLocked));
+const isCategoryRequired = computed(() => ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(activeSector.value));
+
+function defaultUnitForSector(sector: SectorType = activeSector.value) {
+  return sector === 'CORTE' ? 'M²' : 'UN';
+}
 
 const allSectors = [
   { id: 'CORTE' as SectorType, icon: Scissors },
@@ -144,38 +152,32 @@ const availableCategories = computed(() => {
   });
 });
 
-const availableMaterialTypes = computed(() => {
-  const names = availableCategories.value.map(category => String(category.name || '').trim().toUpperCase()).filter(Boolean);
-  if (names.length) return [...new Set(names)];
-  if (activeSector.value === 'PRE_FABRICADO') return ['EVA', 'BORRACHA'];
-  if (activeSector.value === 'DISTRIBUICAO') return ['CABEDAL', 'SOLA_PROCESSADA'];
-  return [];
+const availableOrigins = computed(() => dbOrigins.value.filter(origin =>
+  !origin.sector || normalizeSector(origin.sector) === normalizeSector(activeSector.value)
+));
+
+watch([activeSector, availableOrigins], () => {
+  if (!availableOrigins.value.some(origin => origin.name === formData.origem)) {
+    formData.origem = '';
+  }
 });
 
 async function fetchDynamicSettings() {
   loadingSettings.value = true;
   settingsError.value = '';
   try {
-    const [catsRes, unitsRes, locsRes] = await Promise.all([
+    const [catsRes, unitsRes, locsRes, originsRes] = await Promise.all([
       api.get('/settings/categories'),
       api.get('/settings/units'),
       api.get('/settings/locations'),
+      api.get('/settings/origins'),
     ]);
 
     dbCategories.value = catsRes.data || [];
     dbUnits.value = unitsRes.data || [];
     dbLocations.value = locsRes.data || [];
+    dbOrigins.value = originsRes.data || [];
 
-    const catsForSector = availableCategories.value;
-    if (activeSector.value === 'CORTE' && catsForSector.length > 0 && !formData.type) {
-      formData.type = catsForSector[0].name;
-      onCategoryChange();
-    } else if (activeSector.value === 'PRE_FABRICADO' || activeSector.value === 'DISTRIBUICAO') {
-      if (!availableMaterialTypes.value.includes(String(formData.type).toUpperCase())) {
-        formData.type = availableMaterialTypes.value[0] || (activeSector.value === 'PRE_FABRICADO' ? 'EVA' : 'CABEDAL');
-      }
-      onCategoryChange();
-    }
   } catch (err) {
     settingsError.value = requestErrorMessage(err, 'Não foi possível carregar as configurações.');
   } finally {
@@ -183,24 +185,14 @@ async function fetchDynamicSettings() {
   }
 }
 
-function onCategoryChange() {
-  const normalizedType = String(formData.type || '').trim().toUpperCase();
-  const selected = availableCategories.value.find(category => String(category.name || '').trim().toUpperCase() === normalizedType);
-  formData.categoryId = selected ? String(selected.id) : '';
-  if (selected && selected.defaultUnitCode) {
-    formData.unit = selected.defaultUnitCode;
-  }
-  formData.location = '';
-}
-
 function onConfiguredCategoryChange() {
   const selected = selectedCategory.value;
   formData.location = '';
-  if (selected?.defaultUnitCode) formData.unit = selected.defaultUnitCode;
+  formData.type = selected?.name || '';
+  formData.unit = selected?.defaultUnitCode || defaultUnitForSector();
   if (activeSector.value === 'APOIO' && (selected?.componentType === 'CABEDAL' || selected?.componentType === 'PECA_CORTADA')) {
     formData.componentType = selected.componentType;
   }
-  if (activeSector.value === 'APOIO') formData.type = selected?.name || '';
 }
 
 const availableLocations = computed(() => {
@@ -270,21 +262,9 @@ function selectSector(sector: SectorType) {
   activeSector.value = sector;
   formData.categoryId = '';
   formData.location = '';
-  if (sector === 'CORTE') {
-    formData.type = availableCategories.value[0]?.name || 'OUTROS';
-    onCategoryChange();
-  } else if (sector === 'PRE_FABRICADO') {
-    formData.type = availableMaterialTypes.value[0] || 'EVA';
-    onCategoryChange();
-  } else if (sector === 'DISTRIBUICAO') {
-    formData.type = availableMaterialTypes.value[0] || 'CABEDAL';
-    onCategoryChange();
-  } else if (sector === 'APOIO') {
-    formData.componentType = 'PECA_CORTADA';
-    formData.type = '';
-  } else {
-    formData.type = '';
-  }
+  formData.type = '';
+  formData.unit = defaultUnitForSector(sector);
+  if (sector === 'APOIO') formData.componentType = 'PECA_CORTADA';
 
   fetchCombinations(sector);
   errorMessage.value = '';
@@ -297,18 +277,15 @@ function selectSector(sector: SectorType) {
 function resetForm() {
   formData.location = '';
   formData.categoryId = '';
+  formData.origem = '';
   formData.quantity = 1;
   formData.observation = '';
   formData.sizeGrade = '';
   formData.color = '';
   formData.code = '';
   formData.name = '';
-  formData.unit = activeSector.value === 'CORTE' ? 'M²' : 'UN';
-  formData.type = activeSector.value === 'PRE_FABRICADO'
-    ? availableMaterialTypes.value[0] || 'EVA'
-    : (activeSector.value === 'DISTRIBUICAO'
-      ? availableMaterialTypes.value[0] || 'CABEDAL'
-      : (activeSector.value === 'CORTE' ? (availableCategories.value[0]?.name || '') : ''));
+  formData.unit = defaultUnitForSector();
+  formData.type = '';
   formData.pieceCode = '';
   formData.description = '';
   formData.materialColor = '';
@@ -317,7 +294,6 @@ function resetForm() {
   formData.componentType = 'PECA_CORTADA';
   formData.footSide = 'E';
 
-  onCategoryChange();
   savedForm.value = JSON.stringify(formData);
 
   nextTick(() => {
@@ -329,8 +305,15 @@ async function handleSubmit() {
   errorMessage.value = '';
   successMessage.value = '';
 
+  if (isCategoryRequired.value && !formData.categoryId) {
+    errorMessage.value = 'Selecione uma categoria de material configurada para este setor antes de continuar.';
+    return;
+  }
+
   if (!formData.location.trim()) {
-    errorMessage.value = 'Informe a prateleira / localização física.';
+    errorMessage.value = formData.categoryId && availableLocations.value.length === 0
+      ? `Nenhuma localização está vinculada à categoria ${selectedCategory.value?.name || 'selecionada'}. Vincule uma em Configurações > Localizações / Prateleiras.`
+      : 'Informe a prateleira / localização física.';
     return;
   }
 
@@ -350,7 +333,8 @@ async function handleSubmit() {
 
   let payloadItem: any = {
     sector: activeSector.value,
-    categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
+    categoryId: formData.categoryId ? Number(formData.categoryId) : null,
+    origem: formData.origem.trim(),
     location: formData.location.trim().toUpperCase(),
     quantity: Number(formData.quantity),
     observation: formData.observation.trim(),
@@ -364,11 +348,11 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
-        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
+        categoryId: Number(formData.categoryId),
         code: formData.code.trim().toUpperCase(),
         name: formData.name.trim().toUpperCase(),
         unit: (formData.unit || 'M²').trim().toUpperCase(),
-        type: (formData.type || 'OUTROS').trim().toUpperCase(),
+        type: selectedCategory.value?.name || formData.type.trim().toUpperCase(),
       };
       break;
 
@@ -381,14 +365,14 @@ async function handleSubmit() {
         payloadItem = {
           ...payloadItem,
           componentType: 'CABEDAL',
-          type: selectedCategory.value?.name || 'CABEDAL',
+          type: selectedCategory.value?.name || '',
           sku: formData.sku.trim().toUpperCase(),
           productName: formData.productName.trim().toUpperCase(),
           description: formData.description.trim().toUpperCase() || 'CABEDAL',
           color: formData.color.trim().toUpperCase(),
           sizeGrade: formData.sizeGrade.trim().toUpperCase(),
           footSide: formData.footSide || 'E',
-          unit: 'UN',
+          unit: formData.unit,
         };
       } else {
         if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim() || !formData.materialColor.trim()) {
@@ -404,46 +388,46 @@ async function handleSubmit() {
           description: formData.description.trim().toUpperCase(),
           materialColor: formData.materialColor.trim().toUpperCase(),
           sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-          unit: 'UN',
+          unit: formData.unit,
         };
       }
       break;
 
     case 'PRE_FABRICADO':
-      if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !formData.type) {
-        errorMessage.value = 'Nome do Modelo, Material do Solado (EVA ou Borracha), Grade e Combinação da Sola são obrigatórios.';
+      if (!formData.productName.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !selectedCategory.value) {
+        errorMessage.value = 'Nome do Modelo, categoria do material, Grade e Combinação da Sola são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
-        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
-        type: formData.type.trim().toUpperCase(),
+        categoryId: Number(formData.categoryId),
+        type: selectedCategory.value.name,
         sku: (formData.sku || formData.productName).trim().toUpperCase(),
         productName: formData.productName.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UN',
+        unit: formData.unit,
       };
       break;
 
     case 'DISTRIBUICAO':
     case 'EXPEDICAO':
-      if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !formData.type) {
-        errorMessage.value = 'COD. PRODUTO / SKU, Tipo de Material (Cabedal ou Sola Processada), Grade e Combinação/Cor são obrigatórios.';
+      if (!formData.sku.trim() || !formData.sizeGrade.trim() || !formData.color.trim() || !selectedCategory.value) {
+        errorMessage.value = 'COD. PRODUTO / SKU, categoria do material, Grade e Combinação/Cor são obrigatórios.';
         return;
       }
       payloadItem = {
         ...payloadItem,
-        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
+        categoryId: Number(formData.categoryId),
         sector: 'DISTRIBUICAO',
-        type: formData.type.trim().toUpperCase(),
+        type: selectedCategory.value.name,
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UN',
+        unit: formData.unit,
       };
       break;
 
@@ -454,13 +438,14 @@ async function handleSubmit() {
       }
       payloadItem = {
         ...payloadItem,
-        categoryId: formData.categoryId ? Number(formData.categoryId) : undefined,
+        categoryId: formData.categoryId ? Number(formData.categoryId) : null,
+        type: selectedCategory.value?.name || '',
         sku: formData.sku.trim().toUpperCase(),
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: 'UN',
+        unit: formData.unit,
       };
       break;
   }
@@ -564,20 +549,14 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo / Categoria *</label>
-          <select
-            v-model="formData.type"
-            @change="onCategoryChange"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm"
-            required
-          >
-            <option v-for="cat in availableCategories" :key="cat.id" :value="cat.name">
-              {{ cat.name }}
-            </option>
-            <option v-if="availableCategories.length === 0" value="OUTROS">OUTROS</option>
-          </select>
-        </div>
+        <CategorySelector
+          v-model="formData.categoryId"
+          @change="onConfiguredCategoryChange"
+          :categories="availableCategories"
+          label="Tipo / Categoria"
+          :required="isCategoryRequired"
+          empty-message="Cadastre uma categoria para Corte em Configurações antes de lançar o material."
+        />
 
         <div>
           <label class="flex items-center justify-between text-xs font-bold text-gray-500 uppercase mb-1">
@@ -611,14 +590,13 @@ onMounted(async () => {
               <option value="CABEDAL">Cabedal</option>
             </select>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria para filtrar localização (opcional)</label>
-            <select v-model="formData.categoryId" @change="onConfiguredCategoryChange"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-              <option value="">Sem categoria (todas as localizações do setor)</option>
-              <option v-for="cat in availableCategories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
-            </select>
-          </div>
+          <CategorySelector
+            v-model="formData.categoryId"
+            @change="onConfiguredCategoryChange"
+            :categories="availableCategories"
+            label="Tipo de material / categoria (opcional)"
+            help-text="A categoria também limita as prateleiras às localizações vinculadas a ela."
+          />
         </div>
 
         <template v-if="isApoioCabedal">
@@ -716,17 +694,14 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material do Solado *</label>
-          <select
-            v-model="formData.type"
-            @change="onCategoryChange"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
-            required
-          >
-            <option v-for="type in availableMaterialTypes" :key="type" :value="type">{{ type === 'EVA' ? 'EVA (Sola Não Processada)' : type }}</option>
-          </select>
-        </div>
+        <CategorySelector
+          v-model="formData.categoryId"
+          @change="onConfiguredCategoryChange"
+          :categories="availableCategories"
+          label="Categoria do material"
+          required
+          empty-message="Cadastre uma categoria para Pré-Fabricado em Configurações antes de lançar o material."
+        />
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COMBINAÇÃO da sola *</label>
@@ -822,17 +797,14 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo de Material *</label>
-          <select
-            v-model="formData.type"
-            @change="onCategoryChange"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold text-gray-800"
-            required
-          >
-            <option v-for="type in availableMaterialTypes" :key="type" :value="type">{{ type.replace(/_/g, ' ') }}</option>
-          </select>
-        </div>
+        <CategorySelector
+          v-model="formData.categoryId"
+          @change="onConfiguredCategoryChange"
+          :categories="availableCategories"
+          label="Categoria do material"
+          required
+          empty-message="Cadastre uma categoria para Distribuição em Configurações antes de lançar o material."
+        />
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
@@ -906,14 +878,14 @@ onMounted(async () => {
 
       <!-- 5. MONTAGEM -->
       <div v-if="activeSector === 'MONTAGEM'" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div class="md:col-span-5">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Categoria para filtrar localização (opcional)</label>
-          <select v-model="formData.categoryId" @change="onConfiguredCategoryChange"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-            <option value="">Sem categoria (todas as localizações do setor)</option>
-            <option v-for="cat in availableCategories" :key="cat.id" :value="String(cat.id)">{{ cat.name }}</option>
-          </select>
-        </div>
+        <CategorySelector
+          class="md:col-span-5"
+          v-model="formData.categoryId"
+          @change="onConfiguredCategoryChange"
+          :categories="availableCategories"
+          label="Tipo de material / categoria (opcional)"
+          help-text="A categoria também limita as prateleiras às localizações vinculadas a ela."
+        />
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -1008,7 +980,7 @@ onMounted(async () => {
       </div>
 
       <!-- Campos Comuns -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-gray-100">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-gray-100">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : 'Quantidade Inicial' }} *</label>
           <input
@@ -1030,6 +1002,24 @@ onMounted(async () => {
           </span>
         </div>
 
+        <div v-if="activeSector !== 'CORTE'">
+          <label class="flex items-center justify-between text-xs font-bold text-gray-500 uppercase mb-1">
+            <span>Unidade de medida *</span>
+            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 flex items-center gap-0.5" title="Unidade fixada pela categoria">
+              <Lock class="w-3 h-3" /> Fixa
+            </span>
+          </label>
+          <select v-model="formData.unit" :disabled="isUnitLocked"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+            required>
+            <option v-for="unit in dbUnits" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
+            <option v-if="dbUnits.length === 0" value="UN">UN (Unidade)</option>
+          </select>
+          <span v-if="selectedCategory?.defaultUnitCode && !isUnitLocked" class="text-[10px] text-gray-400 mt-0.5 block">
+            Unidade sugerida pela categoria; você pode alterá-la.
+          </span>
+        </div>
+
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização (Configurações) *</label>
           <select
@@ -1048,11 +1038,31 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Observação / Motivo</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo / Origem da Sobra (opcional)</label>
+          <select
+            v-model="formData.origem"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-400"
+            required
+            :disabled="availableOrigins.length === 0"
+          >
+            <option value="" disabled>
+              {{ availableOrigins.length ? 'Selecione um motivo (opcional)...' : 'Nenhuma origem configurada (opcional)' }}
+            </option>
+            <option v-for="origin in availableOrigins" :key="origin.id" :value="origin.name">
+              {{ origin.name }}{{ !origin.sector ? ' (Geral)' : '' }}
+            </option>
+          </select>
+          <span class="text-[10px] text-gray-400 mt-0.5 block">
+            O motivo escolhido será registrado no histórico desta entrada.
+          </span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Observação adicional (opcional)</label>
           <input
             v-model="formData.observation"
             type="text"
-            placeholder="Opcional..."
+            placeholder="Detalhe complementar..."
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm"
           />
         </div>

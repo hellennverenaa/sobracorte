@@ -49,6 +49,12 @@ export const FACTORY_CATALOG = {
     { name: 'GANHO NO ROLO', sector: 'CORTE' },
     { name: 'OUTROS', sector: null },
     { name: 'RETALHO', sector: 'CORTE' },
+    { name: 'SOBRA DE PEÇA CORTADA', sector: 'APOIO' },
+    { name: 'SOBRA DE EVA', sector: 'PRE_FABRICADO' },
+    { name: 'SOBRA DE BORRACHA', sector: 'PRE_FABRICADO' },
+    { name: 'SOBRA DE CABEDAL', sector: 'DISTRIBUICAO' },
+    { name: 'SOBRA DE SOLA PROCESSADA', sector: 'DISTRIBUICAO' },
+    { name: 'SOBRA DE PÉ PRONTO', sector: 'MONTAGEM' },
     { name: 'SOBRA DE REQUISIÇÃO', sector: null },
   ],
 } as const satisfies FactoryCatalog;

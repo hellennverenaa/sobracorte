@@ -15,6 +15,12 @@ export class StockCategoryError extends Error {
     this.name = 'StockCategoryError';
   }
 }
+export class StockOriginError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StockOriginError';
+  }
+}
 
 
 /** Localizações gerais (sem setor) continuam compartilhadas. */

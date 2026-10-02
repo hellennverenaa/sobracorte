@@ -13,6 +13,14 @@ function quantityInput(schema: z.ZodType<number>) {
   }, schema);
 }
 
+function unitInput() {
+  return z.string().trim().optional().transform((value, ctx) => {
+    if (value === undefined || value === '') return undefined;
+    try { return validateUnit(value); }
+    catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; }
+  });
+}
+
 export const SectorEnum = z.enum([
   'CORTE',
   'APOIO',
@@ -52,12 +60,15 @@ export const CorteItemSchema = z.object({
   code: z.string().trim().min(1, 'Código da matéria-prima é obrigatório'),
   name: z.string().trim().min(1, 'Descrição/Nome é obrigatório'),
   quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
-  type: z.string().trim().default('OUTROS'),
+  unit: unitInput(),
+  type: z.string().trim().optional().default(''),
   minStock: quantityInput(z.coerce.number().min(0).default(0)),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 }).superRefine((item, ctx) => {
+  // Sem unidade explícita, o serviço aplica a unidade padrão da categoria antes da validação.
+  if (!item.unit) return;
   for (const field of ['quantity', 'minStock'] as const) {
     if (!(field in item)) continue;
     try { validateQuantity(Number((item as any)[field]), item.unit, item.sector, field === 'minStock'); }
@@ -80,8 +91,9 @@ export const ApoioItemSchema = z.object({
   sizeGrade: z.string().trim().optional().default(''),
   footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 }).superRefine((item, ctx) => {
   if (item.componentType === 'CABEDAL') {
@@ -103,13 +115,14 @@ export const PreFabricadoItemSchema = z.object({
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
-  type: z.string().trim().min(1, 'Categoria do solado é obrigatória'),
+  type: z.string().trim().optional().default(''),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 });
 
@@ -119,13 +132,14 @@ export const DistribuicaoItemSchema = z.object({
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
-  type: z.string().trim().min(1, 'Tipo de material é obrigatório'),
+  type: z.string().trim().optional().default(''),
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 });
 
@@ -140,8 +154,9 @@ export const ExpedicaoItemSchema = z.object({
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 });
 
@@ -149,14 +164,16 @@ export const ExpedicaoItemSchema = z.object({
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
+  type: z.string().trim().optional().default(''),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum,
   quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
-  unit: z.string().trim().default('UN').transform((value, ctx) => { try { return validateUnit(value); } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; } }),
+  unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
+  origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 });
 

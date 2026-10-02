@@ -85,10 +85,13 @@ test('movimentação sem sector no payload autoriza pelo item real antes de grav
 test('cadastro e CSV não gravam em Geral/Livre com perfil de setor', async t => {
   let writes = 0;
   const tx: any = { $queryRaw: async () => [], location: {
-    findUnique: async () => ({ id: 1, sector: null }), findFirst: async () => ({ id: 1, sector: null }),
-  }, categoryConfig: { findFirst: async () => null }, stockItem: { create: async () => { writes++; } } };
+    findUnique: async () => ({ id: 1, sector: null, categoryId: 1 }), findFirst: async () => ({ id: 1, sector: null, categoryId: 1 }),
+  }, categoryConfig: {
+    findFirst: async () => ({ id: 1, name: 'TECIDO', componentType: 'MATERIA_PRIMA', unitLocked: false, defaultUnitCode: null }),
+    findMany: async () => [{ id: 1, name: 'TECIDO', sector: 'CORTE', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA', unitLocked: false, defaultUnitCode: null }],
+  }, stockItem: { create: async () => { writes++; } } };
   replace(t, prisma, { $transaction: async (cb: any) => cb(tx) });
-  const item: any = { sector: 'CORTE', code: 'C1', name: 'TECIDO', type: 'TECIDO', quantity: 1, unit: 'M2', location: 'GERAL', locationId: 1 };
+  const item: any = { sector: 'CORTE', categoryId: 1, code: 'C1', name: 'TECIDO', type: 'TECIDO', quantity: 1, unit: 'M2', location: 'GERAL', locationId: 1 };
   for (const role of ['admin_setor', 'lider']) {
     const context = { factoryUnitId: 1, role, assignedSector: 'CORTE' };
     await assert.rejects(new StockItemService().createBatch({ items: [item] }, context), StockAccessError);

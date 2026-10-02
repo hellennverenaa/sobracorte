@@ -6,7 +6,7 @@ import { createFactoryWithCatalog } from '../src/provisioning/factoryProvisionin
 test('catálogo fixo contém as categorias e origens aprovadas', () => {
   const catalog = validateFactoryCatalog();
   assert.equal(catalog.categories.length, 11);
-  assert.equal(catalog.origins.length, 8);
+  assert.equal(catalog.origins.length, 14);
   assert.deepEqual(catalog.categories.find(category => category.name === 'COURO'), {
     name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M', unitLocked: true,
   });
@@ -15,6 +15,12 @@ test('catálogo fixo contém as categorias e origens aprovadas', () => {
   });
   assert.equal(catalog.origins.find(origin => origin.name === 'CONSUMO')?.sector, null);
   assert.equal(catalog.origins.find(origin => origin.name === 'DUBLAGEM')?.sector, 'CORTE');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE PEÇA CORTADA')?.sector, 'APOIO');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE EVA')?.sector, 'PRE_FABRICADO');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE BORRACHA')?.sector, 'PRE_FABRICADO');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE CABEDAL')?.sector, 'DISTRIBUICAO');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE SOLA PROCESSADA')?.sector, 'DISTRIBUICAO');
+  assert.equal(catalog.origins.find(origin => origin.name === 'SOBRA DE PÉ PRONTO')?.sector, 'MONTAGEM');
 });
 
 test('validador rejeita nomes lógicos duplicados e unidade bloqueada ausente', () => {
@@ -49,8 +55,10 @@ test('provisionador cria catálogo e auditorias na mesma unidade', async () => {
   const categories: any[] = [];
   const origins: any[] = [];
   const audits: any[] = [];
+  let subtypeId = 0;
   const tx = {
     factoryUnit: { create: async () => ({ id: 42, code: 'TST', name: 'Teste', active: true, enableRequisitions: true }) },
+    componentSubtypeConfig: { create: async () => ({ id: ++subtypeId }) },
     categoryConfig: { create: async ({ data }: any) => { categories.push(data); return data; } },
     originConfig: { create: async ({ data }: any) => { origins.push(data); return data; } },
     stockMovement: { create: async ({ data }: any) => { audits.push(data); return data; } },
@@ -58,10 +66,10 @@ test('provisionador cria catálogo e auditorias na mesma unidade', async () => {
 
   const result = await createFactoryWithCatalog(tx as any, { code: 'TST', name: 'Teste', active: true });
   assert.equal(result.categoriesCreated, 11);
-  assert.equal(result.originsCreated, 8);
+  assert.equal(result.originsCreated, 14);
   assert.equal(categories.length, 11);
-  assert.equal(origins.length, 8);
-  assert.equal(audits.length, 19);
+  assert.equal(origins.length, 14);
+  assert.equal(audits.length, 25);
   assert(audits.every(audit => audit.factoryUnitId === 42 && audit.sector === 'CONFIGURACOES' && audit.quantity === 0));
   assert(audits.every(audit => audit.origem === 'CATALOGO_FIXO' && audit.type === 'CRIACAO_CONFIGURACAO'));
 });

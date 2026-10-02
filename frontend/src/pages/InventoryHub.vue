@@ -368,7 +368,7 @@ function setMovementType(type: 'ENTRADA' | 'SAIDA' | 'TRANSFERENCIA') {
     selectedLocationId.value = itemSectorLocations.value[0]?.id || null;
   }
   movementReason.value = type === 'ENTRADA'
-    ? (movementReason.value || itemSectorOrigins.value[0]?.name || 'Entrada Adicional')
+    ? (movementReason.value || itemSectorOrigins.value[0]?.name || '')
     : '';
 
   // Se a quantidade estiver vazia ou zero, sugere 1 ou o saldo disponível
@@ -457,11 +457,6 @@ async function handleConfirmMovement() {
       showToast('A prateleira de destino deve ser diferente da prateleira de origem.', 'error');
       return;
     }
-  }
-
-  if (movementType.value === 'ENTRADA' && !movementReason.value.trim()) {
-    showToast('Selecione o motivo/origem da movimentação.', 'error');
-    return;
   }
 
   movementLoading.value = true;
@@ -1302,24 +1297,22 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Origem / Motivo só é necessário para entradas -->
+            <!-- Origem / Motivo opcional para entradas -->
             <div v-if="movementType === 'ENTRADA'">
               <label class="block font-bold text-gray-600 uppercase mb-1 tracking-wide">
-                Motivo / Origem da Sobra *
+                Motivo / Origem da Sobra (opcional)
               </label>
               <select
                 v-model="movementReason"
                 aria-label="Motivo da movimentação"
                 class="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:border-blue-500 bg-white text-gray-800 text-xs font-medium"
               >
+                <option value="" disabled>
+                  {{ itemSectorOrigins.length ? 'Selecione um motivo (opcional)...' : 'Nenhuma origem cadastrada (opcional)' }}
+                </option>
                 <option v-for="orig in itemSectorOrigins" :key="orig.id" :value="orig.name">
                   {{ orig.name }}
                 </option>
-                <option value="Consumo de Produção">Consumo de Produção</option>
-                <option value="Baixa por Refugo">Baixa por Refugo</option>
-                <option value="Ajuste de Inventário">Ajuste de Inventário</option>
-                <option value="Devolução de Setor">Devolução de Setor</option>
-                <option value="Outros">Outros (especificar nas observações)</option>
               </select>
             </div>
 
