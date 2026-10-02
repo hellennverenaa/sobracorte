@@ -49,7 +49,7 @@ test('Apoio aceita apenas números inteiros e rejeita decimais', () => {
         quantity: 10.5,
         location: 'Prateleira B1',
       }),
-    /Quantidade no setor de Apoio deve ser um número inteiro/
+    /Quantidade em Peças Cortadas deve ser um número inteiro/
   );
 });
 

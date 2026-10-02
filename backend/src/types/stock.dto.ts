@@ -90,7 +90,7 @@ export const ApoioItemSchema = z.object({
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().optional().default(''),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Apoio deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  quantity: quantityInput(z.coerce.number().int('Quantidade em Peças Cortadas deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),

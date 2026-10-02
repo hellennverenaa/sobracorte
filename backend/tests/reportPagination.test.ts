@@ -55,6 +55,21 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
         unit: 'm²',
         locations: [],
         createdAt: new Date('2026-01-01'),
+      }, {
+        id: 2,
+        sector: 'APOIO',
+        code: null,
+        pieceCode: 'CUT-2',
+        sku: null,
+        productName: 'MODELO',
+        description: 'Peça de teste',
+        name: null,
+        quantity: 5,
+        unit: 'UND',
+        sizeGrade: '40',
+        footSide: null,
+        locations: [],
+        createdAt: new Date('2026-01-02'),
       }];
     };
     stockItem.count = async () => 251;
@@ -65,7 +80,9 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     await controller.inventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '999' } } as any, inventoryCapture.res);
     assert.equal(inventoryQuery.skip, 200);
     assert.equal(inventoryQuery.take, 200);
-    assert.equal(inventoryCapture.result.body.items.length, 1);
+    assert.equal(inventoryCapture.result.body.items.length, 2);
+    assert.equal(inventoryCapture.result.body.items.find((item: any) => item.id === 'stk_2').setor, 'APOIO');
+    assert.equal(inventoryCapture.result.body.items.find((item: any) => item.id === 'stk_2').categoria, 'APOIO');
     assert.equal(inventoryCapture.result.body.pagination.total, 251);
     assert.equal(inventoryCapture.result.body.pagination.limit, 200);
     assert.equal(inventoryCapture.result.body.totals.quantidadeTotal, 1000);
@@ -162,11 +179,84 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
     await controller.exportInventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: {} } as any, res);
     const csv = chunks.join('');
     assert.equal((csv.match(/"CORTE";/g) ?? []).length, 501);
-    assert.equal((csv.match(/"APOIO";/g) ?? []).length, 2);
+    assert.equal((csv.match(/"Peças Cortadas";/g) ?? []).length, 2);
     assert.match(chunks[1], /^"CORTE";"CORTE-1";"Material";"TECIDO";"'-";"'-";"1";"m²";"A";/);
     assert.ok(chunks[501].startsWith('"CORTE";"CORTE-501";'));
-    assert.ok(chunks[502].startsWith('"APOIO";"APOIO-1001";"Material";"tecido";"40";"E";"1";"UND";"A";'));
+    assert.ok(chunks[502].startsWith('"Peças Cortadas";"APOIO-1001";"Material";"tecido";"40";"E";"1";"UND";"A";'));
   } finally {
     stockItem.findMany = originalFindMany;
+  }
+});
+
+test('exportações de movimentações e requisições exibem Peças Cortadas sem alterar os filtros internos', async () => {
+  const controller = new ReportController();
+  const movement = prisma.stockMovement as any;
+  const requisition = prisma.materialRequisition as any;
+  const location = prisma.location as any;
+  const originals = {
+    movementFindMany: movement.findMany,
+    requisitionFindMany: requisition.findMany,
+    locationFindMany: location.findMany,
+  };
+
+  try {
+    movement.findMany = async (args: any) => {
+      assert.equal(args.where.sector, 'APOIO');
+      if (args.where.id?.lt) return [];
+      return [{
+        id: 5,
+        createdAt: new Date('2026-01-02T10:00:00Z'),
+        sector: 'APOIO',
+        type: 'ENTRADA',
+        itemCode: 'CAB-5',
+        itemName: 'Cabedal',
+        itemCategory: 'APOIO',
+        quantity: 2,
+        sourceSector: 'APOIO',
+        destinationSector: 'APOIO',
+      }];
+    };
+    location.findMany = async () => [];
+    const movementChunks: string[] = [];
+    const movementResponse: any = {
+      headersSent: false,
+      setHeader() {},
+      write(chunk: string) { movementChunks.push(chunk); },
+      end() {},
+    };
+    await controller.exportMovements({ user: { role: 'admin' }, tenant: { id: 7 }, query: { sector: 'APOIO' } } as any, movementResponse);
+    const movementCsv = movementChunks.join('');
+    assert.match(movementCsv, /"Peças Cortadas"/);
+    assert.doesNotMatch(movementCsv, /"APOIO"/);
+
+    requisition.findMany = async (args: any) => {
+      assert.equal(args.where.requestSector, 'APOIO');
+      if (args.where.id?.lt) return [];
+      return [{
+        id: 8,
+        code: 'REQ-8',
+        createdAt: new Date('2026-01-02T10:00:00Z'),
+        requestSector: 'APOIO',
+        description: 'Peça de teste',
+        quantityRequested: 3,
+        quantityFulfilled: 0,
+        status: 'PENDENTE',
+      }];
+    };
+    const requisitionChunks: string[] = [];
+    const requisitionResponse: any = {
+      headersSent: false,
+      setHeader() {},
+      write(chunk: string) { requisitionChunks.push(chunk); },
+      end() {},
+    };
+    await controller.exportRequisitions({ user: { role: 'admin' }, tenant: { id: 7 }, query: { sector: 'APOIO' } } as any, requisitionResponse);
+    const requisitionCsv = requisitionChunks.join('');
+    assert.match(requisitionCsv, /"Peças Cortadas"/);
+    assert.doesNotMatch(requisitionCsv, /"APOIO"/);
+  } finally {
+    movement.findMany = originals.movementFindMany;
+    requisition.findMany = originals.requisitionFindMany;
+    location.findMany = originals.locationFindMany;
   }
 });

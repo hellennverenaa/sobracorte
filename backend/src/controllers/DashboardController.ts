@@ -252,7 +252,7 @@ export class DashboardController {
                   CASE 
                     WHEN s.sector = 'MONTAGEM' THEN 'Calçado Montagem'
                     WHEN s.sector = 'PRE_FABRICADO' THEN 'Sola Pré-Fabricado'
-                    WHEN s.sector = 'APOIO' THEN 'Componente Apoio'
+                    WHEN s.sector = 'APOIO' THEN 'Peças Cortadas'
                     ELSE 'Item Estoque'
                   END
                 ) || CASE 
@@ -483,7 +483,7 @@ export class DashboardController {
       // 3. Distribuição do Volume por Setor
       const volumePorSetor = [
         { sector: 'CORTE', label: 'Corte (Matéria-Prima)', count: totalMaterialsCount, quantity: null, color: '#047857' },
-        { sector: 'APOIO', label: 'Apoio (Moldes/Peças)', count: apoioCount, quantity: null, color: '#0284c7' },
+        { sector: 'APOIO', label: 'Peças Cortadas (Moldes/Peças)', count: apoioCount, quantity: null, color: '#0284c7' },
         { sector: 'PRE_FABRICADO', label: 'Pré-Fabricado (Solas)', count: preFabCount, quantity: null, color: '#f59e0b' },
         { sector: 'DISTRIBUICAO', label: 'Distribuição (Cabedais/Solas)', count: expedicaoCount, quantity: null, color: '#8b5cf6' },
         { sector: 'MONTAGEM', label: 'Montagem (Pés Órfãos)', count: montagemCount, quantity: null, color: '#ec4899' },

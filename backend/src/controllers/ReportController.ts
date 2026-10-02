@@ -18,6 +18,10 @@ export function csvLine(values: unknown[]): string {
   return `${values.map(csvCell).join(';')}\r\n`;
 }
 
+function formatReportSector(sector: unknown): unknown {
+  return sector === 'APOIO' ? 'Peças Cortadas' : sector;
+}
+
 export function decimalString(val: unknown): string {
   if (val === null || val === undefined) return '0';
   const num = Number(val);
@@ -602,10 +606,10 @@ export class ReportController {
             const isCorte = s.sector === 'CORTE';
             const locs = (s.locations ?? []).map(l => l.location?.name).filter(Boolean).join(' | ') || '-';
             res.write(csvLine([
-              s.sector,
+              formatReportSector(s.sector),
               isCorte ? s.code : s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`,
               isCorte ? s.name : s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
-              isCorte ? s.type!.toUpperCase() : s.type || s.sector,
+              isCorte ? s.type!.toUpperCase() : formatReportSector(s.type || s.sector),
               isCorte ? '-' : s.sizeGrade || '-',
               isCorte ? '-' : s.footSide || '-',
               decimalString(s.quantity),
@@ -746,11 +750,11 @@ export class ReportController {
             res.write(csvLine([
               dataStr,
               horaStr,
-              m.sector,
+              formatReportSector(m.sector),
               m.type,
               code,
               desc,
-              m.itemCategory ?? item?.type ?? m.sector,
+              formatReportSector(m.itemCategory ?? item?.type ?? m.sector),
               m.itemSizeGrade ?? item?.sizeGrade ?? '-',
               m.itemFootSide ?? item?.footSide ?? '-',
               decimalString(m.quantity),
@@ -764,8 +768,8 @@ export class ReportController {
               m.itemColor ?? item?.materialColor ?? item?.color ?? '',
               m.sourceStockItemId ?? '',
               m.destinationStockItemId ?? '',
-              m.sourceSector ?? '',
-              m.destinationSector ?? '',
+              formatReportSector(m.sourceSector ?? ''),
+              formatReportSector(m.destinationSector ?? ''),
             ]));
           }
 
@@ -900,7 +904,7 @@ export class ReportController {
             r.code,
             dataStr,
             horaStr,
-            r.requestSector,
+            formatReportSector(r.requestSector),
             r.sku || '-',
             r.modelName || '-',
             r.description,

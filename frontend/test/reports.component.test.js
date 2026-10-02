@@ -99,6 +99,7 @@ test('Reports restringe seletor e consultas ao setor atribuído, inclusive após
   const sector = mounted.element.querySelector('select[aria-label="Setor industrial"]');
   assert.equal(sector.options.length, 1);
   assert.equal(sector.value, 'APOIO');
+  assert.equal(sector.options[0].textContent.trim(), 'Peças Cortadas');
   const clear = [...mounted.element.querySelectorAll('button')].find(button => /Limpar Filtros/i.test(button.textContent));
   clear.click();
   await flushPromises();
