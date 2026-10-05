@@ -1,4 +1,5 @@
 import { assertStockSectorAccess } from '../auth/stockAccess';
+import { assertStockSubsectorAccess, stockItemSubsectorSql } from '../auth/subsectorAccess';
 import { pairCompatibilitySql } from './pairCompatibilitySql';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
@@ -32,9 +33,15 @@ export class MountingPairService {
   async findMatchingPairs(
     factoryUnitId: number,
     sector: SectorType = 'MONTAGEM',
-    searchQuery: string = ''
+    searchQuery: string = '',
+    context?: OperatorContext,
   ): Promise<MatchingPairRawResult[]> {
     const normalizedSector = normalizeStockSector(sector) as SectorType;
+    if (context && !(context.role === 'leitor' && !context.assignedSector)) {
+      assertStockSectorAccess(context, normalizedSector);
+    }
+    const leftSubsectorScope = context ? stockItemSubsectorSql('e', context) : Prisma.sql`TRUE`;
+    const rightSubsectorScope = context ? stockItemSubsectorSql('d', context) : Prisma.sql`TRUE`;
 
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 
@@ -71,6 +78,8 @@ export class MountingPairService {
         AND (d.sector = ${normalizedSector}::sobra_corte."SectorType" OR ((${normalizedSector} = 'DISTRIBUICAO') AND d.sector = 'EXPEDICAO'::sobra_corte."SectorType"))
         AND e."footSide" = 'E'
         AND d."footSide" = 'D'
+        AND ${leftSubsectorScope}
+        AND ${rightSubsectorScope}
         AND e.quantity > 0
         AND d.quantity > 0
       ORDER BY "formablePairs" DESC, "sku" ASC;
@@ -107,12 +116,12 @@ export class MountingPairService {
     return prisma.$transaction(async tx => {
       await lockStockIdentityWrites(tx, factoryUnitId);
       const items = await Promise.all([dto.leftStockItemId, dto.rightStockItemId].map(id => tx.stockItem.findFirst({
-        where: { id, factoryUnitId }, include: { locations: { include: { location: true } } },
+        where: { id, factoryUnitId }, include: { subsector: { select: { id: true, sector: true } }, locations: { include: { location: true } } },
       })));
       const [left, right] = items;
       if (!left || !right) throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
-      assertStockSectorAccess(context, left.sector);
-      assertStockSectorAccess(context, right.sector);
+      assertStockSubsectorAccess(context, left.subsector, left.sector);
+      assertStockSubsectorAccess(context, right.subsector, right.sector);
       if (!['PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(left.sector)) throw new Error('O setor não permite casamento de pares.');
       if (normalizeStockSector(left.sector) !== normalizeStockSector(dto.sector)) throw new Error('Os itens não pertencem ao setor informado para o casamento.');
       assertCompatiblePair(left, right);
@@ -123,7 +132,7 @@ export class MountingPairService {
         for (const debit of debits) {
           await tx.stockMovement.create({
             data: {
-              factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'CASAMENTO_PAR',
+              factoryUnitId, stockItemId: item.id, subsectorId: item.subsectorId, sector: item.sector, type: 'CASAMENTO_PAR',
               quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
               ...movementSnapshot(item),
               sourceStockItemId: item.id, sourceSector: item.sector,

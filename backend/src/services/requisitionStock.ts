@@ -2,6 +2,8 @@ import type { StockTransactionClient } from '../prisma';
 import { Prisma, SectorType, FootSide, ComponentType } from '../generated/prisma';
 import { normalizeStockColor, normalizeStockSector, normalizeStockText, stockIdentity } from './stockIdentity';
 import { normalizeUnit } from '../utils/unitHelper';
+import { stockItemScopeWhere } from '../auth/subsectorAccess';
+import type { OperatorContext } from '../types/stock.dto';
 
 export type RequestIdentity = {
   requestSector: SectorType;
@@ -73,7 +75,13 @@ function inferredType(req: RequestIdentity, sector: string) {
 }
 
 /** Encontra a identidade tradicional de um setor, sem cruzar para outro setor. */
-export async function findRequisitionStock(tx: StockTransactionClient, factoryUnitId: number, req: RequestIdentity, side?: FootSide) {
+export async function findRequisitionStock(
+  tx: StockTransactionClient,
+  factoryUnitId: number,
+  req: RequestIdentity,
+  side?: FootSide,
+  context?: OperatorContext,
+) {
   const sector = normalizeStockSector(req.requestSector);
   const AND: Prisma.StockItemWhereInput[] = [];
   const exact = (field: string, value?: string | null) => {
@@ -104,7 +112,7 @@ export async function findRequisitionStock(tx: StockTransactionClient, factoryUn
     where: {
       factoryUnitId,
       sector: sectorWhere(sector),
-      AND,
+      AND: [...AND, ...(context ? [stockItemScopeWhere(context)] : [])],
       ...(side ? { footSide: side } : {}),
     },
     include: { locations: { include: { location: true } } },
@@ -350,6 +358,7 @@ export async function findRequisitionStockCandidates(
   tx: StockTransactionClient,
   factoryUnitId: number,
   req: RequestIdentity & { requestUnit?: string | null },
+  context?: OperatorContext,
 ): Promise<RequisitionStockCandidate[]> {
   const requestSector = normalizeStockSector(req.requestSector);
   const candidates: RequisitionStockCandidate[] = [];
@@ -358,9 +367,9 @@ export async function findRequisitionStockCandidates(
 
   if (req.footSide === 'PAR') {
     const [left, right, completePairs] = await Promise.all([
-      findRequisitionStock(tx, factoryUnitId, req, 'E'),
-      findRequisitionStock(tx, factoryUnitId, req, 'D'),
-      findRequisitionStock(tx, factoryUnitId, req, 'PAR'),
+      findRequisitionStock(tx, factoryUnitId, req, 'E', context),
+      findRequisitionStock(tx, factoryUnitId, req, 'D', context),
+      findRequisitionStock(tx, factoryUnitId, req, 'PAR', context),
     ]);
     for (const item of completePairs) {
       add(makeCandidate([item], requestSector, requestUnit, 1, `Material compatível no setor ${requestSector}.`));
@@ -369,7 +378,7 @@ export async function findRequisitionStockCandidates(
       add(makeCandidate(pair, requestSector, requestUnit, 1, `Material compatível no setor ${requestSector}.`));
     }
   } else {
-    const items = await findRequisitionStock(tx, factoryUnitId, req, req.footSide as FootSide | undefined);
+    const items = await findRequisitionStock(tx, factoryUnitId, req, req.footSide as FootSide | undefined, context);
     for (const item of items) {
       add(makeCandidate([item], requestSector, item.unit || requestUnit, 1, `Material compatível no setor ${requestSector}.`));
     }
@@ -385,6 +394,7 @@ export async function findRequisitionStockCandidates(
     const linked = await tx.stockItem.findMany({
       where: {
         factoryUnitId,
+        ...(context ? { AND: [stockItemScopeWhere(context)] } : {}),
         sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] },
         type: { equals: 'CABEDAL', mode: 'insensitive' },
         sku: { equals: normalizeStockText(req.sku), mode: 'insensitive' },
@@ -417,6 +427,7 @@ export async function findRequisitionStockCandidates(
     ? await tx.stockItem.findMany({
       where: {
         factoryUnitId,
+        ...(context ? { AND: [stockItemScopeWhere(context)] } : {}),
         sector: { not: 'CORTE' },
         quantity: { gt: 0 },
         OR: (['sku', 'code', 'pieceCode'] as const).map((field): Prisma.StockItemWhereInput => ({
@@ -461,6 +472,7 @@ export async function findRequisitionStockCandidates(
     const modelRows = await tx.stockItem.findMany({
       where: {
         factoryUnitId,
+        ...(context ? { AND: [stockItemScopeWhere(context)] } : {}),
         sector: { not: 'CORTE' },
         quantity: { gt: 0 },
         productName: { equals: modelIdentity, mode: 'insensitive' },
@@ -559,6 +571,7 @@ export async function findUnverifiedRequisitionStockMatches(
   factoryUnitId: number,
   req: RequestIdentity,
   alreadyOfferedStockItemIds: number[] = [],
+  context?: OperatorContext,
 ): Promise<UnverifiedRequisitionStockMatch[]> {
   const requestSector = normalizeStockSector(req.requestSector);
   type StockIdentityField = 'sku' | 'code' | 'pieceCode' | 'productName' | 'name' | 'description';
@@ -591,7 +604,7 @@ export async function findUnverifiedRequisitionStockMatches(
     [field]: { equals: value, mode: 'insensitive' },
   }));
   const rows = await tx.stockItem.findMany({
-    where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { gt: 0 }, OR },
+    where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { gt: 0 }, AND: context ? [stockItemScopeWhere(context), { OR }] : [{ OR }] },
     include: { locations: { include: { location: true } } },
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     take: 100,
@@ -644,13 +657,14 @@ export async function findPersistedRequisitionSource(
   tx: StockTransactionClient,
   factoryUnitId: number,
   req: Record<string, any>,
+  context?: OperatorContext,
 ): Promise<RequisitionStockCandidate | null> {
   const ids = Array.isArray(req.sourceStockItemIds)
     ? [...new Set(req.sourceStockItemIds.map(Number).filter((id: number) => Number.isSafeInteger(id) && id > 0))].sort((a: number, b: number) => a - b)
     : [];
   if (!ids.length) return null;
   const items = await tx.stockItem.findMany({
-    where: { factoryUnitId, id: { in: ids } },
+    where: { factoryUnitId, id: { in: ids }, ...(context ? { AND: [stockItemScopeWhere(context)] } : {}) },
     include: { locations: { include: { location: true } } },
   });
   if (items.length !== ids.length) return null;

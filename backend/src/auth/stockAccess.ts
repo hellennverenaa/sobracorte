@@ -6,6 +6,8 @@ export interface StockAccessContext {
   role?: string | null;
   assignedSector?: string | null;
   isGlobalAdmin?: boolean;
+  bindingId?: number | null;
+  subsectorIds?: number[];
 }
 export class StockAccessError extends Error {
   readonly status = 403;
@@ -39,6 +41,8 @@ export function requestStockAccess(req: Request): StockAccessContext {
     role: req.effectiveContext?.effectiveRole ?? req.user?.role,
     assignedSector: req.effectiveContext?.assignedSector ?? req.user?.assignedSector,
     isGlobalAdmin: req.effectiveContext?.isGlobalAdmin ?? req.isGlobalAdmin,
+    bindingId: req.effectiveContext?.bindingId,
+    subsectorIds: req.effectiveContext?.subsectorIds,
   };
 }
 export function sectorAccessWhere(context: StockAccessContext) {

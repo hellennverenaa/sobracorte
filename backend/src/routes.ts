@@ -12,6 +12,7 @@ import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
 import { RequisitionController } from './controllers/RequisitionController';
 import { RequisitionStockCompatibilityController } from './controllers/RequisitionStockCompatibilityController';
+import { SubsectorController } from './controllers/SubsectorController';
 import { prisma } from './prisma';
 import { tenantStorage } from './context/tenantContext';
 import { requireRole, requireAuth, requireSectorMatch, requireRequisitionsEnabled } from './middlewares/roleMiddleware';
@@ -110,6 +111,7 @@ const mountingPairController = new MountingPairController();
 const stockMovementController = new StockMovementController();
 const requisitionController = new RequisitionController();
 const requisitionStockCompatibilityController = new RequisitionStockCompatibilityController();
+const subsectorController = new SubsectorController();
 
 routes.get('/health', (_req, res) => res.json({ status: 'ok' }));
 routes.get('/auth/health', (_req, res) => res.json({ status: 'ok' }));
@@ -201,11 +203,14 @@ routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), 
   try {
     const users = await prisma.userRoleBinding.findMany({
       where: { factoryUnitId: req.tenant!.id },
-      include: { identity: true },
+      include: {
+        identity: true,
+        subsectorAccesses: { include: { subsector: { select: { id: true, name: true, sector: true, active: true } } } },
+      },
       orderBy: { identity: { nome: 'asc' } },
     });
 
-    const safeUsers = users.map(({ identity, ...binding }) => {
+    const safeUsers = users.map(({ identity, subsectorAccesses, ...binding }) => {
       const role = effectiveRoleForBinding(binding);
       const linkedSector = role === 'admin' ? null : (binding.assignedSector || null);
       return {
@@ -218,6 +223,11 @@ routes.get('/users', requireAuth, authenticatedLimiter, requireRole(['admin']), 
         matriculaDass: identity.matriculaDass ? Number(identity.matriculaDass) : null,
         assignedSector: role === 'leitor' || role === 'admin' ? null : linkedSector,
         linkedSector,
+        subsectorIds: subsectorAccesses.map(access => access.subsectorId),
+        subsectorAccess: {
+          mode: role === 'admin' ? 'UNIT' : role === 'admin_setor' ? 'SECTOR' : 'EXPLICIT',
+          subsectors: subsectorAccesses.map(access => access.subsector),
+        },
       };
     });
 
@@ -319,6 +329,8 @@ routes.delete('/users/:id', requireAuth, mutationLimiter, requireRole(['admin'])
   }
 });
 
+routes.put('/users/:id/subsector-access', requireAuth, mutationLimiter, requireRole(['admin']), subsectorController.replaceUserAccess);
+
 routes.get('/settings/categories',    requireAuth, authenticatedLimiter, settingsController.getCategories);
 routes.post('/settings/categories',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createCategory);
 routes.put('/settings/categories/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.updateCategory);
@@ -330,6 +342,11 @@ routes.put('/settings/component-subtypes/:id', requireAuth, mutationLimiter, req
 routes.delete('/settings/component-subtypes/:id', requireAuth, mutationLimiter, requireRole(['admin']), settingsController.deleteComponentSubtype);
 
 routes.get('/settings/units', requireAuth, authenticatedLimiter, settingsController.getUnits);
+
+routes.get('/settings/subsectors', requireAuth, authenticatedLimiter, subsectorController.list);
+routes.post('/settings/subsectors', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), subsectorController.create);
+routes.put('/settings/subsectors/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), subsectorController.update);
+routes.patch('/settings/subsectors/:id/archive', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), subsectorController.archive);
 
 routes.get('/settings/locations',    requireAuth, authenticatedLimiter, settingsController.getLocations);
 routes.post('/settings/locations',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createLocation);

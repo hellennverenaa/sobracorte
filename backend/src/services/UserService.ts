@@ -102,6 +102,17 @@ export class UserService {
         },
       });
 
+      // A concessão ampla é derivada do papel e não deve deixar permissões
+      // individuais dormentes que reapareçam após uma mudança futura de papel.
+      if (tx.userSubsectorAccess?.deleteMany) {
+        const sectorRestriction = newRole === 'admin' || newRole === 'admin_setor' || !normalizedNewSector
+          ? {}
+          : { subsector: { sector: { not: normalizedNewSector } } };
+        await tx.userSubsectorAccess.deleteMany({
+          where: { factoryUnitId, bindingId: targetUserId, ...sectorRestriction },
+        });
+      }
+
       // 6. Registrar na tabela dedicada de auditoria LGPD / Segurança
       const auditLog = await tx.roleChangeAudit.create({
         data: {

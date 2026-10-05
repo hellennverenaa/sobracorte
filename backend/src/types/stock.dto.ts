@@ -322,4 +322,6 @@ export interface OperatorContext {
   operatorName?: string | null;
   role?: string | null;
   assignedSector?: string | null;
+  bindingId?: number | null;
+  subsectorIds?: number[];
 }

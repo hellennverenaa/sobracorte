@@ -1,4 +1,5 @@
-import { assertStockSectorAccess, assertGeneralStockAccess, sectorAccessWhere } from '../auth/stockAccess';
+import { assertGeneralStockAccess } from '../auth/stockAccess';
+import { assertStockSubsectorAccess, stockMovementScopeWhere } from '../auth/subsectorAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
@@ -19,14 +20,14 @@ export class StockMovementService {
       // Todos os setores, inclusive CORTE, usam o modelo canônico.
       const item = await tx.stockItem.findFirst({
         where: { id: stockItemId, factoryUnitId },
-        include: { locations: { include: { location: true } } },
+        include: { subsector: { select: { id: true, sector: true } }, locations: { include: { location: true } } },
       });
 
       if (!item) {
         throw new Error('Item de estoque ou matéria-prima não encontrado.');
       }
 
-      assertStockSectorAccess(context, item.sector);
+      assertStockSubsectorAccess(context, item.subsector, item.sector);
       validateQuantity(quantity, item.unit || "", item.sector);
 
       if (sector && normalizeStockSector(sector) !== normalizeStockSector(item.sector)) {
@@ -223,6 +224,7 @@ export class StockMovementService {
         data: {
           factoryUnitId,
           stockItemId: item.id,
+          subsectorId: item.subsectorId,
           sector: item.sector,
           type,
           quantity,
@@ -259,14 +261,18 @@ export class StockMovementService {
     const { factoryUnitId } = context;
     const { sector, stockItemId, operatorId, type, page, limit } = filters;
     const skip = (page - 1) * limit;
+    const sectorFilter = sector ? {
+      sector: (sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO')
+        ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
+        : sector,
+    } : undefined;
     const stockWhere: Prisma.StockMovementWhereInput = {
       factoryUnitId,
-      ...(sector ? {
-        sector: (sector === 'DISTRIBUICAO' || (sector as string) === 'EXPEDICAO')
-          ? { in: ['DISTRIBUICAO' as SectorType, 'EXPEDICAO' as SectorType] }
-          : sector,
-      } : {}),
-      AND: [sectorAccessWhere(context), ...(stockItemId ? [{ OR: [{ stockItemId }, { sourceStockItemId: stockItemId }, { destinationStockItemId: stockItemId }] }] : [])],
+      AND: [
+        stockMovementScopeWhere(context),
+        ...(sectorFilter ? [sectorFilter] : []),
+        ...(stockItemId ? [{ OR: [{ stockItemId }, { sourceStockItemId: stockItemId }, { destinationStockItemId: stockItemId }] }] : []),
+      ],
       ...(operatorId ? {
         OR: [
           { operatorId: { contains: operatorId, mode: 'insensitive' } },

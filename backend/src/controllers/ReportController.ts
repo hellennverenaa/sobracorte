@@ -1,4 +1,5 @@
-import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccessError } from '../auth/stockAccess';
+import { requestStockAccess, assignedStockSector, StockAccessError } from '../auth/stockAccess';
+import { locationScopeWhere, stockItemScopeWhere, stockMovementScopeWhere } from '../auth/subsectorAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
@@ -132,7 +133,7 @@ function buildMovementWhere(req: Request): Record<string, any> {
       } },
     ] });
   }
-  if (movementTextFilters.length > 0) stockWhere.AND = movementTextFilters;
+  stockWhere.AND = [stockMovementScopeWhere(requestStockAccess(req)), ...movementTextFilters];
   return stockWhere;
 }
 
@@ -141,7 +142,7 @@ export class ReportController {
     try {
       const factoryUnitId = req.tenant!.id;
       const { page, limit, skip } = getPagination(req);
-      const where = { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) };
+      const where = { factoryUnitId, ...stockItemScopeWhere(requestStockAccess(req)) };
       const stockItems = await prisma.stockItem.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -151,6 +152,7 @@ export class ReportController {
           locations: {
             include: { location: true },
           },
+          subsector: { select: { id: true, name: true, sector: true } },
         },
       });
 
@@ -174,6 +176,7 @@ export class ReportController {
       const formattedStock = stockItems.map((s) => ({
         id: `stk_${s.id}`,
         setor: s.sector,
+        subsetor: s.subsector?.name ?? null,
         codigo: s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`,
         material: s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
         descricao: s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
@@ -249,7 +252,7 @@ export class ReportController {
           include: { stockItem: true },
         }),
         prisma.location.findMany({
-          where: { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) },
+          where: { factoryUnitId, ...locationScopeWhere(requestStockAccess(req)) },
           select: { id: true, name: true },
         }),
         prisma.stockMovement.count({ where: stockWhere }),
@@ -586,9 +589,14 @@ export class ReportController {
       async function stream(where: Prisma.StockItemWhereInput) {
         let lastItemId: number | undefined;
         while (true) {
+          const scopedConditions = [
+            ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+            stockItemScopeWhere(requestStockAccess(req)),
+          ];
           const batch = await prisma.stockItem.findMany({
             where: {
               ...where,
+              AND: scopedConditions,
               ...(lastItemId !== undefined && { id: { gt: lastItemId } }),
             },
             take: batchSize,
@@ -678,7 +686,7 @@ export class ReportController {
       const stockWhere = buildMovementWhere(req);
 
       const locationsList = await prisma.location.findMany({
-        where: { factoryUnitId, ...sectorAccessWhere(requestStockAccess(req)) },
+        where: { factoryUnitId, ...locationScopeWhere(requestStockAccess(req)) },
         select: { id: true, name: true },
       });
       const locationMap = new Map(locationsList.map((l) => [l.id, l.name]));

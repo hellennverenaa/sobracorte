@@ -33,6 +33,7 @@ export interface EffectiveContext {
     factoryUnitId: number;
     effectiveRole: string;
     assignedSector: SectorType | null;
+    subsectorIds: number[];
     isGlobalAdmin: boolean;
     usuario: string;
     matriculaDass: number | null;

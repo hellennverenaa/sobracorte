@@ -1,5 +1,6 @@
 import { validateQuantity } from '../utils/unitHelper';
 import { assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
+import { stockItemScopeWhere } from '../auth/subsectorAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma, type StockTransactionClient } from '../prisma';
 import { 
@@ -54,6 +55,7 @@ export class RequisitionService {
       type?: string;
     },
     factoryUnitId: number,
+    context?: OperatorContext,
   ) {
     const requestSector = normalizeStockSector(params.requestSector);
     const query = params.query.trim();
@@ -128,7 +130,7 @@ export class RequisitionService {
       where: {
         factoryUnitId,
         quantity: { gt: 0 },
-        AND: [sourceWhere, identityWhere, ...variantFilters],
+        AND: [sourceWhere, identityWhere, ...variantFilters, ...(context ? [stockItemScopeWhere(context)] : [])],
       },
       include: { locations: { include: { location: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
@@ -295,6 +297,7 @@ export class RequisitionService {
     },
     factoryUnitId: number,
     client: StockTransactionClient = prisma,
+    context?: OperatorContext,
   ): Promise<{
     quantity: number;
     locations: string[];
@@ -304,13 +307,14 @@ export class RequisitionService {
     candidates: RequisitionStockCandidate[];
     unverifiedStockMatches: UnverifiedRequisitionStockMatch[];
   }> {
-    const candidates = await findRequisitionStockCandidates(client, factoryUnitId, req);
+    const candidates = await findRequisitionStockCandidates(client, factoryUnitId, req, context);
     const offeredStockItemIds = candidates.flatMap(candidate => candidate.sourceStockItemIds);
     const unverifiedStockMatches = await findUnverifiedRequisitionStockMatches(
       client,
       factoryUnitId,
       req,
       offeredStockItemIds,
+      context,
     );
     const selected = req.sourceCandidateId ? candidates.find(candidate => candidate.id === req.sourceCandidateId) : undefined;
     const legacyChoice = !req.sourceCandidateId && candidates.length === 1 ? candidates[0] : undefined;
@@ -325,21 +329,21 @@ export class RequisitionService {
     };
   }
 
-  private async getSelectedSourceCandidate(req: any, factoryUnitId: number, tx: StockTransactionClient) {
-    const persisted = await findPersistedRequisitionSource(tx, factoryUnitId, req);
+  private async getSelectedSourceCandidate(req: any, factoryUnitId: number, tx: StockTransactionClient, context?: OperatorContext) {
+    const persisted = await findPersistedRequisitionSource(tx, factoryUnitId, req, context);
     if (persisted) return persisted;
     if (Array.isArray(req.sourceStockItemIds) && req.sourceStockItemIds.length) return null;
     const candidates = await findRequisitionStockCandidates(tx, factoryUnitId, {
       ...req,
       requestUnit: req.requestUnit || undefined,
-    });
+    }, context);
     const legacyCandidates = candidates.filter(candidate => candidate.sourceCompatibilityIds.length === 0
       && normalizeStockSector(candidate.sourceSector) === normalizeStockSector(req.requestSector));
     return legacyCandidates.length === 1 ? legacyCandidates[0] : null;
   }
 
-  private async getSelectedSourceStockInfo(req: any, factoryUnitId: number, tx: StockTransactionClient) {
-    const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx);
+  private async getSelectedSourceStockInfo(req: any, factoryUnitId: number, tx: StockTransactionClient, context?: OperatorContext) {
+    const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx, context);
     return candidate ? {
       quantity: candidate.quantity,
       unit: candidate.unit,
@@ -385,7 +389,7 @@ export class RequisitionService {
           sizeGrade: item.sizeGrade || null,
           color: item.color || null,
           footSide: item.footSide || null,
-        });
+        }, context);
         let selected = item.sourceCandidateId
           ? candidates.find(candidate => candidate.id === item.sourceCandidateId)
           : undefined;
@@ -452,7 +456,7 @@ export class RequisitionService {
     // 4. Retornar itens enriquecidos com saldo
     const enriched = await Promise.all(
       createdItems.map(async (req) => {
-        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma);
+        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma, context);
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
@@ -513,7 +517,7 @@ export class RequisitionService {
     // Cruzar cada requisição com o saldo físico em estoque
     const enriched = await Promise.all(
       requisitions.map(async (req) => {
-        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma);
+        const stockInfo = await this.getSelectedSourceStockInfo(req, factoryUnitId, prisma, context);
         return {
           ...req,
           stockAvailable: stockInfo.quantity,
@@ -562,7 +566,7 @@ export class RequisitionService {
         throw new Error('A quantidade informada é inválida ou excede a pendência da requisição.');
       }
       validateQuantity(dto.quantity, req.requestUnit || 'UN', req.requestSector);
-      const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx);
+      const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx, context);
       if (!candidate) throw new Error('A origem escolhida não está mais compatível ou não possui saldo. Atualize a requisição antes de atender.');
       if (candidate.sourceSector !== sourceSector) throw new Error('A origem de estoque da requisição não corresponde mais ao setor fornecedor registrado.');
       if (amount.gt(new Prisma.Decimal(candidate.quantity))) throw new Error(`Saldo insuficiente na origem escolhida. Disponível: ${candidate.quantity} ${candidate.unit}.`);
@@ -575,7 +579,7 @@ export class RequisitionService {
         for (const debit of debits) {
           await tx.stockMovement.create({
             data: {
-              factoryUnitId, stockItemId: item.id, sector: item.sector, type: 'SAIDA_REQUISICAO',
+              factoryUnitId, stockItemId: item.id, subsectorId: item.subsectorId, sector: item.sector, type: 'SAIDA_REQUISICAO',
               quantity: debit.quantity, sourceLocationId: debit.locationId, sourceLocationName: debit.locationName,
               ...movementSnapshot(item),
               sourceStockItemId: item.id, sourceSector: item.sector,

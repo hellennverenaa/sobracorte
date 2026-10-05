@@ -2,14 +2,21 @@ import { assertStockSectorAccess, assertGeneralStockAccess, isStockMaster } from
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
-import { SectorType, ComponentType } from '../generated/prisma';
+import { Prisma, SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError, StockOriginError } from './stockIdentity';
 import { categoryScopeWhere } from './categoryScope';
+import { locationScopeWhere, stockItemScopeWhere } from '../auth/subsectorAccess';
 export { DuplicateStockItemError } from './stockIdentity';
 
 // Esses setores já exigiam um tipo de material; categoria continua opcional em APOIO e MONTAGEM.
 const CATEGORY_REQUIRED_SECTORS = new Set(['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO']);
+
+function withAndCondition<T extends Record<string, any>>(where: T, condition: object): T {
+  if (Object.keys(condition).length === 0) return where;
+  const conditions = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+  return { ...where, AND: [...conditions, condition] };
+}
 
 export class StockItemService {
   /**
@@ -272,6 +279,7 @@ export class StockItemService {
     context: OperatorContext
   ) {
     const { factoryUnitId } = context;
+    const itemScope = stockItemScopeWhere(context);
     const { q, sector, page = 1, limit = 50, locationId, type, stockStatus, modelName, materialColor } = params;
     const skip = (page - 1) * limit;
     if (!sector || sector === 'TODOS') {
@@ -285,7 +293,7 @@ export class StockItemService {
       : [];
 
     const applyInventoryFilters = (where: any, itemSector: SectorType) => {
-      if (normalizeStockSector(itemSector) !== targetSector) return where;
+      if (normalizeStockSector(itemSector) !== targetSector) return withAndCondition(where, itemScope);
 
       const filtered = { ...where };
       if (locationId) filtered.locations = { some: { factoryUnitId, locationId } };
@@ -306,7 +314,7 @@ export class StockItemService {
       }
       if (stockStatus === 'with_balance') filtered.quantity = { gt: 0 };
       if (stockStatus === 'zero_balance') filtered.quantity = 0;
-      return filtered;
+      return withAndCondition(filtered, itemScope);
     };
 
     const buildMaterialWhere = () => applyInventoryFilters({
@@ -449,15 +457,15 @@ export class StockItemService {
           })
         : [],
       prisma.location.findMany({
-        where: {
+        where: withAndCondition({
           factoryUnitId,
           OR: [
             { sector: targetSector as SectorType },
             ...(isStockMaster(context) ? [{ sector: null }] : []),
             ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
           ],
-        },
-        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        }, locationScopeWhere(context)),
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -490,6 +498,7 @@ export class StockItemService {
       return {
         id: mat.id,
         sector: 'CORTE',
+        subsectorId: mat.subsectorId,
         code: mat.code,
         name: mat.name,
         unit: mat.unit,
@@ -501,7 +510,7 @@ export class StockItemService {
         locations: mat.locations ? mat.locations.map((l: any) => ({
           locationId: l.locationId,
           quantity: l.quantity,
-          location: { id: l.location.id, name: l.location.name, sector: l.location.sector },
+          location: { id: l.location.id, name: l.location.name, sector: l.location.sector, subsectorId: l.location.subsectorId },
         })) : [],
         locationDisplay: locationStr,
       };
@@ -576,7 +585,7 @@ export class StockItemService {
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
       },
       filterOptions: {
-        locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
+        locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, subsectorId: l.subsectorId, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
         origins: origins.map((o) => ({ id: o.id, name: o.name, sector: o.sector })),
         categories: categories.map((c) => ({ id: c.id, name: c.name, sector: c.sector, sectors: c.sectors, componentType: c.componentType })),
       },
@@ -602,7 +611,7 @@ export class StockItemService {
     const searchTerms = q?.trim()
       ? q.trim().split(/[,\s\n;]+/).map(term => term.trim()).filter(Boolean)
       : [];
-    const baseWhere: any = {
+    const baseWhere: any = withAndCondition({
       factoryUnitId,
       ...(locationId ? { locations: { some: { factoryUnitId, locationId } } } : {}),
       ...(type ? { type: { equals: type, mode: 'insensitive' } } : {}),
@@ -614,7 +623,7 @@ export class StockItemService {
       ] }] } : {}),
       ...(stockStatus === 'with_balance' ? { quantity: { gt: 0 } } : {}),
       ...(stockStatus === 'zero_balance' ? { quantity: 0 } : {}),
-    };
+    }, stockItemScopeWhere(context));
     const searchFields: Record<string, string[]> = {
       CORTE: ['code', 'name', 'type'],
       APOIO: ['pieceCode', 'sku', 'productName', 'description', 'materialColor', 'color', 'type', 'sizeGrade'],
@@ -668,8 +677,8 @@ export class StockItemService {
       prisma.stockItem.count({ where: whereForSector('DISTRIBUICAO') }),
       prisma.stockItem.count({ where: whereForSector('MONTAGEM') }),
       prisma.location.findMany({
-        where: { factoryUnitId },
-        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        where: withAndCondition({ factoryUnitId }, locationScopeWhere(context)),
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -694,6 +703,7 @@ export class StockItemService {
         return {
           id: item.id,
           sector: item.sector,
+          subsectorId: item.subsectorId,
           code: item.code,
           name: item.name,
           unit: item.unit,
@@ -705,7 +715,7 @@ export class StockItemService {
           locations: itemLocations.map((link: any) => ({
             locationId: link.locationId,
             quantity: link.quantity,
-            location: { id: link.location.id, name: link.location.name, sector: link.location.sector },
+            location: { id: link.location.id, name: link.location.name, sector: link.location.sector, subsectorId: link.location.subsectorId },
           })),
           locationDisplay,
         };
@@ -737,7 +747,7 @@ export class StockItemService {
         montagem: { total: montagemCount, data: pageSectorItems('MONTAGEM') },
       },
       filterOptions: {
-        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, categoryId: item.categoryId, categoryLinks: item.categoryLinks })),
+        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, subsectorId: item.subsectorId, categoryId: item.categoryId, categoryLinks: item.categoryLinks })),
         origins: origins.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
         categories: categories.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, sectors: item.sectors, componentType: item.componentType })),
       },
@@ -752,6 +762,7 @@ export class StockItemService {
     query: string,
     factoryUnitId: number,
     componentType?: 'CABEDAL' | 'PECA_CORTADA',
+    context?: OperatorContext,
   ) {
     const rawQ = query ? query.trim() : '';
 
@@ -768,6 +779,7 @@ export class StockItemService {
           })),
         } : {}),
       };
+      if (context) Object.assign(where, withAndCondition(where, stockItemScopeWhere(context)));
       const items = await prisma.stockItem.findMany({
         where,
         take: 50,
@@ -790,6 +802,7 @@ export class StockItemService {
         where: {
           factoryUnitId,
           sector: 'CORTE',
+          AND: context ? [stockItemScopeWhere(context)] : undefined,
           ...(rawQ
             ? {
                 OR: [
@@ -820,6 +833,7 @@ export class StockItemService {
       where: {
         factoryUnitId,
         sector,
+        AND: context ? [stockItemScopeWhere(context)] : undefined,
         ...(sector === 'APOIO' ? {
           quantity: { gt: 0 },
           ...(componentType ? { componentType } : {}),
@@ -911,19 +925,19 @@ export class StockItemService {
   /**
    * Consulta agregada de combinações / cores já cadastradas (Autocomplete)
    */
-  async getCombinations(sector: SectorType | 'TODOS', query: string, factoryUnitId: number): Promise<string[]> {
+  async getCombinations(sector: SectorType | 'TODOS', query: string, factoryUnitId: number, context?: OperatorContext): Promise<string[]> {
     const rawQ = query ? query.trim() : '';
 
     if (sector === 'TODOS') {
       const items = await prisma.stockItem.findMany({
-        where: {
+        where: withAndCondition({
           factoryUnitId,
           sector: { in: ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'] },
           OR: [
             { color: { not: null, ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}) } },
             { materialColor: { not: null, ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}) } },
           ],
-        },
+        }, context ? stockItemScopeWhere(context) : {}) as Prisma.StockItemWhereInput,
         select: { color: true, materialColor: true },
         take: 500,
       });
@@ -937,14 +951,14 @@ export class StockItemService {
     }
 
     const items = await prisma.stockItem.findMany({
-      where: {
+      where: withAndCondition({
         factoryUnitId,
         sector: sectorCondition,
         color: {
           not: null,
           ...(rawQ ? { contains: rawQ, mode: 'insensitive' } : {}),
         },
-      },
+      }, context ? stockItemScopeWhere(context) : {}) as Prisma.StockItemWhereInput,
       select: {
         color: true,
       },

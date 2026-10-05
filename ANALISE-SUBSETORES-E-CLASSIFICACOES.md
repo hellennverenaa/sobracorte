@@ -350,6 +350,8 @@ Rejeitar IDs de subsetor inexistentes, de outra unidade fabril ou incompatíveis
 
 **Entregável:** API que aplica o escopo mesmo quando chamada sem a interface; o acesso amplo segue a matriz aprovada e os demais papéis dependem de vínculos explícitos.
 
+**Status: validada pela implementação em 05/10/2026.** API de subsetores, vínculos explícitos de usuários, escopos para estoque/localizações/movimentos e verificações no servidor implementados. O TypeScript e os testes focados de estoque/RBAC, subsetores, requisições e relatórios passaram. Na suíte geral, passaram 33 de 37 arquivos; três falharam por bloqueio do sandbox ao abrir portas locais e um depende de um CSV de fixture ausente. Registros legados sem subsetor continuam consultáveis segundo as permissões atuais; os novos vínculos são filtrados por papel e setor.
+
 ### Etapa 4 — Criar a gestão de subsetores e acessos
 
 Adicionar uma área própria **Configurações → Subsetores**, separada de Categorias. Permitir escolher setor pai, nome e status. Em **Usuários e acessos**, permitir atribuir um ou mais subsetores e mostrar claramente concessões amplas. Na configuração de cada subsetor, oferecer “Todas as categorias do setor” (padrão) ou “Selecionar categorias”, usando os registros de categoria já existentes.

@@ -1,5 +1,6 @@
 import { UnitValidationError } from '../utils/unitHelper';
-import { StockAccessError, requestStockAccess, assertStockSectorAccess } from '../auth/stockAccess';
+import { StockAccessError, requestStockAccess, assignedStockSector, assertStockSectorAccess } from '../auth/stockAccess';
+import { assertStockSubsectorAccess } from '../auth/subsectorAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { DuplicateStockItemError, StockItemService } from '../services/StockItemService';
@@ -141,8 +142,14 @@ export class StockItemController {
       }
 
       const { sector, q, componentType } = req.query;
+      const access = requestStockAccess(req);
+      const assignedSector = access.role === 'leitor' && !access.assignedSector
+        ? null
+        : assignedStockSector(access);
       const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
-      const targetSector = requestedSector === 'TODOS'
+      const targetSector = assignedSector
+        ? assignedSector
+        : requestedSector === 'TODOS'
         ? 'TODOS' as const
         : requireActiveStockSector(requestedSector) as SectorType;
 
@@ -152,7 +159,13 @@ export class StockItemController {
         ? requestedComponent as 'CABEDAL' | 'PECA_CORTADA'
         : undefined;
 
-      const result = await stockItemService.getSearchSuggestions(targetSector, query, req.tenant.id, apoioComponent);
+      const result = await stockItemService.getSearchSuggestions(
+        targetSector,
+        query,
+        req.tenant.id,
+        apoioComponent,
+        { ...access, factoryUnitId: req.tenant.id },
+      );
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
@@ -173,14 +186,25 @@ export class StockItemController {
       }
 
       const { sector, q } = req.query;
+      const access = requestStockAccess(req);
+      const assignedSector = access.role === 'leitor' && !access.assignedSector
+        ? null
+        : assignedStockSector(access);
       const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
-      const targetSector = requestedSector === 'TODOS'
+      const targetSector = assignedSector
+        ? assignedSector
+        : requestedSector === 'TODOS'
         ? 'TODOS' as const
         : requireActiveStockSector(requestedSector) as SectorType;
 
       const query = q ? String(q) : '';
 
-      const result = await stockItemService.getCombinations(targetSector, query, req.tenant.id);
+      const result = await stockItemService.getCombinations(
+        targetSector,
+        query,
+        req.tenant.id,
+        { ...access, factoryUnitId: req.tenant.id },
+      );
       return res.json(result);
     } catch (error) {
       if (error instanceof UnitValidationError) return res.status(400).json({ error: error.message });
@@ -215,6 +239,7 @@ export class StockItemController {
           const item = await tx.stockItem.findFirst({
             where: { id: itemId, factoryUnitId },
             include: {
+              subsector: { select: { id: true, sector: true } },
               locations: {
                 include: { location: true },
               },
@@ -225,7 +250,7 @@ export class StockItemController {
             throw new Error('STOCK_ITEM_NOT_FOUND');
           }
 
-          assertStockSectorAccess(requestStockAccess(req), item.sector);
+          assertStockSubsectorAccess(requestStockAccess(req), item.subsector, item.sector);
 
           const totalQty = Number(item.quantity || 0);
           const hasLocationBalance = item.locations.some((l: any) => Number(l.quantity || 0) > 0.0001);

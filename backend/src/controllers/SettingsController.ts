@@ -6,6 +6,7 @@ import { ComponentType, SectorType } from '../generated/prisma';
 import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 import { categoryAppliesToSector, categoryScopeValue, categoryScopeWhere } from '../services/categoryScope';
+import { locationScopeWhere, stockItemScopeWhere } from '../auth/subsectorAccess';
 
 const COMPONENT_TYPES = ['MATERIA_PRIMA', 'PECA_CORTADA', 'SOLADO', 'CABEDAL', 'PE_PRONTO'] as const;
 
@@ -108,7 +109,7 @@ export class SettingsController {
           const stockCount = await prisma.stockItem.count({
             where: {
               factoryUnitId: req.tenant!.id,
-              ...sectorAccessWhere(requestStockAccess(req)),
+              ...stockItemScopeWhere(requestStockAccess(req)),
               OR: [{ categoryId: cat.id }, { type: cat.name }],
             },
           });
@@ -459,6 +460,24 @@ export class SettingsController {
         }
       }
 
+      if (scopeWasProvided) {
+        const linkedSubsetors = await prisma.subsectorConfig.findMany({
+          where: {
+            factoryUnitId: req.tenant!.id,
+            categoryMode: 'SELECTED',
+            categoryLinks: { some: { categoryConfigId: id } },
+          },
+          select: { sector: true, name: true },
+        });
+        const nextScope = { sectors: scope.sectors, sector: scope.legacySector };
+        const incompatible = linkedSubsetors.find(subsector => !categoryAppliesToSector(nextScope, subsector.sector));
+        if (incompatible) {
+          return res.status(409).json({
+            error: `A categoria está selecionada no subsetor ${incompatible.name}; remova esse vínculo antes de alterar seus setores.`,
+          });
+        }
+      }
+
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
@@ -558,6 +577,15 @@ export class SettingsController {
         return res.status(404).json({ error: 'Categoria não encontrada.' });
       }
 
+      const subsectorLinkCount = await prisma.subsectorCategory.count({
+        where: { factoryUnitId: req.tenant!.id, categoryConfigId: id },
+      });
+      if (subsectorLinkCount > 0) {
+        return res.status(409).json({
+          error: 'Não é possível excluir: esta categoria está vinculada a um ou mais subsetores. Remova os vínculos antes de excluir.',
+        });
+      }
+
       const stockCount = await prisma.stockItem.count({
         where: { factoryUnitId: req.tenant!.id, OR: [{ categoryId: id }, { type: category.name }] }
       });
@@ -626,12 +654,17 @@ export class SettingsController {
           { sector: null }
         ];
       }
+      const locationScope = locationScopeWhere(requestStockAccess(req));
+      if (req.effectiveContext?.subsectorIds !== undefined && Object.keys(locationScope).length) {
+        whereClause.AND = [locationScope];
+      }
 
       const locations = await prisma.location.findMany({
         where: whereClause,
         orderBy: { id: 'desc' },
         include: {
           category: true,
+          subsector: { select: { id: true, name: true, sector: true } },
           categoryLinks: {
             include: { category: true }
           }
@@ -642,7 +675,7 @@ export class SettingsController {
         locations.map(async (loc) => {
           const stockLocs = await prisma.stockItemLocation.findMany(
             {
-              where: { factoryUnitId: req.tenant!.id, locationId: loc.id, stockItem: sectorAccessWhere(requestStockAccess(req)) },
+              where: { factoryUnitId: req.tenant!.id, locationId: loc.id, stockItem: stockItemScopeWhere(requestStockAccess(req)) },
               select: { quantity: true }
             });
           const totalLinked = stockLocs.length;
@@ -775,7 +808,7 @@ export class SettingsController {
       const { name, categoryIds, sector } = req.body;
 
       const existing = await prisma.location.findFirst({
-        where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) }
+        where: { id, factoryUnitId: req.tenant!.id, ...locationScopeWhere(requestStockAccess(req)) }
       });
       if (!existing) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
@@ -861,7 +894,7 @@ export class SettingsController {
         }
 
         const loc = await tx.location.update({
-          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) },
+          where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, AND: [locationScopeWhere(requestStockAccess(req))] },
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,
@@ -914,7 +947,7 @@ export class SettingsController {
 
       const id = Number(req.params.id);
       const location = await prisma.location.findFirst({
-        where: { id, factoryUnitId: req.tenant!.id, ...sectorAccessWhere(requestStockAccess(req)) }
+        where: { id, factoryUnitId: req.tenant!.id, ...locationScopeWhere(requestStockAccess(req)) }
       });
       if (!location) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
@@ -950,7 +983,7 @@ export class SettingsController {
 
         await tx.locationCategory.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
         await tx.stockItemLocation.deleteMany({ where: { locationId: id, factoryUnitId: req.tenant!.id } });
-        await tx.location.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, ...sectorAccessWhere(requestStockAccess(req)) } });
+        await tx.location.delete({ where: { id_factoryUnitId: { id, factoryUnitId: req.tenant!.id }, AND: [locationScopeWhere(requestStockAccess(req))] } });
       });
 
       res.json({ message: 'Localização excluída com sucesso.' });

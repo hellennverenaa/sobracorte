@@ -50,9 +50,19 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     const identity = authOrigin && authUserId && nativeFactory
       ? await prisma.authIdentity.findUnique({ where: { nativeUnitId_authOrigin_authUserId: { nativeUnitId: nativeFactory.id, authOrigin, authUserId } } })
       : null;
-    const binding = identity
-      ? await tenantStorage.run({ tenantId: tenant.id }, async () => await prisma.userRoleBinding.findUnique({ where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } } }))
-      : null;
+    const localAuthorization = identity
+      ? await tenantStorage.run({ tenantId: tenant.id }, async () => {
+          const binding = await prisma.userRoleBinding.findUnique({
+            where: { identityId_factoryUnitId: { identityId: identity.id, factoryUnitId: tenant.id } },
+            include: { subsectorAccesses: { select: { subsectorId: true } } },
+          });
+          return {
+            binding,
+            subsectorIds: binding?.subsectorAccesses?.map(access => access.subsectorId) ?? [],
+          };
+        })
+      : { binding: null, subsectorIds: [] as number[] };
+    const { binding, subsectorIds } = localAuthorization;
 
     const effectiveRole = effectiveRoleForBinding(binding, isGlobalAdmin);
     const assignedSector = effectiveRole === 'admin' || effectiveRole === 'leitor'
@@ -66,6 +76,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       factoryUnitId: tenant.id,
       effectiveRole,
       assignedSector,
+      subsectorIds,
       isGlobalAdmin,
       usuario,
       matriculaDass: identity?.matriculaDass ? Number(identity.matriculaDass) : (() => {

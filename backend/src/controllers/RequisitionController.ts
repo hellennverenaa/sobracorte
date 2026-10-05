@@ -25,7 +25,7 @@ export class RequisitionController {
       const requestSector = String(req.query.requestSector || '').trim().toUpperCase();
       requireActiveStockSector(requestSector);
       const access = requestStockAccess(req);
-      assertStockSectorAccess(access, requestSector);
+      if (!(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, requestSector);
 
       const field = String(req.query.field || '').trim().toUpperCase();
       if (field !== 'IDENTIFIER' && field !== 'MODEL') {
@@ -49,7 +49,7 @@ export class RequisitionController {
         sizeGrade: req.query.sizeGrade ? String(req.query.sizeGrade) : undefined,
         footSide: requestedSide || undefined,
         type: req.query.type ? String(req.query.type) : undefined,
-      }, req.tenant.id);
+      }, req.tenant.id, { ...access, factoryUnitId: req.tenant.id });
       return res.json(result);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
@@ -70,7 +70,10 @@ export class RequisitionController {
 
       const parsed = CheckStockAvailabilitySchema.parse(req.body);
       requireActiveStockSector(parsed.requestSector);
-      const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id);
+      const access = requestStockAccess(req);
+      if (!(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, parsed.requestSector);
+      const context = { ...access, factoryUnitId: req.tenant.id };
+      const result = await requisitionService.checkStockAvailability(parsed as any, req.tenant.id, undefined, context);
       return res.json({
         ...result,
         candidates: result.candidates.map(({ stockRows, ...candidate }) => candidate),
