@@ -17,7 +17,7 @@
 | 5 | P2 | PENDENTE | Organizar o formulário e a consulta do “Estoque Multi-Setor” |
 | 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
 
-**Próxima solicitação em análise:** aprimorar visualmente a tela principal do “Estoque Multi-Setor”, conforme a imagem recebida em 05/10/2026. O ponto 5 segue pendente para a leitura responsiva dos materiais e a conferência final.
+**Próxima solicitação em análise:** ponto 5, etapa 3 — aprimorar a hierarquia visual e a leitura da tela principal do “Estoque Multi-Setor”, conforme a imagem recebida em 05/10/2026. A proposta está registrada abaixo e aguarda aprovação; o ponto 5 continua pendente.
 
 ## Detalhamento dos pontos
 
@@ -150,16 +150,26 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 - Preservar os valores, opções, atualização dos resultados e limpeza de filtros já existentes; mostrar um resumo compacto quando filtros estiverem aplicados.
 - Não introduzir critérios de busca de grade, lado ou quantidade nesta etapa, pois exigiriam lógica de consulta além da reorganização visual solicitada.
 
-#### Etapa 3 — Melhorar a leitura dos materiais — PENDENTE
+#### Etapa 3 — Refinar a hierarquia e a leitura da tela de estoque — PENDENTE; proposta em análise
 
-- Em telas largas, preservar a tabela e dar largura suficiente às colunas, evitando que códigos, variantes e ações se espremam.
-- Em telas estreitas, apresentar os mesmos dados e ações em linhas organizadas como cartões compactos, sem remover ou alterar operações disponíveis.
-- Manter as abas, contagens e setor ativo visíveis e consistentes com a consulta atual.
+**Direção visual:** painel operacional industrial, com leitura rápida e densidade controlada. Manter a linguagem azul e cinza já usada no SobraCorte. Usar Fira Sans nos textos de interface e Fira Code somente em códigos e valores numéricos; reservar laranja/âmbar para alertas, sem usar essa cor para diferenciar o lado do pé.
 
-#### Etapa 4 — Conferir o desenho sem alterar os fluxos — PENDENTE
+**Avaliação de viabilidade (DFII):** impacto visual 4/5, adequação ao uso 5/5, viabilidade técnica 4/5, desempenho 4/5 e risco de inconsistência 2/5; pontuação calculada: 15/15.
 
-- Conferir o diálogo e a lista em larguras desktop, média e estreita, verificando rolagem, leitura, alinhamento e ausência de conteúdo encoberto.
-- Confirmar que busca, filtros, setor, paginação e ações continuam ligados aos mesmos estados e operações.
+- Dar à primeira coluna uma hierarquia clara: SKU/código em destaque e modelo/linha logo abaixo, mantendo ambos visíveis sem truncamento nas larguras desktop.
+- Alinhar combinação/cor, grade, lado, localização e saldo em colunas estáveis, com espaço suficiente para comparação rápida e sem aumentar a densidade por decoração.
+- Simplificar o cabeçalho da quantidade para “Saldo” e deixar a unidade ao lado do valor em cada linha, evitando divergência entre cabeçalhos específicos como “Saldo (Pés)” e valores apresentados em “UN”.
+- Mostrar E/D com texto legível e estilo neutro consistente. Manter cada lado e saldo na sua própria linha, sem agrupá-los em um total visual ou somar quantidades.
+- Hierarquizar as ações com “Movimentar” como ação principal, “Detalhes” como secundária e “Excluir” como ação discreta, preservando as permissões e operações atuais. Ampliar a área clicável e manter foco visível no teclado.
+- Em larguras estreitas, trocar a tabela espremida por cartões compactos com os mesmos campos e ações, sem ocultar informações nem alterar a consulta. Manter setor ativo, contagem e filtros acessíveis.
+- Manter o espaço livre quando houver poucos resultados; não preencher a tela com cartões ou indicadores sem utilidade para a consulta.
+
+**Âncora visual:** a pessoa reconhece cada item imediatamente pela sequência código/SKU → modelo/linha → variante → saldo/localização, enquanto os lados E e D continuam claramente separados.
+
+#### Etapa 4 — Conferir a apresentação sem alterar os fluxos — PENDENTE
+
+- Revisar larguras de 375, 768, 1024 e 1440 px, incluindo alinhamento, rolagem horizontal, legibilidade dos valores e alvos de interação.
+- Conferir contraste, foco de teclado e quebras de texto; manter busca, filtros, setor, paginação e ações conectados aos estados e operações atuais.
 - Gerar o build do frontend após a implementação aprovada.
 
 ### Implementação parcial
