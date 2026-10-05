@@ -70,6 +70,8 @@ const {
   selectedLocationFilter,
   selectedTypeFilter,
   stockStatusFilter,
+  modelNameFilter,
+  materialColorFilter,
   pageSize,
   loadData,
 } = useInventoryQuery(stockStore, authStore, route, getSectorFromRoute());
@@ -114,6 +116,8 @@ const activeInventoryFilterSummary = computed(() => {
   const query = search.value.trim();
 
   if (query) summary.push(`Busca: ${query}`);
+  if (modelNameFilter.value.trim()) summary.push(`Modelo/linha: ${modelNameFilter.value.trim()}`);
+  if (materialColorFilter.value.trim()) summary.push(`Material/cor: ${materialColorFilter.value.trim()}`);
   if (selectedLocationFilter.value) {
     const location = stockStore.filterLocations.find(
       (item) => String(item.id) === String(selectedLocationFilter.value),
@@ -142,6 +146,8 @@ function clearInventoryFilters() {
   selectedLocationFilter.value = '';
   selectedTypeFilter.value = '';
   stockStatusFilter.value = '';
+  modelNameFilter.value = '';
+  materialColorFilter.value = '';
   currentPage.value = 1;
   router.replace({ query: { ...route.query, q: undefined, page: 1 } });
   loadData(1);
@@ -747,6 +753,34 @@ onMounted(() => {
           aria-label="Filtros adicionais do estoque"
         >
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="min-w-0">
+              <label for="inventory-model-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Modelo / linha</label>
+              <input
+                id="inventory-model-filter"
+                v-model="modelNameFilter"
+                type="text"
+                maxlength="100"
+                placeholder="Ex.: Racer Speedzone"
+                @change="applyInventoryFilters"
+                @keydown.enter.prevent="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div class="min-w-0">
+              <label for="inventory-material-color-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Material / cor</label>
+              <input
+                id="inventory-material-color-filter"
+                v-model="materialColorFilter"
+                type="text"
+                maxlength="100"
+                placeholder="Ex.: Napa sintética preta"
+                @change="applyInventoryFilters"
+                @keydown.enter.prevent="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+
             <div class="min-w-0">
               <label for="inventory-location-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Prateleira / Localização</label>
               <select id="inventory-location-filter" v-model="selectedLocationFilter" @change="applyInventoryFilters"

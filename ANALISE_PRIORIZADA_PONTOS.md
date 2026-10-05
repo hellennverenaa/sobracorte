@@ -15,9 +15,9 @@
 | 3 | P3 | VALIDADO | Automatizar a validação do nome “Peças Cortadas” |
 | 4 | P2 | CONCLUÍDO | Simplificar a experiência da tela “Estoque Multi-Setor” |
 | 5 | P2 | PENDENTE | Organizar o formulário e a consulta do “Estoque Multi-Setor” |
-| 6 | P2 | PENDENTE | Ampliar os filtros do estoque por modelo e material/cor |
+| 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
 
-**Próxima solicitação em análise:** o ponto 6 está detalhado abaixo e aguarda aprovação. O ponto 5 segue pendente para a leitura responsiva dos materiais e a conferência final.
+**Próxima solicitação em análise:** aprimorar visualmente a tela principal do “Estoque Multi-Setor”, conforme a imagem recebida em 05/10/2026. O ponto 5 segue pendente para a leitura responsiva dos materiais e a conferência final.
 
 ## Detalhamento dos pontos
 
@@ -176,7 +176,7 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 
 **Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
 
-## 6. P2 — Ampliar os filtros do estoque por modelo e material/cor — PENDENTE
+## 6. P2 — Ampliar os filtros do estoque por modelo e material/cor — CONCLUÍDO
 
 ### Problema observado
 
@@ -209,3 +209,12 @@ Permitir localizar produtos pela identidade e pelo material usado sem acrescenta
 **Fora do escopo inicial:** filtros estruturados de grade, lado, unidade de medida e faixa de quantidade. A proposta prioriza os critérios de identificação do produto que ajudam a pessoa a encontrar materiais entre setores sem acrescentar controles de baixa utilidade à consulta geral.
 
 **Critério de conclusão:** modelo/linha e material/cor restringem os resultados corretamente no servidor; os critérios se combinam com os filtros atuais sem perder itens entre páginas; e busca, resumo e limpeza permanecem consistentes.
+
+
+### Implementação e validação
+
+- Incluídos os campos “Modelo / linha” e “Material / cor” no painel recolhível de filtros. A busca principal por código/SKU foi preservada.
+- Os valores são enviados pelo composable e pela store até a API. O backend valida o comprimento dos campos e aplica correspondência parcial sem diferenciar maiúsculas e minúsculas antes da paginação.
+- Modelo/linha filtra `productName`; material/cor usa `materialColor` e `color` em Peças Cortadas e setores produtivos, e a descrição do material (`name`) no Corte.
+- Os critérios aparecem no resumo e no contador, são persistidos junto dos demais filtros e são removidos por “Limpar filtros”.
+- Build completo (`npm run build`, backend e frontend): passou. O build do frontend emitiu o aviso existente de bundle JavaScript acima de 500 kB (562,27 kB). Testes automatizados não foram executados.

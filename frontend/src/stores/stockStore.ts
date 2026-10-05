@@ -186,6 +186,8 @@ export const useStockStore = defineStore('stock', {
       locationId?: number;
       type?: string;
       stockStatus?: 'with_balance' | 'zero_balance';
+      modelName?: string;
+      materialColor?: string;
     }) {
       const auth = useAuthStore();
       const unitCode = auth.user?.unit?.code;
@@ -202,6 +204,8 @@ export const useStockStore = defineStore('stock', {
           locationId: params?.locationId,
           type: params?.type,
           stockStatus: params?.stockStatus,
+          modelName: params?.modelName,
+          materialColor: params?.materialColor,
         };
 
         const response = await api.get('/inventory/search', { params: queryParams });

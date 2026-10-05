@@ -3,7 +3,7 @@ import { usePersistedFilters } from './usePersistedFilters';
 
 export function useInventoryQuery(stockStore, authStore, route, initialSector) {
   const { filters, resetFilters } = usePersistedFilters('inventory_read_all', {
-    search: '', location: '', type: '', stockStatus: '', pageSize: 50, sector: initialSector || 'TODOS',
+    search: '', location: '', type: '', stockStatus: '', modelName: '', materialColor: '', pageSize: 50, sector: initialSector || 'TODOS',
   }, () => authStore.user?.unit?.code || '');
   if (route.query.q !== undefined) filters.value.search = String(route.query.q);
   if (route.query.sector) filters.value.sector = initialSector;
@@ -11,6 +11,8 @@ export function useInventoryQuery(stockStore, authStore, route, initialSector) {
   const selectedLocationFilter = computed({ get: () => filters.value.location, set: (value) => { filters.value.location = value; } });
   const selectedTypeFilter = computed({ get: () => filters.value.type, set: (value) => { filters.value.type = value; } });
   const stockStatusFilter = computed({ get: () => filters.value.stockStatus, set: (value) => { filters.value.stockStatus = value; } });
+  const modelNameFilter = computed({ get: () => filters.value.modelName || '', set: (value) => { filters.value.modelName = value; } });
+  const materialColorFilter = computed({ get: () => filters.value.materialColor || '', set: (value) => { filters.value.materialColor = value; } });
   const pageSize = computed({
     get: () => [50, 100, 200].includes(Number(filters.value.pageSize)) ? Number(filters.value.pageSize) : 50,
     set: (value) => { filters.value.pageSize = [50, 100, 200].includes(Number(value)) ? Number(value) : 50; },
@@ -34,6 +36,8 @@ export function useInventoryQuery(stockStore, authStore, route, initialSector) {
       locationId: selectedLocationFilter.value ? Number(selectedLocationFilter.value) : undefined,
       type: selectedTypeFilter.value || undefined,
       stockStatus: stockStatusFilter.value || undefined,
+      modelName: modelNameFilter.value.trim() || undefined,
+      materialColor: materialColorFilter.value.trim() || undefined,
     });
   }
   return {
@@ -41,6 +45,8 @@ export function useInventoryQuery(stockStore, authStore, route, initialSector) {
     selectedLocationFilter,
     selectedTypeFilter,
     stockStatusFilter,
+    modelNameFilter,
+    materialColorFilter,
     pageSize,
     activeTab,
     currentPage,

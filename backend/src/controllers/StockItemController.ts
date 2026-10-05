@@ -64,7 +64,7 @@ export class StockItemController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const { q, search, sector, page, limit, locationId, type, stockStatus } = req.query;
+      const { q, search, sector, page, limit, locationId, type, stockStatus, modelName, materialColor } = req.query;
       const searchQuery = q || search;
 
       const pageNumber = page === undefined ? 1 : Number(page);
@@ -87,6 +87,14 @@ export class StockItemController {
       if (typeFilter && typeFilter.length > 100) {
         return res.status(400).json({ error: 'Tipo inválido.' });
       }
+      const modelNameFilter = modelName === undefined || modelName === '' ? undefined : String(modelName).trim();
+      if (modelNameFilter && modelNameFilter.length > 100) {
+        return res.status(400).json({ error: 'Modelo ou linha inválido.' });
+      }
+      const materialColorFilter = materialColor === undefined || materialColor === '' ? undefined : String(materialColor).trim();
+      if (materialColorFilter && materialColorFilter.length > 100) {
+        return res.status(400).json({ error: 'Material ou cor inválido.' });
+      }
 
       const requestedSector = sector ? String(sector).trim().toUpperCase() : 'TODOS';
       const targetSector = requestedSector === 'TODOS'
@@ -108,6 +116,8 @@ export class StockItemController {
         locationId: parsedLocationId,
         type: typeFilter,
         stockStatus: statusFilter as 'with_balance' | 'zero_balance' | undefined,
+        modelName: modelNameFilter,
+        materialColor: materialColorFilter,
       };
 
       const result = await stockItemService.searchUnified(params, operatorContext);

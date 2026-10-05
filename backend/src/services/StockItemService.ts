@@ -266,11 +266,13 @@ export class StockItemService {
       locationId?: number;
       type?: string;
       stockStatus?: 'with_balance' | 'zero_balance';
+      modelName?: string;
+      materialColor?: string;
     },
     context: OperatorContext
   ) {
     const { factoryUnitId } = context;
-    const { q, sector, page = 1, limit = 50, locationId, type, stockStatus } = params;
+    const { q, sector, page = 1, limit = 50, locationId, type, stockStatus, modelName, materialColor } = params;
     const skip = (page - 1) * limit;
     if (!sector || sector === 'TODOS') {
       return this.searchAllSectors(params, context);
@@ -289,6 +291,18 @@ export class StockItemService {
       if (locationId) filtered.locations = { some: { factoryUnitId, locationId } };
       if (type && ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(itemSector)) {
         filtered.type = { equals: type, mode: 'insensitive' };
+      }
+      if (modelName) filtered.productName = { contains: modelName, mode: 'insensitive' };
+      if (materialColor) {
+        const materialColorMatches = itemSector === 'CORTE'
+          ? [{ name: { contains: materialColor, mode: 'insensitive' } }]
+          : itemSector === 'APOIO'
+            ? [
+                { materialColor: { contains: materialColor, mode: 'insensitive' } },
+                { color: { contains: materialColor, mode: 'insensitive' } },
+              ]
+            : [{ color: { contains: materialColor, mode: 'insensitive' } }];
+        filtered.AND = [...(Array.isArray(filtered.AND) ? filtered.AND : []), { OR: materialColorMatches }];
       }
       if (stockStatus === 'with_balance') filtered.quantity = { gt: 0 };
       if (stockStatus === 'zero_balance') filtered.quantity = 0;
@@ -578,11 +592,13 @@ export class StockItemService {
       locationId?: number;
       type?: string;
       stockStatus?: 'with_balance' | 'zero_balance';
+      modelName?: string;
+      materialColor?: string;
     },
     context: OperatorContext,
   ) {
     const { factoryUnitId } = context;
-    const { q, page = 1, limit = 50, locationId, type, stockStatus } = params;
+    const { q, page = 1, limit = 50, locationId, type, stockStatus, modelName, materialColor } = params;
     const searchTerms = q?.trim()
       ? q.trim().split(/[,\s\n;]+/).map(term => term.trim()).filter(Boolean)
       : [];
@@ -590,6 +606,12 @@ export class StockItemService {
       factoryUnitId,
       ...(locationId ? { locations: { some: { factoryUnitId, locationId } } } : {}),
       ...(type ? { type: { equals: type, mode: 'insensitive' } } : {}),
+      ...(modelName ? { productName: { contains: modelName, mode: 'insensitive' } } : {}),
+      ...(materialColor ? { AND: [{ OR: [
+        { materialColor: { contains: materialColor, mode: 'insensitive' } },
+        { color: { contains: materialColor, mode: 'insensitive' } },
+        { name: { contains: materialColor, mode: 'insensitive' } },
+      ] }] } : {}),
       ...(stockStatus === 'with_balance' ? { quantity: { gt: 0 } } : {}),
       ...(stockStatus === 'zero_balance' ? { quantity: 0 } : {}),
     };
@@ -601,9 +623,8 @@ export class StockItemService {
       MONTAGEM: ['sku', 'productName', 'color', 'sizeGrade'],
     };
     const sectors: SectorType[] = ['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'];
-    const whereForSector = (sector: SectorType) => {
+    const sectorSearchWhere = (sector: SectorType) => {
       const sectorWhere: any = {
-        ...baseWhere,
         sector: sector === 'DISTRIBUICAO' ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : sector,
       };
       if (searchTerms.length) {
@@ -615,16 +636,21 @@ export class StockItemService {
       }
       return sectorWhere;
     };
+    const whereForSector = (sector: SectorType) => {
+      const sectorWhere = sectorSearchWhere(sector);
+      const andConditions = [
+        ...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []),
+        ...(Array.isArray(sectorWhere.AND) ? sectorWhere.AND : []),
+      ];
+      return {
+        ...baseWhere,
+        ...sectorWhere,
+        ...(andConditions.length ? { AND: andConditions } : {}),
+      };
+    };
     const where: any = {
       ...baseWhere,
-      OR: sectors.map(sector => {
-        const sectorCriteria = { ...whereForSector(sector) };
-        delete sectorCriteria.factoryUnitId;
-        delete sectorCriteria.locations;
-        delete sectorCriteria.type;
-        delete sectorCriteria.quantity;
-        return sectorCriteria;
-      }),
+      OR: sectors.map(sectorSearchWhere),
     };
 
     const [total, rows, corteCount, apoioCount, preFabCount, distribuicaoCount, montagemCount, locations, origins, categories] = await Promise.all([
