@@ -1,10 +1,24 @@
-# Pontos restantes da análise priorizada do SobraCorte
+# Plano priorizado de melhorias do SobraCorte
 
 **Data:** 05/10/2026
 
-**Escopo:** registra pontos concluídos e próximos pontos priorizados. `VALIDADO` ou `CONCLUÍDO` indicam trabalho concluído; `PENDENTE` indica trabalho futuro.
+**Escopo:** acompanha os pontos concluídos e a fila de trabalho. `VALIDADO` ou `CONCLUÍDO` indicam trabalho finalizado; `PENDENTE` indica trabalho ainda não implementado.
 
 **Nomenclatura:** APOIO continua sendo o valor interno; na interface, o nome é “Peças Cortadas”.
+
+## Visão geral
+
+| Ponto | Prioridade | Situação | Resumo |
+|---|---|---|---|
+| 1 | P1 | VALIDADO | Bloquear acesso de perfil operacional sem setor atribuído |
+| 2 | P2 | VALIDADO | Compatibilidade de cabedal nas requisições de Peças Cortadas |
+| 3 | P3 | VALIDADO | Automatizar a validação do nome “Peças Cortadas” |
+| 4 | P2 | CONCLUÍDO | Simplificar a experiência da tela “Estoque Multi-Setor” |
+| 5 | P2 | PENDENTE | Organizar o formulário e a consulta do “Estoque Multi-Setor” |
+
+**Próximo ponto:** o ponto 5 está detalhado abaixo e aguarda aprovação para implementação. Os pontos anteriores ficam registrados como histórico concluído.
+
+## Detalhamento dos pontos
 
 ## 1. P1 — Bloquear acesso de perfil operacional sem setor atribuído — VALIDADO
 
