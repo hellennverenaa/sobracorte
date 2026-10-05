@@ -72,6 +72,8 @@ erDiagram
     SUBSECTOR_CONFIG ||--o{ STOCK_ITEM : organiza
     SUBSECTOR_CONFIG ||--o{ LOCATION : delimita
     SUBSECTOR_CONFIG ||--o{ STOCK_MOVEMENT : registra
+    SUBSECTOR_CONFIG ||--o{ SUBSECTOR_CATEGORY : restringe
+    CATEGORY_CONFIG ||--o{ SUBSECTOR_CATEGORY : permite
     CATEGORY_CONFIG ||--o{ STOCK_ITEM : classifica
     STOCK_ITEM ||--o{ STOCK_MOVEMENT : movimenta
 ```
@@ -89,6 +91,7 @@ sector                 // enum existente, por exemplo APOIO
 name                   // por exemplo SERIGRAFIA
 normalizedName         // chave normalizada para impedir duplicatas
 active                 // permite arquivar sem excluir referências
+categoryMode           // ALL (padrão) ou SELECTED
 ```
 
 Restrição recomendada: unicidade de `(factoryUnitId, sector, normalizedName)`. Assim, uma fábrica não cadastra duas vezes “Serigrafia” dentro de Apoio, mas pode usar o mesmo nome em outro setor se isso fizer sentido.
@@ -104,16 +107,29 @@ UserSubsectorAccess
 - subsectorId           // FK para SubsectorConfig
 ```
 
-O vínculo permite que uma pessoa tenha acesso a vários subsetores. “Todos os subsetores do setor” deve ser uma concessão explícita, por exemplo um modo de acesso no `UserRoleBinding`; ausência de subsetores atribuídos não deve significar acesso irrestrito.
+O vínculo permite que uma pessoa tenha acesso a vários subsetores dentro do setor atribuído. Regras de acesso amplo aprovadas: Admin Master acessa todos os subsetores globalmente; Admin de Setor acessa todos os subsetores do setor atribuído; Líder, Movimentador e Leitor acessam somente os subsetores atribuídos. A ausência de subsetores atribuídos não significa acesso irrestrito para esses papéis.
 
 As relações devem preservar o padrão multi-tenant existente: vínculos compostos com `factoryUnitId` para impedir referências entre unidades fabris.
 
+#### Categorias permitidas por subsetor
+
+Como a restrição por subsetor foi aprovada, acrescentar uma relação opcional:
+
+```text
+SubsectorCategory
+- factoryUnitId
+- subsectorId
+- categoryConfigId
+```
+
+`categoryMode` começa como `ALL`, que herda todas as categorias configuradas para o setor pai. No modo `SELECTED`, o subsetor aceita somente as categorias escolhidas nessa relação, sempre usando os registros `CategoryConfig` existentes — não cria cópias. A seleção deve conter ao menos uma categoria; a API valida que ela pertence à mesma unidade fabril e ao setor pai do subsetor.
+
 #### Estoque, localizações e movimentações
 
-- **`StockItem.subsectorId`**: associa o item ao subsetor operacional. O campo deve ser opcional no banco para manter itens antigos, mas obrigatório em novos cadastros nos setores que já tiverem subsetores ativos. O backend valida que o setor do item corresponde ao setor do subsetor.
-- **`Location.subsectorId`**: permite restringir uma prateleira a um subsetor. Local compartilhado deve ser explicitamente configurado; um valor antigo nulo não deve ser interpretado automaticamente como “visível a todos”.
-- **`StockMovement`**: registra o subsetor do movimento e um snapshot do nome para consulta histórica. Se transferências entre subsetores forem permitidas, registrar os subsetores de origem e destino; caso contrário, bloquear essa transferência por padrão.
-- **`SubsectorCategory` (opcional)**: relação entre subsetores e categorias permitidas, necessária apenas se cada subsetor tiver uma lista própria de classificações. `CategoryConfig` continua sendo a classificação de material, não o subsetor.
+- **`StockItem.subsectorId`**: associa o item ao subsetor operacional quando informado. O campo deve ser opcional para dados antigos e novos: um setor pode ter subsetores sem obrigar que todo item pertença a um deles. O backend valida que o setor do item corresponde ao setor do subsetor.
+- **`Location.subsectorId`**: permite associar uma localização a um subsetor. Novas localizações associadas só atendem itens do mesmo subsetor; novas localizações sem subsetor atendem itens sem subsetor. Localizações antigas sem subsetor preservam o fluxo atual dos registros legados, mas não serão tratadas como compartilhadas por novos itens de subsetor sem associação explícita. Não haverá localização comum entre subsetores.
+- **`StockMovement`**: mantém a referência ao subsetor do item quando houver; para item sem subsetor, preserva o fluxo atual. Não haverá transferência entre subsetores. Movimentos históricos não recebem associações inferidas.
+- **`SubsectorCategory`**: associa um subsetor às categorias permitidas quando `categoryMode` for `SELECTED`. No modo padrão `ALL`, todas as categorias do setor pai são válidas. A restrição controla novos cadastros de itens e mudanças de categoria; registros existentes permanecem visíveis e não são reclassificados automaticamente.
 
 ## Acesso e papéis
 
@@ -123,7 +139,7 @@ Com subsetores, a regra de autorização deve ser:
 
 > **Ações permitidas pelo papel + setor atribuído + subsetores autorizados.**
 
-O papel ainda diferencia consulta, cadastro, movimentação, gerenciamento e aprovação. O subsetor define sobre quais registros o usuário exerce essas ações. O Admin Master pode continuar sendo uma exceção global; acesso amplo de Admin de Setor deve ser explícito e auditável. O perfil Leitor também precisa ser considerado: a tela de usuários descreve leitura de todos os setores, então, se houver isolamento por subsetor, as consultas desse perfil também devem receber escopo.
+O papel diferencia consulta, cadastro, movimentação, gerenciamento e aprovação conforme as regras já existentes para setores. O subsetor delimita os registros sobre os quais essas ações podem ser exercidas; não cria nem amplia permissões operacionais. Leitor tem somente consulta. Admin Master acessa todos os subsetores; Admin de Setor acessa todos os subsetores do setor atribuído; Líder, Movimentador e Leitor ficam limitados aos subsetores atribuídos. A administração da configuração de subsetores continua obedecendo às permissões existentes de Configurações.
 
 Essa validação precisa ocorrer no backend em leituras e escritas: listagens, filtros, cadastro, entrada, saída, transferência, relatórios, exportações, importação CSV e fluxos de requisição. Filtrar somente o frontend não garante autorização.
 
@@ -135,8 +151,8 @@ Não criar subsetores dentro do formulário de Categorias. Recomenda-se uma áre
 
 1. **Subsetores:** criar `Serigrafia` e escolher o setor pai `Apoio`.
 2. **Usuários e acessos:** atribuir os subsetores permitidos para cada usuário e papel.
-3. **Categorias de materiais:** continuar cadastrando classificações dos materiais; opcionalmente limitar quais valem em cada subsetor.
-4. **Localizações:** associar prateleiras ao subsetor quando o armazenamento for separado.
+3. **Categorias de materiais:** continuar cadastrando classificações no setor. Em cada subsetor, escolher entre usar todas as categorias do setor (padrão) ou selecionar as categorias permitidas. A seleção referencia categorias existentes e não cria duplicatas.
+4. **Localizações:** associar prateleiras a um subsetor quando o armazenamento for separado; não permitir compartilhamento entre subsetores.
 5. **Nova entrada/movimentação:** depois de escolher Apoio, apresentar somente subsetores autorizados ao usuário.
 
 Para reduzir confusão, os nomes “subtipo” e `componentType` devem ficar fora do cadastro comum. O perfil estrutural interno deve ser derivado pelo sistema nos casos claros; em setores com mais de um fluxo, solicitar uma escolha simples entre comportamentos já suportados.
@@ -144,30 +160,32 @@ Para reduzir confusão, os nomes “subtipo” e `componentType` devem ficar for
 ## Compatibilidade e migração
 
 1. **Pré-inventário somente leitura:** por unidade fabril, contar itens com/sem `categoryId`, nomes de categorias normalizados, componentes/perfis, vínculos diretos e em `LocationCategory`, movimentos históricos e usuários por papel/setor.
-2. **Não inferir subsetor pelo setor atual:** itens e usuários de Apoio não podem ser atribuídos automaticamente à Serigrafia sem confirmação.
-3. **Manter legados distinguíveis:** registros sem subsetor permanecem como “Apoio sem classificação”/legado até decisão. Eles não devem aparecer como Serigrafia por padrão.
-4. **Atribuir usuários explicitamente:** o setor `APOIO` não revela em qual subsetor cada pessoa deve operar. A implantação precisa de revisão dos acessos existentes.
-5. **Migração aditiva:** adicionar relacionamentos inicialmente opcionais, manter as leituras legadas, implementar os novos fluxos e só depois exigir subsetor em novas gravações daquele setor.
+2. **Não inferir subsetor pelo setor atual:** itens e usuários de Apoio não podem ser atribuídos automaticamente à Serigrafia sem confirmação. A mesma regra vale para subsetores criados em qualquer outro setor.
+3. **Manter legados distinguíveis e operacionais:** itens, localizações, usuários e movimentos antigos sem subsetor continuam com o comportamento atual. Não atribuir nem renomear registros antigos automaticamente.
+4. **Atribuir usuários explicitamente:** o setor `APOIO` não revela em qual subsetor cada pessoa deve operar. A implantação precisa de revisão dos acessos existentes, sem tornar obrigatório um subsetor para cada usuário.
+5. **Migração aditiva:** adicionar relacionamentos opcionais e preservar os fluxos legados. Novos itens também podem permanecer no escopo do setor sem subsetor; quando o usuário informar um subsetor, validar setor, unidade fabril e autorização. Restrições de categoria não reclassificam nem ocultam itens já cadastrados; a regra vale para novos itens e alterações de categoria.
 6. **Preservar histórico:** não alterar quantidades, códigos, alocações, snapshots de movimento ou IDs de categorias existentes. Mapeamentos de duplicatas devem ser revisados; correspondências ambíguas não são mescladas automaticamente.
 7. **Arquivar em vez de excluir:** subsetores e classificações com registros associados devem ser desativados, mantendo as FKs e a rastreabilidade.
+8. **Manter classificações fixas como classificações:** EVA, Borracha, Cabedal e Sola Processada continuam sendo classificações/perfis de material vinculados aos seus setores atuais; não são convertidas em subsetores. Ao criar subsetores, não clonar nem renomear esses registros. Reaproveitar IDs e vínculos existentes; tratar nomes equivalentes com normalização/alias revisado, sem mesclar registros ambíguos automaticamente.
+9. **Restrições sem duplicar categorias:** subsetores no modo `ALL` herdam as categorias existentes do setor. No modo `SELECTED`, relacionar os IDs de `CategoryConfig` já existentes. Antes de ativar uma restrição, apresentar as categorias e os itens existentes que ficariam fora da seleção; preservar esses itens e seus movimentos históricos.
 
-Decisões de produto ainda necessárias antes de implementar: como tratar itens legados sem subsetor; se Admin de Setor terá acesso amplo automático ou explícito; se localizações compartilhadas serão permitidas; e se transferências entre subsetores existirão.
+Decisões aprovadas para a Etapa 0: hierarquia inicial `Setor → Subsetor`; usuários podem pertencer a vários subsetores dentro do setor atribuído; subsetores são opcionais e poderão ser criados em qualquer setor; Leitor é somente leitura; as ações disponíveis seguem a matriz já existente para setores, sem ampliação pelo subsetor; Admin Master tem acesso global, Admin de Setor acessa todos os subsetores do setor atribuído e os demais papéis dependem de atribuição; itens antigos mantêm comportamento atual; não haverá localizações compartilhadas nem transferências entre subsetores; subsetores podem restringir categorias.
 
 ## Alterações previstas se aprovadas
 
 ### Frontend
 
 - Criar seção própria de subsetores em Configurações, fora de Categorias.
-- Permitir escolher setor pai, nome e status ativo/inativo.
+- Permitir escolher setor pai, nome e status ativo/inativo; configurar categorias como “todas do setor” (padrão) ou selecionar uma lista existente.
 - Ampliar gestão de usuários para atribuir um ou vários subsetores e exibir concessões amplas explicitamente.
 - Acrescentar seleção de subsetor nas entradas/movimentações e restringir opções ao escopo do usuário.
-- Vincular localizações a subsetores, com opção explícita para local compartilhado.
+- Vincular localizações a subsetores e impedir o compartilhamento entre subsetores; preservar localizações antigas sem subsetor no fluxo atual.
 - Adaptar listagens, relatórios, filtros e exportações para exibir e filtrar subsetor.
 - Separar a configuração visível ao usuário das regras estruturais internas de estoque.
 
 ### Backend e banco
 
-- Criar `SubsectorConfig` e `UserSubsectorAccess`; acrescentar os campos e relações necessários a estoque, localizações e movimentos.
+- Criar `SubsectorConfig`, `UserSubsectorAccess` e `SubsectorCategory`; acrescentar relações opcionais de subsetor a estoque, localizações e movimentos. Categorias selecionadas devem ser da mesma unidade fabril e do setor pai.
 - Manter integridade de unidade fabril e validar consistência entre subsetor e setor em toda gravação.
 - Aplicar escopo de subsetor em todas as consultas e operações, sem confiar nos filtros do cliente.
 - Resolver o subsetor no servidor a partir do registro do item para registrar movimentos; rejeitar IDs incompatíveis ou não autorizados.
@@ -180,13 +198,16 @@ Decisões de produto ainda necessárias antes de implementar: como tratar itens 
 - É possível criar um subsetor em um setor existente sem adicionar um novo valor ao enum, por exemplo `APOIO → SERIGRAFIA`.
 - Dois subsetores não podem ter nomes duplicados após normalização dentro do mesmo setor e unidade fabril.
 - Criar subsetor não concede acesso automaticamente a todos os usuários do setor.
-- Usuários veem e alteram apenas os subsetores autorizados, de acordo com o papel; o backend rejeita chamadas fora desse escopo.
-- Novos itens dos setores configurados exigem subsetor válido; o setor do item e o do subsetor precisam coincidir.
-- Entrada, saída e transferência ficam registradas no subsetor correto; transferência entre subsetores é bloqueada ou registrada explicitamente nos dois lados.
-- Localizações específicas só aceitam itens do subsetor associado; local compartilhado exige configuração explícita e regra de acesso definida.
+- Admin Master acessa todos os subsetores; Admin de Setor acessa os subsetores do setor atribuído; Líder, Movimentador e Leitor ficam limitados às atribuições explícitas. Leitor nunca altera dados.
+- O subsetor restringe o escopo dos registros, sem conceder ações além das já permitidas ao papel nos setores; o backend rejeita chamadas fora desse escopo.
+- Um item pode ser cadastrado sem subsetor mesmo quando seu setor possui subsetores; se houver subsetor, ele deve pertencer à mesma unidade fabril e ao setor do item.
+- No modo `ALL`, o subsetor aceita todas as categorias do setor; no modo `SELECTED`, aceita somente categorias existentes selecionadas para ele, sem duplicar `CategoryConfig`.
+- Uma categoria selecionada para o subsetor precisa pertencer ao mesmo setor e unidade fabril; não é possível salvar o modo `SELECTED` sem pelo menos uma categoria.
+- Entrada e saída de item associado mantêm o subsetor correspondente; item legado ou sem subsetor continua usando o fluxo atual. Não é possível transferir estoque entre subsetores.
+- Localizações novas associadas aceitam somente itens do mesmo subsetor; novas localizações sem subsetor atendem somente itens sem subsetor. Localizações antigas preservam o fluxo dos registros legados e não são consideradas compartilhadas por novos itens de subsetor.
 - Relatórios, exportações, filtros, importações e requisições respeitam o escopo do subsetor.
-- Itens, usuários e movimentos antigos permanecem identificáveis como legado até revisão; nenhuma associação presumida os move para Serigrafia.
-- EVA, Borracha, Cabedal e Sola Processada mantêm IDs, setores e perfis; EVA e Sola Processada continuam distintas.
+- Itens, usuários, localizações e movimentos antigos permanecem no fluxo atual; nenhuma associação presumida os move para um subsetor.
+- EVA, Borracha, Cabedal e Sola Processada mantêm IDs, setores e perfis; EVA e Sola Processada continuam distintas. Restringir categorias não clona nem move esses cadastros.
 - Arquivar uma classificação ou subsetor não apaga vínculos nem altera snapshots históricos.
 - Classificações novas podem usar comportamentos já suportados; um comportamento operacional inteiramente novo é identificado como demanda de desenvolvimento, sem classificação silenciosa incorreta.
 
@@ -290,17 +311,18 @@ As etapas abaixo organizam uma implementação futura. **Este plano não é auto
 
 ### Etapa 0 — Fechar as regras de negócio
 
-Confirmar as decisões que afetam schema, permissões e migração:
+**Status: validada pelo solicitante em 05/10/2026.** Regras aprovadas:
 
-- A hierarquia inicial terá somente `Setor → Subsetor`?
-- Um usuário poderá pertencer a vários subsetores do setor atribuído?
-- Quais papéis terão acesso explícito a todos os subsetores? Como o perfil Leitor será limitado?
-- Novos itens de Apoio precisarão sempre de subsetor quando houver subsetores cadastrados?
-- Como os itens antigos sem subsetor continuarão visíveis e movimentáveis?
-- Localizações compartilhadas e transferências entre subsetores serão permitidas?
-- Cada subsetor poderá restringir as categorias de material disponíveis?
+- A hierarquia inicial terá somente `Setor → Subsetor`.
+- Um usuário poderá pertencer a vários subsetores dentro do setor atribuído.
+- Admin Master acessa todos os subsetores; Admin de Setor acessa todos os subsetores do setor atribuído; Líder, Movimentador e Leitor precisam estar vinculados aos subsetores que acessam.
+- Leitor terá somente acesso de consulta. Para os demais papéis, valem as ações já autorizadas pelas regras de setor; subsetor restringe os registros e não amplia permissões.
+- Subsetor será opcional para novos itens, mesmo quando houver subsetores no setor; a configuração poderá ser usada em qualquer setor.
+- Itens antigos sem subsetor continuam com o comportamento atual e não serão associados por inferência.
+- Não haverá localizações compartilhadas entre subsetores nem transferências entre subsetores.
+- Cada subsetor poderá usar todas as categorias do setor ou uma lista restrita de categorias existentes. Por padrão, herda todas as categorias do setor pai.
 
-**Entregável:** regras aprovadas, incluindo o significado de “todos os subsetores” e o tratamento do legado. Não avançar para ativação de bloqueios sem essas definições.
+**Entregável concluído:** regras de acesso, comportamento de legado, opcionalidade de subsetor e restrições de categoria estão definidas. A Etapa 0 não autoriza por si só iniciar implementação; cada etapa posterior segue o fluxo de aprovação combinado.
 
 ### Etapa 1 — Fazer inventário somente leitura
 
@@ -312,7 +334,7 @@ Levantar por unidade fabril os usuários por papel/setor, itens com e sem catego
 
 ### Etapa 2 — Preparar o banco de forma aditiva
 
-Criar `SubsectorConfig` e `UserSubsectorAccess`; acrescentar relações opcionais de subsetor a itens, localizações e movimentos. Incluir chaves compostas por unidade fabril, índices e unicidade normalizada. Definir arquivamento em vez de exclusão.
+Criar `SubsectorConfig`, `UserSubsectorAccess` e `SubsectorCategory`; acrescentar relações opcionais de subsetor a itens, localizações e movimentos. Incluir chaves compostas por unidade fabril, índices e unicidade normalizada. Definir arquivamento em vez de exclusão e o modo de categoria `ALL`/`SELECTED`.
 
 Os campos de subsetor permanecem opcionais para não quebrar registros históricos. Esta etapa não atribui itens nem usuários existentes a um subsetor por suposição.
 
@@ -320,35 +342,35 @@ Os campos de subsetor permanecem opcionais para não quebrar registros históric
 
 ### Etapa 3 — Implementar regras e API no backend
 
-Criar operações para listar, criar, editar e arquivar subsetores. Implementar associação de usuários e autorização por papel, setor e subsetor. Aplicar os filtros nas consultas e validar as gravações no servidor, incluindo consistência entre setor, subsetor, item e localização.
+Criar operações para listar, criar, editar e arquivar subsetores. Implementar associação de usuários e autorização por papel, setor e subsetor, sem ampliar as permissões atuais dos papéis. Aplicar os filtros nas consultas e validar as gravações no servidor, incluindo consistência entre setor, subsetor, item, localização e categorias permitidas.
 
 Rejeitar IDs de subsetor inexistentes, de outra unidade fabril ou incompatíveis com o setor. Definir explicitamente quais rotas tratam registros legados sem subsetor.
 
-**Entregável:** API que aplica o escopo mesmo quando chamada sem a interface; acesso amplo exige concessão explícita.
+**Entregável:** API que aplica o escopo mesmo quando chamada sem a interface; o acesso amplo segue a matriz aprovada e os demais papéis dependem de vínculos explícitos.
 
 ### Etapa 4 — Criar a gestão de subsetores e acessos
 
-Adicionar uma área própria **Configurações → Subsetores**, separada de Categorias. Permitir escolher setor pai, nome, status e, se aprovado, categorias/localizações permitidas. Em **Usuários e acessos**, permitir atribuir um ou mais subsetores e mostrar claramente concessões amplas.
+Adicionar uma área própria **Configurações → Subsetores**, separada de Categorias. Permitir escolher setor pai, nome e status. Em **Usuários e acessos**, permitir atribuir um ou mais subsetores e mostrar claramente concessões amplas. Na configuração de cada subsetor, oferecer “Todas as categorias do setor” (padrão) ou “Selecionar categorias”, usando os registros de categoria já existentes.
 
 **Entregável:** administrador consegue configurar a estrutura e os acessos sem editar categorias ou dados históricos.
 
 ### Etapa 5 — Adaptar os fluxos de estoque
 
-Adicionar a seleção de subsetor às entradas e movimentações. Mostrar somente os subsetores autorizados ao usuário. Vincular itens e localizações ao subsetor e aplicar a regra aprovada para localizações compartilhadas e transferências entre subsetores.
+Adicionar a seleção opcional de subsetor às entradas e movimentações. Mostrar somente subsetores autorizados ao usuário. Validar vínculos de item e localização no mesmo subsetor. Bloquear compartilhamento de localizações novas e transferências entre subsetores; manter o fluxo atual para itens e localizações legados sem subsetor.
 
 **Entregável:** um usuário sem acesso à Serigrafia não consegue consultar ou movimentar seus itens alterando parâmetros da requisição.
 
 ### Etapa 6 — Integrar os demais consumidores
 
-Revisar e adaptar relatórios, filtros, exportações, importações CSV, requisições, dashboard e fluxos de estoque que usam apenas `sector`, `type` ou nomes fixos. Garantir que as classificações fixas continuem reconhecidas e que classificações customizadas apareçam nos fluxos compatíveis.
+Revisar e adaptar relatórios, filtros, exportações, importações CSV, requisições, dashboard e fluxos de estoque que usam apenas `sector`, `type` ou nomes fixos. Aplicar as categorias permitidas nos novos cadastros e alterações de categoria. Garantir que as classificações fixas continuem reconhecidas e que classificações customizadas apareçam nos fluxos compatíveis.
 
 **Entregável:** nenhuma rota de leitura ou escrita conhecida ignora o escopo do subsetor.
 
-### Etapa 7 — Tratar o legado e ativar a obrigatoriedade gradualmente
+### Etapa 7 — Preservar o legado e validar os novos vínculos
 
-Usar o inventário da Etapa 1 para atribuir subsetores apenas quando houver decisão confirmada. Manter os demais registros identificados como legados; não mover todos os itens de Apoio para Serigrafia. Revisar também os acessos dos usuários atuais. Ativar a obrigatoriedade de subsetor para novos registros somente depois que API, interface e permissões estiverem implantadas.
+Usar o inventário da Etapa 1 para atribuir subsetores somente após confirmação explícita. Manter os demais registros no fluxo atual; não mover automaticamente itens de Apoio para Serigrafia nem classificações fixas para novos subsetores. Revisar os acessos dos usuários atuais. Não exigir subsetor para novos itens; validar apenas os vínculos quando um subsetor for informado.
 
-**Entregável:** registros antigos preservados e novos registros respeitando a estrutura definida.
+**Entregável:** registros antigos preservados e novos vínculos opcionais respeitando unidade fabril, setor e autorização do usuário.
 
 ### Etapa 8 — Validar, liberar e acompanhar
 
