@@ -108,9 +108,13 @@ const formData = reactive({
 });
 const savedForm = ref(JSON.stringify(formData));
 const { confirmDiscard } = useUnsavedChanges(() => JSON.stringify(formData) !== savedForm.value);
-defineExpose({ confirmDiscard });
+async function confirmClose() {
+  if (isSubmitting.value) return false;
+  return await confirmDiscard();
+}
+defineExpose({ confirmDiscard: confirmClose });
 async function cancelForm() {
-  if (!isSubmitting.value && await confirmDiscard()) emit('cancel');
+  if (await confirmClose()) emit('cancel');
 }
 
 const selectedCategory = computed(() => dbCategories.value.find(category => Number(category.id) === Number(formData.categoryId)) || null);
@@ -1069,7 +1073,7 @@ onMounted(async () => {
       </div>
 
       <!-- Botões de Ação -->
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="sticky bottom-0 z-10 -mx-5 flex items-center justify-end gap-3 border-t border-gray-100 bg-white/95 px-5 py-3 backdrop-blur-sm">
         <button
           type="button"
           @click="cancelForm"

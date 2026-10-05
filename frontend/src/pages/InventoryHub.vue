@@ -44,9 +44,24 @@ function getSectorFromRoute(): InventorySectorFilter {
 
 const showEntryForm = ref(false);
 const entryForm = ref<any>(null);
-async function toggleEntryForm() {
-  if (showEntryForm.value && entryForm.value?.confirmDiscard && !(await entryForm.value.confirmDiscard())) return;
-  showEntryForm.value = !showEntryForm.value;
+const entryDialog = ref<HTMLElement | null>(null);
+const isClosingEntryForm = ref(false);
+function openEntryForm() {
+  showEntryForm.value = true;
+}
+async function closeEntryForm() {
+  if (!showEntryForm.value || isClosingEntryForm.value) return;
+  isClosingEntryForm.value = true;
+  try {
+    if (entryForm.value?.confirmDiscard && !(await entryForm.value.confirmDiscard())) return;
+    showEntryForm.value = false;
+  } finally {
+    isClosingEntryForm.value = false;
+  }
+}
+function handleEntrySaved() {
+  showToast('Entrada realizada com sucesso!');
+  loadData(currentPage.value);
 }
 const {
   activeTab,
@@ -103,6 +118,11 @@ function clearInventoryFilters() {
   loadData(1);
 }
 
+function handleSectorSelect(event: Event) {
+  const value = (event.target as HTMLSelectElement).value as InventorySectorFilter;
+  if (validSectorFilters.includes(value)) void selectTab(value);
+}
+
 // Configurações Dinâmicas
 const dbLocations = ref<any[]>([]);
 const dbOrigins = ref<any[]>([]);
@@ -128,6 +148,7 @@ async function closeMovementModal() {
   if (!movementLoading.value && await confirmDiscard()) showMovementModal.value = false;
 }
 useModalFocus(() => showMovementModal.value, movementDialog, closeMovementModal);
+useModalFocus(() => showEntryForm.value, entryDialog, closeEntryForm);
 
 // Modal de Detalhes
 const viewingItem = ref<any>(null);
@@ -549,37 +570,62 @@ onMounted(() => {
 
           <button
             v-if="authStore.can('cadastrar_materiais') && canOperateCurrentSector"
-            @click="toggleEntryForm"
+            @click="openEntryForm"
             class="bg-blue-600 hover:bg-blue-800 text-white px-5 py-2 rounded flex items-center gap-2 shadow-sm transition-colors text-xs font-medium"
           >
             <Plus class="w-4 h-4" />
-            <span>{{ showEntryForm ? 'Fechar Formulário' : 'Nova Entrada Rápida' }}</span>
+            <span>Nova Entrada Rápida</span>
           </button>
         </div>
       </div>
 
-      <!-- Formulário de Entrada Rápida (Expansível) -->
-      <div v-if="showEntryForm" class="mx-4">
-        <SectorFormInput ref="entryForm" @saved="() => { showToast('Entrada realizada com sucesso!'); loadData(); }" @cancel="showEntryForm = false" />
+      <!-- Entrada Rápida em diálogo para preservar o contexto da consulta -->
+      <div
+        v-if="showEntryForm"
+        ref="entryDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-entry-title"
+        tabindex="-1"
+        class="fixed inset-0 z-50 flex items-center justify-center overscroll-none bg-slate-950/60 p-0 backdrop-blur-[2px] sm:p-4"
+        @click.self="closeEntryForm"
+        @wheel.stop
+        @touchmove.stop
+      >
+        <section class="flex h-full max-h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:border sm:border-slate-200">
+          <header class="flex shrink-0 items-center justify-between gap-4 border-b border-blue-700 bg-blue-600 px-4 py-3 text-white sm:px-6">
+            <div class="flex min-w-0 items-center gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                <Plus class="h-5 w-5" />
+              </div>
+              <div class="min-w-0">
+                <h2 id="quick-entry-title" class="truncate text-sm font-bold sm:text-base">Nova Entrada Rápida</h2>
+                <p class="text-[11px] text-blue-100">Cadastre saldo no setor escolhido</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="closeEntryForm"
+              aria-label="Fechar entrada rápida"
+              class="shrink-0 rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/80"
+            >
+              <X class="h-4 w-4" />
+            </button>
+          </header>
+
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-2 sm:p-4">
+            <SectorFormInput
+              ref="entryForm"
+              @saved="handleEntrySaved"
+              @cancel="showEntryForm = false"
+            />
+          </div>
+        </section>
       </div>
 
       <!-- Busca e filtros do estoque -->
       <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3 items-end">
-        <div class="w-full">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Setor Ativo</label>
-          <select
-            v-model="activeTab"
-            aria-label="Setor do estoque"
-            @change="selectTab(activeTab)"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium disabled:bg-gray-100 disabled:text-gray-500"
-          >
-            <option v-for="t in visibleTabs" :key="t.id" :value="t.id">
-              {{ t.label }} ({{ (stockStore.metrics as any)[t.countKey] || 0 }})
-            </option>
-          </select>
-        </div>
-
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
         <div class="w-full sm:col-span-2 xl:col-span-2">
           <div class="flex items-center justify-between mb-1">
             <label class="block text-xs font-bold text-gray-500 uppercase">
@@ -676,23 +722,39 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Abas Setoriais Integradas no Topo da Tabela -->
-      <div class="mx-4 flex border-b border-gray-200 space-x-2 overflow-x-auto bg-white px-3 pt-2 rounded-t border-t border-l border-r">
-        <button
-          v-for="t in visibleTabs"
-          :key="t.id"
-          @click="selectTab(t.id)"
-          class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap"
-          :class="activeTab === t.id
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+      <!-- Seletor único de setor: abas em telas largas e select em telas estreitas -->
+      <div class="mx-4 rounded-t border-x border-t border-gray-200 bg-white px-3 pt-2">
+        <label for="inventory-sector-mobile" class="sr-only">Setor do estoque</label>
+        <select
+          id="inventory-sector-mobile"
+          :value="activeTab"
+          @change="handleSectorSelect"
+          class="mb-2 block w-full rounded border border-gray-200 bg-white p-2 text-sm font-medium outline-none focus:border-blue-500 sm:hidden"
         >
-          <component :is="t.icon" class="w-3.5 h-3.5" />
-          <span>{{ t.label }}</span>
-          <span class="ml-1 text-[11px] px-1.5 py-0.2 bg-gray-100 rounded-full font-mono font-bold text-gray-600">
-            {{ (stockStore.metrics as any)[t.countKey] || 0 }}
-          </span>
-        </button>
+          <option v-for="t in visibleTabs" :key="t.id" :value="t.id">
+            {{ t.label }} ({{ (stockStore.metrics as any)[t.countKey] || 0 }})
+          </option>
+        </select>
+
+        <div class="hidden flex-wrap gap-x-2 gap-y-1 sm:flex" role="group" aria-label="Filtrar estoque por setor">
+          <button
+            v-for="t in visibleTabs"
+            :key="t.id"
+            type="button"
+            @click="selectTab(t.id)"
+            :aria-pressed="activeTab === t.id"
+            class="flex max-w-full items-center gap-1.5 rounded-t px-3 py-2 text-xs font-bold transition-colors sm:whitespace-nowrap"
+            :class="activeTab === t.id
+              ? 'border-b-2 border-blue-600 text-blue-600'
+              : 'border-b-2 border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+          >
+            <component :is="t.icon" class="h-3.5 w-3.5 shrink-0" />
+            <span>{{ t.label }}</span>
+            <span class="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gray-600">
+              {{ (stockStore.metrics as any)[t.countKey] || 0 }}
+            </span>
+          </button>
+        </div>
       </div>
 
       <!-- Inventário por setor -->

@@ -1,8 +1,8 @@
 # Pontos restantes da análise priorizada do SobraCorte
 
-**Data:** 02/10/2026
+**Data:** 05/10/2026
 
-**Escopo:** somente os três pontos ainda citados na análise anterior. Os pontos previamente validados foram removidos deste arquivo.
+**Escopo:** registra pontos concluídos e próximos pontos priorizados. `VALIDADO` ou `CONCLUÍDO` indicam trabalho concluído; `PENDENTE` indica trabalho futuro.
 
 **Nomenclatura:** APOIO continua sendo o valor interno; na interface, o nome é “Peças Cortadas”.
 
@@ -56,3 +56,53 @@ Criar uma verificação automatizada para garantir que telas e textos voltados a
 - Testes focados do backend (`reportPagination` e `stockValidation`): 14 passaram, 0 falharam.
 - `git diff --check`: passou.
 - Execução completa de `npm test` no frontend: 11 passaram e 4 arquivos de teste falharam fora deste ponto (`dashboard.component`, `inventory.component`, `unitAccess` e `users.permissions`).
+
+## 4. P2 — Simplificar a experiência da tela “Estoque Multi-Setor” — CONCLUÍDO
+
+### Problema observado
+
+- O formulário “Nova Entrada Rápida” aparece dentro da página e empurra filtros e tabela para baixo, fazendo a pessoa perder o contexto do estoque que estava consultando.
+- O setor pode ser escolhido no campo “Setor Ativo” e novamente nas abas da tabela. As abas também criam rolagem horizontal em larguras menores, com a barra nativa do Windows visível.
+- O menu lateral pode exibir uma barra vertical muito chamativa quando a janela é baixa.
+
+### Objetivo
+
+Simplificar a entrada de estoque e a navegação entre setores, preservando filtros, setor selecionado e acesso à tabela enquanto a pessoa trabalha.
+
+### Etapas executadas
+
+#### Etapa 1 — Abrir a entrada rápida em um diálogo
+
+- Fazer o botão “Nova Entrada Rápida” abrir um diálogo, em vez de expandir o formulário no fluxo da página. O formulário completo não cabe bem em um menu dropdown; um menu só é útil se houver várias ações distintas para escolher.
+- Usar um diálogo largo em desktop, com altura limitada à janela, cabeçalho e ações fixos e rolagem somente no corpo do formulário. Em telas estreitas, usar o diálogo em tela cheia.
+- Usar como padrão o setor que estava ativo no estoque e manter dentro do diálogo a possibilidade de escolher outro setor.
+- Preservar o comportamento de entrada rápida: após gravar, atualizar a lista, exibir confirmação e deixar o formulário pronto para outra entrada. Fechar ou cancelar com alterações pendentes deve continuar pedindo confirmação.
+
+#### Etapa 2 — Unificar a seleção do setor
+
+- Remover a duplicidade entre o campo “Setor Ativo” e as abas, que controlam o mesmo setor.
+- Em telas largas, mostrar um único seletor de abas com contagens e quebra de linha quando necessário. Em telas estreitas, mostrar um seletor compacto com as mesmas contagens, sem exibir os dois controles ao mesmo tempo.
+- Manter sincronizados o setor selecionado, a consulta da tabela e o parâmetro de setor na URL.
+
+#### Etapa 3 — Ajustar as barras de rolagem
+
+- Eliminar a barra horizontal das abas com a quebra de linha e o seletor responsivo da etapa 2.
+- Tornar a barra vertical do menu lateral fina e discreta, mantendo a rolagem disponível em janelas baixas e por teclado.
+- Manter a rolagem horizontal da tabela quando necessária para acessar todas as colunas.
+
+#### Etapa 4 — Validar o fluxo completo
+
+- Confirmar que abrir e fechar o diálogo não desloca a tabela nem perde filtros ou posição de rolagem.
+- Confirmar que a entrada atualiza o estoque, mostra o resultado e permite cadastrar outra entrada sem reabrir o formulário.
+- Verificar seleção de setor, fechamento com alterações pendentes, foco e navegação por teclado, além de larguras desktop e mobile no Windows.
+- Executar build e testes relevantes após a implementação.
+
+**Critério de conclusão:** a entrada rápida não empurra filtros e tabela; há somente um controle visível para escolher o setor; as opções de setor permanecem acessíveis sem barra horizontal; a barra do menu lateral é discreta sem remover sua rolagem; e o fluxo de gravar, repetir ou cancelar preserva o estado corretamente.
+
+### Implementação e validação
+
+- A entrada rápida abre em diálogo responsivo, mantém cabeçalho e ações acessíveis durante a rolagem e protege o fechamento com alterações pendentes. Após gravar, atualiza o estoque e mantém o formulário pronto para outra entrada.
+- O seletor redundante “Setor Ativo” foi removido. As abas quebram linha em telas largas e viram um seletor compacto em telas estreitas, mantendo as contagens e a sincronização com a URL.
+- A barra vertical do menu lateral foi reduzida e suavizada, sem remover a rolagem.
+- Build de produção do frontend (`npm --prefix frontend run build`) passou; `git diff --check` passou.
+- Testes automatizados e conferência visual manual em Windows não foram executados nesta etapa.

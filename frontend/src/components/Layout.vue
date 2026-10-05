@@ -162,7 +162,7 @@ async function handleUnitChange(event) {
         <button @click="isSidebarOpen = false" class="md:hidden text-slate-400"><X /></button>
       </div>
 
-      <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+      <nav class="sidebar-scrollbar flex-1 p-4 space-y-2 overflow-y-auto">
         <router-link 
           v-for="item in visibleMenuItems" 
           :key="item.path" 
@@ -280,3 +280,29 @@ async function handleUnitChange(event) {
     />
   </div>
 </template>
+
+<style scoped>
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.35);
+  background-clip: content-box;
+}
+
+.sidebar-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.65);
+}
+</style>
