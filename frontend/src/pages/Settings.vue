@@ -384,6 +384,15 @@
                   <p class="mt-1 text-[11px] text-gray-500 text-pretty">As categorias disponíveis abaixo dependem deste setor.</p>
                 </div>
 
+                <div v-if="availableSubsectorsForNewLocation.length" class="w-52 min-w-[180px]">
+                  <label for="new-location-subsector" class="block text-xs font-bold text-gray-700 mb-1">Subsetor (opcional)</label>
+                  <select id="new-location-subsector" v-model="newLocation.subsectorId"
+                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
+                    <option :value="null">Sem subsetor (fluxo atual do setor)</option>
+                    <option v-for="subsector in availableSubsectorsForNewLocation" :key="subsector.id" :value="subsector.id">{{ subsector.name }}</option>
+                  </select>
+                </div>
+
                 <button type="submit" :disabled="loadingLocation || !newLocation.name.trim() || (locationCategoryFlow && !newLocation.categoryIds.includes(locationCategoryFlow.id))"
                   class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50 h-10">
                   <Plus class="size-4" /> {{ locationCategoryFlow ? 'Criar prateleira e vincular categoria' : 'Adicionar prateleira' }}
@@ -439,6 +448,9 @@
                 <td class="px-6 py-3 text-center">
                   <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
               {{ settingsSectorLabel(loc.sector, 'Geral / Livre') }}
+                  </span>
+                  <span v-if="loc.subsector" class="ml-1 inline-flex rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700">
+                    {{ loc.subsector.name }}{{ !loc.subsector.active ? ' · arquivado' : '' }}
                   </span>
                 </td>
                 <td class="px-6 py-3 text-center">
@@ -1016,6 +1028,19 @@
             </select>
           </div>
 
+          <div v-if="availableSubsectorsForEditLocation.length">
+            <label for="edit-location-subsector" class="block font-bold text-gray-700 mb-1">Subsetor (opcional)</label>
+            <select id="edit-location-subsector" v-model="editingLocation.subsectorId"
+              class="w-full border border-gray-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-400 bg-white font-medium">
+              <option :value="null">Sem subsetor (fluxo atual do setor)</option>
+              <option v-for="subsector in availableSubsectorsForEditLocation" :key="subsector.id" :value="subsector.id"
+                :disabled="!subsector.active && Number(editingLocation.subsectorId) !== Number(subsector.id)">
+                {{ subsector.name }}{{ !subsector.active ? ' · arquivado (manter ou remover)' : '' }}
+              </option>
+            </select>
+            <p class="mt-1 text-[11px] text-gray-500">A localização fica vinculada a um único subsetor e não poderá ser compartilhada.</p>
+          </div>
+
           <div>
             <label class="block font-bold text-gray-800 mb-1">Quais categorias poderão ser guardadas aqui?</label>
             <p class="text-xs text-gray-500 mb-2 text-pretty">Marque as categorias que esta prateleira aceitará. Sem seleção, ela fica livre para os materiais do setor escolhido.</p>
@@ -1135,6 +1160,17 @@ const {
   error: settingsError,
   fetchCategories, fetchComponentSubtypes, fetchUnits, fetchLocations, fetchOrigins,
 } = settingsData
+const dbSubsectors = ref([])
+
+async function fetchSubsectors() {
+  if (!canManageSettings.value) return
+  try {
+    const response = await api.get('/settings/subsectors', { params: { includeArchived: true } })
+    dbSubsectors.value = response.data || []
+  } catch (error) {
+    showNotification('error', error.response?.data?.error || 'Não foi possível carregar os subsetores das localizações.')
+  }
+}
 
 // CATEGORIAS
 const categoryFilterSector = computed({
@@ -1469,6 +1505,7 @@ async function deleteCategory(cat) {
 const newLocation = ref({
   name: '',
   sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+  subsectorId: null,
   categoryIds: []
 })
 const locationCategoryFlow = ref(null)
@@ -1484,6 +1521,7 @@ const editingLocation = ref({
   id: 0,
   name: '',
   sector: '',
+  subsectorId: null,
   categoryIds: []
 })
 
@@ -1521,17 +1559,43 @@ const filteredLocations = computed(() => {
 
 const availableCategoriesForNewLocation = computed(() => {
   const targetSector = newLocation.value.sector
-  if (!targetSector) return categories.value
-  return categories.value.filter(cat => categoryAppliesToSector(cat, targetSector))
+  let available = targetSector ? categories.value.filter(cat => categoryAppliesToSector(cat, targetSector)) : categories.value
+  const subsector = dbSubsectors.value.find(row => Number(row.id) === Number(newLocation.value.subsectorId))
+  if (subsector?.categoryMode === 'SELECTED') {
+    const allowedIds = new Set((subsector.categoryLinks || []).map(link => Number(link.categoryConfigId)))
+    available = available.filter(category => allowedIds.has(Number(category.id)))
+  }
+  return available
 })
 
 const availableCategoriesForEditLocation = computed(() => {
   const targetSector = editingLocation.value.sector
-  if (!targetSector) return categories.value
-  return categories.value.filter(cat => categoryAppliesToSector(cat, targetSector))
+  let available = targetSector ? categories.value.filter(cat => categoryAppliesToSector(cat, targetSector)) : categories.value
+  const subsector = dbSubsectors.value.find(row => Number(row.id) === Number(editingLocation.value.subsectorId))
+  if (subsector?.categoryMode === 'SELECTED') {
+    const allowedIds = new Set((subsector.categoryLinks || []).map(link => Number(link.categoryConfigId)))
+    available = available.filter(category => allowedIds.has(Number(category.id)))
+  }
+  return available
+})
+
+const availableSubsectorsForNewLocation = computed(() => {
+  if (!newLocation.value.sector) return []
+  return dbSubsectors.value.filter(subsector => subsector.active
+    && normalizeCategorySector(subsector.sector) === normalizeCategorySector(newLocation.value.sector))
+})
+
+const availableSubsectorsForEditLocation = computed(() => {
+  if (!editingLocation.value.sector) return []
+  return dbSubsectors.value.filter(subsector => normalizeCategorySector(subsector.sector) === normalizeCategorySector(editingLocation.value.sector)
+    && (subsector.active || Number(subsector.id) === Number(editingLocation.value.subsectorId)))
 })
 
 watch(() => newLocation.value.sector, (newSec) => {
+  const currentSubsector = dbSubsectors.value.find(row => Number(row.id) === Number(newLocation.value.subsectorId))
+  if (currentSubsector && (!currentSubsector.active || normalizeCategorySector(currentSubsector.sector) !== normalizeCategorySector(newSec))) {
+    newLocation.value.subsectorId = null
+  }
   if (newSec) {
     const validIds = new Set(
       categories.value
@@ -1543,6 +1607,10 @@ watch(() => newLocation.value.sector, (newSec) => {
 })
 
 watch(() => editingLocation.value.sector, (newSec) => {
+  const currentSubsector = dbSubsectors.value.find(row => Number(row.id) === Number(editingLocation.value.subsectorId))
+  if (currentSubsector && normalizeCategorySector(currentSubsector.sector) !== normalizeCategorySector(newSec)) {
+    editingLocation.value.subsectorId = null
+  }
   if (newSec) {
     const validIds = new Set(
       categories.value
@@ -1551,6 +1619,16 @@ watch(() => editingLocation.value.sector, (newSec) => {
     )
     editingLocation.value.categoryIds = editingLocation.value.categoryIds.filter(id => validIds.has(id))
   }
+})
+
+watch(() => newLocation.value.subsectorId, () => {
+  const allowedIds = new Set(availableCategoriesForNewLocation.value.map(category => Number(category.id)))
+  newLocation.value.categoryIds = newLocation.value.categoryIds.filter(id => allowedIds.has(Number(id)))
+})
+
+watch(() => editingLocation.value.subsectorId, () => {
+  const allowedIds = new Set(availableCategoriesForEditLocation.value.map(category => Number(category.id)))
+  editingLocation.value.categoryIds = editingLocation.value.categoryIds.filter(id => allowedIds.has(Number(id)))
 })
 
 function toggleCategorySelection(catId) {
@@ -1582,6 +1660,7 @@ function openEditLocationModal(loc) {
     id: loc.id,
     name: loc.name,
     sector: targetSector,
+    subsectorId: loc.subsectorId ?? loc.subsector?.id ?? null,
     categoryIds: [...catIds]
   }
   editLocationInitial.value = JSON.stringify(editingLocation.value)
@@ -1597,6 +1676,7 @@ async function saveEditLocation() {
     await api.put(`/settings/locations/${editingLocation.value.id}`, {
       name: editingLocation.value.name.trim(),
       sector: targetSector,
+      subsectorId: editingLocation.value.subsectorId || null,
       categoryIds: editingLocation.value.categoryIds
     })
     showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
@@ -1618,12 +1698,14 @@ async function addLocation() {
     const res = await api.post('/settings/locations', {
       name: newLocation.value.name.trim(),
       sector: targetSector,
+      subsectorId: newLocation.value.subsectorId || null,
       categoryIds: newLocation.value.categoryIds
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
     newLocation.value = {
       name: '',
       sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
+      subsectorId: null,
       categoryIds: []
     }
     locationCategoryFlow.value = null
@@ -1694,6 +1776,7 @@ function hasUnsubmittedLocation() {
   return Boolean(
     newLocation.value.name.trim()
     || newLocation.value.categoryIds.length
+    || newLocation.value.subsectorId
     || newLocation.value.sector !== defaultSector
   )
 }
@@ -2032,7 +2115,7 @@ async function toggleRequisitionsModule(enable) {
 
 // INICIALIZAÇÃO
 onMounted(async () => {
-  await Promise.all([fetchCategories(), fetchComponentSubtypes(), fetchUnits(), fetchLocations(), fetchOrigins()])
+  await Promise.all([fetchCategories(), fetchComponentSubtypes(), fetchUnits(), fetchLocations(), fetchOrigins(), fetchSubsectors()])
   if (isMasterAdmin.value) {
     await loadUnitSettings()
   }

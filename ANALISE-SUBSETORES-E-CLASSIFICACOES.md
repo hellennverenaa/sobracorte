@@ -2,7 +2,7 @@
 
 ## Status e escopo
 
-Este documento consolida a análise do cadastro de categorias/materiais, subtipos, localizações e da proposta de subsetores operacionais. É uma proposta para revisão; **nenhuma alteração de código, estrutura do banco ou dados foi aplicada**.
+Este documento consolida a análise do cadastro de categorias/materiais, subtipos, localizações e da implementação de subsetores operacionais. As etapas autorizadas foram executadas e seus resultados, validações e commits estão registrados abaixo. Nenhum item, localização ou movimento histórico foi associado a subsetor por inferência.
 
 A análise inicial foi feita por leitura do código e das migrações. Na Etapa 1, também foi feita uma consulta agregada em transação PostgreSQL somente leitura, sem extrair nomes de usuários nem efetuar gravações. Os resultados abaixo correspondem à base de referência acessível nesta sessão; devem ser confirmados pelo responsável do ambiente antes de qualquer migração.
 
@@ -307,7 +307,7 @@ O isolamento por subsetor deverá cobrir consultas e gravações dessas rotas, i
 
 ## Plano de execução em etapas
 
-As etapas abaixo organizam uma implementação futura. **Este plano não é autorização para iniciar mudanças no sistema**; a implementação começa somente após o OK explícito do solicitante. A ordem considera que o isolamento por subsetor precisa funcionar no backend antes de depender dos filtros de tela.
+As etapas abaixo organizam a implementação em sequência. A execução depende do OK explícito do solicitante para cada ponto; as Etapas 2 a 5 foram autorizadas nesta conversa e estão registradas com seus resultados. A ordem considera que o isolamento por subsetor precisa funcionar no backend antes de depender dos filtros de tela.
 
 ### Etapa 0 — Fechar as regras de negócio
 
@@ -365,6 +365,8 @@ Adicionar uma área própria **Configurações → Subsetores**, separada de Cat
 Adicionar a seleção opcional de subsetor às entradas e movimentações. Mostrar somente subsetores autorizados ao usuário. Validar vínculos de item e localização no mesmo subsetor. Bloquear compartilhamento de localizações novas e transferências entre subsetores; manter o fluxo atual para itens e localizações legados sem subsetor.
 
 **Entregável:** um usuário sem acesso à Serigrafia não consegue consultar ou movimentar seus itens alterando parâmetros da requisição.
+
+**Status: validada pela implementação em 05/10/2026.** Entradas opcionais gravam o subsetor informado no item, na localização criada e no movimento inicial. Listas operacionais mostram somente subsetores autorizados; o servidor valida setor, unidade fabril, autorização, modo de categorias e correspondência exata entre item, localização e subsetor. Movimentações herdam o subsetor imutável do item, rejeitam IDs adulterados e não aceitam localizações de outro subsetor; localizações usadas não podem ser reclassificadas. Itens e localizações legados sem subsetor continuam no fluxo atual, e nenhum dado histórico foi atualizado. TypeScript do backend, 8 testes focados de fluxos, regressões focadas de estoque/RBAC e configurações, 3 testes focados do formulário e build de produção passaram. A suíte completa do componente de inventário ainda tem falhas preexistentes em expectativas de rota e dados de estoque fora do escopo desta etapa; o build mantém o aviso de chunk acima de 500 kB.
 
 ### Etapa 6 — Integrar os demais consumidores
 

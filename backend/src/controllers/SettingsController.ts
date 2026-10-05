@@ -27,6 +27,20 @@ function parseSubtypeId(value: unknown): number | null {
   return id;
 }
 
+function parseOptionalLocationSubsectorId(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0) throw locationSubsectorError('Subsetor inválido.');
+  return id;
+}
+
+function locationSubsectorError(message: string, status = 400) {
+  const error = new Error(message) as Error & { status: number };
+  error.status = status;
+  return error;
+}
+
 function parseSubtypeSectors(value: unknown): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('Escolha pelo menos um setor para o subtipo.');
@@ -664,7 +678,7 @@ export class SettingsController {
         orderBy: { id: 'desc' },
         include: {
           category: true,
-          subsector: { select: { id: true, name: true, sector: true } },
+          subsector: { select: { id: true, name: true, sector: true, active: true } },
           categoryLinks: {
             include: { category: true }
           }
@@ -709,9 +723,23 @@ export class SettingsController {
         return res.status(400).json({ error: 'O nome da localização é obrigatório.' });
       }
 
-      let targetSector = sector ? requireActiveStockSector(sector) : (req.user?.assignedSector ? requireActiveStockSector(req.user.assignedSector) : null);
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector as any;
+      const access = requestStockAccess(req);
+      let targetSector = sector ? requireActiveStockSector(sector) : (access.assignedSector ? requireActiveStockSector(access.assignedSector) : null);
+      if (access.role === 'admin_setor' && access.assignedSector) {
+        targetSector = requireActiveStockSector(access.assignedSector);
+      }
+      const requestedSubsectorId = parseOptionalLocationSubsectorId(req.body?.subsectorId);
+      const targetSubsector = requestedSubsectorId
+        ? await prisma.subsectorConfig.findFirst({
+            where: { id: requestedSubsectorId, factoryUnitId: req.tenant!.id, active: true },
+            select: { id: true, sector: true, categoryMode: true, categoryLinks: { select: { categoryConfigId: true } } },
+          })
+        : null;
+      if (requestedSubsectorId && !targetSubsector) {
+        throw locationSubsectorError('O subsetor informado não existe, está arquivado ou pertence a outra unidade fabril.');
+      }
+      if (targetSubsector && (!targetSector || normalizeSector(targetSubsector.sector) !== normalizeSector(targetSector))) {
+        throw locationSubsectorError('O subsetor precisa pertencer ao mesmo setor da localização.');
       }
 
       // Suporta array de IDs ou único ID
@@ -748,12 +776,19 @@ export class SettingsController {
         finalCategoryIds = validCategories.map(c => c.id);
         primaryCategoryId = finalCategoryIds[0];
       }
+      if (targetSubsector?.categoryMode === 'SELECTED') {
+        const allowedCategoryIds = new Set(targetSubsector.categoryLinks.map(link => link.categoryConfigId));
+        if (finalCategoryIds.some(categoryId => !allowedCategoryIds.has(categoryId))) {
+          throw locationSubsectorError('A localização não pode aceitar categorias que não estão permitidas para o subsetor.');
+        }
+      }
 
       const location = await prisma.$transaction(async (tx) => {
         const loc = await tx.location.create({
           data: {
             name: String(name).trim().toUpperCase(),
             sector: targetSector as any,
+            subsectorId: targetSubsector?.id ?? null,
             categoryId: primaryCategoryId,
             factoryUnitId: req.tenant!.id,
             categoryLinks: finalCategoryIds.length > 0 ? {
@@ -764,6 +799,7 @@ export class SettingsController {
           },
           include: {
             category: true,
+            subsector: { select: { id: true, name: true, sector: true, active: true } },
             categoryLinks: {
               include: { category: true }
             }
@@ -779,7 +815,7 @@ export class SettingsController {
             operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
             operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
             origem: 'Configurações - Localizações',
-            reason: `Criação de Localização: ${loc.name} (Setor: ${targetSector || 'GERAL'})`
+            reason: `Criação de Localização: ${loc.name} (Setor: ${targetSector || 'GERAL'}${targetSubsector ? `, Subsetor: ${targetSubsector.id}` : ''})`
           }
         });
 
@@ -787,6 +823,7 @@ export class SettingsController {
       });
       res.status(201).json(location);
     } catch (error: unknown) {
+      if ((error as any)?.status) return res.status((error as any).status).json({ error: (error as Error).message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (hasPrismaCode(error, 'P2002')) {
@@ -815,8 +852,29 @@ export class SettingsController {
       }
 
       let targetSector = sector !== undefined ? (sector ? requireActiveStockSector(sector) : null) : undefined;
-      if (req.user?.role === 'admin_setor' && req.user.assignedSector) {
-        targetSector = req.user.assignedSector as any;
+      const access = requestStockAccess(req);
+      if (access.role === 'admin_setor' && access.assignedSector) {
+        targetSector = requireActiveStockSector(access.assignedSector);
+      }
+
+      const requestedSubsectorId = parseOptionalLocationSubsectorId(req.body?.subsectorId);
+      const targetSubsectorId = requestedSubsectorId === undefined ? existing.subsectorId : requestedSubsectorId;
+      const effectiveSector = targetSector !== undefined ? targetSector : existing.sector;
+      const targetSubsector = targetSubsectorId
+        ? await prisma.subsectorConfig.findFirst({
+            where: {
+              id: targetSubsectorId,
+              factoryUnitId: req.tenant!.id,
+              OR: [{ active: true }, ...(targetSubsectorId === existing.subsectorId ? [{ id: existing.subsectorId! }] : [])],
+            },
+            select: { id: true, sector: true, active: true, categoryMode: true, categoryLinks: { select: { categoryConfigId: true } } },
+          })
+        : null;
+      if (targetSubsectorId && !targetSubsector) {
+        throw locationSubsectorError('O subsetor informado não existe, está arquivado ou pertence a outra unidade fabril.');
+      }
+      if (targetSubsector && (!effectiveSector || normalizeSector(targetSubsector.sector) !== normalizeSector(effectiveSector))) {
+        throw locationSubsectorError('O subsetor precisa pertencer ao mesmo setor da localização.');
       }
 
       let finalCategoryIds: number[] | undefined;
@@ -844,8 +902,40 @@ export class SettingsController {
         }
       }
 
+      if (targetSubsector?.categoryMode === 'SELECTED') {
+        let effectiveLocationCategoryIds = finalCategoryIds;
+        if (effectiveLocationCategoryIds === undefined) {
+          const currentLinks = await prisma.locationCategory.findMany({
+            where: { factoryUnitId: req.tenant!.id, locationId: id },
+            select: { categoryId: true },
+          });
+          effectiveLocationCategoryIds = currentLinks.map(link => link.categoryId);
+          if (existing.categoryId && !effectiveLocationCategoryIds.includes(existing.categoryId)) {
+            effectiveLocationCategoryIds.push(existing.categoryId);
+          }
+        }
+        const allowedCategoryIds = new Set(targetSubsector.categoryLinks.map(link => link.categoryConfigId));
+        if (effectiveLocationCategoryIds.some(categoryId => !allowedCategoryIds.has(categoryId))) {
+          throw locationSubsectorError('A localização não pode aceitar categorias que não estão permitidas para o subsetor.');
+        }
+      }
+
       const updated = await prisma.$transaction(async (tx) => {
         await lockStockIdentityWrites(tx, req.tenant!.id);
+        if (targetSubsectorId !== existing.subsectorId) {
+          const [stockLinks, movementCount] = await Promise.all([
+            tx.stockItemLocation.count({ where: { factoryUnitId: req.tenant!.id, locationId: id } }),
+            tx.stockMovement.count({
+              where: {
+                factoryUnitId: req.tenant!.id,
+                OR: [{ sourceLocationId: id }, { destinationLocationId: id }],
+              },
+            }),
+          ]);
+          if (stockLinks + movementCount > 0) {
+            throw locationSubsectorError('O subsetor da localização não pode ser alterado após o primeiro uso; crie uma nova localização.', 409);
+          }
+        }
         if (targetSector !== undefined && targetSector !== null) {
           const links = await tx.stockItemLocation.findMany({
             where: { factoryUnitId: req.tenant!.id, locationId: id },
@@ -898,10 +988,12 @@ export class SettingsController {
           data: {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,
+            subsectorId: targetSubsectorId,
             categoryId: finalCategoryIds !== undefined ? (finalCategoryIds.length > 0 ? finalCategoryIds[0] : null) : undefined
           },
           include: {
             category: true,
+            subsector: { select: { id: true, name: true, sector: true, active: true } },
             categoryLinks: {
               include: { category: true }
             }
@@ -917,7 +1009,7 @@ export class SettingsController {
             operatorId: req.user?.matricula ? String(req.user.matricula) : (req.user?.usuario || null),
             operatorName: req.user?.nome || req.user?.usuario || 'Administrador',
             origem: 'Configurações - Localizações',
-            reason: `Edição de Localização: ${existing.name}${name && name !== existing.name ? ` para ${name}` : ''}`
+            reason: `Edição de Localização: ${existing.name}${name && name !== existing.name ? ` para ${name}` : ''}${targetSubsectorId !== existing.subsectorId ? ` (subsetor ${targetSubsectorId || 'removido'})` : ''}`
           }
         });
 
@@ -926,6 +1018,7 @@ export class SettingsController {
 
       res.json(updated);
     } catch (error: unknown) {
+      if ((error as any)?.status) return res.status((error as any).status).json({ error: (error as Error).message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof Error && error.message.includes('Movimentações entre setores não são permitidas')) {

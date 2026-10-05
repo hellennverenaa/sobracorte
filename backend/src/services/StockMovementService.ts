@@ -1,5 +1,9 @@
 import { assertGeneralStockAccess } from '../auth/stockAccess';
-import { assertStockSubsectorAccess, stockMovementScopeWhere } from '../auth/subsectorAccess';
+import {
+  assertStockLocationSubsector,
+  assertStockSubsectorAccess,
+  stockMovementScopeWhere,
+} from '../auth/subsectorAccess';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { CreateStockMovementDTO, MovementHistoryFilterDTO, OperatorContext } from '../types/stock.dto';
@@ -13,7 +17,7 @@ export class StockMovementService {
    */
   async createMovement(dto: CreateStockMovementDTO, context: OperatorContext) {
     const { factoryUnitId, operatorId, operatorName } = context;
-    const { stockItemId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
+    const { stockItemId, subsectorId, sector, type, quantity, locationId, destinationLocationId, origem, reason } = dto;
 
     return await prisma.$transaction(async (tx) => {
       await lockStockIdentityWrites(tx, factoryUnitId);
@@ -28,6 +32,9 @@ export class StockMovementService {
       }
 
       assertStockSubsectorAccess(context, item.subsector, item.sector);
+      if (subsectorId !== undefined && (subsectorId ?? null) !== (item.subsectorId ?? null)) {
+        throw new Error('O subsetor da movimentação deve corresponder ao subsetor cadastrado no item.');
+      }
       validateQuantity(quantity, item.unit || "", item.sector);
 
       if (sector && normalizeStockSector(sector) !== normalizeStockSector(item.sector)) {
@@ -61,6 +68,7 @@ export class StockMovementService {
         });
         if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
         assertStockLocationSector(location, item.sector);
+        assertStockLocationSubsector(location, item.subsectorId);
         assertStockLocationCategory(location, item.categoryId);
         if (type === 'TRANSFERENCIA' || type === 'ENTRADA') assertGeneralStockAccess(context, location);
       }
@@ -156,6 +164,7 @@ export class StockMovementService {
         }
 
         assertStockLocationSector(destLocation, item.sector);
+        assertStockLocationSubsector(destLocation, item.subsectorId);
         assertStockLocationCategory(destLocation, item.categoryId);
         assertGeneralStockAccess(context, destLocation);
 

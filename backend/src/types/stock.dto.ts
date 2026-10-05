@@ -56,6 +56,7 @@ export const MovementTypeEnum = z.enum([
 // 🔹 1. CORTE: Matéria-Prima
 export const CorteItemSchema = z.object({
   sector: z.literal('CORTE'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   code: z.string().trim().min(1, 'Código da matéria-prima é obrigatório'),
   name: z.string().trim().min(1, 'Descrição/Nome é obrigatório'),
@@ -79,6 +80,7 @@ export const CorteItemSchema = z.object({
 // 🔹 2. APOIO: Peças Cortadas / Moldes
 export const ApoioItemSchema = z.object({
   sector: z.literal('APOIO'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   componentType: z.enum(['PECA_CORTADA', 'CABEDAL']).optional(),
   type: z.string().trim().optional().default(''),
@@ -112,6 +114,7 @@ export const ApoioItemSchema = z.object({
 // 🔹 3. PRÉ-FABRICADO: Solas por Produto
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
@@ -129,6 +132,7 @@ export const PreFabricadoItemSchema = z.object({
 // 🔹 4. DISTRIBUIÇÃO: Cabedais e Solas Processadas por SKU
 export const DistribuicaoItemSchema = z.object({
   sector: z.literal('DISTRIBUICAO'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
@@ -146,6 +150,7 @@ export const DistribuicaoItemSchema = z.object({
 // 🔹 4.1 EXPEDIÇÃO: Mantido para retrocompatibilidade
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
@@ -163,6 +168,7 @@ export const ExpedicaoItemSchema = z.object({
 // 🔹 5. MONTAGEM: Pés Prontos / Órfãos
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   categoryId: z.coerce.number().int().positive().optional().nullable(),
   type: z.string().trim().optional().default(''),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
@@ -204,6 +210,7 @@ export const ExecuteMatchSchema = z.object({
 // 🔄 Movimentações de Entrada / Saída / Refugo / Transferência
 export const CreateStockMovementSchema = z.object({
   stockItemId: z.number().int().positive('ID do item de estoque é obrigatório'),
+  subsectorId: z.number().int().positive().optional().nullable(),
   sector: SectorEnum.optional(),
   type: z.enum(['ENTRADA', 'SAIDA', 'REFUGO', 'TRANSFERENCIA']),
   quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),

@@ -310,6 +310,7 @@ const itemAllocatedLocations = computed(() => {
       id: locLink.locationId || locLink.location.id,
       name: locLink.location.name,
       sector: locLink.location.sector,
+      subsectorId: locLink.location.subsectorId ?? null,
       quantity: locLink.quantity || 0,
     }));
 });
@@ -318,6 +319,7 @@ const itemSectorLocations = computed(() => {
   const itemSector = selectedItem.value?.sector || activeTab.value;
   const itemCategoryId = Number(selectedItem.value?.categoryId || 0);
   return stockStore.filterLocations.filter(location => {
+    if (Number(location.subsectorId || 0) !== Number(selectedItem.value?.subsectorId || 0)) return false;
     const sameSector = !location.sector
       ? authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true
       : normalizeSector(location.sector) === normalizeSector(itemSector);
@@ -334,6 +336,7 @@ const itemSectorOrigins = computed(() => {
 });
 
 const transferSourceLocations = computed(() => itemAllocatedLocations.value.filter(loc => {
+  if (Number(loc.subsectorId || 0) !== Number(selectedItem.value?.subsectorId || 0)) return false;
   if (!loc.sector) return authStore.user?.role === 'admin' || authStore.user?.isGlobalAdmin === true;
   return normalizeSector(loc.sector) === normalizeSector(selectedItem.value?.sector || activeTab.value);
 }));
@@ -1459,6 +1462,12 @@ onMounted(() => {
                   ({{ selectedItem.footSide === 'E' ? 'Pé Esquerdo' : 'Pé Direito' }})
                 </span>
               </div>
+
+              <div class="flex items-center justify-between border-t border-blue-100/80 pt-2 text-xs">
+                <span class="text-gray-600">Subsetor do item:</span>
+                <span class="font-semibold text-gray-800">{{ selectedItem.subsector?.name || 'Sem subsetor (fluxo legado do setor)' }}</span>
+              </div>
+              <p class="mt-1 text-[10px] text-gray-500">A movimentação mantém o subsetor do item; somente localizações desse mesmo escopo são aceitas.</p>
 
               <div class="flex items-center justify-between text-xs pt-2 border-t border-blue-100/80">
                 <span class="text-gray-600">Saldo Atual Total:</span>

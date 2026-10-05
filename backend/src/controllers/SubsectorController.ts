@@ -125,7 +125,9 @@ export class SubsectorController {
       const rows = await prisma.subsectorConfig.findMany({
         where,
         orderBy: [{ sector: 'asc' }, { name: 'asc' }],
-        include: isStockMaster(context) || context.role === 'admin_setor' ? includeConfigRelations() : undefined,
+        include: isStockMaster(context) || context.role === 'admin_setor'
+          ? includeConfigRelations()
+          : { categoryLinks: { select: { categoryConfigId: true } } },
       });
       return res.json(rows);
     } catch (error) {

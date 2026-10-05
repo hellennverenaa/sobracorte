@@ -9,7 +9,7 @@ import { after, afterEach } from 'node:test';
 import { existsSync } from 'node:fs';
 
 const browser = new Window({ url: 'http://localhost/' });
-for (const key of ['window', 'document', 'navigator', 'history', 'location', 'HTMLElement', 'Element', 'Node', 'SVGElement', 'Event', 'KeyboardEvent', 'MouseEvent', 'localStorage', 'sessionStorage']) {
+for (const key of ['window', 'document', 'Document', 'ShadowRoot', 'navigator', 'history', 'location', 'HTMLElement', 'Element', 'Node', 'SVGElement', 'Event', 'KeyboardEvent', 'MouseEvent', 'localStorage', 'sessionStorage']) {
   Object.defineProperty(globalThis, key, { configurable: true, value: key === 'window' ? browser : browser[key] });
 }
 globalThis.requestAnimationFrame = browser.requestAnimationFrame.bind(browser);

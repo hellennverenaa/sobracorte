@@ -7,6 +7,38 @@ export interface SubsectorRecordRef {
   sector: string;
 }
 
+export interface SubsectorCategoryPolicy {
+  categoryMode?: string;
+  categoryLinks?: Array<{ categoryConfigId?: number; categoryId?: number }>;
+}
+
+/** Garante que uma prateleira seja exclusiva do escopo do item nela armazenado. */
+export function assertStockLocationSubsector(
+  location: { subsectorId?: number | null },
+  itemSubsectorId: number | null | undefined,
+) {
+  if ((location.subsectorId ?? null) !== (itemSubsectorId ?? null)) {
+    throw new Error('A localização deve pertencer ao mesmo subsetor do item. Localizações de subsetores diferentes não podem ser compartilhadas.');
+  }
+}
+
+/** Aplica a lista de categorias configurada no subsetor. */
+export function assertSubsectorCategoryAllowed(
+  subsector: SubsectorCategoryPolicy | null | undefined,
+  categoryId: number | null | undefined,
+  requireCategory = false,
+) {
+  if (subsector?.categoryMode !== 'SELECTED') return;
+  if (!categoryId) {
+    if (requireCategory) throw new Error('Selecione uma categoria permitida para este subsetor.');
+    return;
+  }
+  const allowed = new Set((subsector.categoryLinks || []).map(link => Number(link.categoryConfigId ?? link.categoryId)));
+  if (!allowed.has(Number(categoryId))) {
+    throw new Error('A categoria selecionada não está permitida para este subsetor.');
+  }
+}
+
 /** Leitor pode consultar, mas não alterar estoque. */
 export function assertStockWriteAccess(context: StockAccessContext) {
   if (context.role === 'leitor') {
@@ -27,6 +59,9 @@ export function assertStockSubsectorAccess(
   const assignedSector = context.role === 'leitor' && !context.assignedSector
     ? null
     : assignedStockSector(context);
+  if (subsector && normalizeSector(subsector.sector) !== normalizeSector(recordSector)) {
+    throw new StockAccessError('O subsetor informado não pertence ao setor do registro.');
+  }
   if (assignedSector && normalizeSector(recordSector) !== normalizeSector(assignedSector)) {
     throw new StockAccessError(`Acesso negado: seu perfil está restrito ao setor ${assignedSector}.`);
   }

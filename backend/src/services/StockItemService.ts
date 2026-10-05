@@ -34,6 +34,21 @@ export class StockItemService {
       for (const originalItem of dto.items) {
         assertStockSectorAccess(context, originalItem.sector);
         const item: any = originalItem;
+        const subsector = item.subsectorId
+          ? await tx.subsectorConfig.findFirst({
+              where: { id: item.subsectorId, factoryUnitId, active: true },
+              select: {
+                id: true,
+                sector: true,
+                categoryMode: true,
+                categoryLinks: { select: { categoryConfigId: true } },
+              },
+            })
+          : null;
+        if (item.subsectorId && !subsector) {
+          throw new StockCategoryError('O subsetor informado não existe, está arquivado ou pertence a outra unidade fabril.');
+        }
+        if (subsector) assertStockSubsectorAccess(context, subsector, item.sector);
         if (CATEGORY_REQUIRED_SECTORS.has(item.sector) && !item.categoryId) {
           throw new StockCategoryError(`Selecione uma categoria configurada para o setor ${item.sector}.`);
         }
@@ -45,6 +60,7 @@ export class StockItemService {
         if (item.categoryId && !category) {
           throw new StockCategoryError('A categoria selecionada não existe nesta unidade ou não se aplica ao setor do cadastro.');
         }
+        assertSubsectorCategoryAllowed(subsector, item.categoryId, Boolean(subsector));
 
         const allowedComponentBySector: Record<string, ComponentType[]> = {
           CORTE: ['MATERIA_PRIMA'],
@@ -127,6 +143,7 @@ export class StockItemService {
               data: {
                 name: locationName,
                 sector: normalizeStockSector(expandedItem.sector) as SectorType,
+                subsectorId: expandedItem.subsectorId || null,
                 factoryUnitId,
               },
               include: { categoryLinks: { select: { categoryId: true } } },
@@ -134,12 +151,14 @@ export class StockItemService {
           }
 
           assertStockLocationSector(loc, expandedItem.sector);
+          assertStockLocationSubsector(loc, expandedItem.subsectorId);
           assertStockLocationCategory(loc, expandedItem.categoryId);
           assertGeneralStockAccess(context, loc);
 
           const baseData = {
             factoryUnitId,
             sector: normalizeStockSector(expandedItem.sector) as SectorType,
+            subsectorId: expandedItem.subsectorId || null,
             categoryId: expandedItem.categoryId || null,
             quantity: expandedItem.quantity,
             unit: effectiveUnit,
@@ -233,6 +252,7 @@ export class StockItemService {
             data: {
               factoryUnitId,
               stockItemId: stockItem.id,
+              subsectorId: stockItem.subsectorId,
               sector: expandedItem.sector as SectorType,
               type: 'ENTRADA',
               quantity: expandedItem.quantity,
@@ -412,7 +432,7 @@ export class StockItemService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
+            include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
           })
         : [],
       // Demais setores na tabela StockItem
@@ -423,7 +443,7 @@ export class StockItemService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
+            include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
           })
         : [],
       prisma.stockItem.count({ where: buildSectorWhere('PRE_FABRICADO') }),
@@ -433,7 +453,7 @@ export class StockItemService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
+            include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
           })
         : [],
       prisma.stockItem.count({ where: buildSectorWhere('DISTRIBUICAO') }),
@@ -443,7 +463,7 @@ export class StockItemService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
+            include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
           })
         : [],
       prisma.stockItem.count({ where: buildSectorWhere('MONTAGEM') }),
@@ -453,7 +473,7 @@ export class StockItemService {
             skip,
             take: limit,
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-            include: { locations: { include: { location: true } } },
+            include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
           })
         : [],
       prisma.location.findMany({
@@ -499,6 +519,7 @@ export class StockItemService {
         id: mat.id,
         sector: 'CORTE',
         subsectorId: mat.subsectorId,
+        subsector: mat.subsector,
         code: mat.code,
         name: mat.name,
         unit: mat.unit,
@@ -669,7 +690,7 @@ export class StockItemService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        include: { locations: { include: { location: true } } },
+        include: { subsector: { select: { id: true, name: true, sector: true, active: true } }, locations: { include: { location: true } } },
       }),
       prisma.stockItem.count({ where: whereForSector('CORTE') }),
       prisma.stockItem.count({ where: whereForSector('APOIO') }),
@@ -704,6 +725,7 @@ export class StockItemService {
           id: item.id,
           sector: item.sector,
           subsectorId: item.subsectorId,
+          subsector: item.subsector,
           code: item.code,
           name: item.name,
           unit: item.unit,

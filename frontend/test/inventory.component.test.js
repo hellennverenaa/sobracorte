@@ -133,6 +133,53 @@ test('formulário de entrada alterado exige confirmação para cancelar', async 
   mounted.unmount();
 });
 
+test('entrada lista somente localizações do setor e subsetor selecionados', async () => {
+  const { createPinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const component = await loadComponent('src/components/SectorFormInput.vue');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
+  api.get = async url => {
+    if (url === '/settings/locations') return { data: [
+      { id: 1, name: 'LEGADO-APOIO', sector: 'APOIO', subsectorId: null },
+      { id: 2, name: 'SERIGRAFIA-01', sector: 'APOIO', subsectorId: 8 },
+      { id: 3, name: 'MONTAGEM-01', sector: 'MONTAGEM', subsectorId: null },
+    ] };
+    if (url === '/settings/subsectors') return { data: [
+      { id: 8, name: 'Serigrafia', sector: 'APOIO', active: true, categoryMode: 'ALL', categoryLinks: [] },
+    ] };
+    return { data: [] };
+  };
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
+  await router.push('/');
+  const mounted = await mountComponent(component, { pinia, router });
+  await flushPromises();
+
+  const apoioButton = [...mounted.element.querySelectorAll('[aria-label="Setor da entrada de estoque"] button')]
+    .find(button => button.textContent.includes('Peças Cortadas'));
+  assert.ok(apoioButton);
+  apoioButton.click();
+  await flushPromises();
+
+  const subsectorSelect = mounted.element.querySelector('#entry-subsector');
+  assert.ok(subsectorSelect);
+  assert.deepEqual([...subsectorSelect.options].map(option => option.textContent.trim()), [
+    'Sem subsetor (fluxo atual do setor)', 'Serigrafia',
+  ]);
+  subsectorSelect.value = '8';
+  subsectorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flushPromises();
+
+  const locationSelect = [...mounted.element.querySelectorAll('select')]
+    .find(select => [...select.options].some(option => option.textContent.includes('SERIGRAFIA-01')));
+  assert.ok(locationSelect);
+  assert.deepEqual([...locationSelect.options].map(option => option.textContent.trim()), [
+    'Selecione a Prateleira...', 'SERIGRAFIA-01',
+  ]);
+  mounted.unmount();
+  api.get = async () => ({ data: [] });
+});
+
 for (const role of ['admin', 'admin_setor']) {
 test(`estoque restringe destinos de ${role} e registra saída pela API oficial`, async () => {
   const component = await loadComponent('src/pages/InventoryHub.vue');

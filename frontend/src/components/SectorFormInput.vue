@@ -48,6 +48,7 @@ const dbCategories = ref<any[]>([]);
 const dbUnits = ref<any[]>([]);
 const dbLocations = ref<any[]>([]);
 const dbOrigins = ref<any[]>([]);
+const dbSubsectors = ref<any[]>([]);
 const loadingSettings = ref(false);
 const settingsError = ref('');
 
@@ -97,6 +98,7 @@ const formData = reactive({
   code: '',
   name: '',
   unit: activeSector.value === 'CORTE' ? 'M²' : 'UN',
+  subsectorId: '',
   type: '',
   pieceCode: '',
   description: '',
@@ -118,10 +120,15 @@ async function cancelForm() {
 }
 
 const selectedCategory = computed(() => dbCategories.value.find(category => Number(category.id) === Number(formData.categoryId)) || null);
+const availableSubsectors = computed(() => dbSubsectors.value.filter(subsector =>
+  subsector.active !== false && normalizeSector(subsector.sector) === normalizeSector(activeSector.value)
+));
+const selectedSubsector = computed(() => availableSubsectors.value.find(subsector => String(subsector.id) === String(formData.subsectorId)) || null);
 const isApoioCabedal = computed(() => activeSector.value === 'APOIO' && formData.componentType === 'CABEDAL');
 const supportsPair = computed(() => isApoioCabedal.value || ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value));
 const isUnitLocked = computed(() => Boolean(selectedCategory.value?.unitLocked));
 const isCategoryRequired = computed(() => ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(activeSector.value));
+const isSubsectorCategoryRequired = computed(() => selectedSubsector.value?.categoryMode === 'SELECTED');
 
 function defaultUnitForSector(sector: SectorType = activeSector.value) {
   return sector === 'CORTE' ? 'M²' : 'UN';
@@ -147,13 +154,18 @@ const availableSectors = computed(() => {
 
 const availableCategories = computed(() => {
   const currentSec = activeSector.value;
-  return dbCategories.value.filter(cat => {
+  let categories = dbCategories.value.filter(cat => {
     const sectors = Array.isArray(cat.sectors) && cat.sectors.length
       ? cat.sectors
       : cat.sector ? [cat.sector] : [];
     if (sectors.length === 0) return true;
     return sectors.some((sector: string) => (sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : sector) === currentSec);
   });
+  if (selectedSubsector.value?.categoryMode === 'SELECTED') {
+    const allowedIds = new Set((selectedSubsector.value.categoryLinks || []).map((link: any) => Number(link.categoryConfigId)));
+    categories = categories.filter(category => allowedIds.has(Number(category.id)));
+  }
+  return categories;
 });
 
 const availableOrigins = computed(() => dbOrigins.value.filter(origin =>
@@ -170,17 +182,19 @@ async function fetchDynamicSettings() {
   loadingSettings.value = true;
   settingsError.value = '';
   try {
-    const [catsRes, unitsRes, locsRes, originsRes] = await Promise.all([
+    const [catsRes, unitsRes, locsRes, originsRes, subsectorsRes] = await Promise.all([
       api.get('/settings/categories'),
       api.get('/settings/units'),
       api.get('/settings/locations'),
       api.get('/settings/origins'),
+      api.get('/settings/subsectors'),
     ]);
 
     dbCategories.value = catsRes.data || [];
     dbUnits.value = unitsRes.data || [];
     dbLocations.value = locsRes.data || [];
     dbOrigins.value = originsRes.data || [];
+    dbSubsectors.value = subsectorsRes.data || [];
 
   } catch (err) {
     settingsError.value = requestErrorMessage(err, 'Não foi possível carregar as configurações.');
@@ -202,6 +216,7 @@ function onConfiguredCategoryChange() {
 const availableLocations = computed(() => {
   const currentSec = activeSector.value;
   let sectorLocs = dbLocations.value.filter(loc => {
+    if (Number(loc.subsectorId || 0) !== Number(formData.subsectorId || 0)) return false;
     if (!loc.sector) return true;
     const locSec = loc.sector === 'EXPEDICAO' ? 'DISTRIBUICAO' : loc.sector;
     return locSec === currentSec;
@@ -216,6 +231,14 @@ const availableLocations = computed(() => {
   }
 
   return sectorLocs;
+});
+
+watch(() => formData.subsectorId, () => {
+  formData.location = '';
+  if (formData.categoryId && !availableCategories.value.some(category => Number(category.id) === Number(formData.categoryId))) {
+    formData.categoryId = '';
+    formData.type = '';
+  }
 });
 
 function handleSizeGradeInput(event: Event) {
@@ -265,6 +288,7 @@ function selectSector(sector: SectorType) {
   }
   activeSector.value = sector;
   formData.categoryId = '';
+  formData.subsectorId = '';
   formData.location = '';
   formData.type = '';
   formData.unit = defaultUnitForSector(sector);
@@ -281,6 +305,7 @@ function selectSector(sector: SectorType) {
 function resetForm() {
   formData.location = '';
   formData.categoryId = '';
+  formData.subsectorId = '';
   formData.origem = '';
   formData.quantity = 1;
   formData.observation = '';
@@ -309,7 +334,7 @@ async function handleSubmit() {
   errorMessage.value = '';
   successMessage.value = '';
 
-  if (isCategoryRequired.value && !formData.categoryId) {
+  if ((isCategoryRequired.value || isSubsectorCategoryRequired.value) && !formData.categoryId) {
     errorMessage.value = 'Selecione uma categoria de material configurada para este setor antes de continuar.';
     return;
   }
@@ -337,6 +362,7 @@ async function handleSubmit() {
 
   let payloadItem: any = {
     sector: activeSector.value,
+    subsectorId: formData.subsectorId ? Number(formData.subsectorId) : null,
     categoryId: formData.categoryId ? Number(formData.categoryId) : null,
     origem: formData.origem.trim(),
     location: formData.location.trim().toUpperCase(),
@@ -1026,6 +1052,20 @@ onMounted(async () => {
           </span>
         </div>
 
+        <div v-if="availableSubsectors.length">
+          <label for="entry-subsector" class="block text-xs font-bold text-gray-500 uppercase mb-1">Subsetor (opcional)</label>
+          <select id="entry-subsector" v-model="formData.subsectorId"
+            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-medium text-gray-800">
+            <option value="">Sem subsetor (fluxo atual do setor)</option>
+            <option v-for="subsector in availableSubsectors" :key="subsector.id" :value="String(subsector.id)">
+              {{ subsector.name }}
+            </option>
+          </select>
+          <span v-if="selectedSubsector" class="mt-0.5 block text-[10px] text-gray-500">
+            A entrada e a localização ficarão restritas a {{ selectedSubsector.name }}.
+          </span>
+        </div>
+
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização (Configurações) *</label>
           <select
@@ -1035,7 +1075,7 @@ onMounted(async () => {
             :disabled="availableLocations.length === 0"
           >
             <option value="" disabled selected>
-              {{ availableLocations.length === 0 ? (formData.categoryId ? '(Nenhuma prateleira vinculada à categoria selecionada)' : '(Nenhuma prateleira cadastrada para este setor)') : 'Selecione a Prateleira...' }}
+              {{ availableLocations.length === 0 ? (formData.subsectorId ? '(Nenhuma prateleira deste subsetor vinculada à categoria selecionada)' : formData.categoryId ? '(Nenhuma prateleira vinculada à categoria selecionada)' : '(Nenhuma prateleira cadastrada para este setor)') : 'Selecione a Prateleira...' }}
             </option>
             <option v-for="loc in availableLocations" :key="loc.id" :value="loc.name">
               {{ loc.name }}
