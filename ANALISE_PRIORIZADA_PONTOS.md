@@ -106,3 +106,45 @@ Simplificar a entrada de estoque e a navegação entre setores, preservando filt
 - A barra vertical do menu lateral foi reduzida e suavizada, sem remover a rolagem.
 - Build de produção do frontend (`npm --prefix frontend run build`) passou; `git diff --check` passou.
 - Testes automatizados e conferência visual manual em Windows não foram executados nesta etapa.
+
+## 5. P2 — Organizar o formulário e a consulta do “Estoque Multi-Setor” — PENDENTE
+
+### Problemas observados
+
+- O diálogo “Nova Entrada Rápida” repete o título que já aparece no cabeçalho, comprime a seleção dos setores e distribui campos em colunas estreitas. Em algumas larguras, rótulos e controles quebram e o rodapé fixo encobre a área de observação.
+- A busca e os filtros de localização, categoria, saldo e quantidade por página aparecem como caixas separadas e ocupam várias linhas antes da tabela.
+- A tabela aperta as colunas em larguras médias, quebrando valores como combinação, lado e localização e dificultando comparar os itens.
+
+### Objetivo
+
+Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da entrada, mantendo os campos, filtros, ações, dados e regras existentes.
+
+### Etapas propostas
+
+#### Etapa 1 — Reorganizar o diálogo de entrada rápida
+
+- Manter o cabeçalho externo como título único e remover o título repetido dentro do formulário.
+- Exibir as opções de setor em uma faixa própria, com alvos de tamanho uniforme e sem quebra irregular entre as opções.
+- Reorganizar os campos em colunas proporcionais à largura disponível no diálogo; dar mais espaço a descrições e observações, mantendo os mesmos campos obrigatórios e opcionais.
+- Separar visualmente identificação do material, variantes e dados de entrada. Manter as ações no rodapé do diálogo, fora da área rolável, e reservar espaço no fim do formulário para nenhum campo ficar encoberto.
+
+#### Etapa 2 — Reunir os filtros em um painel compacto
+
+- Manter a busca por código/descrição sempre visível.
+- Reunir localização, categoria/tipo quando disponível, situação do saldo e itens por página sob um único controle “Filtros”, com indicação de quantos filtros estão ativos.
+- Preservar os valores, opções, atualização dos resultados e limpeza de filtros já existentes; mostrar um resumo compacto quando filtros estiverem aplicados.
+- Não introduzir critérios de busca de grade, lado ou quantidade nesta etapa, pois exigiriam lógica de consulta além da reorganização visual solicitada.
+
+#### Etapa 3 — Melhorar a leitura dos materiais
+
+- Em telas largas, preservar a tabela e dar largura suficiente às colunas, evitando que códigos, variantes e ações se espremam.
+- Em telas estreitas, apresentar os mesmos dados e ações em linhas organizadas como cartões compactos, sem remover ou alterar operações disponíveis.
+- Manter as abas, contagens e setor ativo visíveis e consistentes com a consulta atual.
+
+#### Etapa 4 — Conferir o desenho sem alterar os fluxos
+
+- Conferir o diálogo e a lista em larguras desktop, média e estreita, verificando rolagem, leitura, alinhamento e ausência de conteúdo encoberto.
+- Confirmar que busca, filtros, setor, paginação e ações continuam ligados aos mesmos estados e operações.
+- Gerar o build do frontend após a implementação aprovada.
+
+**Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
