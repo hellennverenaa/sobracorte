@@ -592,7 +592,7 @@ onMounted(() => {
         @wheel.stop
         @touchmove.stop
       >
-        <section class="flex h-full max-h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:rounded-2xl sm:border sm:border-slate-200">
+        <section class="flex h-full max-h-full w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[90vh] sm:max-h-[780px] sm:rounded-2xl sm:border sm:border-slate-200">
           <header class="flex shrink-0 items-center justify-between gap-4 border-b border-blue-700 bg-blue-600 px-4 py-3 text-white sm:px-6">
             <div class="flex min-w-0 items-center gap-3">
               <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15">
@@ -613,7 +613,7 @@ onMounted(() => {
             </button>
           </header>
 
-          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 p-2 sm:p-4">
+          <div class="min-h-0 flex-1 bg-slate-50 p-2 sm:p-4">
             <SectorFormInput
               ref="entryForm"
               @saved="handleEntrySaved"

@@ -133,32 +133,40 @@ Simplificar a entrada de estoque e a navegação entre setores, preservando filt
 
 Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da entrada, mantendo os campos, filtros, ações, dados e regras existentes.
 
-### Etapas propostas
+### Etapas e andamento
 
-#### Etapa 1 — Reorganizar o diálogo de entrada rápida
+#### Etapa 1 — Reorganizar o diálogo de entrada rápida — CONCLUÍDA
 
 - Manter o cabeçalho externo como título único e remover o título repetido dentro do formulário.
 - Exibir as opções de setor em uma faixa própria, com alvos de tamanho uniforme e sem quebra irregular entre as opções.
 - Reorganizar os campos em colunas proporcionais à largura disponível no diálogo; dar mais espaço a descrições e observações, mantendo os mesmos campos obrigatórios e opcionais.
 - Separar visualmente identificação do material, variantes e dados de entrada. Manter as ações no rodapé do diálogo, fora da área rolável, e reservar espaço no fim do formulário para nenhum campo ficar encoberto.
 
-#### Etapa 2 — Reunir os filtros em um painel compacto
+#### Etapa 2 — Reunir os filtros em um painel compacto — PENDENTE
 
 - Manter a busca por código/descrição sempre visível.
 - Reunir localização, categoria/tipo quando disponível, situação do saldo e itens por página sob um único controle “Filtros”, com indicação de quantos filtros estão ativos.
 - Preservar os valores, opções, atualização dos resultados e limpeza de filtros já existentes; mostrar um resumo compacto quando filtros estiverem aplicados.
 - Não introduzir critérios de busca de grade, lado ou quantidade nesta etapa, pois exigiriam lógica de consulta além da reorganização visual solicitada.
 
-#### Etapa 3 — Melhorar a leitura dos materiais
+#### Etapa 3 — Melhorar a leitura dos materiais — PENDENTE
 
 - Em telas largas, preservar a tabela e dar largura suficiente às colunas, evitando que códigos, variantes e ações se espremam.
 - Em telas estreitas, apresentar os mesmos dados e ações em linhas organizadas como cartões compactos, sem remover ou alterar operações disponíveis.
 - Manter as abas, contagens e setor ativo visíveis e consistentes com a consulta atual.
 
-#### Etapa 4 — Conferir o desenho sem alterar os fluxos
+#### Etapa 4 — Conferir o desenho sem alterar os fluxos — PENDENTE
 
 - Conferir o diálogo e a lista em larguras desktop, média e estreita, verificando rolagem, leitura, alinhamento e ausência de conteúdo encoberto.
 - Confirmar que busca, filtros, setor, paginação e ações continuam ligados aos mesmos estados e operações.
 - Gerar o build do frontend após a implementação aprovada.
+
+### Implementação parcial
+
+- O título interno repetido foi removido; os setores agora ficam em uma faixa uniforme separada do cabeçalho do diálogo.
+- Os campos se reorganizam conforme a largura disponível no formulário, e os dados do material ficam visualmente separados da entrada de saldo e localização.
+- A rolagem foi limitada à área dos campos; as ações permanecem em um rodapé próprio e o último campo não fica sob os botões.
+- Campos, regras, validações, seleção de setor e ações de salvar/cancelar foram preservados. Filtros e tabela não foram alterados nesta etapa.
+- Build de produção do frontend (`npm run build`): passou. A suíte de testes não foi executada.
 
 **Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
