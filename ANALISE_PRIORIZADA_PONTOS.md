@@ -254,8 +254,9 @@ O formulário “Nova Entrada Rápida” exibe “Unidade de medida” para seto
 
 #### Etapa 2 — Simplificar o formulário de entrada — PENDENTE
 
-- Remover o seletor de unidade para Peças Cortadas (peça cortada e cabedal), Pré-Fabricado, Distribuição e Montagem; indicar `UN` como unidade fixa.
-- Para E/D, identificar a quantidade como unidades/pés. Para PAR, manter “Quantidade de pares” e explicitar que N pares geram N unidades E e N unidades D.
+- Remover por completo o controle visual de unidade para Peças Cortadas (peça cortada e cabedal), Pré-Fabricado, Distribuição e Montagem. A aplicação registra `UN` internamente, sem mostrar seletor, campo, selo ou rótulo “unidade fixa”.
+- Manter a tela enxuta: apresentar somente o campo de quantidade. Para PAR, manter “Quantidade de pares” e uma orientação curta de que N pares geram N itens dos lados E e D; não acrescentar um indicador visual de unidade.
+- Para E/D e peça cortada sem lado, usar um rótulo de quantidade claro, sem repetir a unidade `UN` em outro campo.
 - Manter no setor CORTE a seleção de unidade de matéria-prima e suas regras de categoria.
 
 #### Etapa 3 — Aplicar a mesma regra nas categorias, API e importação — PENDENTE
@@ -271,4 +272,4 @@ O formulário “Nova Entrada Rápida” exibe “Unidade de medida” para seto
 - Conferir movimentação, inventário, relatórios, importação e requisições para assegurar que unidade física continue `UN`, enquanto requisições de par continuem expressando PAR quando aplicável.
 - Confirmar que unidades configuráveis de matéria-prima no CORTE continuam funcionando e cobrir conflitos de categorias e valores legados.
 
-**Critério de conclusão:** pessoas não escolhem unidade de medida para estoque de peças/calçados; os saldos novos são registrados em `UN` com E/D separados, e PAR cria um lado esquerdo e um direito por par. O CORTE mantém suas unidades próprias e os saldos antigos preservam o significado.
+**Critério de conclusão:** pessoas não escolhem unidade de medida nem veem um campo ou selo de unidade nos cadastros de estoque por peça; os saldos novos são registrados em `UN` internamente com E/D separados, e PAR cria um lado esquerdo e um direito por par. O CORTE mantém suas unidades próprias e os saldos antigos preservam o significado.
