@@ -18,7 +18,7 @@
 | 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
 | 7 | P2 | PENDENTE | Fixar em unidade a contagem de peças e calçados nos setores produtivos |
 
-**Situação atual:** etapa 3 do ponto 5 concluída; build do frontend passou. A etapa 4 segue pendente de conferência visual nas larguras previstas. O ponto 7 permanece pendente de aprovação.
+**Situação atual:** etapas 1 a 3 do ponto 5 concluídas. A validação estática da etapa 4 e o build do frontend passaram; a conferência visual nas larguras previstas segue pendente. O ponto 7 permanece pendente de aprovação.
 
 ## Detalhamento dos pontos
 
@@ -167,10 +167,14 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 
 **Âncora visual:** a pessoa reconhece cada item imediatamente pela sequência código/SKU → modelo/linha → variante → saldo/localização, enquanto os lados E e D continuam claramente separados.
 
-#### Etapa 4 — Conferir a apresentação sem alterar os fluxos — PENDENTE
+#### Etapa 4 — Conferir a apresentação sem alterar os fluxos — VALIDAÇÃO PARCIAL; CONFERÊNCIA VISUAL PENDENTE
 
 - Revisar larguras de 375, 768, 1024 e 1440 px, incluindo alinhamento, rolagem horizontal, legibilidade dos valores e alvos de interação.
 - Conferir contraste, foco de teclado e quebras de texto; manter busca, filtros, setor, paginação e ações conectados aos estados e operações atuais.
+- A inspeção estática confirmou que busca, filtros, seleção do setor e paginação mantêm seus handlers atuais, e que tabela e cartões usam os mesmos handlers de detalhes, movimentação e exclusão.
+- Não foi possível conferir visualmente as quatro larguras, foco, rolagem ou conteúdo encoberto: esta sessão não disponibiliza navegador para abrir a aplicação.
+- Build de produção do frontend (`npm --prefix frontend run build`): passou. O build informa um aviso de bundle acima de 500 kB (568,30 kB).
+- Etapa permanece pendente até a conferência visual manual; a validação estática não substitui essa checagem.
 
 ### Implementação parcial
 
