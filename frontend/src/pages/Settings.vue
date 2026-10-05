@@ -26,6 +26,17 @@
         @retry="settingsData.fetchAll"
       />
 
+      <SubsectorSettings
+        v-if="activeTab === 'subsectors'"
+        :can-manage="canManageSettings"
+        :is-master-admin="isMasterAdmin"
+        :assigned-sector="authStore.user?.assignedSector || ''"
+        :sectors="categorySectorsOptions"
+        :categories="categories"
+        @notify="showNotification"
+        @dirty-change="subsectorDirty = $event"
+      />
+
       <!-- ABA 1: CATEGORIAS                         -->
       <div v-if="activeTab === 'categories'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1077,12 +1088,13 @@ import { useSettings } from '@/composables/useSettings'
 import PageState from '@/components/PageState.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import SettingsTabNav from '@/components/SettingsTabNav.vue'
+import SubsectorSettings from '@/components/SubsectorSettings.vue'
 import RequisitionStockCompatibilitySettings from '@/components/RequisitionStockCompatibilitySettings.vue'
 import { formatSectorName, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatDate } from '@/utils/format'
 import {
   Settings as SettingsIcon, Tag, MapPin, GitBranch, FileSpreadsheet, Ruler, Lock, Download, HelpCircle,
-  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2, Building2, Sliders, ClipboardList
+  Plus, Trash2, Upload, CheckCircle, XCircle, Pencil, Loader2, Building2, Sliders, ClipboardList, Layers
 } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
@@ -1101,6 +1113,7 @@ const tabs = computed(() => {
   // Admin Master e Admin de Setor: todas as abas
   return [
     { key: 'categories',   label: 'Categorias',                 icon: Tag },
+    { key: 'subsectors',   label: 'Subsetores',                 icon: Layers },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
     { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
     ...(isMasterAdmin.value ? [{ key: 'compatibility', label: 'Regras especiais', icon: GitBranch }] : []),
@@ -1109,6 +1122,7 @@ const tabs = computed(() => {
   ]
 })
 const activeTab = ref('categories')
+const subsectorDirty = ref(false)
 
 // --- NOTIFICAÇÕES & MODAL DE CONFIRMAÇÃO COMPARTILHADOS ---
 const { notification, showNotification } = useToast(3500)
@@ -1690,6 +1704,7 @@ const { confirmDiscard } = useUnsavedChanges(() => (
   hasUnsubmittedLocation() ||
   Boolean(newOrigin.value.trim()) ||
   Boolean(selectedFile.value) ||
+  subsectorDirty.value ||
   showEditLocationModal.value && JSON.stringify(editingLocation.value) !== editLocationInitial.value
 ))
 

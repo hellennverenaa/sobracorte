@@ -17,6 +17,12 @@ const loading = ref(true);
 const searchTerm = ref("");
 const showEditModal = ref(false);
 const editingUser = ref(null);
+const showSubsectorModal = ref(false);
+const subsectorTarget = ref(null);
+const availableSubsectors = ref([]);
+const selectedSubsectorIds = ref([]);
+const loadingSubsectorAccess = ref(false);
+const savingSubsectorAccess = ref(false);
 watch(() => editingUser.value?.role, role => {
   if (role === 'admin') {
     if (editingUser.value) editingUser.value.assignedSector = null;
@@ -88,16 +94,9 @@ const saveUserRole = async () => {
 
     const res = await api.put(`/users/${editingUser.value.id}`, payload);
 
-    const index = users.value.findIndex((u) => u.id === editingUser.value.id);
-    if (index !== -1) {
-      users.value[index].role = res.data.role;
-      users.value[index].persistedRole = res.data.persistedRole || res.data.role;
-      users.value[index].assignedSector = res.data.assignedSector;
-      users.value[index].linkedSector = res.data.linkedSector || null;
-    }
-
     showNotification("success", "Permissões e setor vinculados com sucesso!");
     showEditModal.value = false;
+    await fetchUsers();
   } catch (error) {
     console.error("Erro ao atualizar usuário:", error);
     const errorMsg = error.response?.data?.error || "Erro de conexão ao atualizar usuário.";
@@ -159,6 +158,63 @@ const getRoleInfo = (role) => {
   return roleOptions.find((r) => r.value === role) || roleOptions[3];
 };
 
+const normalizeSubsectorSector = sector => sector === 'EXPEDICAO' || sector === 'CABEDAIS' ? 'DISTRIBUICAO' : sector;
+const subsectorTargetSector = computed(() => normalizeSubsectorSector(
+  subsectorTarget.value?.linkedSector || subsectorTarget.value?.assignedSector || '',
+));
+const visibleSubsectors = computed(() => {
+  const sector = subsectorTargetSector.value;
+  return availableSubsectors.value.filter(subsector => !sector || normalizeSubsectorSector(subsector.sector) === sector);
+});
+const subsectorGroups = computed(() => {
+  const groups = new Map();
+  for (const subsector of visibleSubsectors.value) {
+    const sector = normalizeSubsectorSector(subsector.sector);
+    if (!groups.has(sector)) groups.set(sector, []);
+    groups.get(sector).push(subsector);
+  }
+  return [...groups.entries()].map(([sector, subsectors]) => ({
+    sector,
+    label: formatSectorName(sector),
+    subsectors: subsectors.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+  }));
+});
+
+const openSubsectorAccess = async user => {
+  if (!canManageUser(user) || user.subsectorAccess?.mode !== 'EXPLICIT') return;
+  subsectorTarget.value = user;
+  selectedSubsectorIds.value = (user.subsectorIds || []).map(Number);
+  availableSubsectors.value = [];
+  showSubsectorModal.value = true;
+  loadingSubsectorAccess.value = true;
+  try {
+    const response = await api.get('/settings/subsectors', { params: { includeArchived: true } });
+    availableSubsectors.value = response.data || [];
+  } catch (error) {
+    showNotification('error', error.response?.data?.error || 'Erro ao carregar subsetores disponíveis.');
+  } finally {
+    loadingSubsectorAccess.value = false;
+  }
+};
+
+const saveSubsectorAccess = async () => {
+  if (!subsectorTarget.value || savingSubsectorAccess.value) return;
+  savingSubsectorAccess.value = true;
+  try {
+    await api.put(`/users/${subsectorTarget.value.id}/subsector-access`, {
+      subsectorIds: selectedSubsectorIds.value.map(Number),
+    });
+    showNotification('success', `Acessos de subsetor atualizados para ${subsectorTarget.value.nome || subsectorTarget.value.usuario}.`);
+    showSubsectorModal.value = false;
+    await fetchUsers();
+  } catch (error) {
+    showNotification('error', error.response?.data?.error || 'Erro ao salvar os acessos de subsetor.');
+    if (error.response?.status === 409) await fetchUsers();
+  } finally {
+    savingSubsectorAccess.value = false;
+  }
+};
+
 onMounted(() => {
   fetchUsers();
 });
@@ -202,16 +258,17 @@ onMounted(() => {
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Setor RH / Função</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Nível de Acesso</th>
                 <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Setor Vinculado (RBAC)</th>
+                <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Escopo de subsetores</th>
                 <th class="px-6 py-4 text-center text-sm font-semibold text-gray-600">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-if="loading">
-                <td colspan="5" class="px-6 py-8 text-center text-gray-500">Carregando usuários...</td>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-500">Carregando usuários...</td>
               </tr>
 
               <tr v-else-if="filteredUsers.length === 0">
-                <td colspan="5" class="px-6 py-8 text-center text-gray-500">Nenhum usuário encontrado.</td>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-500">Nenhum usuário encontrado.</td>
               </tr>
 
               <tr v-for="user in filteredUsers" :key="user.id" class="hover:bg-gray-50 transition-colors">
@@ -277,8 +334,28 @@ onMounted(() => {
                   </span>
                 </td>
 
+                <td class="px-6 py-4">
+                  <span v-if="user.subsectorAccess?.mode === 'UNIT'" class="rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700">
+                    Todos os subsetores da unidade
+                  </span>
+                  <span v-else-if="user.subsectorAccess?.mode === 'SECTOR'" class="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">
+                    Todos de {{ formatSectorName(user.linkedSector || user.assignedSector) }}
+                  </span>
+                  <div v-else-if="user.subsectorAccess?.subsectors?.length" class="flex max-w-xs flex-wrap gap-1">
+                    <span v-for="subsector in user.subsectorAccess.subsectors" :key="subsector.id" class="rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="subsector.active ? 'border-blue-100 bg-blue-50 text-blue-800' : 'border-gray-200 bg-gray-100 text-gray-500'">
+                      {{ subsector.name }}<span v-if="!subsector.active"> · arquivado</span>
+                    </span>
+                  </div>
+                  <span v-else class="text-xs text-gray-500">Nenhum vínculo explícito · legado conforme setor</span>
+                </td>
+
                 <td class="px-6 py-4 text-center">
                   <div class="flex justify-center gap-2">
+                    <button v-if="user.subsectorAccess?.mode === 'EXPLICIT'" @click="openSubsectorAccess(user)"
+                      class="rounded-lg p-2 text-indigo-600 transition-colors hover:bg-indigo-50" title="Gerenciar subsetores do usuário"
+                      :disabled="!canManageUser(user)" :class="{ 'cursor-not-allowed opacity-50': !canManageUser(user) }">
+                      <Layers class="h-5 w-5" />
+                    </button>
                     <button @click="openEditModal(user)"
                       class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Permissão e Setor"
                       :disabled="!canManageUser(user) || user.usuario === (auth.user?.usuario || auth.user?.nome)"
@@ -299,6 +376,59 @@ onMounted(() => {
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Modal de concessões explícitas de subsetor -->
+    <div v-if="showSubsectorModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <section class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
+          <div>
+            <h3 class="font-bold text-gray-900">Acesso a subsetores</h3>
+            <p class="mt-0.5 text-xs text-gray-500">{{ subsectorTarget?.nome || subsectorTarget?.usuario }}</p>
+          </div>
+          <button type="button" @click="showSubsectorModal = false" class="rounded p-1 text-xl text-gray-400 hover:bg-gray-200" aria-label="Fechar">&times;</button>
+        </header>
+
+        <div class="space-y-4 overflow-y-auto p-6">
+          <div class="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs text-indigo-900">
+            Este perfil só poderá consultar ou operar nos subsetores selecionados, conforme as permissões já definidas para seu papel. Registros antigos sem subsetor continuam seguindo o escopo de setor existente.
+          </div>
+          <p v-if="subsectorTargetSector" class="text-xs font-semibold text-gray-600">
+            Setor vinculado: {{ formatSectorName(subsectorTargetSector) }}. A lista respeita esse setor.
+          </p>
+          <p v-else class="text-xs font-semibold text-gray-600">Este usuário não tem setor de referência; os vínculos escolhidos delimitam os subsetores visíveis.</p>
+
+          <div v-if="loadingSubsectorAccess" class="py-8 text-center text-sm text-gray-500">Carregando subsetores…</div>
+          <div v-else-if="!subsectorGroups.length" class="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+            Nenhum subsetor está disponível para este escopo. Cadastre subsetores em Configurações → Subsetores.
+          </div>
+          <div v-else class="space-y-4">
+            <fieldset v-for="group in subsectorGroups" :key="group.sector" class="rounded-xl border border-gray-200 p-4">
+              <legend class="px-1 text-xs font-bold uppercase text-gray-600">{{ group.label }}</legend>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <label v-for="subsector in group.subsectors" :key="subsector.id"
+                  class="flex items-start gap-2 rounded-lg border p-3 text-sm"
+                  :class="selectedSubsectorIds.includes(Number(subsector.id)) ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200'">
+                  <input v-model="selectedSubsectorIds" type="checkbox" :value="Number(subsector.id)"
+                    :disabled="savingSubsectorAccess || (!subsector.active && !selectedSubsectorIds.includes(Number(subsector.id)))"
+                    class="mt-0.5 rounded border-gray-300 text-indigo-600" />
+                  <span class="min-w-0">
+                    <span class="block font-semibold text-gray-800">{{ subsector.name }}</span>
+                    <span v-if="!subsector.active" class="text-[11px] font-medium text-amber-700">Arquivado · concessão atual pode ser mantida ou removida</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+
+        <footer class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50 px-6 py-4">
+          <button type="button" @click="showSubsectorModal = false" class="rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200">Cancelar</button>
+          <button type="button" @click="saveSubsectorAccess" :disabled="loadingSubsectorAccess || savingSubsectorAccess" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
+            {{ savingSubsectorAccess ? 'Salvando…' : 'Salvar acessos' }}
+          </button>
+        </footer>
+      </section>
     </div>
 
     <!-- Modal de Edição de Permissões e Setor Vinculado -->

@@ -134,6 +134,7 @@ test('API impede vincular usuário operacional a subsetor de outro setor', async
     userRoleBinding: { findFirst: async () => ({ id: 24, role: 'movimentador', assignedSector: 'APOIO', identity: { usuario: 'OPERADOR', nome: 'Operador' } }) },
     subsectorConfig: { findMany: async (args: any) => { subsectorQuery = args.where; return [{ id: 8, sector: 'MONTAGEM' }]; } },
     userSubsectorAccess: {
+      findMany: async () => [],
       deleteMany: async () => { writes++; },
       createMany: async () => { writes++; },
     },
@@ -145,7 +146,11 @@ test('API impede vincular usuário operacional a subsetor de outro setor', async
     effectiveContext: { effectiveRole: 'admin', assignedSector: null, subsectorIds: [], isGlobalAdmin: false },
   } as any, result.res));
   assert.equal(result.status, 400);
-  assert.deepEqual(subsectorQuery, { factoryUnitId: 3, active: true, id: { in: [8] } });
+  assert.deepEqual(subsectorQuery, {
+    factoryUnitId: 3,
+    id: { in: [8] },
+    OR: [{ active: true }, { id: { in: [] } }],
+  });
   assert.equal(writes, 0);
 });
 
@@ -156,6 +161,7 @@ test('API persiste somente os subsetores ativos enviados no vínculo do usuário
     userRoleBinding: { findFirst: async () => ({ id: 24, role: 'lider', assignedSector: 'APOIO', identity: { usuario: 'LIDER', nome: 'Líder' } }) },
     subsectorConfig: { findMany: async () => [{ id: 8, sector: 'APOIO' }, { id: 9, sector: 'APOIO' }] },
     userSubsectorAccess: {
+      findMany: async () => [],
       deleteMany: async () => ({ count: 0 }),
       createMany: async ({ data }: any) => { saved = data; return { count: data.length }; },
     },
@@ -173,4 +179,31 @@ test('API persiste somente os subsetores ativos enviados no vínculo do usuário
     { bindingId: 24, subsectorId: 8, factoryUnitId: 3 },
     { bindingId: 24, subsectorId: 9, factoryUnitId: 3 },
   ]);
+});
+
+test('API preserva concessão anterior de subsetor arquivado sem permitir nova concessão', async t => {
+  let saved: any[] = [];
+  const tx: any = {
+    $queryRawUnsafe: async () => [],
+    userRoleBinding: { findFirst: async () => ({ id: 24, role: 'lider', assignedSector: 'APOIO', identity: { usuario: 'LIDER', nome: 'Líder' } }) },
+    userSubsectorAccess: {
+      findMany: async () => [{ subsectorId: 8 }],
+      deleteMany: async () => ({ count: 1 }),
+      createMany: async ({ data }: any) => { saved = data; return { count: data.length }; },
+    },
+    subsectorConfig: { findMany: async ({ where }: any) => {
+      assert.deepEqual(where.OR, [{ active: true }, { id: { in: [8] } }]);
+      return [{ id: 8, sector: 'APOIO', active: false }];
+    } },
+    stockMovement: { create: async () => ({ id: 93 }) },
+  };
+  replace(t, prisma, { $transaction: async (callback: any) => callback(tx) });
+  const result = response();
+  await tenantStorage.run({ tenantId: 3 }, () => new SubsectorController().replaceUserAccess({
+    tenant: { id: 3 }, params: { id: '24' }, body: { subsectorIds: [8] },
+    user: { usuario: 'ADMIN', nome: 'Admin' },
+    effectiveContext: { effectiveRole: 'admin', assignedSector: null, subsectorIds: [], isGlobalAdmin: false },
+  } as any, result.res));
+  assert.equal(result.status, 200);
+  assert.deepEqual(saved, [{ bindingId: 24, subsectorId: 8, factoryUnitId: 3 }]);
 });

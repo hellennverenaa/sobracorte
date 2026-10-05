@@ -309,10 +309,21 @@ export class SubsectorController {
           }
         }
 
+        const existingAccesses = subsectorIds.length
+          ? await tx.userSubsectorAccess.findMany({
+              where: { factoryUnitId, bindingId },
+              select: { subsectorId: true },
+            })
+          : [];
+        const previouslyGrantedIds = existingAccesses.map((access: { subsectorId: number }) => access.subsectorId);
         const subsectors = subsectorIds.length
           ? await tx.subsectorConfig.findMany({
-              where: { factoryUnitId, active: true, id: { in: subsectorIds } },
-              select: { id: true, sector: true },
+              where: {
+                factoryUnitId,
+                id: { in: subsectorIds },
+                OR: [{ active: true }, { id: { in: previouslyGrantedIds } }],
+              },
+              select: { id: true, sector: true, active: true },
             })
           : [];
         if (subsectors.length !== subsectorIds.length) {

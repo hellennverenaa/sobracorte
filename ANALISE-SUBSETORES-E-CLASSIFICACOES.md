@@ -358,6 +358,8 @@ Adicionar uma área própria **Configurações → Subsetores**, separada de Cat
 
 **Entregável:** administrador consegue configurar a estrutura e os acessos sem editar categorias ou dados históricos.
 
+**Status: validada pela implementação em 05/10/2026.** Configurações recebeu uma aba própria para criar, editar e arquivar subsetores, com categorias ALL/SELECTED; a tela de Usuários mostra o escopo amplo e permite administrar vínculos explícitos. Arquivar preserva concessões já existentes, sem permitir novas concessões ao subsetor arquivado. TypeScript do backend, testes focados de subsetores e configurações e build de produção do frontend passaram. O teste legado `users.permissions.component.test.js` continua falhando em uma expectativa existente para o `select` de setor do Leitor; o teste não cobre a gestão de subsetores. O build emite apenas o aviso já observado de chunk acima de 500 kB.
+
 ### Etapa 5 — Adaptar os fluxos de estoque
 
 Adicionar a seleção opcional de subsetor às entradas e movimentações. Mostrar somente subsetores autorizados ao usuário. Validar vínculos de item e localização no mesmo subsetor. Bloquear compartilhamento de localizações novas e transferências entre subsetores; manter o fluxo atual para itens e localizações legados sem subsetor.
