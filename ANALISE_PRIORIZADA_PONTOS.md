@@ -15,7 +15,7 @@
 | 3 | P3 | VALIDADO | Automatizar a validação do nome “Peças Cortadas” |
 | 4 | P2 | CONCLUÍDO | Simplificar a experiência da tela “Estoque Multi-Setor” |
 | 5 | P2 | PENDENTE | Organizar o formulário e a consulta do “Estoque Multi-Setor” |
-| 6 | P2 | PENDENTE | Ampliar os filtros do estoque por grade, lado e unidade |
+| 6 | P2 | PENDENTE | Ampliar os filtros do estoque por modelo e material/cor |
 
 **Próxima solicitação em análise:** o ponto 6 está detalhado abaixo e aguarda aprovação. O ponto 5 segue pendente para a leitura responsiva dos materiais e a conferência final.
 
@@ -176,36 +176,36 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 
 **Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
 
-## 6. P2 — Ampliar os filtros do estoque por grade, lado e unidade — PENDENTE
+## 6. P2 — Ampliar os filtros do estoque por modelo e material/cor — PENDENTE
 
 ### Problema observado
 
-O painel atual permite filtrar por localização, tipo/categoria e situação do saldo. A busca textual encontra alguns valores de grade, mas não permite restringir o resultado à grade exata; também não há filtros estruturados por lado ou unidade de medida. A API atual aceita busca textual, setor, localização, tipo, situação do saldo e paginação.
+O painel atual permite filtrar por localização, tipo/categoria e situação do saldo. A busca principal procura código/SKU, descrição e outras características, mas não deixa combinar o modelo/linha e o material/cor como critérios separados. Isso dificulta restringir a consulta quando há muitos itens parecidos. Setor já é escolhido pelas abas e tamanho da página pertence à exibição da lista.
 
 ### Objetivo
 
-Permitir localizar variantes específicas e unidades de estoque sem sobrecarregar a busca principal, mantendo os filtros combináveis entre setores e corretos com paginação.
+Permitir localizar produtos pela identidade e pelo material usado sem acrescentar campos técnicos pouco úteis à tarefa de encontrar um item. Manter a busca por código/SKU visível e reunir os critérios no painel compacto atual.
 
 ### Etapas propostas
 
-#### Etapa 1 — Acrescentar filtros de variante e unidade
+#### Etapa 1 — Acrescentar filtros de identificação do produto
 
-- Adicionar “Grade / tamanho” como critério exato, disponível quando o setor selecionado possui esse dado. Usar entrada textual em vez de opções extraídas da página atual, pois a paginação não contém todas as grades.
-- Adicionar “Lado” para E, D e itens sem lado, onde o campo se aplica. Não oferecer “PAR” como valor isolado: em setores produtivos, um par pode estar registrado como linhas separadas E e D.
-- Adicionar “Unidade de medida” com valores válidos para o estoque da unidade fabril.
-- Manter os novos controles agrupados dentro do painel “Filtros” e incluir seus valores no contador, resumo e limpeza.
+- Adicionar “Modelo / linha” e “Material / cor” como campos de texto independentes, aceitando parte do valor e ignorando diferenças entre maiúsculas e minúsculas.
+- Manter código/SKU na busca principal, sem duplicar esse campo no painel.
+- Preservar localização, tipo/categoria e situação do saldo existentes. O setor permanece nas abas e itens por página em “Exibição”.
+- Mostrar os novos critérios no resumo ativo e incluí-los no contador e na limpeza dos filtros.
 
 #### Etapa 2 — Aplicar os critérios na consulta do servidor
 
-- Passar grade, lado e unidade pelo frontend, store, controlador e serviço de busca.
-- Combinar os novos critérios com busca, localização, tipo e situação do saldo antes da paginação, também na consulta “Todos os Setores”.
+- Passar modelo/linha e material/cor pelo frontend, store, controlador e serviço de busca.
+- Combinar os novos critérios com busca por código/SKU, localização, tipo/categoria e situação do saldo antes da paginação, inclusive na consulta “Todos os Setores”.
 - Validar e escopar a consulta pela unidade fabril e setor, preservando totais e paginação.
 
 #### Etapa 3 — Conferir as combinações
 
-- Conferir grade exata, lado, unidade e combinações com os filtros existentes em setores específicos e em “Todos os Setores”.
-- Confirmar que o resumo, o contador e a limpeza refletem os novos critérios sem alterar a busca textual ou os itens por página.
+- Conferir os filtros de modelo/linha e material/cor isolados e combinados com os existentes, em setores específicos e em “Todos os Setores”.
+- Confirmar que registros sem modelo ou cor não aparecem ao filtrar por esses valores e que resumo, contador e limpeza permanecem consistentes.
 
-**Fora do escopo inicial:** faixa de quantidade mínima/máxima em “Todos os Setores”, pois os saldos misturam unidades diferentes, como UN, PAR e M². Se necessária, deve ser contextualizada por setor e unidade.
+**Fora do escopo inicial:** filtros estruturados de grade, lado, unidade de medida e faixa de quantidade. A proposta prioriza os critérios de identificação do produto que ajudam a pessoa a encontrar materiais entre setores sem acrescentar controles de baixa utilidade à consulta geral.
 
-**Critério de conclusão:** a grade, o lado e a unidade selecionados restringem os resultados corretamente no servidor; os critérios se combinam com os filtros atuais sem perder itens entre páginas; e busca, resumo e limpeza permanecem consistentes.
+**Critério de conclusão:** modelo/linha e material/cor restringem os resultados corretamente no servidor; os critérios se combinam com os filtros atuais sem perder itens entre páginas; e busca, resumo e limpeza permanecem consistentes.
