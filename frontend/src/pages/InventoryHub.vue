@@ -556,6 +556,84 @@ function getItemDescription(item: any) {
   return item.name || item.description || item.productName || item.sku || '';
 }
 
+function getInventoryCardTitle(item: any) {
+  const sector = normalizeSector(item?.sector || activeTab.value);
+  if (sector === 'APOIO') return item.componentType === 'CABEDAL' ? item.sku || item.productName : item.pieceCode || item.sku;
+  if (sector === 'CORTE') return item.code || item.sku || getItemIdentifier(item);
+  return item.sku || item.productName || getItemIdentifier(item);
+}
+
+function getInventoryCardSubtitle(item: any) {
+  const sector = normalizeSector(item?.sector || activeTab.value);
+  if (activeTab.value === 'TODOS') return getItemDescription(item);
+  if (sector === 'APOIO') return item.productName || '';
+  if (sector === 'CORTE') return item.name || item.productName || item.description || '';
+  return item.productName && item.productName !== getInventoryCardTitle(item) ? item.productName : '';
+}
+
+function getInventoryCardSide(item: any, emptyLabel = '—') {
+  if (item?.footSide === 'E') return 'Pé esquerdo (E)';
+  if (item?.footSide === 'D') return 'Pé direito (D)';
+  if (item?.footSide === 'PAR') return 'Par completo';
+  return emptyLabel;
+}
+
+function getInventoryCardFields(item: any) {
+  const sector = normalizeSector(item?.sector || activeTab.value);
+  const fields: Array<{ label: string; value: string }> = [];
+  const add = (label: string, value: unknown) => {
+    const displayValue = value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
+    fields.push({ label, value: displayValue });
+  };
+  const location = item.locationDisplay || '—';
+
+  if (activeTab.value === 'TODOS') {
+    add('Setor', SECTOR_OPTIONS.find(option => option.id === sector)?.label || formatSectorName(sector));
+    add('Tipo / variação', item.type || item.materialColor || item.color || '—');
+    if (item.sizeGrade) add('Grade', item.sizeGrade);
+    if (item.footSide) add('Lado', getInventoryCardSide(item));
+    add('Prateleira', location);
+    return fields;
+  }
+
+  switch (sector) {
+    case 'CORTE':
+      add('Tipo', item.type);
+      add('Prateleira', location);
+      break;
+    case 'APOIO':
+      add(item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada', `${item.description || item.type || '—'} · ${item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada'}`);
+      add('Combinação / cor', item.color || item.materialColor);
+      add('Grade', item.sizeGrade);
+      add('Lado', getInventoryCardSide(item));
+      add('Prateleira', location);
+      break;
+    case 'PRE_FABRICADO':
+      add('Material', item.type === 'BORRACHA' ? 'Borracha' : 'EVA (não processada)');
+      add('Combinação', item.color);
+      add('Grade', item.sizeGrade);
+      add('Lado', getInventoryCardSide(item, 'Par completo'));
+      add('Prateleira', location);
+      break;
+    case 'DISTRIBUICAO':
+    case 'EXPEDICAO':
+      add('Material', item.type === 'SOLA_PROCESSADA' ? 'Sola processada' : 'Cabedal');
+      add('Cor', item.color);
+      add('Grade', item.sizeGrade);
+      add('Lado', getInventoryCardSide(item, 'Par / geral'));
+      add('Prateleira', location);
+      break;
+    case 'MONTAGEM':
+      add('Combinação', item.color);
+      add('Grade', item.sizeGrade);
+      add('Lado', getInventoryCardSide(item));
+      add('Prateleira', location);
+      break;
+  }
+
+  return fields;
+}
+
 watch(
   () => route.query.sector,
   (newSec) => {
@@ -864,8 +942,9 @@ onMounted(() => {
 
       <!-- Inventário por setor -->
       <div class="px-4 pb-4">
-        <div class="overflow-x-auto bg-white rounded-b shadow border-b border-l border-r border-gray-200">
-          <table class="w-full text-left border-collapse">
+        <div class="overflow-hidden rounded-b border border-gray-200 bg-white shadow-sm">
+          <div class="hidden overflow-x-auto xl:block">
+          <table class="inventory-stock-table w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
               <tr v-if="activeTab === 'TODOS'">
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Código / SKU</th>
@@ -873,7 +952,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Setor</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Tipo / Variação</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo / Unidade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
               <!-- Headers CORTE -->
@@ -882,7 +961,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Descrição / Material</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Tipo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo / Unidade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
@@ -894,7 +973,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Quantidade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
@@ -906,7 +985,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo (Pares/Pés)</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
@@ -918,7 +997,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Quantidade</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
@@ -929,7 +1008,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Grade</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo (Pés)</th>
+                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
             </thead>
@@ -950,7 +1029,7 @@ onMounted(() => {
                     <span v-if="item.footSide" class="block text-[10px] text-gray-400">Pé {{ item.footSide }}</span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">{{ item.locationDisplay }}</span>
+                  <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">{{ item.locationDisplay }}</span>
                   </td>
                   <td class="px-4 py-3 text-right font-bold text-gray-800">
                     {{ formatNumber(item.quantity) }}
@@ -967,7 +1046,7 @@ onMounted(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                    <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
                   </td>
@@ -995,7 +1074,7 @@ onMounted(() => {
                     {{ item.footSide === 'E' ? 'Esquerdo' : item.footSide === 'D' ? 'Direito' : item.footSide === 'PAR' ? 'Par' : '—' }}
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                    <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
                   </td>
@@ -1032,10 +1111,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-center">
                     <span
                       v-if="item.footSide"
-                      class="px-2 py-0.5 text-xs rounded-full font-bold border"
-                      :class="item.footSide === 'E'
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'bg-orange-50 text-orange-700 border-orange-200'"
+                      class="whitespace-nowrap px-2 py-0.5 text-xs rounded-full font-bold border bg-slate-50 text-slate-700 border-slate-200"
                     >
                       {{ item.footSide === 'E' ? 'PÉ ESQUERDO (E)' : 'PÉ DIREITO (D)' }}
                     </span>
@@ -1044,7 +1120,7 @@ onMounted(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                    <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
                   </td>
@@ -1081,10 +1157,7 @@ onMounted(() => {
                   <td class="px-4 py-3 text-center">
                     <span
                       v-if="item.footSide"
-                      class="px-2 py-0.5 text-xs rounded-full font-bold border"
-                      :class="item.footSide === 'E'
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'bg-orange-50 text-orange-700 border-orange-200'"
+                      class="whitespace-nowrap px-2 py-0.5 text-xs rounded-full font-bold border bg-slate-50 text-slate-700 border-slate-200"
                     >
                       {{ item.footSide === 'E' ? 'PÉ ESQUERDO (E)' : 'PÉ DIREITO (D)' }}
                     </span>
@@ -1093,7 +1166,7 @@ onMounted(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                    <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
                   </td>
@@ -1120,16 +1193,13 @@ onMounted(() => {
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
                   <td class="px-4 py-3 text-center">
                     <span
-                      class="px-2 py-0.5 text-xs rounded-full font-bold border"
-                      :class="item.footSide === 'E'
-                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                        : 'bg-orange-50 text-orange-700 border-orange-200'"
+                      class="whitespace-nowrap px-2 py-0.5 text-xs rounded-full font-bold border bg-slate-50 text-slate-700 border-slate-200"
                     >
                       {{ item.footSide === 'E' ? 'PÉ ESQUERDO (E)' : 'PÉ DIREITO (D)' }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span class="text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                    <span class="whitespace-nowrap text-xs bg-gray-50 text-gray-700 px-2 py-0.5 rounded border border-gray-200 font-medium">
                       {{ item.locationDisplay }}
                     </span>
                   </td>
@@ -1146,7 +1216,7 @@ onMounted(() => {
                   <div class="flex items-center justify-center gap-2">
                     <button
                       @click="viewingItem = item"
-                      class="text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors"
+                      class="min-h-9 whitespace-nowrap text-gray-600 hover:text-blue-700 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-2.5 rounded text-xs flex items-center gap-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       title="Visualizar Detalhes"
                     >
                       <Eye class="w-3.5 h-3.5" />
@@ -1164,7 +1234,7 @@ onMounted(() => {
                     <button
                       v-if="authStore.can('movimentar') && canOperateSector(item.sector)"
                       @click="openMovementModal(item)"
-                      class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors"
+                      class="min-h-9 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-3 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                       title="Registrar Movimentação de Estoque"
                     >
                       <ArrowLeftRight class="w-3.5 h-3.5" />
@@ -1174,7 +1244,7 @@ onMounted(() => {
                     <button
                       v-if="canDeleteItem(item)"
                       @click="confirmDelete(item)"
-                      class="text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors"
+                      class="min-h-9 whitespace-nowrap text-gray-500 hover:text-red-700 bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2.5 rounded text-xs flex items-center gap-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       title="Excluir Item do Estoque (Apenas Saldo Zerado)"
                     >
                       <Trash2 class="w-3.5 h-3.5" />
@@ -1191,13 +1261,99 @@ onMounted(() => {
               </tr>
             </tbody>
           </table>
+          </div>
+
+          <div class="p-3 sm:p-4 xl:hidden">
+            <p
+              v-if="!stockStore.loading && !stockStore.error && currentSectorItems.length === 0"
+              class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm font-medium text-gray-500"
+            >
+              {{ activeTab === 'TODOS' ? 'Nenhum item encontrado na unidade.' : 'Nenhum item encontrado para este setor.' }}
+            </p>
+
+            <div v-else-if="currentSectorItems.length > 0" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <article
+                v-for="item in currentSectorItems"
+                :key="`card-${item.id}`"
+                class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/20 sm:p-4"
+              >
+                <header class="flex min-w-0 items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="break-all font-mono text-sm font-bold text-blue-700">
+                      {{ getInventoryCardTitle(item) || 'Item sem código' }}
+                    </p>
+                    <p v-if="getInventoryCardSubtitle(item)" class="mt-1 break-words text-sm font-semibold text-gray-700">
+                      {{ getInventoryCardSubtitle(item) }}
+                    </p>
+                  </div>
+                  <div class="shrink-0 rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-right">
+                    <span class="block text-[10px] font-bold uppercase tracking-wide text-blue-700">Saldo</span>
+                    <span class="font-mono text-sm font-bold text-gray-900">
+                      {{ formatNumber(item.quantity) }}
+                      <span class="text-xs text-blue-800">{{ getItemUnitBadge(item) }}</span>
+                    </span>
+                  </div>
+                </header>
+
+                <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-gray-100 pt-3">
+                  <div v-for="field in getInventoryCardFields(item)" :key="`${item.id}-${field.label}`" class="min-w-0">
+                    <dt class="text-[10px] font-bold uppercase tracking-wide text-gray-500">{{ field.label }}</dt>
+                    <dd class="mt-0.5 break-words text-xs font-medium leading-snug text-gray-800">{{ field.value }}</dd>
+                  </div>
+                </dl>
+
+                <footer class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    @click="viewingItem = item"
+                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    title="Visualizar Detalhes"
+                    aria-label="Visualizar detalhes do item"
+                  >
+                    <Eye class="h-4 w-4" />
+                    <span>Detalhes</span>
+                  </button>
+
+                  <span
+                    v-if="!canOperateSector(item.sector)"
+                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-600"
+                    title="Você pode consultar este setor, mas suas permissões de alteração não incluem este setor."
+                  >
+                    Somente leitura
+                  </span>
+
+                  <button
+                    v-if="authStore.can('movimentar') && canOperateSector(item.sector)"
+                    type="button"
+                    @click="openMovementModal(item)"
+                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                    title="Registrar Movimentação de Estoque"
+                  >
+                    <ArrowLeftRight class="h-4 w-4" />
+                    <span>Movimentar</span>
+                  </button>
+
+                  <button
+                    v-if="canDeleteItem(item)"
+                    type="button"
+                    @click="confirmDelete(item)"
+                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    title="Excluir Item do Estoque (Apenas Saldo Zerado)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                    <span>Excluir</span>
+                  </button>
+                </footer>
+              </article>
+            </div>
+          </div>
 
           <!-- BARRA DE PAGINAÇÃO DE ALTA ESCALA (>3.000 ITENS) -->
           <div
             v-if="stockStore.pagination.total > 0"
             class="px-4 py-3 bg-gray-50/90 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600 rounded-b"
           >
-            <div class="flex items-center gap-1.5">
+            <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               <span>Mostrando</span>
               <span class="font-bold text-gray-900">
                 {{ (stockStore.pagination.page - 1) * stockStore.pagination.limit + 1 }}
@@ -1558,3 +1714,43 @@ onMounted(() => {
     />
   </Layout>
 </template>
+
+<style scoped>
+.inventory-stock-table {
+  min-width: 76rem;
+  table-layout: auto;
+}
+
+.inventory-stock-table th {
+  white-space: nowrap;
+}
+
+.inventory-stock-table td {
+  vertical-align: middle;
+}
+
+.inventory-stock-table th:not(:first-child):not(:last-child),
+.inventory-stock-table td:not(:first-child):not(:last-child) {
+  min-width: 7.5rem;
+}
+
+.inventory-stock-table th:first-child,
+.inventory-stock-table td:first-child {
+  min-width: 12rem;
+}
+
+.inventory-stock-table th:nth-child(2):not(:first-child):not(:last-child),
+.inventory-stock-table td:nth-child(2):not(:first-child):not(:last-child) {
+  min-width: 9rem;
+}
+
+.inventory-stock-table th:last-child,
+.inventory-stock-table td:last-child {
+  min-width: 14.5rem;
+}
+
+.inventory-stock-table td:nth-last-child(2) {
+  min-width: 7.5rem;
+  white-space: nowrap;
+}
+</style>

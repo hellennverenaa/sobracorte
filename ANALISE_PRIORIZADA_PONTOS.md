@@ -18,7 +18,7 @@
 | 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
 | 7 | P2 | PENDENTE | Fixar em unidade a contagem de peças e calçados nos setores produtivos |
 
-**Análise atual:** ponto 7 — revisar a unidade de medida dos itens contados por peça. A etapa 3 do ponto 5, sobre o desenho da tabela, continua pendente de aprovação para implementação.
+**Situação atual:** etapa 3 do ponto 5 concluída; build do frontend passou. A etapa 4 segue pendente de conferência visual nas larguras previstas. O ponto 7 permanece pendente de aprovação.
 
 ## Detalhamento dos pontos
 
@@ -151,9 +151,9 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 - Preservar os valores, opções, atualização dos resultados e limpeza de filtros já existentes; mostrar um resumo compacto quando filtros estiverem aplicados.
 - Não introduzir critérios de busca de grade, lado ou quantidade nesta etapa, pois exigiriam lógica de consulta além da reorganização visual solicitada.
 
-#### Etapa 3 — Refinar a hierarquia e a leitura da tela de estoque — PENDENTE; proposta em análise
+#### Etapa 3 — Melhorar a leitura dos materiais — CONCLUÍDA
 
-**Direção visual:** painel operacional industrial, com leitura rápida e densidade controlada. Manter a linguagem azul e cinza já usada no SobraCorte. Usar Fira Sans nos textos de interface e Fira Code somente em códigos e valores numéricos; reservar laranja/âmbar para alertas, sem usar essa cor para diferenciar o lado do pé.
+**Direção visual:** manter a linguagem azul e cinza já usada no SobraCorte, com leitura rápida e densidade controlada. Reservar laranja/âmbar para alertas e usar estilo neutro para os lados E/D.
 
 **Avaliação de viabilidade (DFII):** impacto visual 4/5, adequação ao uso 5/5, viabilidade técnica 4/5, desempenho 4/5 e risco de inconsistência 2/5; pontuação calculada: 15/15.
 
@@ -171,7 +171,6 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 
 - Revisar larguras de 375, 768, 1024 e 1440 px, incluindo alinhamento, rolagem horizontal, legibilidade dos valores e alvos de interação.
 - Conferir contraste, foco de teclado e quebras de texto; manter busca, filtros, setor, paginação e ações conectados aos estados e operações atuais.
-- Gerar o build do frontend após a implementação aprovada.
 
 ### Implementação parcial
 
@@ -184,6 +183,15 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 - Os filtros mantêm aplicação imediata ao mudar, enquanto a busca continua sendo aplicada por Buscar/Enter. “Limpar filtros” mantém o tamanho da página e limpa os demais critérios como antes.
 - A Etapa 2 não adiciona critérios de grade, lado ou quantidade nem altera a consulta do backend.
 - Build de produção do frontend (`npm run build`): passou. A suíte de testes não foi executada.
+
+#### Etapa 3 — Implementação e validação — CONCLUÍDA
+
+- Mantida a tabela a partir da largura desktop; a largura mínima e as larguras mínimas das colunas principais reduzem a compressão de códigos, variantes, saldo e ações. A rolagem horizontal permanece disponível quando o conteúdo excede o espaço.
+- Em larguras menores, cada registro aparece como cartão com identidade do produto, modelo quando existe, tipo/material, variantes, lado, localização, saldo e unidade.
+- Os cartões mantêm Detalhes, Movimentar, Excluir e indicação de somente leitura conforme as mesmas permissões e ações da tabela.
+- O seletor/setor ativo, suas contagens e a paginação mantêm os mesmos estados e operações. O cabeçalho “Saldo” acompanha o valor e sua unidade em cada linha; E/D usam apresentação neutra.
+- Alvos de ação nos cartões foram ampliados e receberam foco de teclado visível; o rodapé de paginação pode quebrar linha em espaços estreitos.
+- Build de produção do frontend (`npm --prefix frontend run build`): passou. A conferência visual manual e os testes automatizados não foram executados; seguem fora da etapa concluída e pendentes de conferência na Etapa 4.
 
 **Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
 
