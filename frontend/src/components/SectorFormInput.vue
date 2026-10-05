@@ -1100,6 +1100,12 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.entry-form-shell input::placeholder,
+.entry-form-shell textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
 .entry-form-shell {
   container: entry-form / inline-size;
 }

@@ -760,7 +760,7 @@ onMounted(() => {
                   @keydown.enter="handleExplicitSearch"
                   type="text"
                   placeholder="Código, descrição, modelo, cor..."
-                  class="w-full rounded border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm outline-none focus:border-blue-500"
+                  class="w-full rounded border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm outline-none placeholder:text-gray-500 focus:border-blue-500"
                 />
                 <button
                   v-if="search"
@@ -841,7 +841,7 @@ onMounted(() => {
                 placeholder="Ex.: Racer Speedzone"
                 @change="applyInventoryFilters"
                 @keydown.enter.prevent="applyInventoryFilters"
-                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none placeholder:text-gray-500 focus:border-blue-500"
               />
             </div>
 
@@ -855,7 +855,7 @@ onMounted(() => {
                 placeholder="Ex.: Napa sintética preta"
                 @change="applyInventoryFilters"
                 @keydown.enter.prevent="applyInventoryFilters"
-                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none placeholder:text-gray-500 focus:border-blue-500"
               />
             </div>
 
