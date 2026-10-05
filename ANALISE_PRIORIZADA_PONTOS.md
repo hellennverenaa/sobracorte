@@ -18,7 +18,7 @@
 | 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
 | 7 | P2 | PENDENTE | Fixar em unidade a contagem de peças e calçados nos setores produtivos |
 
-**Situação atual:** etapas 1 a 3 do ponto 5 concluídas. A validação estática da etapa 4 e o build do frontend passaram; a conferência visual nas larguras previstas segue pendente. O ponto 7 permanece pendente de aprovação.
+**Situação atual:** etapas 1 a 3 do ponto 5 concluídas. A revisão visual da etapa 4 passou nas quatro larguras, mas encontrou contraste baixo nos textos de exemplo dos campos; o ajuste visual aguarda aprovação. O build do frontend passou. O ponto 7 permanece pendente de aprovação.
 
 ## Detalhamento dos pontos
 
@@ -167,14 +167,19 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 
 **Âncora visual:** a pessoa reconhece cada item imediatamente pela sequência código/SKU → modelo/linha → variante → saldo/localização, enquanto os lados E e D continuam claramente separados.
 
-#### Etapa 4 — Conferir a apresentação sem alterar os fluxos — VALIDAÇÃO PARCIAL; CONFERÊNCIA VISUAL PENDENTE
+#### Etapa 4 — Conferir a apresentação sem alterar os fluxos — VALIDAÇÃO PARCIAL; AJUSTE DE CONTRASTE PENDENTE
 
 - Revisar larguras de 375, 768, 1024 e 1440 px, incluindo alinhamento, rolagem horizontal, legibilidade dos valores e alvos de interação.
 - Conferir contraste, foco de teclado e quebras de texto; manter busca, filtros, setor, paginação e ações conectados aos estados e operações atuais.
+- Conferência feita no Chrome headless com perfil temporário, sessão e respostas de leitura simuladas; o gateway de produção/desenvolvimento e gravações de dados não foram usados.
+- Em 375, 768, 1024 e 1440 px, a página não apresentou rolagem horizontal global. Em 375, 768 e 1024 px, os cartões se reorganizam sem cortar informações; no desktop, a tabela mantém a rolagem horizontal.
+- Em 1440 px, a área da tabela mede 1.150 px e o conteúdo 1.480 px. Ao chegar ao fim da rolagem, a coluna Ações e os comandos Detalhes, Movimentar e Excluir ficam visíveis.
+- No diálogo, a área dos campos rola separada do rodapé. Em 375 px, todo o conteúdo, inclusive observação, fica acessível após a rolagem, e os botões permanecem visíveis. A verificação em 768, 1024 e 1440 px também mostrou o painel dentro da janela, sem corte horizontal.
+- A navegação por Tab move o foco para os campos e ativa `:focus-visible`; o campo focado apresenta borda azul. A hierarquia, o alinhamento, as quebras e os alvos foram legíveis nas capturas.
+- O contraste calculado dos placeholders cinza atuais sobre branco é 2,54:1. Recomenda-se escurecê-los para `#6B7280` (cinza-500, cerca de 4,83:1); essa alteração visual, sem mudança de fluxo, aguarda aprovação.
 - A inspeção estática confirmou que busca, filtros, seleção do setor e paginação mantêm seus handlers atuais, e que tabela e cartões usam os mesmos handlers de detalhes, movimentação e exclusão.
-- Não foi possível conferir visualmente as quatro larguras, foco, rolagem ou conteúdo encoberto: esta sessão não disponibiliza navegador para abrir a aplicação.
-- Build de produção do frontend (`npm --prefix frontend run build`): passou. O build informa um aviso de bundle acima de 500 kB (568,30 kB).
-- Etapa permanece pendente até a conferência visual manual; a validação estática não substitui essa checagem.
+- Build de produção do frontend (`npm --prefix frontend run build`): passou. Permanece o aviso de bundle acima de 500 kB (568,30 kB).
+- A etapa permanece parcial até aplicar e conferir o ajuste de contraste; depois será necessário repetir o build.
 
 ### Implementação parcial
 
