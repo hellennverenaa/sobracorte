@@ -182,6 +182,7 @@ routes.get('/inventory/movements/history', requireAuth, authenticatedLimiter, re
 // 📋 MÓDULO DIGITAL DE REQUISIÇÕES & SOLICITAÇÕES DE REPOSIÇÃO
 routes.post('/requisitions', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.create);
 routes.post('/requisitions/check-availability', requireAuth, mutationLimiter, requireRequisitionsEnabled, requisitionController.checkAvailability);
+routes.get('/requisitions/search-suggestions', requireAuth, authenticatedLimiter, requireRequisitionsEnabled, requisitionController.searchSuggestions);
 routes.get('/requisitions', requireAuth, authenticatedLimiter, requireRequisitionsEnabled, requisitionController.index);
 routes.get('/requisitions/pending-count', requireAuth, authenticatedLimiter, requireRequisitionsEnabled, requisitionController.pendingCount);
 routes.post('/requisitions/:id/fulfill', requireAuth, mutationLimiter, requireRequisitionsEnabled, requireRole(['admin', 'admin_setor']), requisitionController.fulfill);

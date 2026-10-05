@@ -10,7 +10,7 @@ import {
   OperatorContext 
 } from '../types/stock.dto';
 import { Prisma, SectorType } from '../generated/prisma';
-import { lockStockIdentityWrites, normalizeStockSector } from './stockIdentity';
+import { lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, normalizeStockText } from './stockIdentity';
 import { debitStockItem } from './stockDebit';
 import {
   findPersistedRequisitionSource,
@@ -37,6 +37,209 @@ function persistedRequisitionDescription(item: RequisitionItemInputDTO) {
 }
 
 export class RequisitionService {
+  /**
+   * Sugere variantes reais do estoque para uma requisição. A busca usa apenas
+   * o identificador próprio do item ou o nome exato do modelo; não consulta
+   * descrição/cor como texto livre nem agrega saldos de linhas diferentes.
+   */
+  async searchStockSuggestions(
+    params: {
+      requestSector: SectorType;
+      field: 'IDENTIFIER' | 'MODEL';
+      query: string;
+      componentType?: string;
+      color?: string;
+      sizeGrade?: string;
+      footSide?: string;
+      type?: string;
+    },
+    factoryUnitId: number,
+  ) {
+    const requestSector = normalizeStockSector(params.requestSector);
+    const query = params.query.trim();
+    if (query.length < 2) return [];
+
+    const sourceWhere: Prisma.StockItemWhereInput = requestSector === 'CORTE'
+      ? { sector: 'CORTE' }
+      : requestSector === 'APOIO'
+        ? {
+            sector: 'APOIO',
+            componentType: params.componentType === 'CABEDAL' ? 'CABEDAL' : 'PECA_CORTADA',
+          }
+        : requestSector === 'MONTAGEM'
+          ? {
+              OR: [
+                { sector: 'MONTAGEM' },
+                { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { equals: 'CABEDAL', mode: 'insensitive' } },
+                { sector: 'APOIO', componentType: { in: ['CABEDAL', 'PECA_CORTADA'] } },
+              ],
+            }
+          : requestSector === 'DISTRIBUICAO' || requestSector === 'EXPEDICAO'
+            ? {
+                OR: [
+                  { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } },
+                  ...(params.type === 'CABEDAL' ? [{ sector: 'APOIO' as const, componentType: 'CABEDAL' as const }] : []),
+                ],
+              }
+            : { sector: requestSector as SectorType };
+
+    const identityWhere: Prisma.StockItemWhereInput = params.field === 'MODEL'
+      ? { productName: { equals: query, mode: 'insensitive' } }
+      : requestSector === 'CORTE'
+        ? { code: { equals: query, mode: 'insensitive' } }
+        : requestSector === 'APOIO' && params.componentType !== 'CABEDAL'
+          ? { pieceCode: { equals: query, mode: 'insensitive' } }
+          : { sku: { equals: query, mode: 'insensitive' } };
+
+    const variantFilters: Prisma.StockItemWhereInput[] = [];
+    if (params.type?.trim() && requestSector !== 'APOIO' && requestSector !== 'MONTAGEM') {
+      const requestedType = params.type.trim();
+      variantFilters.push(requestSector === 'DISTRIBUICAO' || requestSector === 'EXPEDICAO'
+        ? {
+            OR: [
+              { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { equals: requestedType, mode: 'insensitive' } },
+              ...(requestedType.toUpperCase() === 'CABEDAL' ? [{ sector: 'APOIO' as const, componentType: 'CABEDAL' as const }] : []),
+            ],
+          }
+        : { type: { equals: requestedType, mode: 'insensitive' } });
+    }
+    if (params.color?.trim()) {
+      const color = normalizeStockColor(params.color);
+      variantFilters.push({
+        OR: [
+          { color: { equals: color, mode: 'insensitive' } },
+          { color: null, materialColor: { equals: color, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (params.sizeGrade?.trim()) {
+      variantFilters.push({ sizeGrade: { equals: params.sizeGrade.trim(), mode: 'insensitive' } });
+    }
+    if (params.footSide === 'E' || params.footSide === 'D') {
+      variantFilters.push({ OR: [{ footSide: params.footSide }, { footSide: null }] });
+    }
+    if (params.footSide === 'PAR') {
+      variantFilters.push({
+        footSide: requestSector === 'CORTE' ? 'PAR' : { in: ['E', 'D', 'PAR'] },
+      });
+    }
+
+    const items = await prisma.stockItem.findMany({
+      where: {
+        factoryUnitId,
+        quantity: { gt: 0 },
+        AND: [sourceWhere, identityWhere, ...variantFilters],
+      },
+      include: { locations: { include: { location: true } } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: 100,
+    });
+
+    const matchesRequestedVariants = (item: any) => {
+      const itemColor = item.color || item.materialColor || '';
+      if (params.color?.trim() && normalizeStockColor(itemColor) !== normalizeStockColor(params.color)) return false;
+      if (params.sizeGrade?.trim() && normalizeStockText(item.sizeGrade) !== normalizeStockText(params.sizeGrade)) return false;
+      if (params.footSide === 'E' || params.footSide === 'D') {
+        if (item.footSide && item.footSide !== params.footSide) return false;
+      }
+      if (params.footSide === 'PAR' && requestSector !== normalizeStockSector(item.sector)
+        && !['E', 'D'].includes(item.footSide)) return false;
+      return true;
+    };
+    const filteredItems = items.filter(matchesRequestedVariants);
+
+    const present = (item: any) => ({
+      id: item.id,
+      stockItemIds: [Number(item.id)],
+      sourceSector: item.sector,
+      componentType: item.componentType || undefined,
+      type: item.type || undefined,
+      sku: item.sku || undefined,
+      pieceCode: item.pieceCode || undefined,
+      code: item.code || undefined,
+      modelName: item.productName || (item.sector === 'CORTE' ? item.type : '') || '',
+      description: item.description || item.name || item.materialColor || '',
+      color: item.color || item.materialColor || '',
+      sizeGrade: item.sizeGrade || '',
+      footSide: item.footSide || null,
+      unit: item.unit || 'UN',
+      availableQuantity: Number(item.quantity || 0),
+      locations: (item.locations || [])
+        .filter((link: any) => Number(link.quantity) > 0)
+        .map((link: any) => `${link.location.name} (${link.quantity})`),
+    });
+    const sortByBestSource = (suggestions: any[]) => {
+      const preferredSectors = requestSector === 'MONTAGEM'
+        ? ['MONTAGEM', 'DISTRIBUICAO', 'APOIO']
+        : [requestSector, 'MONTAGEM', 'DISTRIBUICAO', 'APOIO'];
+      return suggestions.sort((left, right) => {
+        const leftRank = preferredSectors.indexOf(normalizeStockSector(left.sourceSector));
+        const rightRank = preferredSectors.indexOf(normalizeStockSector(right.sourceSector));
+        return (leftRank < 0 ? 99 : leftRank) - (rightRank < 0 ? 99 : rightRank)
+          || String(left.id).localeCompare(String(right.id));
+      });
+    };
+
+    // Para solicitar PAR, uma sugestão só é clicável quando representa um par
+    // completo no mesmo setor e na mesma variante. Itens não pareados não são
+    // apresentados como se pudessem atender ao pedido.
+    const pairKey = (item: any) => [
+      normalizeStockSector(item.sector), item.componentType, item.type,
+      item.sku, item.pieceCode, item.code, item.productName,
+      normalizeStockColor(item.color || item.materialColor), item.sizeGrade, item.unit, item.categoryId,
+    ].map(value => normalizeStockText(value)).join('|');
+    const getPairSuggestions = () => {
+      const pairs: any[] = [];
+      const pairGroups = new Map<string, { left?: any; right?: any; complete?: any }>();
+      for (const item of filteredItems) {
+        if (item.footSide === 'PAR' && normalizeStockSector(item.sector) === requestSector) {
+          const key = `complete|${item.id}`;
+          pairGroups.set(key, { complete: item });
+          continue;
+        }
+        if (item.footSide !== 'E' && item.footSide !== 'D') continue;
+        const key = pairKey(item);
+        const group = pairGroups.get(key) || {};
+        if (item.footSide === 'E') group.left = item;
+        else group.right = item;
+        pairGroups.set(key, group);
+      }
+      for (const group of pairGroups.values()) {
+        if (group.complete) {
+          const suggestion = present(group.complete);
+          pairs.push({ ...suggestion, footSide: 'PAR', unit: 'PAR' });
+          continue;
+        }
+        if (!group.left || !group.right) continue;
+        const left = present(group.left);
+        const right = present(group.right);
+        const locationNames = [...new Set([...left.locations, ...right.locations])];
+        const ids = [Number(group.left.id), Number(group.right.id)].sort((a, b) => a - b);
+        pairs.push({
+          ...left,
+          id: ids.join('-'),
+          stockItemIds: ids,
+          footSide: 'PAR',
+          unit: 'PAR',
+          availableQuantity: Math.min(left.availableQuantity, right.availableQuantity),
+          locations: locationNames,
+        });
+      }
+      return pairs;
+    };
+
+    if (params.footSide === 'PAR') {
+      return sortByBestSource(getPairSuggestions()).slice(0, 30);
+    }
+
+    const singleItems = filteredItems.filter(item => item.footSide !== 'PAR');
+    const suggestions = singleItems.map(present);
+    // Quando o lado ainda não foi escolhido, oferece também o par E+D pronto;
+    // a pessoa pode selecionar o par sem precisar completar primeiro o campo.
+    if (!params.footSide) suggestions.push(...getPairSuggestions());
+    return sortByBestSource(suggestions).slice(0, 30);
+  }
+
   /**
    * Contagem de requisições pendentes para notificações e sininho
    */

@@ -89,15 +89,22 @@ interface UnverifiedRequisitionStockMatch {
 }
 
 interface SkuSuggestion {
-  id?: number;
+  id: string | number;
+  stockItemIds: number[];
+  sourceSector: string;
   componentType?: string;
-  sku: string;
+  type?: string;
+  sku?: string;
+  pieceCode?: string;
+  code?: string;
   modelName: string;
   description: string;
-  sizeGrades: string[];
+  sizeGrade: string;
   color: string;
-  footSides: string[];
+  footSide: 'E' | 'D' | 'PAR' | null;
+  unit: string;
   availableQuantity: number;
+  locations: string[];
 }
 
 interface StagedRequisitionItem {
@@ -238,6 +245,12 @@ const availabilityResult = ref<{
 
 const selectedSourceCandidate = computed(() => availabilityResult.value.candidates
   .find(candidate => candidate.id === availabilityResult.value.selectedCandidateId) || null);
+const visibleSourceCandidates = computed(() => selectedSourceCandidate.value
+  ? [selectedSourceCandidate.value]
+  : availabilityResult.value.candidates);
+const otherSourceCandidates = computed(() => selectedSourceCandidate.value
+  ? availabilityResult.value.candidates.filter(candidate => candidate.id !== selectedSourceCandidate.value!.id)
+  : []);
 
 const apoioIdentifier = computed({
   get: () => formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode,
@@ -250,6 +263,9 @@ const apoioIdentifier = computed({
 // Autocomplete
 const suggestions = ref<SkuSuggestion[]>([]);
 const showSuggestions = ref(false);
+const suggestionsLoading = ref(false);
+const suggestionAnchor = ref<'identifier' | 'model' | null>(null);
+const preferredSourceStockItemIds = ref<number[]>([]);
 const availableGrades = ref<string[]>([]);
 const availableFootSides = ref<Array<'E' | 'D' | 'PAR'>>([]);
 let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -302,12 +318,15 @@ const requestIdentifierLabel = computed(() => {
   if (currentSector.value === 'CORTE') return 'Código da matéria-prima *';
   if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Código da peça *';
   if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'SKU do cabedal *';
+  if (['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(currentSector.value)) return 'Código do produto / SKU';
   return 'Código do produto / SKU *';
 });
 const requestIdentifierPlaceholder = computed(() => {
   if (currentSector.value === 'CORTE') return 'Ex: COU-BOV-01, SINT-PTO...';
   if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Ex: MOL-GAS-01...';
   if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'Ex: CAB-PEG-40-PTO...';
+  if (currentSector.value === 'MONTAGEM') return 'Busque pelo código / SKU';
+  if (currentSector.value === 'PRE_FABRICADO' || currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') return 'Opcional se buscar pelo modelo';
   return 'Ex: SKU do produto ou componente...';
 });
 const currentIdentifier = computed({
@@ -385,13 +404,13 @@ function hasEnoughIdentityToCheck(request: AvailabilityRequest) {
       && hasGrade;
   }
   if (request.requestSector === 'PRE_FABRICADO') {
-    return hasSku && Boolean(request.type) && hasModel && hasGrade && hasSide;
+    return (hasSku || hasModel) && Boolean(request.type) && hasModel && hasGrade && hasSide;
   }
   if (request.requestSector === 'DISTRIBUICAO' || request.requestSector === 'EXPEDICAO') {
-    return hasSku && Boolean(request.type) && hasModel && hasColor && hasGrade && hasSide;
+    return (hasSku || hasModel) && Boolean(request.type) && hasModel && hasColor && hasGrade && hasSide;
   }
   if (request.requestSector === 'MONTAGEM') {
-    return hasSku && hasModel && hasColor && hasGrade && hasSide;
+    return (hasSku || hasModel) && hasModel && hasColor && hasGrade && hasSide;
   }
   return false;
 }
@@ -403,8 +422,8 @@ const hasPrimaryItemIdentity = computed(() => {
   if (currentSector.value === 'APOIO') {
     return Boolean((formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode).trim());
   }
-  if (currentSector.value === 'MONTAGEM') {
-    return Boolean(formItem.value.sku.trim());
+  if (['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(currentSector.value)) {
+    return Boolean(formItem.value.sku.trim() || formItem.value.modelName.trim());
   }
   return Boolean(formItem.value.sku.trim());
 });
@@ -418,15 +437,22 @@ async function checkCurrentItemAvailability(request: AvailabilityRequest, identi
 
     const candidates = (res.data?.candidates || []) as RequisitionStockCandidate[];
     const unverifiedStockMatches = (res.data?.unverifiedStockMatches || []) as UnverifiedRequisitionStockMatch[];
+    const preferredCandidate = preferredSourceStockItemIds.value.length
+      ? candidates.find(candidate => preferredSourceStockItemIds.value.every(id => candidate.sourceStockItemIds.includes(id)))
+      : null;
     availabilityResult.value = {
       status: candidates.length ? 'available' : 'unavailable',
       identityKey,
-      quantity: 0,
-      locations: [],
+      quantity: preferredCandidate?.quantity || 0,
+      locations: preferredCandidate ? [...preferredCandidate.locations] : [],
       candidates,
       unverifiedStockMatches,
-      selectedCandidateId: null,
+      selectedCandidateId: preferredCandidate?.id || null,
+      confirmedSourceCandidateId: preferredCandidate?.requiresConfirmation && !preferredCandidate.confirmationDetails.length
+        ? preferredCandidate.id
+        : null,
     };
+    if (preferredCandidate) formItem.value.unit = preferredCandidate.unit;
   } catch {
     if (requestVersion !== availabilityRequestVersion || identityKey !== availabilityIdentityKey(buildAvailabilityRequest())) return;
     availabilityResult.value = { status: 'error', identityKey, quantity: 0, locations: [], candidates: [], unverifiedStockMatches: [], selectedCandidateId: null };
@@ -495,72 +521,108 @@ const canSubmitRequisition = computed(() =>
   !isSubmitting.value && (stagedItems.value.length > 0 || canAddCurrentItem.value),
 );
 
-// Autocomplete ao digitar SKU / Código
-function onSkuInput() {
+function closeSuggestions() {
+  showSuggestions.value = false;
+  suggestionAnchor.value = null;
+}
+
+async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value: string, anchor: 'identifier' | 'model') {
   if (autocompleteTimer) clearTimeout(autocompleteTimer);
   const requestVersion = ++autocompleteRequestVersion;
+  const q = value.trim();
+  preferredSourceStockItemIds.value = [];
+  if (q.length < 2) {
+    suggestions.value = [];
+    suggestionsLoading.value = false;
+    closeSuggestions();
+    return;
+  }
+
+  suggestions.value = [];
+  suggestionAnchor.value = anchor;
+  showSuggestions.value = true;
+  suggestionsLoading.value = true;
+  autocompleteTimer = setTimeout(async () => {
+    try {
+      const res = await api.get('/requisitions/search-suggestions', {
+        params: {
+          requestSector: currentSector.value,
+          field,
+          q,
+          ...(currentSector.value === 'APOIO' ? { componentType: formItem.value.type } : {}),
+          ...(formItem.value.type ? { type: formItem.value.type } : {}),
+          ...(formItem.value.color ? { color: formItem.value.color } : {}),
+          ...(formItem.value.sizeGrade ? { sizeGrade: formItem.value.sizeGrade } : {}),
+          ...(formItem.value.footSide ? { footSide: formItem.value.footSide } : {}),
+        },
+      });
+      if (requestVersion !== autocompleteRequestVersion) return;
+      suggestions.value = res.data || [];
+    } catch {
+      if (requestVersion !== autocompleteRequestVersion) return;
+      suggestions.value = [];
+    } finally {
+      if (requestVersion === autocompleteRequestVersion) {
+        suggestionsLoading.value = false;
+        showSuggestions.value = suggestions.value.length > 0;
+      }
+    }
+  }, 200);
+}
+
+// O identificador e o modelo localizam a mesma lista de variantes do estoque.
+function onSkuInput() {
   formItem.value.sizeGrade = '';
   formItem.value.color = '';
   formItem.value.footSide = null;
   availableGrades.value = [];
   availableFootSides.value = [];
-  const q = (currentSector.value === 'APOIO' ? apoioIdentifier.value : formItem.value.sku).trim();
-  if (q.length < 2) {
-    suggestions.value = [];
-    showSuggestions.value = false;
-    return;
-  }
-  suggestions.value = [];
-  showSuggestions.value = false;
+  searchRequisitionSuggestions('IDENTIFIER', currentIdentifier.value, 'identifier');
+}
 
-  autocompleteTimer = setTimeout(async () => {
-    try {
-      const res = await api.get('/inventory/search-suggestions', {
-        params: {
-          sector: currentSector.value,
-          ...(currentSector.value === 'APOIO' ? { componentType: formItem.value.type } : {}),
-          q,
-        },
-      });
-      if (requestVersion !== autocompleteRequestVersion) return;
-      suggestions.value = res.data || [];
-      showSuggestions.value = suggestions.value.length > 0;
-    } catch {
-      if (requestVersion !== autocompleteRequestVersion) return;
-      suggestions.value = [];
-      showSuggestions.value = false;
-    }
-  }, 250);
+function onModelInput() {
+  formItem.value.sizeGrade = '';
+  formItem.value.color = '';
+  formItem.value.footSide = null;
+  availableGrades.value = [];
+  availableFootSides.value = [];
+  searchRequisitionSuggestions('MODEL', formItem.value.modelName, 'model');
 }
 
 function selectSuggestion(sug: SkuSuggestion) {
   if (autocompleteTimer) clearTimeout(autocompleteTimer);
   autocompleteRequestVersion++;
-  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') {
-    formItem.value.pieceCode = sug.sku;
-    formItem.value.sku = '';
-  } else {
-    formItem.value.sku = sug.sku;
-    if (currentSector.value === 'APOIO') formItem.value.pieceCode = '';
-  }
-  formItem.value.modelName = sug.modelName;
-  formItem.value.color = sug.color || '';
-  formItem.value.sizeGrade = '';
-  formItem.value.footSide = null;
-  if (currentSector.value === 'APOIO' || currentSector.value === 'CORTE') {
+  suggestionsLoading.value = false;
+  preferredSourceStockItemIds.value = [...sug.stockItemIds];
+
+  if (currentSector.value === 'CORTE') {
+    formItem.value.sku = sug.code || sug.sku || '';
     formItem.value.description = sug.description;
+  } else if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') {
+    formItem.value.pieceCode = sug.pieceCode || sug.code || '';
+    formItem.value.sku = '';
+    formItem.value.description = sug.description;
+  } else if (currentSector.value === 'APOIO') {
+    formItem.value.sku = sug.sku || '';
+    formItem.value.pieceCode = '';
+  } else if (sug.sku) {
+    // Código de peça cortada não é convertido para SKU do produto solicitado.
+    formItem.value.sku = sug.sku;
   }
-  availableGrades.value = sug.sizeGrades || [];
-  const suggestedSides = new Set(sug.footSides || []);
-  availableFootSides.value = ['E', 'D'].filter(side => suggestedSides.has(side)) as Array<'E' | 'D'>;
-  if (suggestedSides.has('E') && suggestedSides.has('D')) availableFootSides.value.push('PAR');
-  if (suggestedSides.has('PAR')) availableFootSides.value.push('PAR');
-  if (availableFootSides.value.length === 1) formItem.value.footSide = availableFootSides.value[0];
-  if (availableGrades.value.length === 1) {
-    formItem.value.sizeGrade = availableGrades.value[0];
-  }
-  showSuggestions.value = false;
+
+  if (sug.modelName) formItem.value.modelName = sug.modelName;
+  if (sug.color) formItem.value.color = sug.color;
+  if (sug.sizeGrade) formItem.value.sizeGrade = sug.sizeGrade;
+  if (sug.footSide) formItem.value.footSide = sug.footSide;
+  if (sug.unit) formItem.value.unit = sug.unit;
+  availableGrades.value = sug.sizeGrade ? [sug.sizeGrade] : [];
+  availableFootSides.value = sug.footSide ? [sug.footSide] : [];
+  closeSuggestions();
   scheduleAvailabilityCheck();
+}
+
+function suggestionIdentifier(suggestion: SkuSuggestion) {
+  return suggestion.sku || suggestion.pieceCode || suggestion.code || suggestion.modelName || suggestion.description;
 }
 
 function onSectorChange() {
@@ -584,7 +646,10 @@ function onSectorChange() {
   availableGrades.value = [];
   availableFootSides.value = [];
   suggestions.value = [];
+  preferredSourceStockItemIds.value = [];
+  suggestionsLoading.value = false;
   showSuggestions.value = false;
+  suggestionAnchor.value = null;
 }
 
 function onRequestModeChange(mode: 'RAW_MATERIAL' | 'PRODUCT_REUSE') {
@@ -604,7 +669,10 @@ function onApoioComponentChange() {
   availableGrades.value = [];
   availableFootSides.value = [];
   suggestions.value = [];
+  preferredSourceStockItemIds.value = [];
+  suggestionsLoading.value = false;
   showSuggestions.value = false;
+  suggestionAnchor.value = null;
 }
 
 function selectSourceCandidate(candidate: RequisitionStockCandidate) {
@@ -672,22 +740,22 @@ function addCurrentItem() {
 
   if (currentSector.value === 'MONTAGEM') {
     finalDesc = 'CALÇADO COMPLETO';
-    if (!formItem.value.sku.trim()) {
-      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+    if (!formItem.value.sku.trim() && !formItem.value.modelName.trim()) {
+      showToast('Informe o código / SKU ou o modelo do produto.', 'error');
       return;
     }
   } else if (currentSector.value === 'PRE_FABRICADO') {
     const solaType = formItem.value.type || 'SOLA';
     finalDesc = `${solaType} - ${formItem.value.modelName || formItem.value.sku || 'SOLA'}`.trim();
-    if (!formItem.value.sku.trim()) {
+    if (!formItem.value.sku.trim() && !formItem.value.modelName.trim()) {
       showToast('O COD. PRODUTO / SKU / Modelo é obrigatório.', 'error');
       return;
     }
   } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
     const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
     finalDesc = `${insumoType} - ${formItem.value.modelName || formItem.value.sku || 'INSUMO'}`.trim();
-    if (!formItem.value.sku.trim()) {
-      showToast('O COD. PRODUTO / SKU é obrigatório.', 'error');
+    if (!formItem.value.sku.trim() && !formItem.value.modelName.trim()) {
+      showToast('Informe o código / SKU ou o modelo do produto.', 'error');
       return;
     }
   } else if (currentSector.value === 'APOIO') {
@@ -1393,27 +1461,36 @@ onMounted(() => {
                   class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
                 />
                 <div
-                  v-if="showSuggestions && suggestions.length > 0"
-                  class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-44 overflow-y-auto divide-y divide-slate-100"
+                  v-if="showSuggestions && suggestionAnchor === 'identifier'"
+                  class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100"
                 >
+                  <p v-if="suggestionsLoading" class="p-3 text-[11px] text-slate-500">Buscando este produto nos estoques...</p>
                   <button
                     v-for="sug in suggestions"
-                    :key="sug.id || sug.sku"
+                    :key="sug.id"
                     type="button"
                     @click="selectSuggestion(sug)"
-                    class="w-full p-2 text-left hover:bg-indigo-50 flex justify-between items-center"
+                    class="w-full px-3 py-2.5 text-left hover:bg-indigo-50 flex justify-between items-center gap-3"
                   >
-                    <span class="min-w-0">
-                      <span class="font-bold text-indigo-600 font-mono">{{ sug.sku }}</span>
-                      <span class="text-slate-700 ml-1.5">{{ sug.modelName || sug.description }}</span>
-                      <span class="block text-[10px] text-slate-400">
-                        <span v-if="sug.color">{{ sug.color }} · </span>
-                        <span v-if="sug.sizeGrades?.length">Grade {{ sug.sizeGrades.join(', ') }} · </span>
-                        <span v-if="sug.footSides?.length">Lado {{ sug.footSides.join('/') }}</span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-xs font-bold text-slate-800">
+                        <span class="font-mono text-indigo-700">{{ suggestionIdentifier(sug) }}</span>
+                        <span v-if="sug.modelName" class="ml-1.5">{{ sug.modelName }}</span>
+                      </span>
+                      <span class="mt-0.5 block truncate text-[10px] text-slate-500">
+                        {{ formatSectorName(sug.sourceSector) }}
+                        <span v-if="sug.componentType"> · {{ formatSourceComponent({ componentType: sug.componentType }) }}</span>
+                        <span v-if="sug.color"> · {{ sug.color }}</span>
+                        <span v-if="sug.sizeGrade"> · Grade {{ sug.sizeGrade }}</span>
+                        <span v-if="currentSector !== 'CORTE'"> · {{ sug.footSide === 'E' ? 'Pé esquerdo' : sug.footSide === 'D' ? 'Pé direito' : sug.footSide === 'PAR' ? 'Par' : 'Lado não cadastrado' }}</span>
+                      </span>
+                      <span class="mt-0.5 block truncate text-[10px] text-slate-400">
+                        <MapPin class="mr-0.5 inline size-3" />{{ sug.locations.length ? sug.locations.join(', ') : 'Localização não cadastrada' }}
                       </span>
                     </span>
-                    <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                      {{ sug.availableQuantity }} {{ isRawMaterialRequest ? 'UN/M²' : 'un.' }}
+                    <span class="shrink-0 rounded-lg bg-emerald-50 px-2 py-1 text-right text-[10px] font-bold text-emerald-700">
+                      <span class="block">{{ sug.availableQuantity }} {{ sug.footSide === 'PAR' ? 'PAR' : sug.unit }}</span>
+                      <span class="block font-medium">Usar esta sobra</span>
                     </span>
                   </button>
                 </div>
@@ -1421,12 +1498,49 @@ onMounted(() => {
 
               <div v-if="!isRawMaterialRequest">
                 <label class="block font-bold text-slate-600 uppercase mb-1">Modelo / linha *</label>
-                <input
-                  v-model="formItem.modelName"
-                  type="text"
-                  placeholder="Ex: RACER SPEEDZONE"
-                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
-                />
+                <div class="relative">
+                  <input
+                    v-model="formItem.modelName"
+                    @input="onModelInput"
+                    type="text"
+                    placeholder="Ex: RACER SPEEDZONE"
+                    class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
+                  />
+                  <div
+                    v-if="showSuggestions && suggestionAnchor === 'model'"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100"
+                  >
+                    <p v-if="suggestionsLoading" class="p-3 text-[11px] text-slate-500">Buscando este modelo nos estoques...</p>
+                    <button
+                      v-for="sug in suggestions"
+                      :key="sug.id"
+                      type="button"
+                      @click="selectSuggestion(sug)"
+                      class="w-full px-3 py-2.5 text-left hover:bg-indigo-50 flex justify-between items-center gap-3"
+                    >
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-xs font-bold text-slate-800">
+                          <span class="font-mono text-indigo-700">{{ suggestionIdentifier(sug) }}</span>
+                          <span v-if="sug.modelName" class="ml-1.5">{{ sug.modelName }}</span>
+                        </span>
+                        <span class="mt-0.5 block truncate text-[10px] text-slate-500">
+                          {{ formatSectorName(sug.sourceSector) }}
+                          <span v-if="sug.componentType"> · {{ formatSourceComponent({ componentType: sug.componentType }) }}</span>
+                          <span v-if="sug.color"> · {{ sug.color }}</span>
+                          <span v-if="sug.sizeGrade"> · Grade {{ sug.sizeGrade }}</span>
+                          <span v-if="currentSector !== 'CORTE'"> · {{ sug.footSide === 'E' ? 'Pé esquerdo' : sug.footSide === 'D' ? 'Pé direito' : sug.footSide === 'PAR' ? 'Par' : 'Lado não cadastrado' }}</span>
+                        </span>
+                        <span class="mt-0.5 block truncate text-[10px] text-slate-400">
+                          <MapPin class="mr-0.5 inline size-3" />{{ sug.locations.length ? sug.locations.join(', ') : 'Localização não cadastrada' }}
+                        </span>
+                      </span>
+                      <span class="shrink-0 rounded-lg bg-emerald-50 px-2 py-1 text-right text-[10px] font-bold text-emerald-700">
+                        <span class="block">{{ sug.availableQuantity }} {{ sug.footSide === 'PAR' ? 'PAR' : sug.unit }}</span>
+                        <span class="block font-medium">Usar esta sobra</span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div v-if="isRawMaterialRequest || isApoioCutPiece">
@@ -1579,13 +1693,13 @@ onMounted(() => {
               </div>
 
               <div
-                v-else-if="availabilityResult.status === 'unavailable' && !availabilityResult.unverifiedStockMatches.length"
+                v-else-if="availabilityResult.status === 'unavailable'"
                 class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-800"
               >
                 <ShieldAlert class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
-                  <p class="font-black tracking-tight text-xs uppercase">Nenhuma origem compatível com saldo positivo</p>
-                  <p class="text-[11px] text-rose-700 mt-0.5">Confirme as variantes e o saldo no fornecedor. Para usar matéria-prima de Corte sem SKU compartilhado, é necessária uma regra especial em Configurações.</p>
+                  <p class="font-bold text-xs">Nenhum estoque atende a todas as opções selecionadas.</p>
+                  <p class="mt-0.5 text-[11px] text-rose-700">Busque pelo código ou modelo e escolha uma variante disponível.</p>
                 </div>
               </div>
 
@@ -1593,9 +1707,9 @@ onMounted(() => {
                 v-else-if="availabilityResult.status === 'available'"
                 class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5"
               >
-                <p class="font-black text-xs uppercase text-slate-800">Escolha a sobra que atende ao pedido</p>
+                <p class="font-black text-xs uppercase text-slate-800">{{ selectedSourceCandidate ? 'Origem selecionada' : 'Escolha a sobra que atende ao pedido' }}</p>
                 <div
-                  v-for="candidate in availabilityResult.candidates"
+                  v-for="candidate in visibleSourceCandidates"
                   :key="candidate.id"
                   class="space-y-1.5"
                 >
@@ -1617,8 +1731,8 @@ onMounted(() => {
                           <strong class="text-xs text-slate-900">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</strong>
                           <strong class="text-xs text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</strong>
                         </span>
-                        <span v-if="candidate.locations.length" class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-                          <MapPin class="size-3 shrink-0" /> {{ candidate.locations.join(', ') }}
+                        <span class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+                          <MapPin class="size-3 shrink-0" /> {{ candidate.locations.length ? candidate.locations.join(', ') : 'Localização não cadastrada' }}
                         </span>
                       </label>
                       <details class="mt-1 text-[10.5px] text-slate-600">
@@ -1639,7 +1753,7 @@ onMounted(() => {
                       </details>
                     </span>
                   </div>
-                  <label v-if="candidate.requiresConfirmation" class="ml-8 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10.5px] text-amber-950">
+                  <label v-if="candidate.requiresConfirmation && availabilityResult.confirmedSourceCandidateId !== candidate.id" class="ml-8 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10.5px] text-amber-950">
                     <input
                       type="checkbox"
                       :checked="availabilityResult.confirmedSourceCandidateId === candidate.id"
@@ -1653,6 +1767,24 @@ onMounted(() => {
                     </span>
                   </label>
                 </div>
+                <details v-if="otherSourceCandidates.length" class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <summary class="cursor-pointer text-[11px] font-semibold text-slate-500">Ver outras origens ({{ otherSourceCandidates.length }})</summary>
+                  <div class="mt-2 space-y-1.5">
+                    <button
+                      v-for="candidate in otherSourceCandidates"
+                      :key="candidate.id"
+                      type="button"
+                      @click="selectSourceCandidate(candidate)"
+                      class="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-left hover:border-indigo-300 hover:bg-indigo-50"
+                    >
+                      <span class="min-w-0">
+                        <span class="block truncate text-[11px] font-semibold text-slate-700">{{ formatSectorName(candidate.sourceSector) }} · {{ sourceCandidateItemLabel(candidate) }}</span>
+                        <span class="block truncate text-[10px] text-slate-500"><MapPin class="mr-0.5 inline size-3" />{{ candidate.locations.length ? candidate.locations.join(', ') : 'Localização não cadastrada' }}</span>
+                      </span>
+                      <span class="shrink-0 text-[10px] font-bold text-emerald-700">{{ candidate.quantity }} {{ candidate.unit }}</span>
+                    </button>
+                  </div>
+                </details>
                 <p v-if="selectedSourceCandidate && formItem.quantityRequested > selectedSourceCandidate.quantity" class="text-[11px] font-bold text-rose-700">
                   A quantidade solicitada excede o saldo equivalente da origem escolhida.
                 </p>
@@ -1660,58 +1792,21 @@ onMounted(() => {
 
               <details
                 v-if="availabilityResult.unverifiedStockMatches.length"
-                class="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950"
+                class="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-600"
               >
-                <summary class="cursor-pointer list-inside font-black tracking-tight text-xs uppercase">
-                  Estoque para conferência ({{ availabilityResult.unverifiedStockMatches.length }})
+                <summary class="cursor-pointer text-[11px] font-semibold text-slate-500">
+                  Ver outros registros parecidos ({{ availabilityResult.unverifiedStockMatches.length }})
                 </summary>
-                <div class="pt-2">
-                <div class="flex items-start gap-2.5">
-                  <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div class="min-w-0 flex-1">
-                    <p class="font-black tracking-tight text-xs uppercase">Estoque encontrado para conferência</p>
-                    <p class="text-[11px] text-amber-900 mt-0.5">
-                      Estas linhas coincidiram por código ou modelo, mas não passaram pela conferência automática de tipo, variantes ou unidade. Confira os dados. Para relações especiais entre componentes ou conversões, um Admin Master pode cadastrar uma regra em Configurações.
-                    </p>
-                  </div>
-                </div>
-                <ul class="mt-2.5 space-y-1.5" aria-label="Estoque encontrado para conferência de compatibilidade">
+                <ul class="mt-2 max-h-36 space-y-1 overflow-y-auto" aria-label="Registros parecidos que não atendem ao pedido">
                   <li
                     v-for="match in availabilityResult.unverifiedStockMatches"
                     :key="match.id"
-                    class="rounded-lg border border-amber-200/80 bg-white/80 px-2.5 py-2 text-[10.5px]"
+                    class="flex flex-wrap items-center justify-between gap-x-3 rounded-md bg-slate-50 px-2 py-1.5 text-[10px]"
                   >
-                    <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                      <strong class="text-amber-950">{{ formatSectorName(match.sourceSector) }} · {{ match.description || match.modelName || match.type || 'Material' }}</strong>
-                      <strong class="text-amber-800">Saldo: {{ match.quantity }} {{ match.unit }}</strong>
-                    </div>
-                    <div class="mt-0.5 flex flex-wrap gap-x-2 text-amber-900">
-                      <span v-if="match.pieceCode">Cód. peça: {{ match.pieceCode }}</span>
-                      <span v-if="match.code">Código: {{ match.code }}</span>
-                      <span v-if="match.sku">SKU: {{ match.sku }}</span>
-                      <span v-if="match.type">Tipo: {{ match.type }}</span>
-                      <span v-if="match.componentType">Componente: {{ match.componentType }}</span>
-                      <span v-if="match.color">Cor: {{ match.color }}</span>
-                      <span v-if="match.sizeGrade">Grade: {{ match.sizeGrade }}</span>
-                      <span v-if="match.footSide">{{ match.footSide === 'E' ? 'Pé esquerdo' : match.footSide === 'D' ? 'Pé direito' : 'Par' }}</span>
-                    </div>
-                    <span v-if="match.modelName" class="mt-0.5 block text-amber-900">Modelo/Linha: {{ match.modelName }}</span>
-                    <span v-if="match.matchReasons.length" class="mt-0.5 block text-amber-800">Correspondência: {{ match.matchReasons.join('; ') }}</span>
-                    <span class="mt-0.5 block text-amber-800">
-                      {{ match.sourceSector === 'CORTE' && !match.hasProductLink
-                        ? 'Para aproveitar matéria-prima de Corte sem SKU compartilhado, um Admin Master precisa cadastrar a relação especial em Configurações.'
-                        : match.sourceSector === 'APOIO' && !match.hasProductLink
-                          ? 'Peças Cortadas são sugeridas por modelo e variantes. Este item não passou nessa conferência; uma relação fora desse padrão pode ser cadastrada como regra especial.'
-                        : match.hasProductLink
-                          ? 'Há uma regra cadastrada, mas ela não correspondeu a todos os dados desta solicitação.'
-                          : 'Não foi sugerido porque os dados cadastrados não confirmam todas as variantes e a unidade do pedido.' }}
-                    </span>
-                    <span v-if="match.locations.length" class="mt-0.5 flex items-center gap-1 text-amber-800">
-                      <MapPin class="size-3 shrink-0" /> {{ match.locations.join(', ') }}
-                    </span>
+                    <span class="font-medium text-slate-700">{{ formatSectorName(match.sourceSector) }} · {{ match.description || match.modelName || match.type || 'Material' }}</span>
+                    <span class="text-slate-500">{{ match.quantity }} {{ match.unit }}</span>
                   </li>
                 </ul>
-                </div>
               </details>
             </div>
 

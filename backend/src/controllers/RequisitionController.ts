@@ -1,4 +1,4 @@
-import { requestStockAccess, StockAccessError } from '../auth/stockAccess';
+import { assertStockSectorAccess, requestStockAccess, StockAccessError } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { RequisitionService } from '../services/RequisitionService';
 import { 
@@ -13,6 +13,52 @@ import { requireActiveStockSector, SectorValidationError } from '../utils/sector
 const requisitionService = new RequisitionService();
 
 export class RequisitionController {
+  /**
+   * GET /requisitions/search-suggestions - Busca variantes específicas no estoque
+   */
+  async searchSuggestions(req: Request, res: Response) {
+    try {
+      if (!req.tenant) {
+        return res.status(400).json({ error: 'Unidade fabril não identificada.' });
+      }
+
+      const requestSector = String(req.query.requestSector || '').trim().toUpperCase();
+      requireActiveStockSector(requestSector);
+      const access = requestStockAccess(req);
+      assertStockSectorAccess(access, requestSector);
+
+      const field = String(req.query.field || '').trim().toUpperCase();
+      if (field !== 'IDENTIFIER' && field !== 'MODEL') {
+        return res.status(400).json({ error: 'Informe se a busca é por identificador ou modelo.' });
+      }
+      const query = String(req.query.q || '').trim();
+      if (query.length < 2) return res.json([]);
+      if (query.length > 100) return res.status(400).json({ error: 'Busca muito longa.' });
+
+      const requestedComponent = String(req.query.componentType || '').trim().toUpperCase();
+      const requestedSide = String(req.query.footSide || '').trim().toUpperCase();
+      if (requestedSide && !['E', 'D', 'PAR'].includes(requestedSide)) {
+        return res.status(400).json({ error: 'Lado inválido.' });
+      }
+      const result = await requisitionService.searchStockSuggestions({
+        requestSector: requestSector as any,
+        field,
+        query,
+        componentType: ['CABEDAL', 'PECA_CORTADA'].includes(requestedComponent) ? requestedComponent : undefined,
+        color: req.query.color ? String(req.query.color) : undefined,
+        sizeGrade: req.query.sizeGrade ? String(req.query.sizeGrade) : undefined,
+        footSide: requestedSide || undefined,
+        type: req.query.type ? String(req.query.type) : undefined,
+      }, req.tenant.id);
+      return res.json(result);
+    } catch (error) {
+      if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
+      if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      console.error('Erro ao buscar sugestões de estoque para requisição:', error);
+      return res.status(500).json({ error: 'Erro interno ao buscar sugestões.' });
+    }
+  }
+
   /**
    * POST /requisitions/check-availability - Verificar disponibilidade e saldo em tempo real
    */
