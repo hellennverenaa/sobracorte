@@ -340,6 +340,8 @@ Os campos de subsetor permanecem opcionais para não quebrar registros históric
 
 **Entregável:** migração aditiva revisada e schema compatível com os registros atuais.
 
+**Status: validada pelo solicitante em 05/10/2026.** `prisma validate`, comparação do SQL gerado e `git diff --check` passaram. A migration foi aplicada em PostgreSQL descartável junto com as demais pendentes (38 migrations, no total), sem preencher subsetores em registros antigos. A suíte completa terminou com 188 testes aprovados e 17 falhas em fixtures/configurações de testes existentes; nenhuma falha observada apontou para as novas tabelas ou chaves.
+
 ### Etapa 3 — Implementar regras e API no backend
 
 Criar operações para listar, criar, editar e arquivar subsetores. Implementar associação de usuários e autorização por papel, setor e subsetor, sem ampliar as permissões atuais dos papéis. Aplicar os filtros nas consultas e validar as gravações no servidor, incluindo consistência entre setor, subsetor, item, localização e categorias permitidas.

@@ -53,6 +53,13 @@ enum MovementType {
   @@schema("sobra_corte")
 }
 
+enum SubsectorCategoryMode {
+  ALL
+  SELECTED
+
+  @@schema("sobra_corte")
+}
+
 model FactoryUnit {
   id                 Int     @id @default(autoincrement())
   code               String  @unique
@@ -66,6 +73,8 @@ model FactoryUnit {
   userRoleBindings   UserRoleBinding[]
   categories         CategoryConfig[]
   componentSubtypes  ComponentSubtypeConfig[]
+  userSubsectorAccesses UserSubsectorAccess[]
+  subsectorCategoryLinks SubsectorCategory[]
   origins            OriginConfig[]
   locationCategories LocationCategory[]
   stockItems         StockItem[]
@@ -75,6 +84,7 @@ model FactoryUnit {
   requisitionStockCompatibilities RequisitionStockCompatibility[]
   materialDeletionAudits MaterialDeletionAudit[]
   roleChangeAudits   RoleChangeAudit[]
+  subsectors         SubsectorConfig[]
 
   @@schema("sobra_corte")
 }
@@ -84,9 +94,11 @@ model Location {
   id            Int             @id @default(autoincrement())
   name          String
   sector        SectorType?     // Setor ao qual a localização/prateleira pertence
+  subsectorId   Int?
   categoryId    Int?
   factoryUnitId Int
   factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])
+  subsector     SubsectorConfig? @relation(fields: [subsectorId, factoryUnitId], references: [id, factoryUnitId], onDelete: Restrict)
   category      CategoryConfig? @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
 
   stockLocations StockItemLocation[]
@@ -96,6 +108,7 @@ model Location {
   @@unique([id, factoryUnitId])
   @@index([factoryUnitId, categoryId])
   @@index([factoryUnitId, sector])
+  @@index([factoryUnitId, subsectorId])
   @@schema("sobra_corte")
 }
 
@@ -178,6 +191,7 @@ model UserRoleBinding {
   identity       AuthIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
   factoryUnit    FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
   audits         RoleChangeAudit[]
+  subsectorAccesses UserSubsectorAccess[]
 
   @@unique([identityId, factoryUnitId])
   @@unique([id, factoryUnitId])
@@ -240,6 +254,7 @@ model CategoryConfig {
   locations     Location[]
   locationLinks LocationCategory[]
   stockItems    StockItem[]
+  subsectorCategoryLinks SubsectorCategory[]
 
   @@unique([factoryUnitId, name])
   @@unique([id, factoryUnitId])
@@ -264,6 +279,60 @@ model ComponentSubtypeConfig {
   @@schema("sobra_corte")
 }
 
+// Subsetores operacionais pertencentes a um único setor e unidade fabril.
+// Registros usados são arquivados com active=false, não excluídos.
+model SubsectorConfig {
+  id             Int                   @id @default(autoincrement())
+  factoryUnitId  Int
+  sector         SectorType
+  name           String
+  normalizedName String
+  active         Boolean               @default(true)
+  categoryMode   SubsectorCategoryMode @default(ALL)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now()) @updatedAt
+  factoryUnit    FactoryUnit           @relation(fields: [factoryUnitId], references: [id], onDelete: Restrict)
+  userAccesses   UserSubsectorAccess[]
+  categoryLinks  SubsectorCategory[]
+  stockItems     StockItem[]
+  locations      Location[]
+  stockMovements StockMovement[]
+
+  @@unique([factoryUnitId, sector, normalizedName])
+  @@unique([id, factoryUnitId])
+  @@index([factoryUnitId, sector, active])
+  @@schema("sobra_corte")
+}
+
+// Uma atribuição por vínculo de papel/setor e subsetor.
+model UserSubsectorAccess {
+  bindingId     Int
+  subsectorId   Int
+  factoryUnitId Int
+  binding       UserRoleBinding @relation(fields: [bindingId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  subsector     SubsectorConfig @relation(fields: [subsectorId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id], onDelete: Restrict)
+
+  @@id([bindingId, subsectorId, factoryUnitId])
+  @@index([factoryUnitId, bindingId])
+  @@index([factoryUnitId, subsectorId])
+  @@schema("sobra_corte")
+}
+
+// Whitelist opcional de categorias quando o subsetor estiver em SELECTED.
+model SubsectorCategory {
+  subsectorId      Int
+  categoryConfigId Int
+  factoryUnitId    Int
+  subsector        SubsectorConfig @relation(fields: [subsectorId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  categoryConfig   CategoryConfig  @relation(fields: [categoryConfigId, factoryUnitId], references: [id, factoryUnitId], onDelete: Restrict)
+  factoryUnit      FactoryUnit     @relation(fields: [factoryUnitId], references: [id], onDelete: Restrict)
+
+  @@id([subsectorId, categoryConfigId, factoryUnitId])
+  @@index([factoryUnitId, categoryConfigId])
+  @@schema("sobra_corte")
+}
+
 // 🔖 TABELA DE CONFIGURAÇÃO: Valores permitidos para Movement.origem
 // Substitui o array hardcoded no frontend (Consumo, Dublagem / Tirada, etc.)
 model OriginConfig {
@@ -285,6 +354,7 @@ model StockItem {
   id            Int            @id @default(autoincrement())
   factoryUnitId Int
   sector        SectorType     @default(CORTE)
+  subsectorId   Int?
   categoryId    Int?
   componentType ComponentType? @default(MATERIA_PRIMA)
   quantity      Decimal        @default(0) @db.Decimal(18, 3)
@@ -317,6 +387,7 @@ model StockItem {
 
   // Relações Multi-Tenant Compostas
   factoryUnit   FactoryUnit         @relation(fields: [factoryUnitId], references: [id])
+  subsector     SubsectorConfig?    @relation(fields: [subsectorId, factoryUnitId], references: [id, factoryUnitId], onDelete: Restrict)
   category      CategoryConfig?     @relation(fields: [categoryId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
   locations     StockItemLocation[]
   movements     StockMovement[]
@@ -329,6 +400,7 @@ model StockItem {
   @@index([factoryUnitId, name])
   @@index([factoryUnitId, type])
   @@index([factoryUnitId, categoryId])
+  @@index([factoryUnitId, subsectorId, createdAt(sort: Desc)])
   @@index([factoryUnitId, quantity(sort: Desc)])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, sector, productName, sizeGrade])
@@ -362,6 +434,7 @@ model StockMovement {
   id                    Int          @id @default(autoincrement())
   factoryUnitId         Int
   stockItemId           Int?
+  subsectorId           Int?
   sector                SectorType
   type                  MovementType
   quantity              Decimal      @db.Decimal(18, 3)
@@ -396,9 +469,11 @@ model StockMovement {
   operatorName          String?      // Nome do usuário
 
   factoryUnit           FactoryUnit  @relation(fields: [factoryUnitId], references: [id])
+  subsector             SubsectorConfig? @relation(fields: [subsectorId, factoryUnitId], references: [id, factoryUnitId], onDelete: Restrict)
   stockItem             StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
 
   @@index([factoryUnitId, stockItemId])
+  @@index([factoryUnitId, subsectorId, createdAt(sort: Desc)])
   @@index([factoryUnitId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([factoryUnitId, sector, createdAt(sort: Desc)])
   @@index([factoryUnitId, operatorId, createdAt])
