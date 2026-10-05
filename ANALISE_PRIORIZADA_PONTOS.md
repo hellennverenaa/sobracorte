@@ -16,8 +16,9 @@
 | 4 | P2 | CONCLUÍDO | Simplificar a experiência da tela “Estoque Multi-Setor” |
 | 5 | P2 | PENDENTE | Organizar o formulário e a consulta do “Estoque Multi-Setor” |
 | 6 | P2 | CONCLUÍDO | Ampliar os filtros do estoque por modelo e material/cor |
+| 7 | P2 | PENDENTE | Fixar em unidade a contagem de peças e calçados nos setores produtivos |
 
-**Próxima solicitação em análise:** ponto 5, etapa 3 — aprimorar a hierarquia visual e a leitura da tela principal do “Estoque Multi-Setor”, conforme a imagem recebida em 05/10/2026. A proposta está registrada abaixo e aguarda aprovação; o ponto 5 continua pendente.
+**Análise atual:** ponto 7 — revisar a unidade de medida dos itens contados por peça. A etapa 3 do ponto 5, sobre o desenho da tabela, continua pendente de aprovação para implementação.
 
 ## Detalhamento dos pontos
 
@@ -228,3 +229,46 @@ Permitir localizar produtos pela identidade e pelo material usado sem acrescenta
 - Modelo/linha filtra `productName`; material/cor usa `materialColor` e `color` em Peças Cortadas e setores produtivos, e a descrição do material (`name`) no Corte.
 - Os critérios aparecem no resumo e no contador, são persistidos junto dos demais filtros e são removidos por “Limpar filtros”.
 - Build completo (`npm run build`, backend e frontend): passou. O build do frontend emitiu o aviso existente de bundle JavaScript acima de 500 kB (562,27 kB). Testes automatizados não foram executados.
+
+## 7. P2 — Fixar em unidade a contagem de peças e calçados nos setores produtivos — PENDENTE
+
+### Problema observado
+
+O formulário “Nova Entrada Rápida” exibe “Unidade de medida” para setores que controlam peças físicas individualmente. Ao mesmo tempo, Pré-Fabricado, Distribuição, Montagem e Cabedal em Peças Cortadas permitem informar lado E, D ou PAR. A unidade selecionada é persistida mesmo quando PAR é desmembrado em registros E e D, podendo deixar uma peça de calçado cadastrada em PAR, KG ou outra unidade que não descreve o saldo físico.
+
+### Regra de negócio a confirmar e aplicar
+
+- Estoque de peça cortada, cabedal, solado, sola processada e pé pronto é contado em unidades (`UN`) por peça/lado.
+- E ou D representa uma peça individual. PAR é uma conveniência de entrada e solicitação: cadastrar N pares cria N unidades do lado E e N unidades do lado D. Cada saldo persistido permanece em `UN`.
+- Em Peças Cortadas, `PECA_CORTADA` não tem lado e conta peças em `UN`; `CABEDAL` pode usar E, D ou PAR e segue a regra de pares acima.
+- CORTE continua separado: matérias-primas podem usar M², M, KG ou a unidade definida para sua categoria.
+- PAR pode continuar como unidade da quantidade solicitada em uma requisição de pares; isso não transforma a unidade física dos itens em estoque em PAR.
+
+### Etapas propostas
+
+#### Etapa 1 — Auditar categorias e saldos existentes — PENDENTE
+
+- Conferir unidades configuradas nas categorias dos setores e os valores de `StockItem.unit` em itens existentes, incluindo registros importados e pares legados.
+- Identificar categorias compartilhadas entre setores e bloqueios de unidade que conflitem com a regra `UN`.
+- Definir o tratamento de registros legados sem conversão automática de saldo: um item atualmente cadastrado como PAR pode guardar quantidade em pares, então a troca isolada do rótulo para UN alteraria seu significado.
+
+#### Etapa 2 — Simplificar o formulário de entrada — PENDENTE
+
+- Remover o seletor de unidade para Peças Cortadas (peça cortada e cabedal), Pré-Fabricado, Distribuição e Montagem; indicar `UN` como unidade fixa.
+- Para E/D, identificar a quantidade como unidades/pés. Para PAR, manter “Quantidade de pares” e explicitar que N pares geram N unidades E e N unidades D.
+- Manter no setor CORTE a seleção de unidade de matéria-prima e suas regras de categoria.
+
+#### Etapa 3 — Aplicar a mesma regra nas categorias, API e importação — PENDENTE
+
+- Garantir que novos itens dos setores contados por peça sejam persistidos em `UN`, mesmo se uma chamada de API tentar enviar outra unidade.
+- Ajustar as categorias e a validação de bloqueio de unidade para que configuração administrativa não reintroduza unidades incompatíveis. Considerar categorias compartilhadas sem mudar a unidade de matéria-prima do CORTE.
+- Atualizar modelos e validações de CSV: manter compatibilidade explícita para arquivos antigos e apontar a linha quando a unidade enviada conflitar, em vez de reinterpretar saldo silenciosamente.
+- Definir migração ou regularização dos valores legados após a auditoria, preservando o significado dos saldos, movimentos e requisições existentes.
+
+#### Etapa 4 — Validar entradas, pares e consultas — PENDENTE
+
+- Validar peça cortada em `UN`, entradas E e D em `UN`, e entrada de N pares gerando N itens E e N itens D em `UN`.
+- Conferir movimentação, inventário, relatórios, importação e requisições para assegurar que unidade física continue `UN`, enquanto requisições de par continuem expressando PAR quando aplicável.
+- Confirmar que unidades configuráveis de matéria-prima no CORTE continuam funcionando e cobrir conflitos de categorias e valores legados.
+
+**Critério de conclusão:** pessoas não escolhem unidade de medida para estoque de peças/calçados; os saldos novos são registrados em `UN` com E/D separados, e PAR cria um lado esquerdo e um direito por par. O CORTE mantém suas unidades próprias e os saldos antigos preservam o significado.
