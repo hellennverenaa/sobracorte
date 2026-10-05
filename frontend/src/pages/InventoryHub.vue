@@ -22,7 +22,7 @@ import {
   Plus, RefreshCw, ArrowLeftRight, X, Eye, 
   Scissors, Wrench, Layers, Box, Footprints,
   ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle, Info,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, SlidersHorizontal, ChevronDown
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -73,6 +73,7 @@ const {
   pageSize,
   loadData,
 } = useInventoryQuery(stockStore, authStore, route, getSectorFromRoute());
+const showInventoryFilters = ref(false);
 
 const inventoryTypeOptions = computed(() => {
   if (activeTab.value === 'TODOS') {
@@ -98,9 +99,37 @@ const inventoryTypeOptions = computed(() => {
   return [...new Set(configured.length ? configured : fallback)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 });
 
-const hasInventoryFilters = computed(() => Boolean(
-  search.value.trim() || selectedLocationFilter.value || selectedTypeFilter.value || stockStatusFilter.value,
-));
+function getInventoryTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    EVA: 'EVA (Sola não processada)',
+    SOLA_PROCESSADA: 'Sola processada',
+    CABEDAL: 'Cabedal',
+    BORRACHA: 'Borracha',
+  };
+  return labels[type] || type;
+}
+
+const activeInventoryFilterSummary = computed(() => {
+  const summary: string[] = [];
+  const query = search.value.trim();
+
+  if (query) summary.push(`Busca: ${query}`);
+  if (selectedLocationFilter.value) {
+    const location = stockStore.filterLocations.find(
+      (item) => String(item.id) === String(selectedLocationFilter.value),
+    );
+    summary.push(`Localização: ${location?.name || 'Selecionada'}`);
+  }
+  if (selectedTypeFilter.value) summary.push(`Tipo: ${getInventoryTypeLabel(selectedTypeFilter.value)}`);
+  if (stockStatusFilter.value) {
+    summary.push(`Saldo: ${stockStatusFilter.value === 'zero_balance' ? 'Zerado' : 'Com saldo'}`);
+  }
+
+  return summary;
+});
+
+const activeInventoryFilterCount = computed(() => activeInventoryFilterSummary.value.length);
+const hasInventoryFilters = computed(() => activeInventoryFilterCount.value > 0);
 
 function applyInventoryFilters() {
   currentPage.value = 1;
@@ -623,102 +652,144 @@ onMounted(() => {
         </section>
       </div>
 
-      <!-- Busca e filtros do estoque -->
-      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
-        <div class="w-full sm:col-span-2 xl:col-span-2">
-          <div class="flex items-center justify-between mb-1">
-            <label class="block text-xs font-bold text-gray-500 uppercase">
-              Buscar por código, descrição ou característica
-            </label>
-            <span
-              v-if="searchTermsCount > 1"
-              class="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200"
-            >
-              {{ searchTermsCount }} termos pesquisados
-            </span>
-          </div>
-
-          <div class="flex gap-2">
-            <div class="relative flex-1">
-              <input
-                v-model="search"
-                aria-label="Buscar itens do estoque"
-                @keydown.enter="handleExplicitSearch"
-                type="text"
-                placeholder="Código, descrição, modelo, cor..."
-                class="w-full border border-gray-200 py-2 pl-3 pr-8 rounded outline-none focus:border-blue-500 text-sm bg-white"
-              />
-              <button
-                v-if="search"
-                type="button"
-                @click="clearSearch"
-                class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
-                title="Limpar busca"
+      <!-- Busca sempre visível; filtros complementares recolhidos sob demanda. -->
+      <div class="mx-4 mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:p-4" @keydown.esc="showInventoryFilters = false">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div class="min-w-0 flex-1">
+            <div class="mb-1 flex items-center justify-between gap-2">
+              <label class="block text-xs font-bold uppercase text-gray-500">
+                Buscar por código, descrição ou característica
+              </label>
+              <span
+                v-if="searchTermsCount > 1"
+                class="shrink-0 rounded border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700"
               >
-                <X class="w-4 h-4" />
-              </button>
+                {{ searchTermsCount }} termos pesquisados
+              </span>
             </div>
 
-            <button
-              type="button"
-              @click="handleExplicitSearch"
-              class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded text-xs flex items-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
-            >
-              <Search class="w-4 h-4" />
-              <span>Buscar</span>
-            </button>
+            <div class="flex gap-2">
+              <div class="relative min-w-0 flex-1">
+                <input
+                  v-model="search"
+                  aria-label="Buscar itens do estoque"
+                  @keydown.enter="handleExplicitSearch"
+                  type="text"
+                  placeholder="Código, descrição, modelo, cor..."
+                  class="w-full rounded border border-gray-200 bg-white py-2 pl-3 pr-8 text-sm outline-none focus:border-blue-500"
+                />
+                <button
+                  v-if="search"
+                  type="button"
+                  @click="clearSearch"
+                  class="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                  title="Limpar busca"
+                  aria-label="Limpar busca"
+                >
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                @click="handleExplicitSearch"
+                class="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+              >
+                <Search class="h-4 w-4" />
+                <span>Buscar</span>
+              </button>
+            </div>
           </div>
+
+          <button
+            type="button"
+            @click="showInventoryFilters = !showInventoryFilters"
+            :aria-expanded="showInventoryFilters"
+            aria-controls="inventory-filter-panel"
+            class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          >
+            <SlidersHorizontal class="h-4 w-4 text-gray-500" />
+            <span>Filtros</span>
+            <span
+              v-if="activeInventoryFilterCount"
+              class="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-blue-700"
+            >
+              {{ activeInventoryFilterCount }}
+            </span>
+            <ChevronDown class="h-4 w-4 text-gray-400 transition-transform" :class="showInventoryFilters ? 'rotate-180' : ''" />
+          </button>
         </div>
 
-        <div class="w-full">
-          <label for="inventory-location-filter" class="block text-xs font-bold text-gray-500 uppercase mb-1">Prateleira / Localização</label>
-          <select id="inventory-location-filter" v-model="selectedLocationFilter" @change="applyInventoryFilters"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-            <option value="">Todas as localizações</option>
-            <option v-for="location in stockStore.filterLocations" :key="location.id" :value="String(location.id)">
-              {{ location.name }}
-            </option>
-          </select>
-        </div>
-
-        <div v-if="inventoryTypeOptions.length" class="w-full">
-          <label for="inventory-type-filter" class="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo / Categoria</label>
-          <select id="inventory-type-filter" v-model="selectedTypeFilter" @change="applyInventoryFilters"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-            <option value="">Todos os tipos</option>
-            <option v-for="type in inventoryTypeOptions" :key="type" :value="type">
-              {{ type === 'EVA' ? 'EVA (Sola não processada)' : type === 'SOLA_PROCESSADA' ? 'Sola processada' : type === 'CABEDAL' ? 'Cabedal' : type === 'BORRACHA' ? 'Borracha' : type }}
-            </option>
-          </select>
-        </div>
-
-        <div class="w-full">
-          <label for="inventory-balance-filter" class="block text-xs font-bold text-gray-500 uppercase mb-1">Situação do saldo</label>
-          <select id="inventory-balance-filter" v-model="stockStatusFilter" @change="applyInventoryFilters"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-            <option value="">Todos os saldos</option>
-            <option value="with_balance">Com saldo</option>
-            <option value="zero_balance">Saldo zerado</option>
-          </select>
-        </div>
-
-        <div class="w-full">
-          <label for="inventory-page-size" class="block text-xs font-bold text-gray-500 uppercase mb-1">Itens por página</label>
-          <select id="inventory-page-size" v-model.number="pageSize" @change="applyInventoryFilters"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm">
-            <option :value="50">50</option>
-            <option :value="100">100</option>
-            <option :value="200">200</option>
-          </select>
-        </div>
-        </div>
-
-        <div v-if="hasInventoryFilters" class="flex justify-end mt-3">
-          <button type="button" @click="clearInventoryFilters"
-            class="text-xs font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+        <div v-if="hasInventoryFilters" class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3" role="status" aria-live="polite">
+          <span class="text-[11px] font-semibold text-gray-500">Selecionados:</span>
+          <span
+            v-for="filter in activeInventoryFilterSummary"
+            :key="filter"
+            :title="filter"
+            class="max-w-[22rem] truncate rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-700"
+          >
+            {{ filter }}
+          </span>
+          <button
+            type="button"
+            @click="clearInventoryFilters"
+            class="ml-auto text-xs font-semibold text-blue-700 hover:text-blue-900 hover:underline"
+          >
             Limpar filtros
           </button>
+        </div>
+
+        <div
+          v-show="showInventoryFilters"
+          id="inventory-filter-panel"
+          class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4"
+          role="region"
+          aria-label="Filtros adicionais do estoque"
+        >
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="min-w-0">
+              <label for="inventory-location-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Prateleira / Localização</label>
+              <select id="inventory-location-filter" v-model="selectedLocationFilter" @change="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500">
+                <option value="">Todas as localizações</option>
+                <option v-for="location in stockStore.filterLocations" :key="location.id" :value="String(location.id)">
+                  {{ location.name }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="inventoryTypeOptions.length" class="min-w-0">
+              <label for="inventory-type-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Tipo / Categoria</label>
+              <select id="inventory-type-filter" v-model="selectedTypeFilter" @change="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500">
+                <option value="">Todos os tipos</option>
+                <option v-for="type in inventoryTypeOptions" :key="type" :value="type">
+                  {{ getInventoryTypeLabel(type) }}
+                </option>
+              </select>
+            </div>
+
+            <div class="min-w-0">
+              <label for="inventory-balance-filter" class="mb-1 block text-xs font-bold uppercase text-gray-500">Situação do saldo</label>
+              <select id="inventory-balance-filter" v-model="stockStatusFilter" @change="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500">
+                <option value="">Todos os saldos</option>
+                <option value="with_balance">Com saldo</option>
+                <option value="zero_balance">Saldo zerado</option>
+              </select>
+            </div>
+
+            <div class="min-w-0">
+              <span class="mb-1 block text-xs font-bold uppercase text-gray-500">Exibição</span>
+              <label for="inventory-page-size" class="sr-only">Itens por página</label>
+              <select id="inventory-page-size" v-model.number="pageSize" @change="applyInventoryFilters"
+                class="w-full rounded border border-gray-200 bg-white p-2 text-sm outline-none focus:border-blue-500">
+                <option :value="50">50 itens por página</option>
+                <option :value="100">100 itens por página</option>
+                <option :value="200">200 itens por página</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 

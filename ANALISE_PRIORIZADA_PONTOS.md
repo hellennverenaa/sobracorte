@@ -142,7 +142,7 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 - Reorganizar os campos em colunas proporcionais à largura disponível no diálogo; dar mais espaço a descrições e observações, mantendo os mesmos campos obrigatórios e opcionais.
 - Separar visualmente identificação do material, variantes e dados de entrada. Manter as ações no rodapé do diálogo, fora da área rolável, e reservar espaço no fim do formulário para nenhum campo ficar encoberto.
 
-#### Etapa 2 — Reunir os filtros em um painel compacto — PENDENTE
+#### Etapa 2 — Reunir os filtros em um painel compacto — CONCLUÍDA
 
 - Manter a busca por código/descrição sempre visível.
 - Reunir localização, categoria/tipo quando disponível, situação do saldo e itens por página sob um único controle “Filtros”, com indicação de quantos filtros estão ativos.
@@ -166,7 +166,11 @@ Reduzir a densidade visual e facilitar a leitura do estoque e o preenchimento da
 - O título interno repetido foi removido; os setores agora ficam em uma faixa uniforme separada do cabeçalho do diálogo.
 - Os campos se reorganizam conforme a largura disponível no formulário, e os dados do material ficam visualmente separados da entrada de saldo e localização.
 - A rolagem foi limitada à área dos campos; as ações permanecem em um rodapé próprio e o último campo não fica sob os botões.
-- Campos, regras, validações, seleção de setor e ações de salvar/cancelar foram preservados. Filtros e tabela não foram alterados nesta etapa.
+- Campos, regras, validações, seleção de setor e ações de salvar/cancelar foram preservados na Etapa 1; filtros e tabela ficaram fora daquele escopo.
+- A busca continua sempre visível. Localização, tipo/categoria quando disponível, situação do saldo e quantidade por página foram reunidos no painel “Filtros”.
+- O contador e o resumo mostram busca, localização, tipo e situação do saldo; quantidade por página aparece como “Exibição” e não entra na contagem.
+- Os filtros mantêm aplicação imediata ao mudar, enquanto a busca continua sendo aplicada por Buscar/Enter. “Limpar filtros” mantém o tamanho da página e limpa os demais critérios como antes.
+- A Etapa 2 não adiciona critérios de grade, lado ou quantidade nem altera a consulta do backend.
 - Build de produção do frontend (`npm run build`): passou. A suíte de testes não foi executada.
 
 **Critério de conclusão:** o formulário não repete títulos, não comprime nem encobre campos; os filtros ficam reunidos sem esconder a busca por código; e a lista permanece legível nas larguras menores, preservando os dados e as operações existentes.
