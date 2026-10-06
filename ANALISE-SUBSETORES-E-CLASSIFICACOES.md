@@ -384,6 +384,12 @@ Usar o inventário da Etapa 1 para atribuir subsetores somente após confirmaç�
 
 **Entregável:** registros antigos preservados e novos vínculos opcionais respeitando unidade fabril, setor e autorização do usuário.
 
+**Status: validada em 06/10/2026 sem reclassificação de dados.** Nenhum item, localização, movimento, usuário ou vínculo de acesso histórico foi atualizado. Os campos de subsetor continuam opcionais; os fluxos atuais aceitam itens sem subsetor, e, quando o vínculo é informado, o backend valida unidade fabril, setor, subsetor ativo, autorização, categoria permitida e localização correspondente. Os testes dos fluxos de estoque e acesso cobrem estes vínculos.
+
+O inventário aprovado permanece como referência e os registros ambíguos foram preservados: a categoria `SERIGRAFIA` de `APOIO` continua uma classificação/localização legada, não foi convertida em subsetor e não foi duplicada; os itens antigos de `APOIO`, `DISTRIBUICAO` e `MONTAGEM` seguem sem subsetor; EVA, Borracha, Cabedal e Sola Processada não foram movidos ou clonados. Nenhum usuário atual recebeu acesso explícito por inferência. A matriz de papéis não foi ampliada: Admin Master e Admin de Setor mantêm o alcance aprovado; demais papéis continuam dependendo de vínculos explícitos, e Leitor permanece somente consulta.
+
+Não foi possível repetir a consulta somente leitura da base nesta sessão: a conexão local a `127.0.0.1:5432` retornou `EPERM`. Portanto, a revisão dos usuários e registros usa o inventário da Etapa 1, sem afirmar que as contagens ainda representam o estado atual da base. Permanecem para revisão administrativa antes de qualquer associação os líderes sem setor de SEST, os demais vínculos sem setor do inventário e os itens de Distribuição cuja classificação não era inequívoca. Nenhum dado foi gravado durante esta etapa.
+
 ### Etapa 8 — Validar, liberar e acompanhar
 
 Validar os critérios de aceite deste documento para cada papel e subsetor, verificar os caminhos de entrada, movimentação, consulta, exportação e legado, e preparar procedimento de reversão da ativação caso apareça bloqueio operacional indevido.
