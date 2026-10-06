@@ -394,11 +394,26 @@ Não foi possível repetir a consulta somente leitura da base nesta sessão: a c
 
 Validar os critérios de aceite deste documento para cada papel e subsetor, verificar os caminhos de entrada, movimentação, consulta, exportação e legado, e preparar procedimento de reversão da ativação caso apareça bloqueio operacional indevido.
 
-**Entregável:** evidência de validação e liberação gradual aprovada. Esta etapa pertence à futura execução; nenhuma validação de implementação foi realizada nesta análise.
+**Entregável:** evidências de validação técnica, procedimento de reversão e decisão informada sobre a liberação gradual.
+
+**Status em 06/10/2026: validação técnica local concluída; liberação em ambiente real pendente.** A Etapa 8 não foi feita apenas como análise: os testes e builds locais foram executados após as integrações das Etapas 6 e 7. Passaram `npx tsc --noEmit`, `npm run build` e as suítes focadas de autorização de subsetor (10), fluxos de estoque (9), importação CSV (20), pré-validação CSV grande (4), importação HTTP (1), requisições (16), paginação/exportação de relatórios (3), streaming de relatórios (5), autenticação unitária (13), dashboard analítico (4), confiabilidade de relatórios/dashboard (3) e componente de relatórios. O build mantém o aviso de bundle acima de 500 kB. A suíte de autenticação HTTP não pôde iniciar servidor local: o ambiente retornou `listen EPERM` em `127.0.0.1`; não é falha de asserção da aplicação.
+
+O dashboard foi revisado e usa o escopo central de itens e movimentos. Entradas, movimentações, consultas, importação, requisições, relatórios e exportações tiveram cobertura focada. As regras de escopo para itens legados sem subsetor foram exercitadas nos testes de acesso e movimentação. A configuração do gateway não foi alterada e nenhum arquivo do gateway aparece no diff desta execução.
+
+Não houve implantação, ativação de vínculos, gravação em banco compartilhado nem validação visual autenticada através do gateway. `enviroment` permanece somente como referência e a conexão local à base falhou com `EPERM` em `127.0.0.1:5432`. Assim, a liberação gradual real não está aprovada/realizada por este commit; deve ocorrer em ambiente gravável após a migração já preparada, com confirmação das atribuições de usuários. Primeiro habilitar um subsetor novo com poucos usuários operacionais explicitamente vinculados; verificar consulta e movimentação permitidas, bloqueio para usuário sem vínculo, consulta sem escrita para Leitor, consistência de entrada/localização, requisição e exportação; acompanhar erros e só então ampliar.
+
+#### Procedimento de contenção/reversão
+
+1. Pausar novas criações e concessões de subsetor e interromper a expansão do piloto. Arquivar o subsetor afetado para removê-lo das seleções de novos vínculos; confirmar separadamente o tratamento do estoque já associado, pois arquivamento não apaga histórico nem deve ser tratado como bloqueio automático das movimentações já existentes.
+2. Remover, pela gestão de acessos, os vínculos explícitos dos usuários operacionais afetados, quando a causa for concessão individual indevida. Admin Master e Admin de Setor mantêm o alcance amplo aprovado pela matriz de papéis.
+3. Manter itens, localizações, movimentos, vínculos históricos e colunas aditivas. Corrigir a configuração ou publicar uma correção compatível; não apagar subsetores usados nem reverter o backend para uma versão anterior à validação de escopo, pois isso pode remover os filtros de autorização.
+4. Reexecutar as suítes de autorização e fluxos de estoque, testar pelo gateway em ambiente gravável e retomar o piloto somente após nova validação operacional.
+
+Limite conhecido: atualmente não existe um interruptor global para desligar instantaneamente todas as operações em subsetores. Se essa forma de desligamento emergencial for requisito operacional, deve ser implementada e testada antes da ativação ampla. Arquivar e revogar vínculos individuais não substituem esse interruptor para Admin Master/Admin de Setor.
 
 ### Marcos de liberação
 
 1. **Marco A:** regras de negócio e inventário aprovados (Etapas 0–1).
 2. **Marco B:** banco e backend prontos, ainda sem exigir subsetor dos registros existentes (Etapas 2–3).
 3. **Marco C:** gestão de subsetores, acessos e fluxos operacionais integrados (Etapas 4–6).
-4. **Marco D:** legado revisado, novos cadastros sob regra e liberação validada (Etapas 7–8).
+4. **Marco D:** legado preservado e novos vínculos sob regra; validação técnica local concluída, com liberação em ambiente real pendente (Etapas 7–8).
