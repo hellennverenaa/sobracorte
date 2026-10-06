@@ -491,7 +491,10 @@ export class StockItemService {
             ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
           ],
         }, locationScopeWhere(context)),
-        select: { id: true, name: true, sector: true, subsectorId: true, categoryMode: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        // `categoryMode` foi adicionado de forma aditiva. A busca principal
+        // continua compatível com bases que ainda não receberam a migração;
+        // a validação de vínculos permanece baseada nos links legados.
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -705,7 +708,9 @@ export class StockItemService {
       prisma.stockItem.count({ where: whereForSector('MONTAGEM') }),
       prisma.location.findMany({
         where: withAndCondition({ factoryUnitId }, locationScopeWhere(context)),
-        select: { id: true, name: true, sector: true, subsectorId: true, categoryMode: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        // Ver comentário acima: não incluir a coluna opcional na consulta
+        // crítica de carregamento do estoque antes da migração ser aplicada.
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
