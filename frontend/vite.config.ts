@@ -6,7 +6,6 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const requiredFrontendVars = [
   "VITE_AUTH_API_URL",
-  "VITE_SOBRACORTE_API_URL",
   "VITE_PORTAL_UNIX_URL",
   "VITE_DASS_IDENTITIES_URL",
   "VITE_DEV_PORT",

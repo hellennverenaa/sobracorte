@@ -210,4 +210,4 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
 }
 
 export const authApi = createClient(import.meta.env.VITE_AUTH_API_URL)
-export const api = createClient(import.meta.env.VITE_SOBRACORTE_API_URL, { refreshOn401: true, authApi })
+export const api = createClient('/api/sobracorte', { refreshOn401: true, authApi })
