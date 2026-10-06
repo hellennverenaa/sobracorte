@@ -3,7 +3,7 @@ import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
 import { BatchCreateStockItemDTO, OperatorContext, StockItemUnionDTO } from '../types/stock.dto';
 import { Prisma, SectorType, ComponentType } from '../generated/prisma';
-import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
+import { normalizeUnit, stockEntryUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError, StockOriginError } from './stockIdentity';
 import { categoryScopeWhere } from './categoryScope';
 import {
@@ -105,9 +105,15 @@ export class StockItemService {
         if (category?.unitLocked && !category.defaultUnitCode) {
           throw new UnitValidationError(`A categoria ${category.name} está configurada para bloquear a unidade, mas não possui uma unidade padrão.`);
         }
-        const sectorDefaultUnit = item.sector === 'CORTE' ? 'M²' : 'UN';
-        const effectiveUnit = normalizeUnit(
-          category?.unitLocked ? category.defaultUnitCode : item.unit || category?.defaultUnitCode || sectorDefaultUnit,
+        const derivedUnit = stockEntryUnit(item.sector);
+        if (derivedUnit && item.unit && normalizeUnit(item.unit, item.sector) !== derivedUnit) {
+          throw new UnitValidationError(`A unidade de entrada do setor ${item.sector} é ${derivedUnit}; não informe outra unidade.`);
+        }
+        if (derivedUnit && category?.unitLocked && normalizeUnit(category.defaultUnitCode, item.sector) !== derivedUnit) {
+          throw new UnitValidationError(`A categoria ${category.name} bloqueia a unidade ${category.defaultUnitCode}, incompatível com a entrada individual em ${derivedUnit}. Ajuste a categoria antes de cadastrar.`);
+        }
+        const effectiveUnit = derivedUnit || normalizeUnit(
+          category?.unitLocked ? category.defaultUnitCode : item.unit || category?.defaultUnitCode || 'M²',
           item.sector,
         );
 

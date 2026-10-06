@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import jsonwebtoken from 'jsonwebtoken';
-import { deriveInitialRole, isUserRole } from '../src/auth/roles';
+import { deriveInitialRole, effectiveRoleForBinding, isUserRole } from '../src/auth/roles';
 import { verifyAccessToken } from '../src/auth/verifyToken';
 import { requireActiveTenant, resolveTenantRequest } from '../src/auth/tenant';
 
@@ -25,6 +25,12 @@ test('deriveInitialRole atribui papel leitor por padrão, desacoplado de cargos 
   assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Encarregado' }), 'leitor');
   assert.equal(deriveInitialRole({ usuario: 'USER.TESTE', funcao: 'Auxiliar' }), 'leitor');
   assert.equal(deriveInitialRole({ usuario: 'HELLEN.MAGALHAES', funcao: 'Operador' }), 'leitor');
+});
+
+test('papel operacional sem setor não é rebaixado para leitor; leitor permanece sem setor', () => {
+  assert.equal(effectiveRoleForBinding({ role: 'admin_setor', assignedSector: null }), 'admin_setor');
+  assert.equal(effectiveRoleForBinding({ role: 'admin_setor', assignedSector: 'TODOS' }), 'admin_setor');
+  assert.equal(effectiveRoleForBinding({ role: 'leitor', assignedSector: null }), 'leitor');
 });
 
 test('resolveTenantRequest mantém usuários comuns em sua unidade', () => {

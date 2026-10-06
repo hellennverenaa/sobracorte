@@ -129,6 +129,12 @@ const supportsPair = computed(() => isApoioCabedal.value || ['PRE_FABRICADO', 'D
 const isUnitLocked = computed(() => Boolean(selectedCategory.value?.unitLocked));
 const isCategoryRequired = computed(() => ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(activeSector.value));
 const isSubsectorCategoryRequired = computed(() => selectedSubsector.value?.categoryMode === 'SELECTED');
+const hasUnitConfigurationConflict = computed(() => {
+  const configuredUnit = String(selectedCategory.value?.defaultUnitCode || '').trim().toUpperCase();
+  return activeSector.value !== 'CORTE'
+    && Boolean(selectedCategory.value?.unitLocked)
+    && configuredUnit !== 'UN';
+});
 
 function defaultUnitForSector(sector: SectorType = activeSector.value) {
   return sector === 'CORTE' ? 'M²' : 'UN';
@@ -207,7 +213,9 @@ function onConfiguredCategoryChange() {
   const selected = selectedCategory.value;
   formData.location = '';
   formData.type = selected?.name || '';
-  formData.unit = selected?.defaultUnitCode || defaultUnitForSector();
+  formData.unit = activeSector.value === 'CORTE'
+    ? selected?.defaultUnitCode || defaultUnitForSector()
+    : 'UN';
   if (activeSector.value === 'APOIO' && (selected?.componentType === 'CABEDAL' || selected?.componentType === 'PECA_CORTADA')) {
     formData.componentType = selected.componentType;
   }
@@ -335,6 +343,11 @@ async function handleSubmit() {
   errorMessage.value = '';
   successMessage.value = '';
 
+  if (hasUnitConfigurationConflict.value) {
+    errorMessage.value = `A categoria selecionada bloqueia ${selectedCategory.value?.defaultUnitCode || 'uma unidade sem padrão'}, mas este setor registra itens individualmente em UN. Ajuste a categoria em Configurações.`;
+    return;
+  }
+
   if ((isCategoryRequired.value || isSubsectorCategoryRequired.value) && !formData.categoryId) {
     errorMessage.value = 'Selecione uma categoria de material configurada para este setor antes de continuar.';
     return;
@@ -403,7 +416,6 @@ async function handleSubmit() {
           color: formData.color.trim().toUpperCase(),
           sizeGrade: formData.sizeGrade.trim().toUpperCase(),
           footSide: formData.footSide || 'E',
-          unit: formData.unit,
         };
       } else {
         if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim() || !formData.materialColor.trim()) {
@@ -419,7 +431,6 @@ async function handleSubmit() {
           description: formData.description.trim().toUpperCase(),
           materialColor: formData.materialColor.trim().toUpperCase(),
           sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-          unit: formData.unit,
         };
       }
       break;
@@ -438,7 +449,6 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: formData.unit,
       };
       break;
 
@@ -458,7 +468,6 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: formData.unit,
       };
       break;
 
@@ -476,7 +485,6 @@ async function handleSubmit() {
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
         footSide: formData.footSide || 'E',
-        unit: formData.unit,
       };
       break;
   }
@@ -1036,20 +1044,13 @@ onMounted(async () => {
         </div>
 
         <div v-if="activeSector !== 'CORTE'">
-          <label class="flex items-center justify-between text-xs font-bold text-gray-500 uppercase mb-1">
-            <span>Unidade de medida *</span>
-            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 flex items-center gap-0.5" title="Unidade fixada pela categoria">
-              <Lock class="w-3 h-3" /> Fixa
-            </span>
-          </label>
-          <select v-model="formData.unit" :disabled="isUnitLocked"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-            required>
-            <option v-for="unit in dbUnits" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
-            <option v-if="dbUnits.length === 0" value="UN">UN (Unidade)</option>
-          </select>
-          <span v-if="selectedCategory?.defaultUnitCode && !isUnitLocked" class="text-[10px] text-gray-400 mt-0.5 block">
-            Unidade sugerida pela categoria; você pode alterá-la.
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade de medida</label>
+          <p class="w-full border border-gray-200 p-2 rounded bg-gray-100 text-sm text-gray-700">Unidade (UN)</p>
+          <span class="text-[10px] text-gray-400 mt-0.5 block">
+            {{ formData.footSide === 'PAR' && supportsPair ? 'Cada par entra como uma unidade esquerda e uma direita.' : 'Cada item entra como uma unidade individual.' }}
+          </span>
+          <span v-if="hasUnitConfigurationConflict" role="alert" class="mt-1 block text-[10px] font-semibold text-rose-700">
+            A categoria bloqueia {{ selectedCategory?.defaultUnitCode || 'uma unidade sem padrão' }}, incompatível com a unidade individual (UN) deste setor. Ajuste a unidade bloqueada em Configurações.
           </span>
         </div>
 
@@ -1129,7 +1130,7 @@ onMounted(async () => {
 
         <button
           type="submit"
-          :disabled="isSubmitting"
+          :disabled="isSubmitting || hasUnitConfigurationConflict"
           class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded flex items-center gap-2 shadow-sm transition-colors text-xs disabled:opacity-50"
         >
           <Plus class="w-4 h-4" />

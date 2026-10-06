@@ -30,6 +30,11 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
   const origBindingFindUnique = prisma.userRoleBinding.findUnique;
   const origBindingUpsert = prisma.userRoleBinding.upsert;
   const origBindingFindMany = prisma.userRoleBinding.findMany;
+  const origStockItemCount = prisma.stockItem.count;
+  const origStockItemFindMany = prisma.stockItem.findMany;
+  const origLocationFindMany = prisma.location.findMany;
+  const origOriginFindMany = prisma.originConfig.findMany;
+  const origCategoryFindMany = prisma.categoryConfig.findMany;
 
   (prisma.authIdentity as any).findUnique = async () => {
     lookupCalls++;
@@ -67,6 +72,11 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
   (prisma.userRoleBinding as any).findMany = async () => storedBinding && storedIdentity
     ? [{ ...storedBinding, identity: storedIdentity }]
     : [];
+  (prisma.stockItem as any).count = async () => 0;
+  (prisma.stockItem as any).findMany = async () => [];
+  (prisma.location as any).findMany = async () => [];
+  (prisma.originConfig as any).findMany = async () => [];
+  (prisma.categoryConfig as any).findMany = async () => [];
 
   const server = http.createServer(createApp({ corsOrigins: ['http://localhost'] }));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -115,7 +125,7 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       assert.equal(body.nativeUnit.code, 'SEST');
       assert.equal(body.unit.code, 'SEST');
       assert.equal(body.isGlobalAdmin, false);
-      assert.equal(body.accessStatus, 'pending_sector_assignment');
+      assert.equal(body.accessStatus, 'active', 'Leitor sem setor pode consultar todos os setores');
     });
     await t.test('RBAC usa somente vínculo local e ignora papel recebido no token', async () => {
       const providerAdmin = { Authorization: `Bearer ${issue({ ...claims, role: 'admin', assignedSector: 'CORTE' })}` };
@@ -142,7 +152,7 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
       storedIdentity = null;
       storedBinding = null;
     });
-    await t.test('consulta sem setor atribuído e exportação por leitor/movimentador falham fechadas', async () => {
+    await t.test('bloqueia admin_setor sem setor; mantém leitor sem setor e bloqueia exports operacionais', async () => {
       storedIdentity = { id: 7, nativeUnitId: 1, authOrigin: 'LEGADO', authUserId: claims.usuario, usuario: claims.usuario, nome: 'Operador', matriculaDass: 100n };
       try {
         const headers = { Authorization: `Bearer ${issue()}` };
@@ -150,6 +160,8 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
           storedBinding = { id: 7, identityId: 7, factoryUnitId: 1, role: 'admin_setor', assignedSector };
           assert.equal((await fetch(`${url}/inventory/search`, { headers })).status, 403);
         }
+        storedBinding = { id: 7, identityId: 7, factoryUnitId: 1, role: 'leitor', assignedSector: null };
+        assert.equal((await fetch(`${url}/inventory/search`, { headers })).status, 200);
         for (const role of ['leitor', 'movimentador']) {
           storedBinding = { id: 7, identityId: 7, factoryUnitId: 1, role, assignedSector: 'CORTE' };
           for (const path of ['inventory', 'movements', 'requisitions', 'inventory/export', 'movements/export', 'requisitions/export']) {
@@ -198,6 +210,11 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
     (prisma.userRoleBinding as any).findUnique = origBindingFindUnique;
     (prisma.userRoleBinding as any).upsert = origBindingUpsert;
     (prisma.userRoleBinding as any).findMany = origBindingFindMany;
+    (prisma.stockItem as any).count = origStockItemCount;
+    (prisma.stockItem as any).findMany = origStockItemFindMany;
+    (prisma.location as any).findMany = origLocationFindMany;
+    (prisma.originConfig as any).findMany = origOriginFindMany;
+    (prisma.categoryConfig as any).findMany = origCategoryFindMany;
     vars.PRIVATE_KEY = previousKey;
     vars.GLOBAL_ADMIN_IDENTITIES = previousAdmins;
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

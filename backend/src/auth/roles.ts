@@ -1,5 +1,3 @@
-import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
-
 export const USER_ROLES = ['admin', 'admin_setor', 'lider', 'movimentador', 'leitor'] as const;
 export type UserRole = typeof USER_ROLES[number];
 
@@ -12,7 +10,11 @@ export function deriveInitialRole(_user?: { usuario?: string; funcao?: string })
   return 'leitor';
 }
 
-/** Perfis operacionais sem setor válido usam as permissões seguras de Leitor. */
+/**
+ * Preserva o papel cadastrado no vínculo. O middleware exige setor válido dos
+ * perfis operacionais e os bloqueia quando o vínculo está incompleto; somente
+ * o papel Leitor pode operar sem setor atribuído.
+ */
 export function effectiveRoleForBinding(
   binding?: { role?: string | null; assignedSector?: string | null } | null,
   isGlobalAdmin = false,
@@ -20,15 +22,7 @@ export function effectiveRoleForBinding(
   if (isGlobalAdmin) return 'admin';
   const role = binding?.role;
   if (!isUserRole(role)) return 'leitor';
-  if (role === 'admin' || role === 'leitor') return role;
-
-  try {
-    requireActiveStockSector(binding?.assignedSector || '');
-    return role;
-  } catch (error) {
-    if (error instanceof SectorValidationError) return 'leitor';
-    throw error;
-  }
+  return role;
 }
 
 export function isUserRole(value: unknown): value is UserRole {

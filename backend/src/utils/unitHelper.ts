@@ -24,6 +24,15 @@ export function isDiscreteSector(sector?: string | null): boolean {
   return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(s);
 }
 
+/** New stock entries in these sectors are stored as individual components.
+ * A pair entry is expanded into one left and one right item by StockItemService.
+ */
+export function stockEntryUnit(sector?: string | null): 'UN' | null {
+  return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(normalizeSector(sector || ''))
+    ? CANONICAL_UNITS.UNIDADE
+    : null;
+}
+
 /** Unidades que representam peças, volumes ou pares indivisíveis. */
 export function isDiscreteUnit(unit?: string | null): boolean {
   if (!unit) return false;
