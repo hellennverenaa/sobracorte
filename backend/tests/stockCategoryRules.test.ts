@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { prisma } from '../src/prisma';
 import { StockItemService } from '../src/services/StockItemService';
-import { StockCategoryError, StockOriginError } from '../src/services/stockIdentity';
+import { StockCategoryError, StockOriginError, assertStockLocationCategory } from '../src/services/stockIdentity';
 import { BatchCreateStockItemSchema } from '../src/types/stock.dto';
 
 const categories = [
@@ -126,4 +126,16 @@ test('cadastro inicial rejeita origem cadastrada para outro setor', async t => {
 
   assert.equal(created.length, 0);
   assert.equal(movements.length, 0);
+});
+
+
+test('localização nova com modo ALL recebe categorias do setor sem vínculo manual', () => {
+  assert.doesNotThrow(() => assertStockLocationCategory({ categoryMode: 'ALL', categoryLinks: [] }, 10));
+});
+
+test('localizações legadas e modo SELECTED preservam restrições explícitas', () => {
+  const legacy = { categoryLinks: [{ categoryId: 10 }] };
+  assert.doesNotThrow(() => assertStockLocationCategory(legacy, 10));
+  assert.throws(() => assertStockLocationCategory(legacy, 11), StockCategoryError);
+  assert.throws(() => assertStockLocationCategory({ categoryMode: 'SELECTED', categoryLinks: [] }, 10), StockCategoryError);
 });

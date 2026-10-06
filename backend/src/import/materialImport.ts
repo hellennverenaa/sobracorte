@@ -13,6 +13,7 @@ export interface AvailableLocation {
   name: string;
   sector: SectorType | null;
   subsectorId?: number | null;
+  categoryMode?: 'ALL' | 'SELECTED';
   categoryId?: number | null;
   categoryLinks?: Array<{ categoryId: number }>;
 }
@@ -284,7 +285,8 @@ export function validateImportBatch(
             : `A categoria '${type}' precisa estar cadastrada e permitida no subsetor '${selectedSubsector.name}'.` });
           continue;
         }
-        const locationAllowsCategory = defaultCorteLoc.categoryId === matchedCategory.id
+        const locationAllowsCategory = defaultCorteLoc.categoryMode === 'ALL'
+          || defaultCorteLoc.categoryId === matchedCategory.id
           || defaultCorteLoc.categoryLinks?.some(link => link.categoryId === matchedCategory.id) === true;
         if (!locationAllowsCategory) {
           errors.push({ row: row.rowNumber, column: 'prateleira', value: defaultCorteLoc.name, message: `A localização '${defaultCorteLoc.name}' não está vinculada à categoria '${matchedCategory.name}'.` });
@@ -572,7 +574,8 @@ export function validateImportBatch(
     }
     if (categoryId && locationId) {
       const selectedLocation = availableLocations.find(location => location.id === locationId);
-      const locationHasCategory = selectedLocation?.categoryId === categoryId
+      const locationHasCategory = selectedLocation?.categoryMode === 'ALL'
+        || selectedLocation?.categoryId === categoryId
         || selectedLocation?.categoryLinks?.some(link => link.categoryId === categoryId) === true;
       if (!locationHasCategory) {
         errors.push({ row: row.rowNumber, column: 'prateleira', value: locationName, message: `A localização '${locationName}' não está vinculada à categoria '${matchedCategory?.name}'. Vincule-a em Configurações ou escolha outra localização.` });

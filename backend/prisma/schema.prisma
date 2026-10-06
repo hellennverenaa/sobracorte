@@ -95,6 +95,7 @@ model Location {
   name          String
   sector        SectorType?     // Setor ao qual a localização/prateleira pertence
   subsectorId   Int?
+  categoryMode  SubsectorCategoryMode @default(SELECTED) // Preserva a restrição explícita das localizações antigas.
   categoryId    Int?
   factoryUnitId Int
   factoryUnit   FactoryUnit     @relation(fields: [factoryUnitId], references: [id])

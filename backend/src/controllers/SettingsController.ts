@@ -2,8 +2,8 @@ import { requestStockAccess, assignedStockSector, sectorAccessWhere, StockAccess
 import { Request, Response } from 'express';
 import { normalizeSector, requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 import { prisma } from '../prisma';
-import { ComponentType, SectorType } from '../generated/prisma';
-import { validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
+import { ComponentType, SectorType, SubsectorCategoryMode } from '../generated/prisma';
+import { isDiscreteSector, validateUnit, UNIT_CATALOG } from '../utils/unitHelper';
 import { assertStockLocationSector, DuplicateStockItemError, findStockIdentityMatches, lockStockIdentityWrites, stockIdentity } from '../services/stockIdentity';
 import { categoryAppliesToSector, categoryScopeValue, categoryScopeWhere } from '../services/categoryScope';
 import { locationScopeWhere, stockItemScopeWhere } from '../auth/subsectorAccess';
@@ -33,6 +33,12 @@ function parseOptionalLocationSubsectorId(value: unknown): number | null | undef
   const id = Number(value);
   if (!Number.isSafeInteger(id) || id <= 0) throw locationSubsectorError('Subsetor inválido.');
   return id;
+}
+
+function parseLocationCategoryMode(value: unknown, fallback: SubsectorCategoryMode): SubsectorCategoryMode {
+  if (value === undefined) return fallback;
+  if (value === 'ALL' || value === 'SELECTED') return value;
+  throw locationSubsectorError('Modo de categorias da localização inválido.');
 }
 
 function locationSubsectorError(message: string, status = 400) {
@@ -365,6 +371,10 @@ export class SettingsController {
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+      if ((scope.sectors.length === 0 || scope.sectors.some(isDiscreteSector)) && code && code !== 'UN') {
+        return res.status(400).json({ error: 'Categorias usadas em setores de peças devem ter unidade UN.' });
+      }
+      if (scope.sectors.some(isDiscreteSector) && !code) code = 'UN';
       if (unitLocked && !code) return res.status(400).json({ error: 'Selecione uma unidade para bloquear a categoria.' });
       const category = await prisma.$transaction(async (tx) => {
         const cat = await tx.categoryConfig.create({
@@ -495,6 +505,13 @@ export class SettingsController {
       let code: string | null | undefined = defaultUnitCode === undefined ? undefined : null;
       try { if (defaultUnitCode) code = validateUnit(String(defaultUnitCode)); }
       catch (error) { return res.status(400).json({ error: (error as Error).message }); }
+      const effectiveCode = code === undefined ? existing.defaultUnitCode : code;
+      const unitWillChange = code !== undefined && code !== existing.defaultUnitCode;
+      if ((scopeWasProvided || unitWillChange)
+        && (scope.sectors.length === 0 || scope.sectors.some(isDiscreteSector))
+        && effectiveCode && effectiveCode !== 'UN') {
+        return res.status(400).json({ error: 'Categorias usadas em setores de peças devem ter unidade UN.' });
+      }
       if ((unitLocked === undefined ? existing.unitLocked : Boolean(unitLocked)) && !(code === undefined ? existing.defaultUnitCode : code)) return res.status(400).json({ error: 'Selecione uma unidade para bloquear a categoria.' });
 
       const updated = await prisma.$transaction(async (tx) => {
@@ -749,6 +766,13 @@ export class SettingsController {
       } else if (categoryId) {
         idsToLink = [Number(categoryId)];
       }
+      const categoryMode = parseLocationCategoryMode(req.body?.categoryMode, idsToLink.length ? 'SELECTED' : 'ALL');
+      if (categoryMode === 'ALL' && idsToLink.length) {
+        throw locationSubsectorError('Uma localização que aceita todas as categorias não deve receber uma lista de categorias.');
+      }
+      if (categoryMode === 'SELECTED' && !idsToLink.length) {
+        throw locationSubsectorError('Selecione ao menos uma categoria ou escolha todas as categorias do setor.');
+      }
 
       let finalCategoryIds: number[] = [];
       let primaryCategoryId: number | null = null;
@@ -789,6 +813,7 @@ export class SettingsController {
             name: String(name).trim().toUpperCase(),
             sector: targetSector as any,
             subsectorId: targetSubsector?.id ?? null,
+            categoryMode,
             categoryId: primaryCategoryId,
             factoryUnitId: req.tenant!.id,
             categoryLinks: finalCategoryIds.length > 0 ? {
@@ -850,6 +875,10 @@ export class SettingsController {
       if (!existing) {
         return res.status(404).json({ error: 'Localização não encontrada.' });
       }
+      const categoryMode = parseLocationCategoryMode(req.body?.categoryMode, existing.categoryMode);
+      if (categoryMode === 'ALL' && Array.isArray(categoryIds) && categoryIds.length) {
+        throw locationSubsectorError('Uma localização que aceita todas as categorias não deve receber uma lista de categorias.');
+      }
 
       let targetSector = sector !== undefined ? (sector ? requireActiveStockSector(sector) : null) : undefined;
       const access = requestStockAccess(req);
@@ -902,7 +931,7 @@ export class SettingsController {
         }
       }
 
-      if (targetSubsector?.categoryMode === 'SELECTED') {
+      if (categoryMode === 'SELECTED' && targetSubsector?.categoryMode === 'SELECTED') {
         let effectiveLocationCategoryIds = finalCategoryIds;
         if (effectiveLocationCategoryIds === undefined) {
           const currentLinks = await prisma.locationCategory.findMany({
@@ -936,13 +965,13 @@ export class SettingsController {
             throw locationSubsectorError('O subsetor da localização não pode ser alterado após o primeiro uso; crie uma nova localização.', 409);
           }
         }
-        if (targetSector !== undefined && targetSector !== null) {
+        if (targetSector !== undefined || (categoryMode === 'SELECTED' && finalCategoryIds !== undefined)) {
           const links = await tx.stockItemLocation.findMany({
             where: { factoryUnitId: req.tenant!.id, locationId: id },
             include: { stockItem: { select: { sector: true, categoryId: true } } },
           });
           for (const link of links) {
-            assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
+            if (targetSector !== undefined) assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
             if (link.stockItem.categoryId && finalCategoryIds && finalCategoryIds.length > 0
               && !finalCategoryIds.includes(link.stockItem.categoryId)) {
               throw new Error('A localização não pode perder a categoria de um item que ainda possui saldo nela.');
@@ -989,6 +1018,7 @@ export class SettingsController {
             name: name ? String(name).trim().toUpperCase() : undefined,
             sector: targetSector as any,
             subsectorId: targetSubsectorId,
+            categoryMode,
             categoryId: finalCategoryIds !== undefined ? (finalCategoryIds.length > 0 ? finalCategoryIds[0] : null) : undefined
           },
           include: {

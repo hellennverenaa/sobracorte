@@ -54,7 +54,7 @@ export class ImportController {
       // 2. Buscar localizações cadastradas para a unidade fabril atual
       const availableLocations = await prisma.location.findMany({
         where: { factoryUnitId, ...locationScopeWhere(access) },
-        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryMode: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
       });
       const availableCategories: AvailableImportCategory[] = await prisma.categoryConfig.findMany({
         where: { factoryUnitId },

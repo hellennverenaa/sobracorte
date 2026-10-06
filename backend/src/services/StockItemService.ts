@@ -491,7 +491,7 @@ export class StockItemService {
             ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' as SectorType }] : []),
           ],
         }, locationScopeWhere(context)),
-        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryMode: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -612,7 +612,7 @@ export class StockItemService {
         montagem: { total: montagemCount, data: targetSector === 'MONTAGEM' ? formattedActiveItems : [] },
       },
       filterOptions: {
-        locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, subsectorId: l.subsectorId, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
+        locations: locations.map((l: any) => ({ id: l.id, name: l.name, sector: l.sector, subsectorId: l.subsectorId, categoryMode: l.categoryMode, categoryId: l.categoryId, categoryLinks: l.categoryLinks })),
         origins: origins.map((o) => ({ id: o.id, name: o.name, sector: o.sector })),
         categories: categories.map((c) => ({ id: c.id, name: c.name, sector: c.sector, sectors: c.sectors, componentType: c.componentType })),
       },
@@ -705,7 +705,7 @@ export class StockItemService {
       prisma.stockItem.count({ where: whereForSector('MONTAGEM') }),
       prisma.location.findMany({
         where: withAndCondition({ factoryUnitId }, locationScopeWhere(context)),
-        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryMode: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
         orderBy: { name: 'asc' },
       }),
       prisma.originConfig.findMany({
@@ -775,7 +775,7 @@ export class StockItemService {
         montagem: { total: montagemCount, data: pageSectorItems('MONTAGEM') },
       },
       filterOptions: {
-        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, subsectorId: item.subsectorId, categoryId: item.categoryId, categoryLinks: item.categoryLinks })),
+        locations: locations.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, subsectorId: item.subsectorId, categoryMode: item.categoryMode, categoryId: item.categoryId, categoryLinks: item.categoryLinks })),
         origins: origins.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector })),
         categories: categories.map((item: any) => ({ id: item.id, name: item.name, sector: item.sector, sectors: item.sectors, componentType: item.componentType })),
       },

@@ -225,7 +225,8 @@ const availableLocations = computed(() => {
   if (formData.categoryId) {
     const categoryId = Number(formData.categoryId);
     sectorLocs = sectorLocs.filter(location =>
-      Number(location.categoryId) === categoryId
+      location.categoryMode === 'ALL'
+      || Number(location.categoryId) === categoryId
       || location.categoryLinks?.some((link: any) => Number(link.categoryId) === categoryId)
     );
   }

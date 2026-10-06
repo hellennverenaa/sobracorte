@@ -417,3 +417,13 @@ Limite conhecido: atualmente não existe um interruptor global para desligar ins
 2. **Marco B:** banco e backend prontos, ainda sem exigir subsetor dos registros existentes (Etapas 2–3).
 3. **Marco C:** gestão de subsetores, acessos e fluxos operacionais integrados (Etapas 4–6).
 4. **Marco D:** legado preservado e novos vínculos sob regra; validação técnica local concluída, com liberação em ambiente real pendente (Etapas 7–8).
+
+### Simplificação aprovada da aba Categorias — 06/10/2026
+
+Após a análise da experiência de cadastro, foi aprovada a apresentação direta de **nome, setor e unidade de medida**. O setor é inferido para Admin de Setor; Admin Master o escolhe. O compartilhamento entre setores e o subtipo ficam em uma seção avançada; os vínculos de prateleiras são configurados na aba Localizações e as regras dos subsetores, na aba Subsetores. Os identificadores das categorias, vínculos e estoques existentes são preservados.
+
+Para os setores de peças que registram entradas individualmente, a unidade da categoria é **UN** e aparece bloqueada na interface; o servidor também rejeita outra unidade ao criar ou alterar a categoria nesses setores. Para Corte, a unidade é escolhida no cadastro. A edição de uma categoria antiga não altera automaticamente a unidade dos itens ou movimentos históricos; quando for alterada, a nova unidade vale para operações futuras segundo as validações do estoque.
+
+Uma prateleira nova pode aceitar **todas as categorias do setor** (padrão), inclusive as cadastradas depois, ou **somente categorias selecionadas**. A restrição de subsetor e a autorização por usuário continuam aplicadas, mesmo no modo “todas”. O novo campo `Location.categoryMode` recebe `SELECTED` por padrão na migração: prateleiras antigas, inclusive as sem vínculo explícito, conservam sua restrição anterior. A API usa `ALL` como padrão apenas na criação de uma prateleira sem lista de categorias; uma lista enviada implicitamente seleciona `SELECTED`. Na edição, não se converte uma prateleira antiga automaticamente; a escolha explícita é necessária. Nenhum item, movimento ou vínculo existente é reatribuído.
+
+**Verificação local:** schema Prisma validado, cliente gerado, TypeScript do backend e build do frontend concluídos. Os testes focados cobrem a aceitação de uma categoria futura no modo `ALL` e a restrição legada/`SELECTED`. A migração deve ser aplicada em ambiente gravável antes de publicar o backend que consulta `categoryMode`; a base referenciada por `enviroment` permanece somente para leitura, e nenhum código ou configuração do gateway foi modificado.

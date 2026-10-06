@@ -44,42 +44,42 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2 text-balance">
               <Tag class="w-4 h-4 text-indigo-500" /> Categorias de Materiais
             </h2>
-            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Configuração em 2 etapas</span>
+            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Nome e unidade</span>
           </div>
-
-          <div class="px-6 py-4 border-b border-gray-100 bg-indigo-50/40">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div class="min-w-0">
-                <p class="text-sm font-bold text-gray-800">Como vincular uma categoria a uma prateleira</p>
-                <ol class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-600">
-                  <li class="flex items-start gap-2">
-                    <span class="size-5 shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">1</span>
-                    <span class="text-pretty"><strong class="text-gray-800">Cadastre a categoria</strong> e escolha os setores e o tipo de material em que ela se aplica.</span>
-                  </li>
-                  <li class="flex items-start gap-2">
-                    <span class="size-5 shrink-0 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">2</span>
-                    <span class="text-pretty"><strong class="text-gray-800">Vincule à localização</strong>: escolha o setor da prateleira e marque a categoria permitida.</span>
-                  </li>
-                </ol>
-              </div>
-              <button v-if="canManageSettings" type="button" @click="changeTab('locations')"
-                class="shrink-0 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-indigo-200 bg-white text-indigo-700 text-xs font-bold hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <MapPin class="size-4" /> Abrir localizações
-              </button>
-            </div>
-          </div>
+          <p class="px-6 py-3 border-b border-gray-100 text-xs text-gray-600">Cadastre a categoria para o setor escolhido. As regras de prateleiras e subsetores ficam em suas próprias abas.</p>
           
           <!-- Formulário de adição (Oculto para perfil leitor) -->
           <div v-if="canManageSettings" class="px-6 py-5 border-b border-gray-100">
             <form @submit.prevent="addCategory()" class="max-w-4xl space-y-5">
               <div>
-                <p class="text-[11px] font-bold uppercase text-indigo-700">Passo 1 · Criar categoria</p>
-                <label for="new-category-name" class="block text-sm font-bold text-gray-800 mt-1 mb-1">Qual material quer cadastrar?</label>
-                <p class="text-xs text-gray-500 mb-2 text-pretty">Use o nome que as pessoas reconhecerão ao cadastrar ou consultar o estoque.</p>
+                <label for="new-category-name" class="block text-sm font-bold text-gray-800 mb-1">Nome da categoria</label>
                 <input id="new-category-name" v-model="newCategory.name" required placeholder="Ex.: Couro, Cabedal, Tecido"
                   class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase bg-white"
                   style="text-transform: uppercase" />
               </div>
+
+              <div v-if="isCategorySectorLocked" class="text-sm text-gray-700">Setor: <strong>{{ settingsSectorLabel(assignedCategorySector) }}</strong></div>
+              <div v-else>
+                <label for="category-registration-sector" class="block text-sm font-bold text-gray-800 mb-1">Setor da categoria</label>
+                <select id="category-registration-sector" v-model="categoryRegistrationSector" required class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white">
+                  <option value="" disabled>Selecione o setor</option>
+                  <option v-for="sector in categorySectorsOptions" :key="sector.id" :value="sector.id">{{ sector.label }}</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="new-category-unit" class="block text-sm font-bold text-gray-800 mb-1">Unidade de medida</label>
+                <select id="new-category-unit" v-model="newCategory.defaultUnitCode" required :disabled="isNewCategoryUnitFixed"
+                  class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100">
+                  <option value="" disabled>Selecione a unidade</option>
+                  <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
+                </select>
+                <p v-if="isNewCategoryUnitFixed" class="mt-1 text-xs text-gray-500">Este setor registra cada peça individualmente em UN. Pares são compostos pelos lados esquerdo e direito.</p>
+              </div>
+
+              <details class="rounded-xl border border-gray-200 bg-gray-50/70">
+                <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700">Configurações avançadas: compartilhar entre setores ou definir fluxo especial</summary>
+                <div class="p-4 space-y-4 border-t border-gray-200">
 
               <fieldset class="border border-gray-200 rounded-xl p-4 space-y-3">
                 <legend class="px-1 text-sm font-bold text-gray-800">Onde essa categoria poderá ser usada?</legend>
@@ -141,43 +141,16 @@
                 </div>
               </div>
 
-              <details class="rounded-xl border border-gray-200 bg-gray-50/70">
-                <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-xl">Opções de unidade (opcional)</summary>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-200 p-4">
-                  <div>
-                    <label for="new-category-unit" class="block text-xs font-bold text-gray-700 mb-1">Unidade padrão</label>
-                    <select id="new-category-unit" v-model="newCategory.defaultUnitCode"
-                      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium">
-                      <option value="">Nenhuma (livre para escolha)</option>
-                      <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
-                    </select>
-                  </div>
-                  <label class="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                    <input type="checkbox" id="unitLockedCheck" v-model="newCategory.unitLocked" :disabled="!newCategory.defaultUnitCode"
-                      class="size-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed" />
-                    <Lock class="size-4 text-amber-600" /> Bloquear a unidade padrão
-                  </label>
                 </div>
               </details>
 
-              <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-                <button type="submit" :disabled="loadingCategory || creatingCategory || (newCategory.scopeMode === 'specific' && !newCategory.sectors.length)"
-                  class="px-4 py-2.5 border border-indigo-200 bg-white text-indigo-700 rounded-lg font-bold text-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+              <div class="flex justify-end">
+                <button type="submit" :disabled="loadingCategory || creatingCategory || !categoryRegistrationSector || !newCategory.defaultUnitCode || (newCategory.scopeMode === 'specific' && !newCategory.sectors.length)"
+                  class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 disabled:opacity-50">
                   <Plus v-if="!creatingCategory" class="size-4 inline-block mr-1" /> {{ creatingCategory ? 'Salvando...' : 'Salvar categoria' }}
-                </button>
-                <button type="button" @click="addCategory(true)" :disabled="loadingCategory || creatingCategory || (newCategory.scopeMode === 'specific' && !newCategory.sectors.length)"
-                  class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
-                  {{ creatingCategory ? 'Salvando...' : 'Salvar e vincular a uma localização' }}
                 </button>
               </div>
             </form>
-
-            <div v-if="lastCreatedCategory" role="status" class="mt-4 max-w-4xl rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p class="text-xs text-emerald-900 text-pretty"><strong>{{ lastCreatedCategory.name }}</strong> foi criada. Para limitar onde ela pode ser guardada, associe-a a uma localização.</p>
-              <button type="button" @click="startCategoryLocationLink(lastCreatedCategory)" class="shrink-0 inline-flex items-center gap-2 text-xs font-bold text-emerald-800 hover:text-emerald-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 rounded">
-                <MapPin class="size-4" /> Vincular a uma prateleira
-              </button>
-            </div>
           </div>
 
           <div v-if="canManageSubtypes" class="px-6 py-4 border-b border-gray-100 bg-gray-50/40">
@@ -262,9 +235,7 @@
               <tr>
                 <th class="px-6 py-3">Categoria</th>
                 <th class="px-6 py-3 text-center">Setores disponíveis</th>
-                <th class="px-6 py-3 text-center">Subtipo do material</th>
-                <th class="px-6 py-3 text-center">Unidade padrão</th>
-                <th class="px-6 py-3 text-center">Unidade fixada?</th>
+                <th class="px-6 py-3 text-center">Unidade de medida</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ações</th>
               </tr>
             </thead>
@@ -276,28 +247,14 @@
                     {{ formatCategorySectors(cat) }}
                   </span>
                 </td>
-                <td class="px-6 py-3 text-center text-xs text-gray-600">
-                  {{ cat.subtype?.name || componentTypeLabel(cat.componentType) || '—' }}
-                </td>
                 <td class="px-6 py-3 text-center">
                   <span v-if="cat.defaultUnitCode" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
                     {{ units.find(u => u.symbol === cat.defaultUnitCode)?.name }} ({{ cat.defaultUnitCode }})
                   </span>
                   <span v-else class="text-xs text-gray-400 italic">Livre</span>
                 </td>
-                <td class="px-6 py-3 text-center">
-                  <span v-if="cat.unitLocked" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                    <Lock class="w-3 h-3" /> Fixada
-                  </span>
-                  <span v-else class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">
-                    Variável
-                  </span>
-                </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <div class="flex flex-wrap items-center justify-center gap-1">
-                    <button @click="startCategoryLocationLink(cat)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" :aria-label="`Vincular ${cat.name} a uma localização`" title="Vincular a uma localização">
-                      <MapPin class="size-4" /> Vincular
-                    </button>
                     <button @click="openEditCategory(cat)" class="text-gray-400 hover:text-indigo-600 p-1 rounded hover:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" :aria-label="`Editar categoria ${cat.name}`" title="Editar categoria">
                       <Pencil class="size-4" />
                     </button>
@@ -308,9 +265,9 @@
                 </td>
               </tr>
               <tr v-if="filteredCategories.length === 0">
-                <td :colspan="canManageSettings ? 6 : 5" class="px-6 py-8 text-center text-gray-500 text-sm">
+                <td :colspan="canManageSettings ? 4 : 3" class="px-6 py-8 text-center text-gray-500 text-sm">
                   <p class="font-semibold">Nenhuma categoria encontrada para esse filtro.</p>
-                  <p class="mt-1 text-xs">Cadastre uma categoria acima e, se necessário, associe-a a uma prateleira.</p>
+                  <p class="mt-1 text-xs">Cadastre uma categoria acima.</p>
                 </td>
               </tr>
             </tbody>
@@ -332,26 +289,9 @@
             </span>
           </div>
 
-          <div v-if="!locationCategoryFlow" class="px-6 pt-4">
+          <div class="px-6 pt-4">
             <div class="rounded-lg border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-950 text-pretty">
-              Escolha o setor da prateleira e marque as categorias que ela poderá guardar. Para uma prateleira que já existe, use <strong>Editar setor e categorias</strong> na lista.
-            </div>
-          </div>
-
-          <div v-if="locationCategoryFlow" role="status" class="mx-6 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <div class="flex items-start gap-3">
-              <span class="size-8 shrink-0 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">2</span>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-emerald-950">Vincule “{{ locationCategoryFlow.name }}” a uma prateleira</p>
-                <p class="mt-1 text-xs text-emerald-900 text-pretty">
-                  O setor abaixo já foi escolhido quando possível. Confira o setor, mantenha a categoria marcada e informe o nome da prateleira.
-                  Disponível em: {{ formatCategorySectors(locationCategoryFlow) }}.
-                </p>
-                <p class="mt-1 text-xs text-emerald-900 text-pretty">Para usar uma prateleira já cadastrada, encontre-a na lista e escolha “Editar categorias”.</p>
-              </div>
-              <button type="button" @click="locationCategoryFlow = null" aria-label="Fechar orientação de vínculo" class="shrink-0 rounded p-1 text-emerald-700 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
-                <XCircle class="size-4" />
-              </button>
+              Prateleiras novas podem aceitar todas as categorias do setor. Para restringir uma prateleira, escolha categorias específicas. As prateleiras antigas mantêm seus vínculos atuais até serem editadas.
             </div>
           </div>
           
@@ -393,17 +333,22 @@
                   </select>
                 </div>
 
-                <button type="submit" :disabled="loadingLocation || !newLocation.name.trim() || (locationCategoryFlow && !newLocation.categoryIds.includes(locationCategoryFlow.id))"
+                <button type="submit" :disabled="loadingLocation || !newLocation.name.trim() || (newLocation.categoryMode === 'SELECTED' && !newLocation.categoryIds.length)"
                   class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition flex items-center gap-2 disabled:opacity-50 h-10">
-                  <Plus class="size-4" /> {{ locationCategoryFlow ? 'Criar prateleira e vincular categoria' : 'Adicionar prateleira' }}
+                  <Plus class="size-4" /> Adicionar prateleira
                 </button>
               </div>
 
-              <div>
+              <fieldset class="flex flex-wrap gap-4 text-xs text-gray-700">
+                <legend class="mb-2 font-bold text-gray-800">Categorias aceitas nesta prateleira</legend>
+                <label class="flex items-center gap-2"><input v-model="newLocation.categoryMode" type="radio" value="ALL" /> Todas as categorias do setor</label>
+                <label class="flex items-center gap-2"><input v-model="newLocation.categoryMode" type="radio" value="SELECTED" /> Somente as selecionadas</label>
+              </fieldset>
+              <div v-if="newLocation.categoryMode === 'SELECTED'">
                 <label class="block text-sm font-bold text-gray-800 mb-1">
-                  Quais categorias poderão ser guardadas aqui?
+                  Selecione as categorias
                 </label>
-                <p class="text-xs text-gray-500 mb-2 text-pretty">Marque uma ou mais categorias para vincular à prateleira. Sem seleção, ela fica livre para os materiais do setor escolhido.</p>
+                <p class="text-xs text-gray-500 mb-2 text-pretty">Somente as categorias marcadas poderão ser guardadas aqui.</p>
                 <div v-if="availableCategoriesForNewLocation.length > 0" class="flex flex-wrap gap-2">
                   <button
                     v-for="cat in availableCategoriesForNewLocation"
@@ -419,15 +364,7 @@
                     {{ cat.name }}
                   </button>
                 </div>
-                <p v-else class="text-xs text-gray-500 italic">
-                  Ainda não há categorias disponíveis para este setor. Cadastre uma na aba Categorias ou deixe a prateleira livre para o setor.
-                </p>
-                <p v-if="availableCategoriesForNewLocation.length > 0 && newLocation.categoryIds.length === 0" class="text-[11px] text-emerald-700 font-medium mt-1">
-                  Esta prateleira ficará sem vínculo a uma categoria específica.
-                </p>
-                <p v-if="locationCategoryFlow && !newLocation.categoryIds.includes(locationCategoryFlow.id)" class="mt-2 text-xs font-semibold text-amber-700" role="status">
-                  Marque “{{ locationCategoryFlow.name }}” para concluir o vínculo iniciado na aba Categorias.
-                </p>
+                <p v-else class="text-xs text-gray-500 italic">Nenhuma categoria disponível para este setor.</p>
               </div>
             </form>
           </div>
@@ -455,7 +392,8 @@
                 </td>
                 <td class="px-6 py-3 text-center">
                   <div class="flex flex-wrap items-center justify-center gap-1.5">
-                    <template v-if="loc.categoryLinks && loc.categoryLinks.length > 0">
+                    <span v-if="loc.categoryMode === 'ALL'" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Todas do setor</span>
+                    <template v-else-if="loc.categoryLinks && loc.categoryLinks.length > 0">
                       <span
                         v-for="link in loc.categoryLinks"
                         :key="link.categoryId"
@@ -470,7 +408,7 @@
                     >
                       {{ loc.category.name }}
                     </span>
-                    <span v-else class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Geral do Setor</span>
+                    <span v-else class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Sem categorias vinculadas (legado)</span>
                   </div>
                 </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
@@ -918,6 +856,21 @@
               class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 uppercase bg-white" />
           </div>
 
+          <div>
+            <label for="edit-category-unit" class="block text-sm font-bold text-gray-800 mb-1">Unidade de medida</label>
+            <select id="edit-category-unit" v-model="editingCategory.defaultUnitCode" required :disabled="isEditCategoryUnitFixed"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100">
+              <option value="" disabled>Selecione a unidade</option>
+              <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
+            </select>
+            <p v-if="isEditCategoryUnitFixed" class="mt-1 text-xs text-gray-500">Este setor registra as peças individualmente em UN.</p>
+            <p v-if="editingLegacyUnit" class="mt-1 text-xs text-amber-700">A configuração anterior usava {{ editingLegacyUnit }}. Ao salvar, a categoria passará a usar UN; os registros de estoque antigos não serão alterados.</p>
+          </div>
+
+          <details class="rounded-xl border border-gray-200 bg-gray-50/70">
+            <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700">Configurações avançadas</summary>
+            <div class="space-y-4 border-t border-gray-200 p-4">
+
           <fieldset class="border border-gray-200 rounded-xl p-4 space-y-3">
             <legend class="px-1 text-sm font-bold text-gray-800">Onde essa categoria poderá ser usada?</legend>
             <p class="text-xs text-gray-500 text-pretty">A disponibilidade por setor define em quais cadastros e prateleiras a categoria aparecerá.</p>
@@ -961,26 +914,16 @@
             <p class="text-xs text-gray-500 mt-1.5 text-pretty">A lista mostra os subtipos permitidos para todos os setores selecionados.</p>
           </div>
 
-          <details class="rounded-xl border border-gray-200 bg-gray-50/70">
-            <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-xl">Opções de unidade</summary>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-200 p-4">
-              <div>
-                <label for="edit-category-unit" class="block text-xs font-bold text-gray-700 mb-1">Unidade padrão</label>
-                <select id="edit-category-unit" v-model="editingCategory.defaultUnitCode" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
-                  <option value="">Nenhuma (livre para escolha)</option>
-                  <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
-                </select>
-              </div>
-              <label class="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-gray-700 cursor-pointer">
+              <label v-if="!isEditCategoryUnitFixed" class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
                 <input type="checkbox" v-model="editingCategory.unitLocked" :disabled="!editingCategory.defaultUnitCode" class="size-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 disabled:cursor-not-allowed" />
-                <Lock class="size-4 text-amber-600" /> Bloquear a unidade padrão
+                <Lock class="size-4 text-amber-600" /> Fixar unidade para novas entradas
               </label>
             </div>
           </details>
 
           <div class="pt-4 border-t flex justify-end gap-2">
             <button type="button" @click="showEditCategoryModal = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg text-xs">Cancelar</button>
-            <button type="submit" :disabled="savingCategory || !editingCategory.name.trim() || (editingCategory.scopeMode === 'specific' && !editingCategory.sectors.length)" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs disabled:opacity-50">
+            <button type="submit" :disabled="savingCategory || !editingCategory.name.trim() || !editingCategory.defaultUnitCode || (editingCategory.scopeMode === 'specific' && !editingCategory.sectors.length)" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs disabled:opacity-50">
               {{ savingCategory ? 'Salvando...' : 'Salvar Alterações' }}
             </button>
           </div>
@@ -1043,9 +986,14 @@
             <p class="mt-1 text-[11px] text-gray-500">A localização fica vinculada a um único subsetor e não poderá ser compartilhada.</p>
           </div>
 
-          <div>
+          <fieldset class="flex flex-wrap gap-4 text-xs text-gray-700">
+            <legend class="mb-2 font-bold text-gray-800">Categorias aceitas nesta prateleira</legend>
+            <label class="flex items-center gap-2"><input v-model="editingLocation.categoryMode" type="radio" value="ALL" /> Todas as categorias do setor</label>
+            <label class="flex items-center gap-2"><input v-model="editingLocation.categoryMode" type="radio" value="SELECTED" /> Somente as selecionadas</label>
+          </fieldset>
+          <div v-if="editingLocation.categoryMode === 'SELECTED'">
             <label class="block font-bold text-gray-800 mb-1">Quais categorias poderão ser guardadas aqui?</label>
-            <p class="text-xs text-gray-500 mb-2 text-pretty">Marque as categorias que esta prateleira aceitará. Sem seleção, ela fica livre para os materiais do setor escolhido.</p>
+            <p class="text-xs text-gray-500 mb-2 text-pretty">Marque as categorias permitidas. Uma prateleira antiga sem marcas continua restrita até você alterar esta configuração.</p>
             <div v-if="availableCategoriesForEditLocation.length > 0" class="flex flex-wrap gap-2">
               <button
                 v-for="cat in availableCategoriesForEditLocation"
@@ -1076,7 +1024,7 @@
             </button>
             <button
               type="submit"
-              :disabled="!editingLocation.name.trim()"
+              :disabled="!editingLocation.name.trim() || (editingLocation.categoryMode === 'SELECTED' && !editingLocation.categoryIds.length && !editingLocation.legacyEmptySelection)"
               class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm disabled:opacity-50"
             >
               Salvar Alterações
@@ -1101,7 +1049,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { api } from '@/services/httpClient'
@@ -1183,15 +1131,9 @@ const operationalSectorOptions = SECTOR_OPTIONS
   .filter(sector => sector.id !== 'TODOS')
   .map(sector => ({ id: sector.id, label: sector.shortLabel || sector.label }))
 const categorySectorsOptions = operationalSectorOptions
-const legacyComponentTypeLabels = {
-  MATERIA_PRIMA: 'Matéria-prima',
-  PECA_CORTADA: 'Peça cortada',
-  CABEDAL: 'Cabedal',
-  SOLADO: 'Solado',
-  PE_PRONTO: 'Pé pronto',
-}
 const isCategorySectorLocked = computed(() => authStore.user?.role === 'admin_setor')
 const assignedCategorySector = computed(() => normalizeCategorySector(authStore.user?.assignedSector))
+const categoryRegistrationSector = ref(assignedCategorySector.value || '')
 
 function normalizeCategorySector(value) {
   return value === 'EXPEDICAO' ? 'DISTRIBUICAO' : value
@@ -1220,10 +1162,6 @@ function formatCategorySectors(category) {
   return scopes.map(sector => settingsSectorLabel(sector)).join(', ')
 }
 
-function componentTypeLabel(value) {
-  return legacyComponentTypeLabels[value] || ''
-}
-
 function componentSubtypesForSectors(sectors) {
   const normalized = (sectors || []).map(normalizeCategorySector)
   if (!normalized.length) return []
@@ -1235,20 +1173,22 @@ function componentSubtypesForSectors(sectors) {
 
 const availableComponentSubtypes = computed(() => componentSubtypesForSectors(newCategory.value.sectors))
 const availableEditComponentSubtypes = computed(() => componentSubtypesForSectors(editingCategory.value.sectors))
+const hasDiscreteCategorySector = (scopeMode, sectors) => scopeMode === 'all'
+  || sectors.some(sector => normalizeCategorySector(sector) !== 'CORTE')
 const newCategory = ref({
   name: '',
   scopeMode: 'specific',
-  sectors: isCategorySectorLocked.value && assignedCategorySector.value ? [assignedCategorySector.value] : [],
+  sectors: categoryRegistrationSector.value ? [categoryRegistrationSector.value] : [],
   subtypeId: '',
-  defaultUnitCode: '',
-  unitLocked: false
+  defaultUnitCode: categoryRegistrationSector.value && categoryRegistrationSector.value !== 'CORTE' ? 'UN' : '',
+  unitLocked: true
 })
+const isNewCategoryUnitFixed = computed(() => hasDiscreteCategorySector(newCategory.value.scopeMode, newCategory.value.sectors))
 
 const showEditCategoryModal = ref(false)
 const editCategoryDialog = ref(null)
 const savingCategory = ref(false)
 const creatingCategory = ref(false)
-const lastCreatedCategory = ref(null)
 const savingSubtype = ref(false)
 const subtypeDraft = ref({ id: null, name: '', sectors: [] })
 const emptySubtypeDraft = () => ({ id: null, name: '', sectors: [] })
@@ -1261,6 +1201,25 @@ const editingCategory = ref({
   subtypeId: '',
   defaultUnitCode: '',
   unitLocked: false,
+})
+const isEditCategoryUnitFixed = computed(() => hasDiscreteCategorySector(editingCategory.value.scopeMode, editingCategory.value.sectors))
+const editingLegacyUnit = ref('')
+const editingOriginalSubtypeId = ref(null)
+const editingOriginalScope = ref('')
+
+watch(categoryRegistrationSector, sector => {
+  newCategory.value.scopeMode = 'specific'
+  newCategory.value.sectors = sector ? [sector] : []
+  newCategory.value.subtypeId = ''
+  newCategory.value.defaultUnitCode = sector && sector !== 'CORTE' ? 'UN' : ''
+})
+
+watch(() => [newCategory.value.scopeMode, newCategory.value.sectors.join('|')], () => {
+  if (isNewCategoryUnitFixed.value) newCategory.value.defaultUnitCode = 'UN'
+})
+
+watch(() => [editingCategory.value.scopeMode, editingCategory.value.sectors.join('|')], () => {
+  if (isEditCategoryUnitFixed.value) editingCategory.value.defaultUnitCode = 'UN'
 })
 
 watch(() => newCategory.value.sectors.join('|'), () => {
@@ -1276,14 +1235,6 @@ watch(() => newCategory.value.scopeMode, (mode) => {
   } else if (isCategorySectorLocked.value && assignedCategorySector.value) {
     newCategory.value.sectors = [assignedCategorySector.value]
   }
-})
-
-watch(() => newCategory.value.defaultUnitCode, (unitCode) => {
-  if (!unitCode) newCategory.value.unitLocked = false
-})
-
-watch(() => newCategory.value.name, (name) => {
-  if (name.trim()) lastCreatedCategory.value = null
 })
 
 watch(() => editingCategory.value.sectors.join('|'), () => {
@@ -1309,15 +1260,18 @@ const filteredCategories = computed(() => {
   return categories.value.filter(cat => categoryAppliesToSector(cat, target))
 })
 
-async function addCategory(goToLocation = false) {
+async function addCategory() {
   if (creatingCategory.value) return
   if (!newCategory.value.name.trim()) {
     showNotification('error', 'Informe o nome da categoria para continuar.')
     return
   }
-  if (newCategory.value.scopeMode === 'specific' && !newCategory.value.sectors.length) return
-  if (newCategory.value.unitLocked && !newCategory.value.defaultUnitCode) {
-    showNotification('error', 'Escolha uma unidade padrão antes de bloqueá-la.')
+  if (!categoryRegistrationSector.value || (newCategory.value.scopeMode === 'specific' && !newCategory.value.sectors.length)) {
+    showNotification('error', 'Selecione o setor da categoria.')
+    return
+  }
+  if (!newCategory.value.defaultUnitCode) {
+    showNotification('error', 'Escolha a unidade de medida da categoria.')
     return
   }
   creatingCategory.value = true
@@ -1326,26 +1280,21 @@ async function addCategory(goToLocation = false) {
       name: newCategory.value.name.trim(),
       sectors: newCategory.value.scopeMode === 'all' ? [] : newCategory.value.sectors,
       subtypeId: newCategory.value.subtypeId || null,
-      defaultUnitCode: newCategory.value.defaultUnitCode ? newCategory.value.defaultUnitCode : null,
-      unitLocked: Boolean(newCategory.value.unitLocked)
+      defaultUnitCode: newCategory.value.defaultUnitCode,
+      unitLocked: true
     })
     const submittedName = newCategory.value.name.trim()
-    const createdCategory = res.data
     showNotification('success', `Categoria "${submittedName}" criada com sucesso!`)
     newCategory.value = {
       name: '',
       scopeMode: 'specific',
-      sectors: isCategorySectorLocked.value && assignedCategorySector.value ? [assignedCategorySector.value] : [],
+      sectors: [categoryRegistrationSector.value],
       subtypeId: '',
-      defaultUnitCode: '',
-      unitLocked: false
+      defaultUnitCode: categoryRegistrationSector.value === 'CORTE' ? '' : 'UN',
+      unitLocked: true
     }
     if (res.data) categories.value.unshift(res.data)
     await Promise.all([fetchCategories(), fetchComponentSubtypes()])
-    lastCreatedCategory.value = categories.value.find(category => category.id === createdCategory?.id)
-      || createdCategory
-      || null
-    if (goToLocation && lastCreatedCategory.value) await startCategoryLocationLink(lastCreatedCategory.value, true)
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar categoria.'
     showNotification('error', msg)
@@ -1356,13 +1305,19 @@ async function addCategory(goToLocation = false) {
 
 function openEditCategory(category) {
   const sectors = getCategorySectors(category)
+  const scopeMode = sectors.length ? 'specific' : 'all'
+  const fixedUnit = hasDiscreteCategorySector(scopeMode, sectors)
+  editingLegacyUnit.value = fixedUnit && category.defaultUnitCode && category.defaultUnitCode !== 'UN'
+    ? category.defaultUnitCode : ''
+  editingOriginalSubtypeId.value = category.subtypeId || null
+  editingOriginalScope.value = JSON.stringify({ scopeMode, sectors: [...sectors].sort() })
   editingCategory.value = {
     id: category.id,
     name: category.name || '',
-    scopeMode: sectors.length ? 'specific' : 'all',
+    scopeMode,
     sectors,
     subtypeId: category.subtypeId || '',
-    defaultUnitCode: category.defaultUnitCode || '',
+    defaultUnitCode: fixedUnit ? 'UN' : category.defaultUnitCode || '',
     unitLocked: Boolean(category.unitLocked),
   }
   showEditCategoryModal.value = true
@@ -1371,20 +1326,25 @@ function openEditCategory(category) {
 async function saveEditCategory() {
   if (!editingCategory.value.name.trim() || savingCategory.value) return
   if (!isCategorySectorLocked.value && editingCategory.value.scopeMode === 'specific' && !editingCategory.value.sectors.length) return
-  if (editingCategory.value.unitLocked && !editingCategory.value.defaultUnitCode) {
-    showNotification('error', 'Escolha uma unidade padrão antes de bloqueá-la.')
+  if (!editingCategory.value.defaultUnitCode) {
+    showNotification('error', 'Escolha a unidade de medida da categoria.')
     return
   }
   savingCategory.value = true
   try {
+    const scopeChanged = JSON.stringify({
+      scopeMode: editingCategory.value.scopeMode,
+      sectors: [...editingCategory.value.sectors].sort(),
+    }) !== editingOriginalScope.value
+    const subtypeChanged = (editingCategory.value.subtypeId || null) !== editingOriginalSubtypeId.value
     await api.put(`/settings/categories/${editingCategory.value.id}`, {
       name: editingCategory.value.name.trim(),
-      sectors: isCategorySectorLocked.value
+      sectors: isCategorySectorLocked.value || !scopeChanged
         ? undefined
         : editingCategory.value.scopeMode === 'all' ? [] : editingCategory.value.sectors,
-      subtypeId: editingCategory.value.subtypeId || null,
-      defaultUnitCode: editingCategory.value.defaultUnitCode || null,
-      unitLocked: Boolean(editingCategory.value.unitLocked),
+      subtypeId: subtypeChanged ? editingCategory.value.subtypeId || null : undefined,
+      defaultUnitCode: editingCategory.value.defaultUnitCode,
+      unitLocked: isEditCategoryUnitFixed.value ? true : Boolean(editingCategory.value.unitLocked),
     })
     showNotification('success', `Categoria "${editingCategory.value.name}" atualizada com sucesso!`)
     showEditCategoryModal.value = false
@@ -1508,14 +1468,10 @@ const newLocation = ref({
   name: '',
   sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
   subsectorId: null,
+  categoryMode: 'ALL',
   categoryIds: []
 })
-const locationCategoryFlow = ref(null)
-const availableLocationSectors = computed(() => {
-  const flowCategory = locationCategoryFlow.value
-  if (!flowCategory) return categorySectorsOptions
-  return categorySectorsOptions.filter(sector => categoryAppliesToSector(flowCategory, sector.id))
-})
+const availableLocationSectors = categorySectorsOptions
 const showEditLocationModal = ref(false)
 const editLocationDialog = ref(null)
 const editLocationInitial = ref('')
@@ -1524,29 +1480,10 @@ const editingLocation = ref({
   name: '',
   sector: '',
   subsectorId: null,
+  categoryMode: 'SELECTED',
+  legacyEmptySelection: false,
   categoryIds: []
 })
-
-async function startCategoryLocationLink(category, skipUnsavedCheck = false) {
-  if (!category?.id) return
-  if (!skipUnsavedCheck && !(await confirmDiscard())) return
-
-  const scopes = getCategorySectors(category)
-  const currentSector = normalizeCategorySector(newLocation.value.sector)
-  const targetSector = scopes.length
-    ? (scopes.includes(currentSector) ? currentSector : scopes[0])
-    : (newLocation.value.sector || '')
-
-  newLocation.value = {
-    name: '',
-    sector: targetSector,
-    categoryIds: [category.id],
-  }
-  locationCategoryFlow.value = category
-  activeTab.value = 'locations'
-  await nextTick()
-  window.scrollTo({ top: 0, behavior: 'auto' })
-}
 
 const filteredLocations = computed(() => {
   if (authStore.user?.role === 'admin_setor' && authStore.user?.assignedSector) {
@@ -1663,6 +1600,8 @@ function openEditLocationModal(loc) {
     name: loc.name,
     sector: targetSector,
     subsectorId: loc.subsectorId ?? loc.subsector?.id ?? null,
+    categoryMode: loc.categoryMode || 'SELECTED',
+    legacyEmptySelection: (loc.categoryMode || 'SELECTED') === 'SELECTED' && !catIds.length,
     categoryIds: [...catIds]
   }
   editLocationInitial.value = JSON.stringify(editingLocation.value)
@@ -1671,6 +1610,7 @@ function openEditLocationModal(loc) {
 
 async function saveEditLocation() {
   if (!editingLocation.value.name.trim()) return
+  if (editingLocation.value.categoryMode === 'SELECTED' && !editingLocation.value.categoryIds.length && !editingLocation.value.legacyEmptySelection) return
   try {
     const targetSector = authStore.user?.role === 'admin_setor'
       ? authStore.user.assignedSector
@@ -1679,7 +1619,8 @@ async function saveEditLocation() {
       name: editingLocation.value.name.trim(),
       sector: targetSector,
       subsectorId: editingLocation.value.subsectorId || null,
-      categoryIds: editingLocation.value.categoryIds
+      categoryMode: editingLocation.value.categoryMode,
+      categoryIds: editingLocation.value.categoryMode === 'SELECTED' ? editingLocation.value.categoryIds : undefined
     })
     showNotification('success', `Localização "${editingLocation.value.name}" atualizada com sucesso!`)
     editLocationInitial.value = ''
@@ -1693,6 +1634,7 @@ async function saveEditLocation() {
 
 async function addLocation() {
   if (!newLocation.value.name.trim()) return
+  if (newLocation.value.categoryMode === 'SELECTED' && !newLocation.value.categoryIds.length) return
   try {
     const targetSector = authStore.user?.role === 'admin_setor'
       ? authStore.user.assignedSector
@@ -1701,16 +1643,17 @@ async function addLocation() {
       name: newLocation.value.name.trim(),
       sector: targetSector,
       subsectorId: newLocation.value.subsectorId || null,
-      categoryIds: newLocation.value.categoryIds
+      categoryMode: newLocation.value.categoryMode,
+      categoryIds: newLocation.value.categoryMode === 'SELECTED' ? newLocation.value.categoryIds : undefined
     })
     showNotification('success', `Localização "${newLocation.value.name}" criada com sucesso!`)
     newLocation.value = {
       name: '',
       sector: (authStore.user?.assignedSector && authStore.user?.assignedSector !== 'TODOS') ? authStore.user.assignedSector : '',
       subsectorId: null,
+      categoryMode: 'ALL',
       categoryIds: []
     }
-    locationCategoryFlow.value = null
     if (res.data) locations.value.unshift(res.data)
     await fetchLocations()
   } catch (e) {
@@ -1757,17 +1700,15 @@ const newOrigin = ref('')
 const newOriginSector = ref(authStore.user?.assignedSector || '')
 
 function hasUnsubmittedCategory() {
-  const defaultSectors = isCategorySectorLocked.value && assignedCategorySector.value
-    ? [assignedCategorySector.value]
-    : []
+  const defaultSectors = categoryRegistrationSector.value ? [categoryRegistrationSector.value] : []
+  const defaultUnit = categoryRegistrationSector.value && categoryRegistrationSector.value !== 'CORTE' ? 'UN' : ''
   const selectedSectors = [...newCategory.value.sectors].sort()
   return Boolean(
     newCategory.value.name.trim()
     || newCategory.value.scopeMode !== 'specific'
     || JSON.stringify(selectedSectors) !== JSON.stringify([...defaultSectors].sort())
     || newCategory.value.subtypeId
-    || newCategory.value.defaultUnitCode
-    || newCategory.value.unitLocked
+    || newCategory.value.defaultUnitCode !== defaultUnit
   )
 }
 
@@ -1777,6 +1718,7 @@ function hasUnsubmittedLocation() {
     : ''
   return Boolean(
     newLocation.value.name.trim()
+    || newLocation.value.categoryMode !== 'ALL'
     || newLocation.value.categoryIds.length
     || newLocation.value.subsectorId
     || newLocation.value.sector !== defaultSector

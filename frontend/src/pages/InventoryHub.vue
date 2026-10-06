@@ -325,7 +325,8 @@ const itemSectorLocations = computed(() => {
       : normalizeSector(location.sector) === normalizeSector(itemSector);
     if (!sameSector) return false;
     if (!itemCategoryId) return true;
-    return Number(location.categoryId) === itemCategoryId
+    return location.categoryMode === 'ALL'
+      || Number(location.categoryId) === itemCategoryId
       || location.categoryLinks?.some(link => Number(link.categoryId) === itemCategoryId) === true;
   });
 });

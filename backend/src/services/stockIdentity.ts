@@ -30,10 +30,11 @@ export function assertStockLocationSector(location: { sector?: string | null }, 
   }
 }
 export function assertStockLocationCategory(
-  location: { categoryId?: number | null; categoryLinks?: Array<{ categoryId: number }> },
+  location: { categoryMode?: 'ALL' | 'SELECTED' | null; categoryId?: number | null; categoryLinks?: Array<{ categoryId: number }> },
   categoryId?: number | null,
 ) {
   if (!categoryId) return;
+  if (location.categoryMode === 'ALL') return;
   const linked = location.categoryId === categoryId
     || location.categoryLinks?.some(link => link.categoryId === categoryId) === true;
   if (!linked) {
