@@ -707,6 +707,7 @@
                     <tr>
                       <th class="px-3 py-2">Linha</th>
                       <th class="px-3 py-2">Setor</th>
+                      <th class="px-3 py-2">Subsetor</th>
                       <th class="px-3 py-2">SKU / código</th>
                       <th class="px-3 py-2">Modelo / peça</th>
                       <th class="px-3 py-2">Tipo</th>
@@ -720,6 +721,7 @@
                     <tr v-for="item in importPreview.itens" :key="`${item.linha}-${item.setor}-${item.sku}-${item.grade || ''}-${item.lado || ''}`">
                       <td class="px-3 py-2 whitespace-nowrap">{{ item.linha }}</td>
                       <td class="px-3 py-2 whitespace-nowrap">{{ formatSectorName(item.setor, item.setor) }}</td>
+                      <td class="px-3 py-2 whitespace-nowrap">{{ item.subsetor || 'Sem subsetor' }}</td>
                       <td class="px-3 py-2 font-mono whitespace-nowrap">{{ item.sku }}</td>
                       <td class="px-3 py-2 min-w-40">
                         <span class="font-semibold">{{ item.modelo }}</span>
@@ -1883,13 +1885,14 @@ const sectorCsvPattern = computed(() => {
         { name: 'unidade', req: false, desc: 'Sigla da unidade de medida. Ex: m², m, kg, un (Padrão: m²)' },
         { name: 'quantidade', req: false, desc: 'Saldo numérico inicial. Ex: 150.0 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou prateleira física. Ex: A-01, B-02' },
+        { name: 'subsetor', req: false, desc: 'Subsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.' },
       ],
-      headerExample: 'codigo;descricao;categoria;unidade;quantidade;prateleira',
+      headerExample: 'codigo;descricao;categoria;unidade;quantidade;prateleira;subsetor',
       examples: [
-        '1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;A-01',
-        '1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;A-02',
-        '1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;B-01',
-        '1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;C-01',
+        '1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;A-01;',
+        '1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;A-02;',
+        '1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;B-01;',
+        '1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;C-01;',
       ],
     }
   }
@@ -1907,12 +1910,13 @@ const sectorCsvPattern = computed(() => {
         { name: 'lado', req: false, desc: 'Obrigatório para Cabedal: E (esquerdo), D (direito) ou PAR. Ignorado para peça cortada.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box em Peças Cortadas. Ex: AP-01' },
+        { name: 'subsetor', req: false, desc: 'Subsetor ativo de Peças Cortadas. Deixe vazio para manter o fluxo atual sem subsetor.' },
       ],
-      headerExample: 'sku;modelo;peca;tipo;material_cor;grade;lado;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;tipo;material_cor;grade;lado;quantidade;prateleira;subsetor',
       examples: [
-        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;PEÇAS CORTADAS;SINTETICO PRETO;40;;50;AP-01',
-        'CAB-001;RACER SPEEDZONE;CABEDAL;CABEDAL;PRETO/BRANCO;40;PAR;8;AP-04',
-        'CAB-002;AIR MAX SC;CABEDAL;CABEDAL;BRANCO/PRETO;39;E;12;AP-05',
+        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;PEÇAS CORTADAS;SINTETICO PRETO;40;;50;AP-01;',
+        'CAB-001;RACER SPEEDZONE;CABEDAL;CABEDAL;PRETO/BRANCO;40;PAR;8;AP-04;',
+        'CAB-002;AIR MAX SC;CABEDAL;CABEDAL;BRANCO/PRETO;39;E;12;AP-05;',
       ],
     }
   }
@@ -1930,11 +1934,12 @@ const sectorCsvPattern = computed(() => {
         { name: 'lado', req: false, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01' },
+        { name: 'subsetor', req: false, desc: 'Subsetor ativo de Pré-Fabricado. Deixe vazio para manter o fluxo atual sem subsetor.' },
       ],
-      headerExample: 'sku;modelo;peca;tipo;combinacao;grade;lado;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;tipo;combinacao;grade;lado;quantidade;prateleira;subsetor',
       examples: [
-        'SKU-SOLA-RACER;RACER SPEEDZONE;SOLA RACER SPEEDZONE;EVA;PRETO;41;PAR;20;PR-01',
-        'SKU-SOLA-AIRMAX;AIR MAX SC;SOLA AIR MAX;BORRACHA;BRANCO;40;E;15;PR-02',
+        'SKU-SOLA-RACER;RACER SPEEDZONE;SOLA RACER SPEEDZONE;EVA;PRETO;41;PAR;20;PR-01;',
+        'SKU-SOLA-AIRMAX;AIR MAX SC;SOLA AIR MAX;BORRACHA;BRANCO;40;E;15;PR-02;',
       ],
     }
   }
@@ -1953,12 +1958,13 @@ const sectorCsvPattern = computed(() => {
         { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado e consolidado automaticamente com pés avulsos e locais)' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, ESTANTE 1 - NIVEL 3' },
+        { name: 'subsetor', req: false, desc: `Subsetor ativo de ${secLabel}. Deixe vazio para manter o fluxo atual sem subsetor.` },
       ],
-      headerExample: 'sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira',
+      headerExample: 'sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira;subsetor',
       examples: [
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};PRETO;41;PAR;20;PR-01`,
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};BRANCO;40;E;15;MO-02`,
-        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};PRETO;38;D;10;MO-03`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};PRETO;41;PAR;20;PR-01;`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};BRANCO;40;E;15;MO-02;`,
+        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};PRETO;38;D;10;MO-03;`,
       ],
     }
   }

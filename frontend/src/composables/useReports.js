@@ -5,7 +5,7 @@ import { normalizeSector } from '@/utils/domain'
 
 export const REPORT_DEFAULT_FILTERS = {
   sector: 'TODOS', tipoMovimento: 'TODOS', status: 'TODOS', periodo: 'last_30_days',
-  dataInicio: '', dataFim: '', origin: 'TODOS', search: '',
+  dataInicio: '', dataFim: '', origin: 'TODOS', search: '', subsectorId: '',
 }
 
 const DEFAULT_REPORT_TOTALS = {
@@ -107,6 +107,7 @@ export function useReports(options = {}) {
         sector: normalizeSector(filters.value.sector), page: String(page), limit: String(pageSize),
         ...(reportType.value === 'requisitions' ? { status: filters.value.status } : { tipoMovimento: filters.value.tipoMovimento, origin: filters.value.origin }),
       })
+      if (reportType.value === 'movements' && filters.value.subsectorId) params.set('subsectorId', String(filters.value.subsectorId))
       if (dates?.start && dates?.end) { params.set('dataInicio', dates.start); params.set('dataFim', dates.end) }
       if (filters.value.search) params.set('search', filters.value.search)
       const response = await requestApi.get(`${endpoint}?${params}`)

@@ -605,14 +605,14 @@ function getInventoryCardFields(item: any) {
       add('Prateleira', location);
       break;
     case 'APOIO':
-      add(item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada', `${item.description || item.type || '—'} · ${item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada'}`);
+      add('Material / categoria', `${item.description || item.name || '—'} · ${getInventoryTypeLabel(item.type || (item.componentType === 'CABEDAL' ? 'CABEDAL' : 'PECA_CORTADA'))}`);
       add('Combinação / cor', item.color || item.materialColor);
       add('Grade', item.sizeGrade);
       add('Lado', getInventoryCardSide(item));
       add('Prateleira', location);
       break;
     case 'PRE_FABRICADO':
-      add('Material', item.type === 'BORRACHA' ? 'Borracha' : 'EVA (não processada)');
+      add('Material', getInventoryTypeLabel(item.type || '—'));
       add('Combinação', item.color);
       add('Grade', item.sizeGrade);
       add('Lado', getInventoryCardSide(item, 'Par completo'));
@@ -620,7 +620,7 @@ function getInventoryCardFields(item: any) {
       break;
     case 'DISTRIBUICAO':
     case 'EXPEDICAO':
-      add('Material', item.type === 'SOLA_PROCESSADA' ? 'Sola processada' : 'Cabedal');
+      add('Material', getInventoryTypeLabel(item.type || '—'));
       add('Cor', item.color);
       add('Grade', item.sizeGrade);
       add('Lado', getInventoryCardSide(item, 'Par / geral'));
@@ -1096,17 +1096,8 @@ onMounted(() => {
                     <span v-if="item.productName && item.productName !== item.sku" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
                   </td>
                   <td class="px-4 py-3 text-center whitespace-nowrap">
-                    <span
-                      v-if="item.type === 'BORRACHA'"
-                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs"
-                    >
-                      Borracha
-                    </span>
-                    <span
-                      v-else
-                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs"
-                    >
-                      EVA (Não Processada)
+                    <span class="px-2.5 py-1 text-xs rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                      {{ getInventoryTypeLabel(item.type || '—') }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
@@ -1142,17 +1133,8 @@ onMounted(() => {
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block">{{ item.productName }}</span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <span
-                      v-if="item.type === 'SOLA_PROCESSADA'"
-                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-teal-50 text-teal-700 border border-teal-200"
-                    >
-                      Sola Processada
-                    </span>
-                    <span
-                      v-else
-                      class="px-2.5 py-1 text-xs rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200"
-                    >
-                      Cabedal
+                    <span class="px-2.5 py-1 text-xs rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {{ getInventoryTypeLabel(item.type || '—') }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.color }}</td>
@@ -1450,10 +1432,10 @@ onMounted(() => {
               <div class="text-xs font-semibold text-gray-800 mb-2">
                 {{ getItemDescription(selectedItem) }}
                 <span v-if="selectedItem.sector === 'PRE_FABRICADO' && selectedItem.type" class="text-emerald-700 font-bold ml-1">
-                  [{{ selectedItem.type === 'BORRACHA' ? 'Borracha' : 'EVA' }}]
+                  [{{ getInventoryTypeLabel(selectedItem.type) }}]
                 </span>
                 <span v-if="(selectedItem.sector === 'DISTRIBUICAO' || selectedItem.sector === 'EXPEDICAO') && selectedItem.type" class="text-indigo-700 font-bold ml-1">
-                  [{{ selectedItem.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal' }}]
+                  [{{ getInventoryTypeLabel(selectedItem.type) }}]
                 </span>
                 <span v-if="selectedItem.sizeGrade" class="text-gray-600 font-normal">
                   - Grade: <strong>{{ selectedItem.sizeGrade }}</strong>

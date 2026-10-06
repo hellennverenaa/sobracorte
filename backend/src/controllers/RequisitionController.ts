@@ -104,6 +104,11 @@ export class RequisitionController {
       const parsed = CreateRequisitionPayloadSchema.parse(req.body);
       for (const item of ('items' in parsed ? parsed.items : [parsed])) requireActiveStockSector(item.requestSector);
 
+      const access = requestStockAccess(req);
+      for (const item of ('items' in parsed ? parsed.items : [parsed])) {
+        if (!(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, item.requestSector);
+      }
+
       const operatorContext = {
         ...requestStockAccess(req),
         factoryUnitId: req.tenant.id,
@@ -235,8 +240,13 @@ export class RequisitionController {
 
       const { sector } = req.query;
       const requestedSector = sector ? requireActiveStockSector(String(sector)) : undefined;
+      const access = requestStockAccess(req);
+      if (requestedSector && !(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, requestedSector);
 
-      const result = await requisitionService.getPendingCount(req.tenant.id, requestedSector as any);
+      const result = await requisitionService.getPendingCount(req.tenant.id, requestedSector as any, {
+        ...access,
+        factoryUnitId: req.tenant.id,
+      });
       return res.json(result);
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });

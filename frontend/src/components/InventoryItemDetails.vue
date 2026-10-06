@@ -2,6 +2,16 @@
 import { ref } from 'vue';
 import { formatNumber } from '@/utils/format';
 import { formatSectorName } from '@/utils/domain';
+
+function formatMaterialType(type) {
+  const labels = {
+    EVA: 'EVA (Sola Não Processada)',
+    BORRACHA: 'Borracha',
+    CABEDAL: 'Cabedal',
+    SOLA_PROCESSADA: 'Sola Processada',
+  };
+  return labels[type] || type || '—';
+}
 import { useModalFocus } from '@/composables/useModalFocus';
 const props = defineProps({ item: Object, unit: String });
 const emit = defineEmits(['close']);
@@ -40,18 +50,9 @@ useModalFocus(() => Boolean(props.item), detailDialog, () => emit('close'));
               <div class="text-gray-900 font-medium">{{ item.productName }}</div>
             </div>
 
-            <div v-if="item.sector === 'PRE_FABRICADO' || item.sector === 'DISTRIBUICAO' || item.type">
-              <label class="block text-xs font-bold text-gray-500 uppercase">
-                {{ item.sector === 'DISTRIBUICAO' ? 'Tipo de Material' : 'Material do Solado' }}
-              </label>
-              <div class="text-gray-900 font-bold">
-                <template v-if="item.sector === 'DISTRIBUICAO'">
-                  {{ item.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : 'Cabedal' }}
-                </template>
-                <template v-else>
-                  {{ item.type === 'BORRACHA' ? 'Borracha' : (item.type === 'EVA' ? 'EVA (Sola Não Processada)' : (item.type || '-')) }}
-                </template>
-              </div>
+            <div v-if="item.type">
+              <label class="block text-xs font-bold text-gray-500 uppercase">Categoria do material</label>
+              <div class="text-gray-900 font-bold">{{ formatMaterialType(item.type) }}</div>
             </div>
 
             <div class="grid grid-cols-2 gap-4">

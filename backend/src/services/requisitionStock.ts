@@ -2,7 +2,9 @@ import type { StockTransactionClient } from '../prisma';
 import { Prisma, SectorType, FootSide, ComponentType } from '../generated/prisma';
 import { normalizeStockColor, normalizeStockSector, normalizeStockText, stockIdentity } from './stockIdentity';
 import { normalizeUnit } from '../utils/unitHelper';
-import { stockItemScopeWhere } from '../auth/subsectorAccess';
+import { stockItemScopeWhere, stockItemSubsectorSql } from '../auth/subsectorAccess';
+import { assignedStockSector, isStockMaster } from '../auth/stockAccess';
+import type { StockAccessContext } from '../auth/stockAccess';
 import type { OperatorContext } from '../types/stock.dto';
 
 export type RequestIdentity = {
@@ -59,6 +61,62 @@ function sectorWhere(sector: string): Prisma.StockItemWhereInput['sector'] {
   return normalizeStockSector(sector) === 'DISTRIBUICAO'
     ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] }
     : normalizeStockSector(sector) as SectorType;
+}
+
+/** IDs de requisições cuja origem completa permanece visível no escopo atual.
+ * Requisições legadas sem itens de origem continuam no fluxo histórico do setor.
+ */
+export async function findRequisitionIdsWithinStockScope(
+  client: any,
+  factoryUnitId: number,
+  context?: StockAccessContext,
+): Promise<string[] | undefined> {
+  if (!context || !context.role || isStockMaster(context)) return undefined;
+  const sector = context.role === 'leitor' && !context.assignedSector
+    ? null
+    : assignedStockSector(context);
+  const itemSectorSql = !sector
+    ? Prisma.sql`TRUE`
+    : sector === 'DISTRIBUICAO'
+      ? Prisma.sql`s."sector" IN ('DISTRIBUICAO'::sobra_corte."SectorType", 'EXPEDICAO'::sobra_corte."SectorType")`
+      : Prisma.sql`s."sector" = ${sector}::sobra_corte."SectorType"`;
+  const requestSectorSql = !sector
+    ? Prisma.sql`TRUE`
+    : sector === 'DISTRIBUICAO'
+      ? Prisma.sql`r."requestSector" IN ('DISTRIBUICAO'::sobra_corte."SectorType", 'EXPEDICAO'::sobra_corte."SectorType")`
+      : Prisma.sql`r."requestSector" = ${sector}::sobra_corte."SectorType"`;
+  const sourceSectorSql = !sector
+    ? Prisma.sql`TRUE`
+    : sector === 'DISTRIBUICAO'
+      ? Prisma.sql`r."sourceSector" IN ('DISTRIBUICAO'::sobra_corte."SectorType", 'EXPEDICAO'::sobra_corte."SectorType")`
+      : Prisma.sql`r."sourceSector" = ${sector}::sobra_corte."SectorType"`;
+  // Admin de Setor pode consultar solicitações do próprio setor e as destinadas
+  // ao seu setor como fornecedor, sempre com a origem limitada ao escopo autorizado.
+  const requestVisibilitySql = context.role === 'admin_setor' && sector
+    ? Prisma.sql`(${requestSectorSql} OR ${sourceSectorSql})`
+    : requestSectorSql;
+  const rows = await client.$queryRaw(Prisma.sql`
+    SELECT r."id"
+    FROM sobra_corte."MaterialRequisition" r
+    WHERE r."factoryUnitId" = ${factoryUnitId}
+      AND ${requestVisibilitySql}
+      AND (
+        cardinality(r."sourceStockItemIds") = 0
+        OR NOT EXISTS (
+          SELECT 1
+          FROM unnest(r."sourceStockItemIds") AS source_ref("stockItemId")
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM sobra_corte."StockItem" s
+            WHERE s."id" = source_ref."stockItemId"
+              AND s."factoryUnitId" = r."factoryUnitId"
+              AND ${itemSectorSql}
+              AND ${stockItemSubsectorSql('s', context)}
+          )
+        )
+      )
+  `) as Array<{ id: string }>;
+  return rows.map(row => row.id);
 }
 
 function inferredType(req: RequestIdentity, sector: string) {
@@ -514,6 +572,7 @@ export async function findRequisitionStockCandidates(
       where: {
         factoryUnitId,
         requestSector: requestSector as SectorType,
+        ...(context ? { sourceStockItem: { is: stockItemScopeWhere(context) } } : {}),
         OR: [
           ...(skuIdentity ? [{ requestSku: { equals: skuIdentity, mode: 'insensitive' as const } }] : []),
           ...(descriptionIdentity ? [{ requestSku: null, requestDescription: { equals: descriptionIdentity, mode: 'insensitive' as const } }] : []),
@@ -688,6 +747,7 @@ export function assertCompatiblePair(left: Record<string, any>, right: Record<st
   const rightIdentity = stockIdentity(right);
   if (left.footSide !== 'E' || right.footSide !== 'D' || normalizeStockSector(left.sector) !== normalizeStockSector(right.sector)
     || normalizeStockText(left.type) !== normalizeStockText(right.type)
+    || (left.subsectorId ?? null) !== (right.subsectorId ?? null)
     || normalizeUnit(left.unit, left.sector) !== normalizeUnit(right.unit, right.sector)
     || Object.keys(leftIdentity).some(field => field !== 'footSide' && leftIdentity[field] !== rightIdentity[field])) {
     throw new Error('Os pés esquerdo e direito devem pertencer ao mesmo produto, modelo, material, cor e grade.');

@@ -13,7 +13,7 @@ import { formatDate } from '@/utils/format';
 import PageState from '@/components/PageState.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import RequisitionFilters from '@/components/RequisitionFilters.vue';
-import { formatSectorName, SECTOR_OPTIONS } from '@/utils/domain';
+import { formatSectorName, normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
   ClipboardList, Plus, Search, X, RefreshCw, CheckCircle2, AlertCircle, 
   Clock, CheckCircle, Ban, MapPin, Scissors, Wrench, Layers, Box, Footprints,
@@ -286,8 +286,8 @@ const fulfillingItem = ref<RequisitionItem | null>(null);
 const fulfillQuantity = ref(1);
 const fulfillObservation = ref('');
 const isFulfilling = ref(false);
-const { units: measurementUnits, fetchUnits } = useSettings();
-onMounted(fetchUnits);
+const { units: measurementUnits, categories: materialCategories, fetchUnits, fetchCategories } = useSettings();
+onMounted(() => { fetchUnits(); fetchCategories(); });
 function integerQuantity(unit: string | undefined, sector: string) {
   return sector !== 'CORTE' || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
 }
@@ -310,6 +310,29 @@ const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
 const reuseSectorOptions = sectorOptions.filter(option => option.id !== 'CORTE');
+const fixedRequisitionTypes: Record<string, string[]> = {
+  PRE_FABRICADO: ['EVA', 'BORRACHA', 'TPU', 'PU'],
+  DISTRIBUICAO: ['CABEDAL', 'SOLA_PROCESSADA'],
+  EXPEDICAO: ['CABEDAL', 'SOLA_PROCESSADA'],
+};
+const currentTypeOptions = computed(() => {
+  if (currentSector.value === 'APOIO') return [
+    { value: 'PECA_CORTADA', label: 'Peça cortada' },
+    { value: 'CABEDAL', label: 'Cabedal' },
+  ];
+  const configured = materialCategories.value
+    .filter((category: any) => {
+      const scopes = Array.isArray(category.sectors) && category.sectors.length
+        ? category.sectors
+        : category.sector ? [category.sector] : [];
+      return scopes.length === 0 || scopes.some((sector: string) => normalizeSector(sector) === normalizeSector(currentSector.value));
+    })
+    .map((category: any) => String(category.name || '').trim().toUpperCase())
+    .filter(Boolean);
+  const values = [...new Set([...(fixedRequisitionTypes[currentSector.value] || []), ...configured])];
+  const labels: Record<string, string> = { EVA: 'EVA', BORRACHA: 'Borracha', CABEDAL: 'Cabedal', SOLA_PROCESSADA: 'Sola processada' };
+  return values.map(value => ({ value, label: labels[value] || value }));
+});
 const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
 const isRawMaterialRequest = computed(() => requestMode.value === 'RAW_MATERIAL');
 const isApoioCutPiece = computed(() => currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA');
@@ -354,7 +377,7 @@ function buildAvailabilityRequest(): AvailabilityRequest {
     const solaType = type || 'SOLA';
     description = `${solaType} - ${modelName || sku || 'SOLA'}`;
   } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
-    const insumoType = type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
+    const insumoType = type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : type || 'CABEDAL';
     description = `${insumoType} - ${modelName || sku || 'INSUMO'}`;
   }
 
@@ -752,7 +775,7 @@ function addCurrentItem() {
       return;
     }
   } else if (currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') {
-    const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : 'CABEDAL';
+    const insumoType = formItem.value.type === 'SOLA_PROCESSADA' ? 'SOLA PROCESSADA' : formItem.value.type || 'CABEDAL';
     finalDesc = `${insumoType} - ${formItem.value.modelName || formItem.value.sku || 'INSUMO'}`.trim();
     if (!formItem.value.sku.trim() && !formItem.value.modelName.trim()) {
       showToast('Informe o código / SKU ou o modelo do produto.', 'error');
@@ -1422,19 +1445,7 @@ onMounted(() => {
                   @change="onApoioComponentChange"
                   class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
                 >
-                  <option value="PECA_CORTADA">Peça cortada</option>
-                  <option value="CABEDAL">Cabedal</option>
-                </select>
-                <select
-                  v-else-if="currentSector === 'PRE_FABRICADO'"
-                  v-model="formItem.type"
-                  @change="onApoioComponentChange"
-                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                >
-                  <option value="EVA">EVA</option>
-                  <option value="BORRACHA">Borracha</option>
-                  <option value="TPU">TPU</option>
-                  <option value="PU">PU</option>
+                  <option v-for="type in currentTypeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
                 </select>
                 <select
                   v-else
@@ -1442,8 +1453,7 @@ onMounted(() => {
                   @change="onApoioComponentChange"
                   class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
                 >
-                  <option value="CABEDAL">Cabedal</option>
-                  <option value="SOLA_PROCESSADA">Sola processada</option>
+                  <option v-for="type in currentTypeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
                 </select>
               </div>
               <div v-else-if="currentSector === 'MONTAGEM'" class="sm:col-span-1">

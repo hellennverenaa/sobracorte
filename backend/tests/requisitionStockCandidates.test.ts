@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { prisma } from '../src/prisma';
 import { RequisitionService } from '../src/services/RequisitionService';
-import { findRequisitionStockCandidates, findUnverifiedRequisitionStockMatches } from '../src/services/requisitionStock';
+import { findRequisitionIdsWithinStockScope, findRequisitionStockCandidates, findUnverifiedRequisitionStockMatches } from '../src/services/requisitionStock';
 import { StockItemService } from '../src/services/StockItemService';
 import { CheckStockAvailabilitySchema, RequisitionItemInputSchema } from '../src/types/stock.dto';
 
@@ -93,6 +93,19 @@ const apoioUpperRequest = (overrides: Record<string, unknown> = {}) => ({
   footSide: 'PAR',
   requestUnit: 'PAR',
   ...overrides,
+});
+
+test('Admin de Setor visualiza requisições próprias e as recebidas pelo setor fornecedor autorizado', async () => {
+  let query: any;
+  const ids = await findRequisitionIdsWithinStockScope({
+    $queryRaw: async (statement: any) => { query = statement; return [{ id: 'REQ-1' }]; },
+  }, 7, { role: 'admin_setor', assignedSector: 'DISTRIBUICAO', subsectorIds: [9] });
+  const sqlText = String(query?.sql || query?.text || query?.strings?.join(' '));
+
+  assert.deepEqual(ids, ['REQ-1']);
+  assert.match(sqlText, /r\."sourceSector"/);
+  assert.match(sqlText, /sourceStockItemIds/);
+  assert.match(sqlText, /SubsectorConfig/);
 });
 
 test('sugere Peças Cortadas pelo modelo e variantes, com confirmação explícita', async () => {

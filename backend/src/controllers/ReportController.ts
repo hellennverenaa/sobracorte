@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { normalizeUnit } from '../utils/unitHelper';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 import type { Prisma, SectorType } from '../generated/prisma';
+import { findRequisitionIdsWithinStockScope } from '../services/requisitionStock';
 
 export function csvCell(value: unknown): string {
   let text = String(value ?? '');
@@ -52,6 +53,16 @@ function paginationResponse(page: number, limit: number, total: number) {
   };
 }
 
+class ReportFilterValidationError extends Error {}
+
+function requestedSubsectorId(req: Request): number | undefined {
+  const raw = String(req.query.subsectorId || '').trim();
+  if (!raw || ['TODOS', 'ALL'].includes(raw.toUpperCase())) return undefined;
+  const id = Number(raw);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new ReportFilterValidationError('Subsetor inválido.');
+  return id;
+}
+
 function buildMovementWhere(req: Request): Record<string, any> {
   const factoryUnitId = req.tenant!.id;
   const { dataInicio, dataFim, startDate, endDate, sector, tipoMovimento, movementType, operatorId, origin, origem, search } = req.query;
@@ -82,6 +93,8 @@ function buildMovementWhere(req: Request): Record<string, any> {
   }
 
   const stockWhere: Record<string, any> = { factoryUnitId };
+  const subsectorId = requestedSubsectorId(req);
+  if (subsectorId !== undefined) stockWhere.subsectorId = subsectorId;
   if (start && end) stockWhere.createdAt = { gte: start, lte: end };
   if (rawSector === 'CORTE') {
     stockWhere.sector = 'CORTE';
@@ -142,7 +155,12 @@ export class ReportController {
     try {
       const factoryUnitId = req.tenant!.id;
       const { page, limit, skip } = getPagination(req);
-      const where = { factoryUnitId, ...stockItemScopeWhere(requestStockAccess(req)) };
+      const subsectorId = requestedSubsectorId(req);
+      const where = {
+        factoryUnitId,
+        ...stockItemScopeWhere(requestStockAccess(req)),
+        ...(subsectorId !== undefined ? { subsectorId } : {}),
+      };
       const stockItems = await prisma.stockItem.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -182,7 +200,7 @@ export class ReportController {
         descricao: s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
         quantidade: s.quantity,
         unidade: s.unit || 'UND',
-        categoria: s.sector,
+        categoria: s.type || s.sector,
         gradeTamanho: s.sizeGrade || '-',
         ladoPe: s.footSide || '-',
         prateleira: s.locations.map((l) => l.location.name).join(', ') || '-',
@@ -232,6 +250,7 @@ export class ReportController {
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof ReportFilterValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro no relatório de estoque:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de inventário' });
     }
@@ -249,7 +268,7 @@ export class ReportController {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip,
           take: limit,
-          include: { stockItem: true },
+          include: { stockItem: true, subsector: { select: { id: true, name: true } } },
         }),
         prisma.location.findMany({
           where: { factoryUnitId, ...locationScopeWhere(requestStockAccess(req)) },
@@ -289,6 +308,7 @@ export class ReportController {
           data_hora: m.createdAt,
           sector: m.sector,
           setor: m.sector,
+          subsetor: m.subsector?.name ?? null,
           tipo: m.type,
           codigo: code,
           nomeModelo: modelName,
@@ -412,6 +432,7 @@ export class ReportController {
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof ReportFilterValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro no relatório analítico de movimentações:', error);
       return res.status(500).json({ error: 'Erro ao gerar relatório de movimentações.' });
     }
@@ -455,6 +476,8 @@ export class ReportController {
       }
 
       const whereClause: any = { factoryUnitId };
+      const visibleRequisitionIds = await findRequisitionIdsWithinStockScope(prisma, factoryUnitId, requestStockAccess(req));
+      if (visibleRequisitionIds) whereClause.id = { in: visibleRequisitionIds };
 
       if (start && end) {
         whereClause.createdAt = {
@@ -561,6 +584,7 @@ export class ReportController {
     try {
       const factoryUnitId = req.tenant!.id;
       const requestedSector = req.query.sector ? String(req.query.sector).trim() : 'TODOS';
+      const subsectorId = requestedSubsectorId(req);
       const targetSector = assignedStockSector(requestStockAccess(req)) || (requestedSector === 'TODOS' || requestedSector === 'ALL'
         ? 'TODOS'
         : requireActiveStockSector(requestedSector));
@@ -574,6 +598,7 @@ export class ReportController {
       // Inicia com BOM UTF-8 para exibição correta no Excel
       res.write('\uFEFF' + csvLine([
         'SETOR',
+        'SUBSETOR',
         'CODIGO',
         'DESCRICAO',
         'CATEGORIA',
@@ -597,11 +622,13 @@ export class ReportController {
             where: {
               ...where,
               AND: scopedConditions,
+              ...(subsectorId !== undefined && { subsectorId }),
               ...(lastItemId !== undefined && { id: { gt: lastItemId } }),
             },
             take: batchSize,
             orderBy: { id: 'asc' },
             include: {
+              subsector: { select: { name: true } },
               locations: {
                 include: { location: true },
               },
@@ -615,6 +642,7 @@ export class ReportController {
             const locs = (s.locations ?? []).map(l => l.location?.name).filter(Boolean).join(' | ') || '-';
             res.write(csvLine([
               formatReportSector(s.sector),
+              s.subsector?.name || '',
               isCorte ? s.code : s.code || s.pieceCode || s.sku || s.productName || `Item #${s.id}`,
               isCorte ? s.name : s.description || s.name || s.productName || s.sku || 'Componente Multi-Setor',
               isCorte ? s.type!.toUpperCase() : formatReportSector(s.type || s.sector),
@@ -669,6 +697,7 @@ export class ReportController {
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof ReportFilterValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao exportar inventário por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar inventário.' });
@@ -701,6 +730,7 @@ export class ReportController {
         'DATA',
         'HORA',
         'SETOR',
+        'SUBSETOR',
         'TIPO_OPERACAO',
         'CODIGO_ITEM',
         'DESCRICAO_ITEM',
@@ -737,6 +767,7 @@ export class ReportController {
             orderBy: { id: 'desc' },
             include: {
               stockItem: true,
+              subsector: { select: { name: true } },
             },
           });
 
@@ -759,6 +790,7 @@ export class ReportController {
               dataStr,
               horaStr,
               formatReportSector(m.sector),
+              m.subsector?.name || '',
               m.type,
               code,
               desc,
@@ -790,6 +822,7 @@ export class ReportController {
     } catch (error) {
       if (error instanceof StockAccessError) return res.status(403).json({ error: error.message });
       if (error instanceof SectorValidationError) return res.status(400).json({ error: error.message });
+      if (error instanceof ReportFilterValidationError) return res.status(400).json({ error: error.message });
       console.error('Erro ao exportar movimentações por streaming:', error);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Erro interno ao exportar movimentações.' });
@@ -838,6 +871,8 @@ export class ReportController {
       }
 
       const whereClause: any = { factoryUnitId };
+      const visibleRequisitionIds = await findRequisitionIdsWithinStockScope(prisma, factoryUnitId, requestStockAccess(req));
+      if (visibleRequisitionIds) whereClause.id = { in: visibleRequisitionIds };
       if (start && end) whereClause.createdAt = { gte: start, lte: end };
 
       if (rawSector !== 'TODOS') {

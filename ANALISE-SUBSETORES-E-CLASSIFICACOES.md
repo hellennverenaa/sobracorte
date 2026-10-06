@@ -374,6 +374,10 @@ Revisar e adaptar relatórios, filtros, exportações, importações CSV, requis
 
 **Entregável:** nenhuma rota de leitura ou escrita conhecida ignora o escopo do subsetor.
 
+**Status: validada pela implementação em 06/10/2026.** Relatórios de inventário/movimentos e suas exportações aceitam filtro opcional de subsetor e mantêm o escopo autorizado do servidor; o dashboard e consultas operacionais existentes continuam usando os filtros centrais de acesso. Importação CSV aceita subsetor opcional, filtra localizações disponíveis por acesso, valida subsetor/setor/categoria/localização e mantém os layouts antigos. Requisições limitam itens de origem às permissões do usuário, inclusive candidatos BOM e pares, sem alterar o acesso já definido pelos papéis. Fluxos compatíveis exibem classificações customizadas sem rotulá-las como EVA/Cabedal por padrão. Não foi encontrada alteração na rota/configuração do gateway.
+
+Validação: `npx tsc --noEmit`; build de produção do frontend; testes focados de CSV (20), pré-validação de CSV grande (4), importação HTTP (1), acesso a subsetores (10), fluxos de estoque (9), candidatos/requisições (16), paginação/exportação de relatórios (3), streaming de relatórios (5) e componente de relatórios (5 subtestes) passaram. O build emite o aviso existente de chunk acima de 500 kB. Não houve gravação em banco ou ambiente compartilhado.
+
 ### Etapa 7 — Preservar o legado e validar os novos vínculos
 
 Usar o inventário da Etapa 1 para atribuir subsetores somente após confirmação explícita. Manter os demais registros no fluxo atual; não mover automaticamente itens de Apoio para Serigrafia nem classificações fixas para novos subsetores. Revisar os acessos dos usuários atuais. Não exigir subsetor para novos itens; validar apenas os vínculos quando um subsetor for informado.

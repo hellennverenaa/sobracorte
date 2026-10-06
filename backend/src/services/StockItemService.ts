@@ -6,7 +6,13 @@ import { Prisma, SectorType, ComponentType } from '../generated/prisma';
 import { normalizeUnit, validateQuantity, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, rejectDuplicateStockItem, StockCategoryError, StockOriginError } from './stockIdentity';
 import { categoryScopeWhere } from './categoryScope';
-import { locationScopeWhere, stockItemScopeWhere } from '../auth/subsectorAccess';
+import {
+  assertStockLocationSubsector,
+  assertStockSubsectorAccess,
+  assertSubsectorCategoryAllowed,
+  locationScopeWhere,
+  stockItemScopeWhere,
+} from '../auth/subsectorAccess';
 export { DuplicateStockItemError } from './stockIdentity';
 
 // Esses setores já exigiam um tipo de material; categoria continua opcional em APOIO e MONTAGEM.

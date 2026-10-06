@@ -185,6 +185,76 @@ test('validateImportBatch valida prateleiras em todos os setores ativos', () => 
   assert.throws(() => normalizeSector('QUIMICOS'), /Setor inválido ou descontinuado/);
 });
 
+test('CSV aceita classificação customizada em subsetor quando categoria e localização estão vinculadas', () => {
+  const locations: AvailableLocation[] = [{
+    id: 22, name: 'D-22', sector: 'DISTRIBUICAO', subsectorId: 9,
+    categoryId: 41, categoryLinks: [{ categoryId: 41 }],
+  }];
+  const categories: AvailableImportCategory[] = [{
+    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', componentType: 'CABEDAL',
+  }];
+  const subsectors = [{
+    id: 9, name: 'Componentes Especiais', sector: 'DISTRIBUICAO' as const, active: true,
+    categoryMode: 'SELECTED' as const, categoryLinks: [{ categoryConfigId: 41 }],
+  }];
+  const parsed = parseCsvRFC4180('sku;modelo;tipo;grade;lado;quantidade;prateleira;subsetor\nDIS-41;MODELO A;LONA ESPECIAL;40;E;1;D-22;Componentes Especiais');
+  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', locations, categories, subsectors);
+
+  assert.equal(item.subsectorId, 9);
+  assert.equal(item.categoryId, 41);
+  assert.equal(item.type, 'LONA ESPECIAL');
+});
+
+test('CSV rejeita localização ou categoria fora do subsetor selecionado', () => {
+  const categories: AvailableImportCategory[] = [{
+    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', componentType: 'CABEDAL',
+  }];
+  const subsectors = [{
+    id: 9, name: 'Componentes Especiais', sector: 'DISTRIBUICAO' as const, active: true,
+    categoryMode: 'SELECTED' as const, categoryLinks: [{ categoryConfigId: 42 }],
+  }];
+  const parsed = parseCsvRFC4180('sku;modelo;tipo;grade;lado;quantidade;prateleira;subsetor\nDIS-41;MODELO A;LONA ESPECIAL;40;E;1;D-22;Componentes Especiais');
+
+  assert.throws(() => validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', [{
+    id: 22, name: 'D-22', sector: 'DISTRIBUICAO', subsectorId: 10,
+    categoryId: 41, categoryLinks: [{ categoryId: 41 }],
+  }], categories, subsectors), (error: any) => {
+    assert(error instanceof ImportValidationError);
+    assert.equal(error.errors[0].column, 'prateleira');
+    return true;
+  });
+
+  assert.throws(() => validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', [{
+    id: 22, name: 'D-22', sector: 'DISTRIBUICAO', subsectorId: 9,
+    categoryId: 41, categoryLinks: [{ categoryId: 41 }],
+  }], categories, subsectors), (error: any) => {
+    assert(error instanceof ImportValidationError);
+    assert.ok(error.errors.some((entry: any) => entry.column === 'categoria'));
+    return true;
+  });
+});
+
+test('formato CSV legado de Corte preserva vínculo opcional de subsetor', () => {
+  const headers = Array.from({ length: 35 }, (_, index) => index === 34 ? 'subsetor' : `coluna_${index}`);
+  const cells = Array.from({ length: 35 }, () => '');
+  cells[5] = '1003';
+  cells[6] = 'TECIDO PRETO';
+  cells[34] = 'Tecidos';
+  const categories: AvailableImportCategory[] = [{ id: 51, name: 'TECIDO', sector: 'CORTE', componentType: 'MATERIA_PRIMA' }];
+  const subsectors = [{
+    id: 15, name: 'Tecidos', sector: 'CORTE' as const, active: true,
+    categoryMode: 'SELECTED' as const, categoryLinks: [{ categoryConfigId: 51 }],
+  }];
+  const [item] = validateImportBatch(headers, [{ rowNumber: 2, cells }], 'CORTE', [{
+    id: 35, name: 'CORTE-15', sector: 'CORTE', subsectorId: 15,
+    categoryId: 51, categoryLinks: [{ categoryId: 51 }],
+  }], categories, subsectors);
+
+  assert.equal(item.subsectorId, 15);
+  assert.equal(item.categoryId, 51);
+  assert.equal(item.locationName, 'CORTE-15');
+});
+
 test('CSV de Pré-Fabricado exige tipo configurado e rejeita categoria inválida', () => {
   const missingType = parseCsvRFC4180('sku;modelo;grade;quantidade;prateleira\nSOLA-01;PEGASUS 40;41;15;SOL-01');
   assert.throws(() => {

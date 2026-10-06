@@ -1,10 +1,11 @@
 import { UnitValidationError } from '../utils/unitHelper';
-import { requestStockAccess, assignedStockSector, assertStockSectorAccess, StockAccessError } from '../auth/stockAccess';
+import { requestStockAccess, assignedStockSector, assertStockSectorAccess, isStockMaster, StockAccessError } from '../auth/stockAccess';
+import { assertStockSubsectorAccess, locationScopeWhere } from '../auth/subsectorAccess';
 import { Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { parseCsvRFC4180, CsvEncodingError } from '../import/csvParser';
 import { DuplicateStockItemError } from '../services/stockIdentity';
-import type { AvailableImportCategory } from '../import/materialImport';
+import type { AvailableImportCategory, AvailableImportSubsector } from '../import/materialImport';
 import {
   validateImportBatch,
   planImport,
@@ -52,18 +53,30 @@ export class ImportController {
 
       // 2. Buscar localizações cadastradas para a unidade fabril atual
       const availableLocations = await prisma.location.findMany({
-        where: { factoryUnitId },
-        select: { id: true, name: true, sector: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
+        where: { factoryUnitId, ...locationScopeWhere(access) },
+        select: { id: true, name: true, sector: true, subsectorId: true, categoryId: true, categoryLinks: { select: { categoryId: true } } },
       });
       const availableCategories: AvailableImportCategory[] = await prisma.categoryConfig.findMany({
         where: { factoryUnitId },
         select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
       });
+      const availableSubsectors: AvailableImportSubsector[] = await prisma.subsectorConfig.findMany({
+        where: {
+          factoryUnitId,
+          active: true,
+          ...(!isStockMaster(access)
+            ? access.role === 'admin_setor'
+              ? (assignedStockSector(access) ? { sector: assignedStockSector(access)! } : { id: { in: [] } })
+              : { id: { in: access.subsectorIds || [] } }
+            : {}),
+        },
+        select: { id: true, name: true, sector: true, active: true, categoryMode: true, categoryLinks: { select: { categoryConfigId: true } } },
+      });
 
       // 3. Validação de Lote em Memória (Pre-Flight) com validação de prateleiras existentes
       let validatedItems;
       try {
-        validatedItems = validateImportBatch(parsed.headers, parsed.rows, defaultSector, availableLocations, availableCategories);
+        validatedItems = validateImportBatch(parsed.headers, parsed.rows, defaultSector, availableLocations, availableCategories, availableSubsectors);
       } catch (validationErr) {
         if (validationErr instanceof ImportValidationError) {
           return res.status(422).json({
@@ -74,7 +87,14 @@ export class ImportController {
         throw validationErr;
       }
 
-      for (const item of validatedItems) assertStockSectorAccess(access, item.sector);
+      for (const item of validatedItems) {
+        assertStockSectorAccess(access, item.sector);
+        if (item.subsectorId) {
+          const subsector = availableSubsectors.find(candidate => candidate.id === item.subsectorId);
+          if (!subsector) throw new StockAccessError('Acesso negado: subsetor indisponível para este usuário.');
+          assertStockSubsectorAccess(access, subsector, item.sector);
+        }
+      }
       const plan = await planImport(prisma, validatedItems, factoryUnitId);
       if (plan.errors.length) {
         return res.status(422).json({
@@ -88,6 +108,7 @@ export class ImportController {
         const previewItems = validatedItems.slice(0, previewLimit).map(item => ({
           linha: item.rowNumber,
           setor: item.sector,
+          subsetor: item.subsectorId ? availableSubsectors.find(subsector => subsector.id === item.subsectorId)?.name || null : null,
           sku: item.code,
           modelo: item.productName || item.name,
           peca: item.name,

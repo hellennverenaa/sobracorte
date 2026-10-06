@@ -15,6 +15,7 @@ import { lockStockIdentityWrites, normalizeStockColor, normalizeStockSector, nor
 import { debitStockItem } from './stockDebit';
 import {
   findPersistedRequisitionSource,
+  findRequisitionIdsWithinStockScope,
   findRequisitionStockCandidates,
   findUnverifiedRequisitionStockMatches,
   RequisitionStockCandidate,
@@ -245,7 +246,7 @@ export class RequisitionService {
   /**
    * Contagem de requisições pendentes para notificações e sininho
    */
-  async getPendingCount(factoryUnitId: number, sector?: SectorType) {
+  async getPendingCount(factoryUnitId: number, sector?: SectorType, context?: OperatorContext) {
     const normalized = sector ? normalizeStockSector(sector) : undefined;
     const sectorValues = normalized === 'DISTRIBUICAO'
       ? ['DISTRIBUICAO', 'EXPEDICAO'] as SectorType[]
@@ -260,6 +261,9 @@ export class RequisitionService {
         ],
       } : {}),
     };
+
+    const visibleIds = await findRequisitionIdsWithinStockScope(prisma, factoryUnitId, context);
+    if (visibleIds) where.id = { in: visibleIds };
 
     const count = await prisma.materialRequisition.count({ where });
     return { pendingCount: count };
@@ -503,6 +507,8 @@ export class RequisitionService {
         ],
       } : {}),
     };
+    const visibleIds = await findRequisitionIdsWithinStockScope(prisma, factoryUnitId, context);
+    if (visibleIds) where.id = { in: visibleIds };
 
     const [total, requisitions] = await Promise.all([
       prisma.materialRequisition.count({ where }),
@@ -548,6 +554,8 @@ export class RequisitionService {
     const { factoryUnitId, operatorId, operatorName } = context;
     return prisma.$transaction(async tx => {
       await lockStockIdentityWrites(tx, factoryUnitId);
+      const visibleIds = await findRequisitionIdsWithinStockScope(tx, factoryUnitId, context);
+      if (visibleIds && !visibleIds.includes(id)) throw new Error('Requisição não encontrada.');
       const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
       if (!req) throw new Error('Requisição não encontrada.');
       if (req.status !== 'PENDENTE' && req.status !== 'ATENDIDA_PARCIAL') {
@@ -605,6 +613,8 @@ export class RequisitionService {
     const { factoryUnitId } = context;
     return prisma.$transaction(async tx => {
       await lockStockIdentityWrites(tx, factoryUnitId);
+      const visibleIds = await findRequisitionIdsWithinStockScope(tx, factoryUnitId, context);
+      if (visibleIds && !visibleIds.includes(id)) throw new Error('Requisição não encontrada.');
       const req = await tx.materialRequisition.findFirst({ where: { id, factoryUnitId } });
       if (!req) throw new Error('Requisição não encontrada.');
       if (context.role === 'leitor') throw new StockAccessError('Acesso negado: o perfil leitor não pode cancelar requisições.');

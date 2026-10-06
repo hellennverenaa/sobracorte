@@ -44,6 +44,7 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
 
   try {
     let inventoryQuery: any;
+    let movementQuery: any;
     stockItem.findMany = async (args: any) => {
       inventoryQuery = args;
       return [{
@@ -77,9 +78,10 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     stockItem.groupBy = async () => [{ sector: 'CORTE', _count: { _all: 251 }, _sum: { quantity: 1000 } }];
 
     const inventoryCapture = responseCapture();
-    await controller.inventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '999' } } as any, inventoryCapture.res);
+    await controller.inventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '999', subsectorId: '12' } } as any, inventoryCapture.res);
     assert.equal(inventoryQuery.skip, 200);
     assert.equal(inventoryQuery.take, 200);
+    assert.equal(inventoryQuery.where.subsectorId, 12);
     assert.equal(inventoryCapture.result.body.items.length, 2);
     assert.equal(inventoryCapture.result.body.items.find((item: any) => item.id === 'stk_2').setor, 'APOIO');
     assert.equal(inventoryCapture.result.body.items.find((item: any) => item.id === 'stk_2').categoria, 'APOIO');
@@ -88,6 +90,7 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     assert.equal(inventoryCapture.result.body.totals.quantidadeTotal, 1000);
 
     movement.findMany = async (args: any) => {
+      movementQuery = args;
       assert.equal(args.skip, 50);
       assert.equal(args.take, 50);
       return [];
@@ -100,7 +103,8 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     ];
     location.findMany = async () => [];
     const movementCapture = responseCapture();
-    await controller.movements({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '50' } } as any, movementCapture.res);
+    await controller.movements({ user: { role: 'admin' }, tenant: { id: 7 }, query: { page: '2', limit: '50', subsectorId: '13' } } as any, movementCapture.res);
+    assert.equal(movementQuery.where.subsectorId, 13);
     assert.equal(movementCapture.result.body.items.length, 0);
     assert.equal(movementCapture.result.body.pagination.total, 101);
     assert.equal(movementCapture.result.body.totals.qtdOperacoesEntrada, 100);
@@ -159,7 +163,9 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
 
   const corteRows = rows(501, 'CORTE', 1);
   const otherRows = rows(2, 'APOIO', 1001);
+  let firstQuery: any;
   stockItem.findMany = async (args: any) => {
+    if (!firstQuery) firstQuery = args;
     if (args.where.sector === 'CORTE') {
       return args.where.id?.gt === 500 ? corteRows.slice(500) : args.where.id?.gt ? [] : corteRows.slice(0, 500);
     }
@@ -176,13 +182,14 @@ test('exportação de inventário não duplica CORTE e continua em lotes', async
   };
 
   try {
-    await controller.exportInventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: {} } as any, res);
+    await controller.exportInventory({ user: { role: 'admin' }, tenant: { id: 7 }, query: { subsectorId: '14' } } as any, res);
+    assert.equal(firstQuery.where.subsectorId, 14);
     const csv = chunks.join('');
     assert.equal((csv.match(/"CORTE";/g) ?? []).length, 501);
     assert.equal((csv.match(/"Peças Cortadas";/g) ?? []).length, 2);
-    assert.match(chunks[1], /^"CORTE";"CORTE-1";"Material";"TECIDO";"'-";"'-";"1";"m²";"A";/);
-    assert.ok(chunks[501].startsWith('"CORTE";"CORTE-501";'));
-    assert.ok(chunks[502].startsWith('"Peças Cortadas";"APOIO-1001";"Material";"tecido";"40";"E";"1";"UND";"A";'));
+    assert.match(chunks[1], /^"CORTE";"";"CORTE-1";"Material";"TECIDO";"'-";"'-";"1";"m²";"A";/);
+    assert.ok(chunks[501].startsWith('"CORTE";"";"CORTE-501";'));
+    assert.ok(chunks[502].startsWith('"Peças Cortadas";"";"APOIO-1001";"Material";"tecido";"40";"E";"1";"UND";"A";'));
   } finally {
     stockItem.findMany = originalFindMany;
   }

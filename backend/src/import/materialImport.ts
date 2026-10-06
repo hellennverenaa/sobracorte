@@ -1,4 +1,5 @@
 import { StockAccessContext, assertStockSectorAccess, assertGeneralStockAccess } from '../auth/stockAccess';
+import { assertStockLocationSubsector, assertStockSubsectorAccess, assertSubsectorCategoryAllowed } from '../auth/subsectorAccess';
 import { movementSnapshot } from '../services/movementSnapshot';
 import { SectorType, ComponentType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
@@ -11,8 +12,18 @@ export interface AvailableLocation {
   id: number;
   name: string;
   sector: SectorType | null;
+  subsectorId?: number | null;
   categoryId?: number | null;
   categoryLinks?: Array<{ categoryId: number }>;
+}
+
+export interface AvailableImportSubsector {
+  id: number;
+  name: string;
+  sector: SectorType;
+  active: boolean;
+  categoryMode: 'ALL' | 'SELECTED';
+  categoryLinks?: Array<{ categoryConfigId: number }>;
 }
 
 export interface AvailableImportCategory {
@@ -52,6 +63,7 @@ export interface ImportItemLocationAllocation {
 export interface ValidatedImportItem {
   rowNumber: number;
   sector: SectorType;
+  subsectorId?: number | null;
   code: string;
   name: string;
   unit: string;
@@ -164,7 +176,8 @@ export function validateImportBatch(
   rows: ParsedCsvRow[],
   defaultSector: string = 'CORTE',
   availableLocations: AvailableLocation[] = [],
-  availableCategories: AvailableImportCategory[] = []
+  availableCategories: AvailableImportCategory[] = [],
+  availableSubsectors: AvailableImportSubsector[] = [],
 ): ValidatedImportItem[] {
   if (rows.length === 0) {
     throw new ImportValidationError('O arquivo CSV está vazio ou contém apenas o cabeçalho.', [
@@ -173,9 +186,14 @@ export function validateImportBatch(
   }
 
   const headerCols = headers.map(c => c.toLowerCase().trim());
-  const locationsByName = new Map(availableLocations.map(location => [location.name.toUpperCase(), location]));
-  const defaultLocation = (sector: SectorType) => availableLocations.find(location => location.name.toUpperCase() === 'GERAL' && matchLocationSector(location.sector, sector))
-    || availableLocations.find(location => matchLocationSector(location.sector, sector));
+  const locationFor = (name: string, sector: SectorType, subsectorId: number | null) => availableLocations.find(location =>
+    location.name.toUpperCase() === name && matchLocationSector(location.sector, sector)
+    && Number(location.subsectorId || 0) === Number(subsectorId || 0));
+  const defaultLocation = (sector: SectorType, subsectorId: number | null = null) => availableLocations.find(location =>
+    location.name.toUpperCase() === 'GERAL' && matchLocationSector(location.sector, sector)
+    && Number(location.subsectorId || 0) === Number(subsectorId || 0))
+    || availableLocations.find(location => matchLocationSector(location.sector, sector)
+      && Number(location.subsectorId || 0) === Number(subsectorId || 0));
   const modelIdx = headerCols.findIndex(c => ['modelo', 'productname', 'nome_modelo', 'nomemodelo'].includes(c));
 
   const sectorIdx = headerCols.findIndex(c => c === 'setor' || c === 'sector' || c === 'área' || c === 'area');
@@ -189,6 +207,7 @@ export function validateImportBatch(
   const colorIdx = headerCols.findIndex(c => c === 'cor' || c === 'color' || c === 'materialcor' || c === 'material_cor' || c === 'combinacao' || c === 'combinação' || c === 'combinacão');
   const sizeIdx = headerCols.findIndex(c => c === 'grade' || c === 'tamanho' || c === 'sizegrade' || c === 'num' || c === 'numeracao' || c === 'numeração');
   const sideIdx = headerCols.findIndex(c => c === 'lado' || c === 'footside' || c === 'lado_pe' || c === 'pe');
+  const subsectorIdx = headerCols.findIndex(c => ['subsetor', 'subsector', 'sub-setor', 'sub_setor', 'sub setor', 'sub sector'].includes(c));
   const obsIdx = headerCols.findIndex(c => c === 'observacao' || c === 'observação' || c === 'obs' || c === 'observation' || c === 'nota');
 
   // Suporte a CSV legado de materiais de corte dublados (35+ colunas)
@@ -197,16 +216,28 @@ export function validateImportBatch(
     const validatedItems: ValidatedImportItem[] = [];
     const errors: ImportRowError[] = [];
 
-    // Localização padrão de corte
-    const defaultCorteLoc = defaultLocation('CORTE');
-
-    if (!defaultCorteLoc) {
-      throw new ImportValidationError('Não há nenhuma localização cadastrada para o setor CORTE. Cadastre uma localização antes de importar.', [
-        { row: 1, column: 'prateleira', value: '', message: 'Nenhuma localização cadastrada no sistema para o setor CORTE.' }
-      ]);
-    }
-
     for (const row of rows) {
+      const rawSubsector = subsectorIdx === -1 ? '' : String(row.cells[subsectorIdx] || '').trim();
+      let subsectorId: number | null = null;
+      if (rawSubsector) {
+        const requestedName = normalizeCategoryName(rawSubsector);
+        const subsector = availableSubsectors.find(candidate => candidate.active
+          && requireActiveStockSector(candidate.sector) === 'CORTE'
+          && normalizeCategoryName(candidate.name) === requestedName);
+        if (!subsector) {
+          errors.push({ row: row.rowNumber, column: 'subsetor', value: rawSubsector, message: `O subsetor '${rawSubsector}' não está ativo para o setor CORTE.` });
+          continue;
+        }
+        subsectorId = subsector.id;
+      }
+      const defaultCorteLoc = defaultLocation('CORTE', subsectorId);
+      if (!defaultCorteLoc) {
+        errors.push({ row: row.rowNumber, column: 'prateleira', value: '', message: subsectorId
+          ? 'Não há localização cadastrada para o subsetor informado.'
+          : 'Não há nenhuma localização cadastrada para o setor CORTE.' });
+        continue;
+      }
+
       const codigo = row.cells[5]?.trim().toUpperCase() ?? '';
       if (!codigo || !/^\d+$/.test(codigo)) {
         continue;
@@ -243,9 +274,30 @@ export function validateImportBatch(
       else if (descUpper.startsWith('EVA')) type = 'EVA';
       else if (descUpper.startsWith('ESPUMA')) type = 'ESPUMA';
 
+      const matchedCategory = categoryForImport(availableCategories, 'CORTE', type);
+      const selectedSubsector = subsectorId === null ? undefined : availableSubsectors.find(candidate => candidate.id === subsectorId);
+      if (selectedSubsector?.categoryMode === 'SELECTED') {
+        const allowedCategoryIds = new Set((selectedSubsector.categoryLinks || []).map(link => Number(link.categoryConfigId)));
+        if (!matchedCategory?.id || !allowedCategoryIds.has(Number(matchedCategory.id))) {
+          errors.push({ row: row.rowNumber, column: 'categoria', value: type, message: matchedCategory
+            ? `A categoria '${type}' não está permitida no subsetor '${selectedSubsector.name}'.`
+            : `A categoria '${type}' precisa estar cadastrada e permitida no subsetor '${selectedSubsector.name}'.` });
+          continue;
+        }
+        const locationAllowsCategory = defaultCorteLoc.categoryId === matchedCategory.id
+          || defaultCorteLoc.categoryLinks?.some(link => link.categoryId === matchedCategory.id) === true;
+        if (!locationAllowsCategory) {
+          errors.push({ row: row.rowNumber, column: 'prateleira', value: defaultCorteLoc.name, message: `A localização '${defaultCorteLoc.name}' não está vinculada à categoria '${matchedCategory.name}'.` });
+          continue;
+        }
+      }
+
       validatedItems.push({
         rowNumber: row.rowNumber,
         sector: 'CORTE',
+        subsectorId,
+        categoryId: matchedCategory?.id,
+        componentType: matchedCategory?.componentType || 'MATERIA_PRIMA',
         code: codigo,
         name: descricao,
         unit: normalizeUnit(unit),
@@ -298,6 +350,7 @@ export function validateImportBatch(
     const rawColor = colorIdx !== -1 ? row.cells[colorIdx] : undefined;
     const rawSize = sizeIdx !== -1 ? row.cells[sizeIdx] : undefined;
     const rawSide = sideIdx !== -1 ? row.cells[sideIdx] : undefined;
+    const rawSubsector = subsectorIdx !== -1 ? row.cells[subsectorIdx] : undefined;
     const rawObs = obsIdx !== -1 ? row.cells[obsIdx] : undefined;
 
     const codigo = rawCode.trim().toUpperCase();
@@ -331,6 +384,20 @@ export function validateImportBatch(
         continue;
       }
       throw error;
+    }
+
+    let subsectorId: number | null = null;
+    const requestedSubsector = String(rawSubsector || '').trim();
+    if (requestedSubsector) {
+      const normalizedName = normalizeCategoryName(requestedSubsector);
+      const subsector = availableSubsectors.find(candidate => candidate.active
+        && requireActiveStockSector(candidate.sector) === itemSector
+        && normalizeCategoryName(candidate.name) === normalizedName);
+      if (!subsector) {
+        errors.push({ row: row.rowNumber, column: 'subsetor', value: requestedSubsector, message: `O subsetor '${requestedSubsector}' não está ativo para o setor ${itemSector}.` });
+      } else {
+        subsectorId = subsector.id;
+      }
     }
 
     if (itemSector === 'CORTE' && rawColor?.trim()) {
@@ -392,7 +459,7 @@ export function validateImportBatch(
 
     if (rawLoc && rawLoc.trim() !== '') {
       const normLocName = rawLoc.trim().toUpperCase();
-      const matchedLoc = locationsByName.get(normLocName);
+      const matchedLoc = availableLocations.find(location => location.name.toUpperCase() === normLocName);
 
       if (!matchedLoc) {
         errors.push({
@@ -409,12 +476,17 @@ export function validateImportBatch(
           message: `A prateleira '${rawLoc}' pertence ao setor ${matchedLoc.sector}, não sendo permitida para itens do setor ${itemSector}.`,
         });
       } else {
-        locationId = matchedLoc.id;
-        locationName = matchedLoc.name;
+        const scopedLocation = locationFor(normLocName, itemSector, subsectorId);
+        if (!scopedLocation) {
+          errors.push({ row: row.rowNumber, column: 'prateleira', value: rawLoc, message: `A prateleira '${rawLoc}' não pertence ao subsetor informado. Itens sem subsetor só podem usar localizações sem subsetor.` });
+        } else {
+          locationId = scopedLocation.id;
+          locationName = scopedLocation.name;
+        }
       }
     } else {
       // Prateleira não informada na linha: tenta encontrar localização padrão do setor
-      const defaultLoc = defaultLocation(itemSector);
+      const defaultLoc = defaultLocation(itemSector, subsectorId);
 
       if (defaultLoc) {
         locationId = defaultLoc.id;
@@ -482,6 +554,15 @@ export function validateImportBatch(
     const matchedCategory = categoryForImport(availableCategories, itemSector, type);
     const categoryId = matchedCategory?.id || undefined;
     const componentType = matchedCategory?.componentType || undefined;
+    const selectedSubsector = subsectorId === null ? undefined : availableSubsectors.find(candidate => candidate.id === subsectorId);
+    if (selectedSubsector?.categoryMode === 'SELECTED') {
+      const allowedCategoryIds = new Set((selectedSubsector.categoryLinks || []).map(link => Number(link.categoryConfigId)));
+      if (!categoryId || !allowedCategoryIds.has(Number(categoryId))) {
+        errors.push({ row: row.rowNumber, column: 'categoria', value: type, message: categoryId
+          ? `A categoria '${type}' não está permitida no subsetor '${selectedSubsector.name}'.`
+          : `Selecione uma categoria permitida no subsetor '${selectedSubsector.name}'.` });
+      }
+    }
     const isApoioCabedal = itemSector === 'APOIO' && componentType === 'CABEDAL';
     if (isApoioCabedal && (sizeIdx === -1 || rawSize?.trim() === '')) {
       errors.push({ row: row.rowNumber, column: 'grade', value: rawSize || '', message: 'A grade é obrigatória para importar cabedal no setor Peças Cortadas.' });
@@ -506,6 +587,7 @@ export function validateImportBatch(
       validatedItems.push({
         rowNumber: row.rowNumber,
         sector: itemSector,
+        subsectorId,
         code: codigo,
         name: descricao,
         unit,
@@ -525,6 +607,7 @@ export function validateImportBatch(
       validatedItems.push({
         rowNumber: row.rowNumber,
         sector: itemSector,
+        subsectorId,
         code: codigo,
         name: descricao,
         unit,
@@ -545,6 +628,7 @@ export function validateImportBatch(
       validatedItems.push({
         rowNumber: row.rowNumber,
         sector: itemSector,
+        subsectorId,
         code: codigo,
         name: descricao,
         unit,
@@ -581,7 +665,7 @@ export function validateImportBatch(
       continue;
     }
 
-    const key = JSON.stringify([item.sector, stockIdentity(importStockData(item, 0))]);
+    const key = JSON.stringify([item.sector, item.subsectorId || null, stockIdentity(importStockData(item, 0))]);
     const existing = consolidatedByIdentity.get(key);
     if (!existing) {
       const consolidatedItem: ValidatedImportItem = {
@@ -615,6 +699,7 @@ export function importStockData(item: ValidatedImportItem, factoryUnitId: number
   const base = {
     factoryUnitId,
     sector: item.sector,
+    subsectorId: item.subsectorId || null,
     quantity: item.quantity,
     unit: normalizeUnit(item.unit),
     type: item.type,
@@ -650,7 +735,24 @@ function importIdentityKey(data: Record<string, any>) {
   return JSON.stringify([normalizeSector(data.sector), stockIdentity(data)]);
 }
 
-async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[], factoryUnitId: number) {
+async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[], factoryUnitId: number, context?: ImportExecutionContext) {
+  const subsetorIds = [...new Set(items.map(item => item.subsectorId).filter((id): id is number => Number.isSafeInteger(id)))];
+  const subsectors = subsetorIds.length ? await tx.subsectorConfig.findMany({
+    where: { factoryUnitId, id: { in: subsetorIds } },
+    include: { categoryLinks: { select: { categoryConfigId: true } } },
+  }) : [];
+  const subsectorsById = new Map<number, AvailableImportSubsector>(subsectors.map((subsector: any) => [subsector.id, subsector]));
+  for (const item of items) {
+    if (!item.subsectorId) continue;
+    const subsector = subsectorsById.get(item.subsectorId);
+    if (!subsector || !subsector.active || requireActiveStockSector(subsector.sector) !== requireActiveStockSector(item.sector)) {
+      throw new ImportValidationError('O subsetor do arquivo foi alterado ou arquivado. Nenhum item foi importado.', [
+        { row: item.rowNumber, column: 'subsetor', value: String(item.subsectorId), message: 'Atualize os subsetores e valide novamente o arquivo.' },
+      ]);
+    }
+    if (context) assertStockSubsectorAccess(context, subsector, item.sector);
+    assertSubsectorCategoryAllowed(subsector, item.categoryId, true);
+  }
   const preFabricatedItems = items.filter(item => item.sector === 'PRE_FABRICADO');
   if (preFabricatedItems.length > 0) {
     const categories = await tx.categoryConfig.findMany({
@@ -709,7 +811,7 @@ async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[
           : item.sector === 'PRE_FABRICADO'
             ? 'SOLADO'
             : item.sector === 'DISTRIBUICAO' || item.sector === 'EXPEDICAO'
-              ? (item.type === 'SOLA_PROCESSADA' ? 'SOLADO' : 'CABEDAL')
+              ? (item.type === 'SOLA_PROCESSADA' ? 'SOLADO' : item.type === 'CABEDAL' ? 'CABEDAL' : category.componentType || 'CABEDAL')
               : 'PE_PRONTO';
       if (category.componentType && (item.componentType || fallbackComponentType) !== category.componentType) {
         throw new ImportValidationError('A classificação da categoria mudou após a validação do arquivo.', [
@@ -721,6 +823,7 @@ async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[
       }
     }
   }
+
 }
 
 export async function planImport(prisma: any, items: ValidatedImportItem[], factoryUnitId: number) {
@@ -761,15 +864,21 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
       toInsert.push(item);
       continue;
     }
-    if (importIdentityKey(existing) === identity && normalizeUnit(existing.unit, item.sector) === data.unit) {
+    const sameIdentity = importIdentityKey(existing) === identity;
+    const sameSubsector = (existing.subsectorId ?? null) === (data.subsectorId ?? null);
+    if (sameIdentity && sameSubsector && normalizeUnit(existing.unit, item.sector) === data.unit) {
       ignored++;
       continue;
     }
     errors.push({
       row: item.rowNumber, column: 'codigo', value: item.code,
       message: item.sector === 'CORTE'
-        ? `O código já existe no setor ${existing.sector} com descrição, categoria ou unidade diferente. Cadastro atual: ${existing.name || ''} / ${existing.type || ''} / ${existing.unit || ''}.`
-        : 'O item já existe com a mesma identidade, mas outra unidade de medida.',
+        ? !sameSubsector
+          ? 'O material já existe em outro escopo (subsetor ou legado) desta unidade. Nenhum vínculo histórico foi alterado.'
+          : `O código já existe no setor ${existing.sector} com descrição, categoria ou unidade diferente. Cadastro atual: ${existing.name || ''} / ${existing.type || ''} / ${existing.unit || ''}.`
+        : !sameSubsector
+          ? 'O material já existe em outro escopo (subsetor ou legado) desta unidade. Nenhum vínculo histórico foi alterado.'
+          : 'O item já existe com a mesma identidade, mas outra unidade de medida.',
     });
   }
   return { toInsert, ignored, errors };
@@ -796,6 +905,7 @@ async function executeBulkImport(tx: any, items: ValidatedImportItem[], context:
       const location = locationsById.get(alloc.locationId);
       if (!location) throw new ImportValidationError('Localização não encontrada nesta unidade.', [{ row: alloc.rowNumber, column: 'prateleira', value: alloc.locationName, message: 'A localização foi removida. Atualize a página e valide novamente.' }]);
       assertStockLocationSector(location, item.sector);
+      assertStockLocationSubsector(location, item.subsectorId);
       try { assertStockLocationCategory(location, item.categoryId); }
       catch (error) { throw new ImportValidationError('A localização não permite a categoria importada.', [{ row: alloc.rowNumber, column: 'prateleira', value: alloc.locationName, message: (error as Error).message }]); }
       assertGeneralStockAccess(context, location);
@@ -823,7 +933,7 @@ async function executeBulkImport(tx: any, items: ValidatedImportItem[], context:
       for (const alloc of allocs) {
         links.push({ stockItemId: record.id, locationId: alloc.locationId, factoryUnitId, quantity: alloc.quantity });
         if (alloc.quantity > 0) movements.push({
-          factoryUnitId, stockItemId: record.id, sector: record.sector, type: 'ENTRADA', quantity: alloc.quantity,
+          factoryUnitId, stockItemId: record.id, subsectorId: record.subsectorId, sector: record.sector, type: 'ENTRADA', quantity: alloc.quantity,
           ...movementSnapshot(record),
           destinationStockItemId: record.id, destinationSector: record.sector,
           destinationLocationId: alloc.locationId, destinationLocationName: alloc.locationName,
@@ -853,7 +963,7 @@ export async function executeImportTransaction(
 
   return await prisma.$transaction(async (tx: any) => {
     await lockStockIdentityWrites(tx, factoryUnitId);
-    await validateConfiguredCategories(tx, items, factoryUnitId);
+    await validateConfiguredCategories(tx, items, factoryUnitId, context);
     if (items.length >= 100) return executeBulkImport(tx, items, context);
     for (const item of items) {
       validateQuantity(item.quantity, item.unit, item.sector, true);
@@ -876,6 +986,7 @@ export async function executeImportTransaction(
         if (!location) throw new Error('A localização não foi encontrada nesta unidade fabril.');
         assertStockSectorAccess(context, item.sector);
         assertStockLocationSector(location, item.sector);
+        assertStockLocationSubsector(location, item.subsectorId);
         try { assertStockLocationCategory(location, item.categoryId); }
         catch (error) { throw new ImportValidationError('A localização não permite a categoria importada.', [{ row: alloc.rowNumber, column: 'prateleira', value: alloc.locationName, message: (error as Error).message }]); }
         assertGeneralStockAccess(context, location);
@@ -892,6 +1003,7 @@ export async function executeImportTransaction(
         data: {
           factoryUnitId,
           sector: 'CORTE',
+          subsectorId: item.subsectorId || null,
           categoryId: item.categoryId || null,
           componentType: item.componentType || 'MATERIA_PRIMA',
           code: item.code,
@@ -933,6 +1045,7 @@ export async function executeImportTransaction(
             data: {
               factoryUnitId,
               stockItemId: materialRecord.id,
+              subsectorId: materialRecord.subsectorId,
               sector: 'CORTE',
               type: 'ENTRADA',
               quantity: alloc.quantity,
@@ -979,6 +1092,7 @@ export async function executeImportTransaction(
             data: {
               factoryUnitId,
               stockItemId: stockItem.id,
+              subsectorId: stockItem.subsectorId,
               sector: item.sector,
               type: 'ENTRADA',
               quantity: alloc.quantity,

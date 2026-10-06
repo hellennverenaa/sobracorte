@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import PageState from '@/components/PageState.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -37,6 +37,7 @@ const reportDomain = useReports({
 // --- TIPO DE RELATÓRIO ATIVO ---
 const { reportType, filters, loading, error: reportError, reportData, currentPage, pagination, reportTotals } = reportDomain
 const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisitions !== false)
+const availableSubsectors = ref([])
 
 // --- ESTADOS REATIVOS ---
 const loadError = computed(() => reportError.value
@@ -75,6 +76,15 @@ const sectors = computed(() => SECTOR_OPTIONS.filter(sector =>
   value: sector.id,
   label: sector.id === 'TODOS' ? 'Todos os Setores (Geral)' : sector.label,
 })))
+
+const reportSubsectors = computed(() => {
+  const sector = normalizeSector(filters.value.sector)
+  return availableSubsectors.value.filter(subsector => sector === 'TODOS' || normalizeSector(subsector.sector) === sector)
+})
+
+watch(() => filters.value.sector, () => {
+  filters.value.subsectorId = ''
+})
 
 const operationTypes = [
   { value: 'TODOS', label: 'Todas as Operações' },
@@ -125,8 +135,22 @@ async function fetchOrigins() {
   }
 }
 
-onMounted(() => {
-  fetchOrigins()
+async function fetchSubsectors() {
+  try {
+    const response = await api.get('/settings/subsectors')
+    availableSubsectors.value = Array.isArray(response.data) ? response.data : []
+    if (filters.value.subsectorId && !reportSubsectors.value.some(item => String(item.id) === String(filters.value.subsectorId))) {
+      filters.value.subsectorId = ''
+    }
+  } catch (err) {
+    console.error('Erro ao carregar subsetores para o relatório:', err)
+    availableSubsectors.value = []
+    filters.value.subsectorId = ''
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([fetchOrigins(), fetchSubsectors()])
   generateReport(1)
 })
 
@@ -198,6 +222,7 @@ async function downloadExcel() {
         tipoMovimento: filters.value.tipoMovimento,
         origin: filters.value.origin,
       })
+      if (filters.value.subsectorId) params.append('subsectorId', String(filters.value.subsectorId))
       if (dates?.start && dates?.end) {
         params.append('dataInicio', dates.start)
         params.append('dataFim', dates.end)
@@ -457,7 +482,7 @@ function formatReportReason(value) {
 
       <!-- PAINEL DE FILTROS AVANÇADOS -->
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 print:hidden space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
 
           <!-- 1. Filtro de Setor -->
           <div>
@@ -504,6 +529,25 @@ function formatReportReason(value) {
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               >
                 <option v-for="st in requisitionStatuses" :key="st.value" :value="st.value">{{ st.label }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="reportType === 'movements'">
+            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
+              Subsetor
+            </label>
+            <div class="relative">
+              <Layers class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <select
+                v-model="filters.subsectorId"
+                aria-label="Subsetor do relatório"
+                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              >
+                <option value="">Todos os subsetores autorizados</option>
+                <option v-for="subsector in reportSubsectors" :key="subsector.id" :value="String(subsector.id)">
+                  {{ subsector.name }}
+                </option>
               </select>
             </div>
           </div>

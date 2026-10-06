@@ -131,3 +131,20 @@ test('pré-validação distingue repetição, item existente e conflito de códi
   const repeated = await planImport({ stockItem: { findMany: async () => [] } }, [base, { ...base, rowNumber: 3 }], 1);
   assert.equal(repeated.errors[0].row, 3);
 });
+
+test('pré-validação não trata item de outro subsetor ou legado como importado no escopo solicitado', async () => {
+  const base: ValidatedImportItem = {
+    rowNumber: 2, sector: 'CORTE', subsectorId: 9, code: '1384206', name: 'TECIDO AZUL',
+    type: 'TECIDO', unit: 'M2', quantity: 0, locationId: 1, locationName: 'PRATELEIRA 01',
+  };
+  const existing = {
+    factoryUnitId: 1, sector: 'CORTE', subsectorId: null, code: '1384206', name: 'TECIDO AZUL',
+    type: 'TECIDO', unit: 'M2',
+  };
+  const plan = await planImport({ stockItem: { findMany: async () => [existing] } }, [base], 1);
+
+  assert.equal(plan.ignored, 0);
+  assert.equal(plan.toInsert.length, 0);
+  assert.match(plan.errors[0].message, /outro escopo/);
+  assert.doesNotMatch(plan.errors[0].message, /TECIDO AZUL/);
+});
