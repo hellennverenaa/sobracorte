@@ -11,7 +11,6 @@ import { StockItemController } from './controllers/StockItemController';
 import { MountingPairController } from './controllers/MountingPairController';
 import { StockMovementController } from './controllers/StockMovementController';
 import { RequisitionController } from './controllers/RequisitionController';
-import { RequisitionStockCompatibilityController } from './controllers/RequisitionStockCompatibilityController';
 import { SubsectorController } from './controllers/SubsectorController';
 import { prisma } from './prisma';
 import { tenantStorage } from './context/tenantContext';
@@ -110,7 +109,6 @@ const stockItemController = new StockItemController();
 const mountingPairController = new MountingPairController();
 const stockMovementController = new StockMovementController();
 const requisitionController = new RequisitionController();
-const requisitionStockCompatibilityController = new RequisitionStockCompatibilityController();
 const subsectorController = new SubsectorController();
 
 routes.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -356,10 +354,6 @@ routes.delete('/settings/locations/:id', requireAuth, mutationLimiter, requireRo
 routes.get('/settings/origins',    requireAuth, authenticatedLimiter, settingsController.getOrigins);
 routes.post('/settings/origins',   requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.createOrigin);
 routes.delete('/settings/origins/:id', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), settingsController.deleteOrigin);
-routes.get('/settings/requisition-stock-compatibilities', requireAuth, authenticatedLimiter, requisitionStockCompatibilityController.list);
-routes.get('/settings/requisition-stock-compatible-items', requireAuth, authenticatedLimiter, requisitionStockCompatibilityController.listSourceItems);
-routes.post('/settings/requisition-stock-compatibilities', requireAuth, mutationLimiter, requisitionStockCompatibilityController.create);
-routes.delete('/settings/requisition-stock-compatibilities/:id', requireAuth, mutationLimiter, requisitionStockCompatibilityController.remove);
 
 routes.post('/import/csv/preview', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), uploadCsv, importController.previewCSV);
 routes.post('/import/csv', requireAuth, mutationLimiter, requireRole(['admin', 'admin_setor']), uploadCsv, importController.importCSV);

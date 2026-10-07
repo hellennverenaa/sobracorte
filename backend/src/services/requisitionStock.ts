@@ -40,7 +40,6 @@ export type RequisitionStockCandidate = {
 export type UnverifiedRequisitionStockMatch = {
   id: number;
   sourceSector: SectorType;
-  hasProductLink: boolean;
   matchReasons: string[];
   code?: string | null;
   pieceCode?: string | null;
@@ -181,36 +180,6 @@ export async function findRequisitionStock(
     if (!req.footSide && item.footSide) return false;
     return true;
   });
-}
-
-function mapFieldMatches(mapped: string | null | undefined, requested: string | null | undefined, color = false) {
-  if (!mapped?.trim()) return true;
-  if (!requested?.trim()) return false;
-  return (color ? normalizeStockColor(mapped) : normalizeStockText(mapped))
-    === (color ? normalizeStockColor(requested) : normalizeStockText(requested));
-}
-
-function mappingMatchesRequest(mapping: any, req: RequestIdentity) {
-  const requestSector = normalizeStockSector(req.requestSector);
-  const requestIdentifier = requestSector === 'APOIO'
-    ? normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku
-    : req.sku;
-  const identityMatches = mapping.requestSku
-    ? mapFieldMatches(mapping.requestSku, requestIdentifier)
-    : mapFieldMatches(mapping.requestDescription, req.description);
-  return identityMatches
-    && mapFieldMatches(mapping.requestModelName, req.modelName)
-    && mapFieldMatches(mapping.requestType, inferredType(req, normalizeStockSector(req.requestSector)))
-    && mapFieldMatches(mapping.requestColor, req.color, true)
-    && mapFieldMatches(mapping.requestSizeGrade, req.sizeGrade)
-    && (!mapping.requestFootSide || mapping.requestFootSide === req.footSide);
-}
-
-function sameSourceProductIgnoringSide(left: Record<string, any>, right: Record<string, any>) {
-  const a = stockIdentity({ ...left, footSide: null });
-  const b = stockIdentity({ ...right, footSide: null });
-  return normalizeStockSector(left.sector) === normalizeStockSector(right.sector)
-    && Object.keys(a).every(field => a[field] === b[field]);
 }
 
 function candidateRank(requestSector: string, sourceSector: string) {
@@ -443,7 +412,7 @@ export async function findRequisitionStockCandidates(
   }
 
   // Matéria-prima é uma requisição própria do Corte. Não cruza SKU/código,
-  // modelo ou regra de compatibilidade com produtos e componentes acabados.
+  // modelo com produtos e componentes acabados.
   if (requestSector === 'CORTE') return candidates;
 
   // Regra operacional existente: Montagem pode aproveitar cabedal do mesmo produto
@@ -523,8 +492,7 @@ export async function findRequisitionStockCandidates(
   // Model fallback uses an exact model/line and rejects conflicts in any
   // requested variant. Component type must also match, except for Montagem,
   // where Cabedal and Peças Cortadas are shown as explicit suggestions for the
-  // requester to confirm. Raw materials in Corte still require a shared SKU or
-  // an explicit compatibility rule.
+  // requester to confirm. Raw materials in Corte are excluded.
   const modelIdentity = normalizeStockText(req.modelName);
   if (modelIdentity && allowAutomaticCrossSectorMatches) {
     const modelRows = await tx.stockItem.findMany({
@@ -558,58 +526,6 @@ export async function findRequisitionStockCandidates(
         const match = automaticMatchCheck(item, req, requestUnit, 'model');
         add(makeCandidate([item], requestSector, requestUnit, 1, modelReason, [], true, match.confirmationDetails));
       }
-    }
-  }
-
-  // Relacionamentos explícitos podem ligar qualquer setor fornecedor ao produto solicitado.
-  {
-    const requestIdentifier = requestSector === 'APOIO'
-      ? normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku
-      : req.sku;
-    const skuIdentity = normalizeStockText(requestIdentifier);
-    const descriptionIdentity = normalizeStockText(req.description);
-    const mappings = requestSector === 'APOIO' ? [] : await tx.requisitionStockCompatibility.findMany({
-      where: {
-        factoryUnitId,
-        requestSector: requestSector as SectorType,
-        ...(context ? { sourceStockItem: { is: stockItemScopeWhere(context) } } : {}),
-        OR: [
-          ...(skuIdentity ? [{ requestSku: { equals: skuIdentity, mode: 'insensitive' as const } }] : []),
-          ...(descriptionIdentity ? [{ requestSku: null, requestDescription: { equals: descriptionIdentity, mode: 'insensitive' as const } }] : []),
-        ],
-      },
-      include: { sourceStockItem: { include: { locations: { include: { location: true } } } } },
-    });
-    const eligible = mappings.filter(mapping => {
-      const item = mapping.sourceStockItem;
-      return normalizeStockSector(mapping.sourceSector) !== requestSector
-        && normalizeStockSector(mapping.sourceSector) !== 'CORTE'
-        && normalizeStockSector(item.sector) !== 'CORTE'
-        && normalizeStockSector(item.sector) === normalizeStockSector(mapping.sourceSector)
-        && mappingMatchesRequest(mapping, req)
-        && Number(item.quantity) > 0
-        && (!req.footSide || req.footSide === 'PAR' || !item.footSide || item.footSide === req.footSide)
-        && (req.footSide !== 'PAR' || !item.footSide || item.footSide === 'E' || item.footSide === 'D');
-    });
-
-    for (const mapping of eligible) {
-      const item = mapping.sourceStockItem;
-      if (req.footSide === 'PAR' && (item.footSide === 'E' || item.footSide === 'D')) {
-        if (item.footSide !== 'E') continue;
-        const mate = eligible.find(other => other.matchKey === mapping.matchKey
-          && normalizeStockSector(other.sourceSector) === normalizeStockSector(mapping.sourceSector)
-          && other.sourceStockItem.footSide === 'D'
-          && Number(other.sourceQuantityPerRequestUnit) === Number(mapping.sourceQuantityPerRequestUnit)
-          && sameSourceProductIgnoringSide(item, other.sourceStockItem));
-        if (!mate) continue;
-        const pair = [item, mate.sourceStockItem];
-        try { assertCompatiblePair(pair[0], pair[1]); } catch { continue; }
-        add(makeCandidate(pair, requestSector, mapping.requestUnit,
-          Number(mapping.sourceQuantityPerRequestUnit), mapping.reason, [mapping.id, mate.id]));
-        continue;
-      }
-      add(makeCandidate([item], requestSector, mapping.requestUnit,
-        Number(mapping.sourceQuantityPerRequestUnit), mapping.reason, [mapping.id]));
     }
   }
 
@@ -670,17 +586,6 @@ export async function findUnverifiedRequisitionStockMatches(
   });
   const offeredIds = new Set(alreadyOfferedStockItemIds.map(Number));
   const crossSectorRows = rows.filter(item => normalizeStockSector(item.sector) !== requestSector && !offeredIds.has(item.id));
-  const productLinks = crossSectorRows.length
-    ? await tx.requisitionStockCompatibility.findMany({
-      where: {
-        factoryUnitId,
-        requestSector: requestSector as SectorType,
-        sourceStockItemId: { in: crossSectorRows.map(item => item.id) },
-      },
-      select: { sourceStockItemId: true },
-    })
-    : [];
-  const linkedItemIds = new Set(productLinks.map(link => link.sourceStockItemId));
   return crossSectorRows
     .slice(0, 10)
     .map(item => {
@@ -690,7 +595,6 @@ export async function findUnverifiedRequisitionStockMatches(
       return {
         id: item.id,
         sourceSector: normalizeStockSector(item.sector) as SectorType,
-        hasProductLink: linkedItemIds.has(item.id),
         matchReasons,
         code: item.code,
         pieceCode: item.pieceCode,

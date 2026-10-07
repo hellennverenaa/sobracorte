@@ -71,7 +71,6 @@ interface RequisitionStockCandidate {
 interface UnverifiedRequisitionStockMatch {
   id: number;
   sourceSector: string;
-  hasProductLink: boolean;
   matchReasons: string[];
   code?: string | null;
   pieceCode?: string | null;

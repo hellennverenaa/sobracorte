@@ -83,6 +83,16 @@ test('baixa multilateral, rollback e operações concorrentes preservam saldo e 
   assert.equal(req.quantityFulfilled, 7);
   assert.equal(records[0].quantity, 124);
   await assert.rejects(service.cancelRequisition('REQ', context), /pendentes/);
+  // Requisição histórica conserva a origem e a conversão, sem consultar a regra removida.
+  records = [item(1, 'E', 131)]; movements = [];
+  req = { ...req, status: 'PENDENTE', quantityFulfilled: 0, sourceStockItemIds: [1],
+    sourceCompatibilityIds: [99], sourceSector: 'MONTAGEM', requestSector: 'PRE_FABRICADO',
+    requestUnit: 'UN', sourceQuantityPerRequestUnit: 2, sourceMatchReason: 'Regra histórica' };
+  await service.fulfillRequisition('REQ', { quantity: 3 } as any, context);
+  assert.equal(req.quantityFulfilled, 3);
+  assert.equal(records[0].quantity, 125);
+  assert.equal(records[0].locations.reduce((sum: number, row: any) => sum + row.quantity, 0), 125);
+  assert.equal(movements.reduce((sum, row) => sum + Number(row.quantity), 0), 6);
   req = { ...req, status: 'PENDENTE', quantityFulfilled: 0 };
   await service.cancelRequisition('REQ', context);
   await assert.rejects(fulfill(1), /pendentes/);

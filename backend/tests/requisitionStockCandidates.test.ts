@@ -53,7 +53,7 @@ function transactionFor(rows: Array<Record<string, any>>) {
     stockItem: {
       findMany: async ({ where }: { where: Record<string, any> }) => rows.filter(row => matchesWhere(row, where)),
     },
-    requisitionStockCompatibility: { findMany: async () => [] },
+    requisitionStockCompatibility: { findMany: async () => { throw new Error('Regras especiais não devem ser consultadas.'); } },
   } as any;
 }
 

@@ -406,7 +406,7 @@ export class RequisitionService {
           const itemIdentifier = item.sku || item.pieceCode;
           const itemLabel = itemIdentifier ? `${itemIdentifier} - ${item.description}` : item.description;
           throw new Error(
-            `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor. Para usar matéria-prima de Corte sem SKU compartilhado, é necessária uma regra especial de compatibilidade.`
+            `Não há sobra compatível com saldo positivo para ${itemLabel}. Confirme unidade, variantes e saldo do fornecedor.`
           );
         }
         if (!selected) throw new Error('Escolha uma origem de estoque compatível para cada item da requisição.');

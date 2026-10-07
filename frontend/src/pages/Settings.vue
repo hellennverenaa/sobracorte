@@ -275,8 +275,6 @@
         </div>
       </div>
 
-      <RequisitionStockCompatibilitySettings v-if="activeTab === 'compatibility' && isMasterAdmin" />
-
       <!-- ABA 3: LOCALIZAÇÕES                       -->
       <div v-if="activeTab === 'locations'" class="space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1064,7 +1062,6 @@ import PageState from '@/components/PageState.vue'
 import ToastNotification from '@/components/ToastNotification.vue'
 import SettingsTabNav from '@/components/SettingsTabNav.vue'
 import SubsectorSettings from '@/components/SubsectorSettings.vue'
-import RequisitionStockCompatibilitySettings from '@/components/RequisitionStockCompatibilitySettings.vue'
 import { formatSectorName, SECTOR_OPTIONS } from '@/utils/domain'
 import { formatDate } from '@/utils/format'
 import {
@@ -1091,7 +1088,6 @@ const tabs = computed(() => {
     { key: 'subsectors',   label: 'Subsetores',                 icon: Layers },
     { key: 'locations',    label: 'Localizações / Prateleiras', icon: MapPin },
     { key: 'origins',      label: 'Origens / Motivos',          icon: GitBranch },
-    ...(isMasterAdmin.value ? [{ key: 'compatibility', label: 'Regras especiais', icon: GitBranch }] : []),
     { key: 'import',       label: 'Importar CSV',               icon: FileSpreadsheet },
     ...(isMasterAdmin.value ? [{ key: 'factory_unit', label: 'Unidade Fabril', icon: Building2 }] : [])
   ]

@@ -9,7 +9,9 @@ test('APIs legadas removidas retornam 404 sem autenticação ou persistência', 
   const address = server.address() as import('node:net').AddressInfo;
   try {
     for (const path of ['/materials', '/materials/1', '/materials/bulk', '/movements', '/stats',
-      '/dashboard/origem-sobras', '/dashboard/distribuicao', '/dashboard/top-materiais', '/reports/data']) {
+      '/dashboard/origem-sobras', '/dashboard/distribuicao', '/dashboard/top-materiais', '/reports/data',
+      '/settings/requisition-stock-compatibilities', '/settings/requisition-stock-compatibilities/1',
+      '/settings/requisition-stock-compatible-items']) {
       for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
         const response = await fetch(`http://127.0.0.1:${address.port}${path}`, { method });
         assert.equal(response.status, 404, `${method} ${path}`);

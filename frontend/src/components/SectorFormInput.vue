@@ -9,7 +9,7 @@ import PageState from '@/components/PageState.vue';
 import CategorySelector from '@/components/CategorySelector.vue';
 import { 
   Scissors, Wrench, Layers, Box, Footprints, 
-  Plus, Check, AlertCircle, Lock
+  Plus, Check, AlertCircle
 } from 'lucide-vue-next';
 
 const emit = defineEmits(['saved', 'cancel']);
@@ -38,6 +38,7 @@ const activeSector = ref<SectorType>(
         : stockStore.activeSector
 );
 const isSubmitting = ref(false);
+const keepDataAfterSave = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 
@@ -498,7 +499,12 @@ async function handleSubmit() {
     if (payloadItem.color) {
       addCombinationLocally(payloadItem.color, activeSector.value);
     }
-    resetForm();
+    if (keepDataAfterSave.value) {
+      savedForm.value = JSON.stringify(formData);
+      nextTick(() => firstInputRef.value?.focus());
+    } else {
+      resetForm();
+    }
     emit('saved');
     setTimeout(() => {
       successMessage.value = '';
@@ -597,16 +603,10 @@ onMounted(async () => {
           empty-message="Cadastre uma categoria para Corte em Configurações antes de lançar o material."
         />
 
-        <div>
-          <label class="flex items-center justify-between text-xs font-bold text-gray-500 uppercase mb-1">
-            <span>Unidade de Medida *</span>
-            <span v-if="isUnitLocked" class="text-[10px] text-amber-600 flex items-center gap-0.5" title="Unidade fixada pela categoria">
-              <Lock class="w-3 h-3" /> Fixa
-            </span>
-          </label>
+        <div v-if="!isUnitLocked">
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade de Medida *</label>
           <select
             v-model="formData.unit"
-            :disabled="isUnitLocked"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
             required
           >
@@ -1023,7 +1023,7 @@ onMounted(async () => {
         <h3 id="entry-stock-heading" class="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Entrada no estoque</h3>
       <div class="entry-form-grid entry-form-grid--shared">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : 'Quantidade Inicial' }} *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : `Quantidade Inicial (${activeSector === 'CORTE' ? formData.unit : 'UN'})` }} *</label>
           <input
             v-model="formData.quantity"
             :step="isIntegerQuantitySector ? 1 : 0.001"
@@ -1039,15 +1039,10 @@ onMounted(async () => {
             {{ formData.footSide === 'PAR' && supportsPair ? 'Cada par cadastra 1 pé esquerdo e 1 direito' : 'Estoque inicial do item (apenas números inteiros)' }}
           </span>
           <span v-else class="text-[10px] text-gray-400 mt-0.5 block">
-            Estoque inicial do item (permite decimais ex: 12.5 m²)
+            Estoque inicial do item (permite decimais ex: 12.5 {{ formData.unit }})
           </span>
-        </div>
-
-        <div v-if="activeSector !== 'CORTE'">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade de medida</label>
-          <p class="w-full border border-gray-200 p-2 rounded bg-gray-100 text-sm text-gray-700">Unidade (UN)</p>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">
-            {{ formData.footSide === 'PAR' && supportsPair ? 'Cada par entra como uma unidade esquerda e uma direita.' : 'Cada item entra como uma unidade individual.' }}
+          <span v-if="activeSector === 'CORTE' && isUnitLocked" class="mt-0.5 block text-[10px] text-amber-600">
+            Unidade fixada pela categoria.
           </span>
           <span v-if="hasUnitConfigurationConflict" role="alert" class="mt-1 block text-[10px] font-semibold text-rose-700">
             A categoria bloqueia {{ selectedCategory?.defaultUnitCode || 'uma unidade sem padrão' }}, incompatível com a unidade individual (UN) deste setor. Ajuste a unidade bloqueada em Configurações.
@@ -1119,7 +1114,22 @@ onMounted(async () => {
       </div>
 
       <!-- Botões de Ação -->
-      <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white px-3 py-3 sm:px-5">
+      <div class="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-white px-3 py-3 sm:px-5">
+        <label class="mr-auto inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700">
+          <input
+            v-model="keepDataAfterSave"
+            type="checkbox"
+            role="switch"
+            :aria-checked="keepDataAfterSave"
+            :disabled="isSubmitting"
+            class="peer sr-only"
+          />
+          <span
+            aria-hidden="true"
+            class="relative h-5 w-9 shrink-0 rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-blue-600 peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50"
+          ></span>
+          <span>Manter dados após salvar</span>
+        </label>
         <button
           type="button"
           @click="cancelForm"
