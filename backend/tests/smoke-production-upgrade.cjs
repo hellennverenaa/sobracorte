@@ -25,7 +25,7 @@ async function main() {
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   try {
-    for (const path of ['/health/ready', '/factory-unit/current', '/inventory/search?limit=5',
+    for (const path of ['/health/ready', '/factory-unit/current', '/inventory/search?limit=50',
       '/settings/categories', '/settings/locations', '/settings/units', '/settings/origins',
       '/dashboard/summary', '/inventory/search?sector=CORTE', '/inventory/search?sector=MONTAGEM',
       '/inventory/movements/history', '/requisitions', '/users', '/users/audit',

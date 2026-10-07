@@ -1,0 +1,37 @@
+-- APROVADA e aplicada ao banco restaurado de TESTES em 07/10/2026; produção não alterada.
+-- Ensaio validado em clone do backup de 07/10/2026, antes das sete migrations pendentes.
+-- Requer janela sem gravações, backup e aprovação das classificações descritas no relatório.
+BEGIN;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema='sobra_corte' AND table_name='StockItem' AND column_name='categoryId') THEN
+    RAISE EXCEPTION 'Esta preparação exige o esquema original, anterior à migração de categoryId.';
+  END IF;
+  IF (SELECT count(*) FROM sobra_corte."FactoryUnit"
+    WHERE (id=1 AND code='SEST') OR (id=2 AND code='SAJ') OR (id=7 AND code='ITP')) <> 3 THEN
+    RAISE EXCEPTION 'As unidades não correspondem ao backup auditado.';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM (VALUES
+      (1,'PRE_FABRICADO','EVA',4), (1,'DISTRIBUICAO','CABEDAL',1),
+      (1,'DISTRIBUICAO','SOLA_PROCESSADA',159), (1,'MONTAGEM',NULL,1),
+      (2,'CORTE','REFORÇO',6), (2,'CORTE','SOLADO INJ DIRETA',5),
+      (2,'CORTE','EVA INJETADO',1), (7,'CORTE','FILME',129), (7,'APOIO',NULL,263)
+    ) AS expected(unit_id,sector,item_type,items)
+    WHERE (SELECT count(*) FROM sobra_corte."StockItem" s
+      WHERE s."factoryUnitId"=expected.unit_id AND s.sector::text=expected.sector
+        AND s.type IS NOT DISTINCT FROM expected.item_type) <> expected.items
+  ) THEN
+    RAISE EXCEPTION 'As contagens dos grupos não correspondem ao backup auditado. Refaça a auditoria.';
+  END IF;
+END $$;
+INSERT INTO sobra_corte."CategoryConfig" ("factoryUnitId",name,sector,"defaultUnitCode","unitLocked") VALUES
+(1,'EVA (PRÉ-FABRICADO)','PRE_FABRICADO','UN',true),
+(1,'CABEDAL','DISTRIBUICAO','UN',true),(1,'SOLA_PROCESSADA','DISTRIBUICAO','UN',true),
+(1,'PE PRONTO','MONTAGEM','UN',true),(2,'REFORÇO','CORTE','M²',true),
+(2,'SOLADO INJ DIRETA','CORTE','M²',true),(2,'EVA INJETADO','CORTE','M²',true),(7,'FILME','CORTE','M²',true);
+UPDATE sobra_corte."StockItem" SET type='MOLDE / PEÇA' WHERE "factoryUnitId"=7 AND sector='APOIO' AND type IS NULL AND "componentType"='PECA_CORTADA';
+UPDATE sobra_corte."StockItem" SET type='PE PRONTO' WHERE "factoryUnitId"=1 AND sector='MONTAGEM' AND type IS NULL AND "componentType"='PE_PRONTO';
+UPDATE sobra_corte."StockItem" SET type='EVA (PRÉ-FABRICADO)' WHERE "factoryUnitId"=1 AND sector='PRE_FABRICADO' AND type='EVA';
+COMMIT;

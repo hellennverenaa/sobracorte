@@ -542,9 +542,9 @@ export class RequisitionService {
       if (!amount.isPositive() || amount.decimalPlaces() > 3 || amount.gt(new Prisma.Decimal(req.quantityRequested).minus(req.quantityFulfilled))) {
         throw new Error('A quantidade informada é inválida ou excede a pendência da requisição.');
       }
-      validateQuantity(dto.quantity, req.requestUnit || 'UN', req.requestSector);
       const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx, context);
       if (!candidate) throw new Error('A origem escolhida não está mais compatível ou não possui saldo. Atualize a requisição antes de atender.');
+      validateQuantity(dto.quantity, req.requestUnit || candidate.unit, req.requestSector);
       if (candidate.sourceSector !== sourceSector) throw new Error('A origem de estoque da requisição não corresponde mais ao setor fornecedor registrado.');
       if (amount.gt(new Prisma.Decimal(candidate.quantity))) throw new Error(`Saldo insuficiente na origem escolhida. Disponível: ${candidate.quantity} ${candidate.unit}.`);
       const sourceQuantity = amount.mul(new Prisma.Decimal(req.sourceQuantityPerRequestUnit || 1));

@@ -26,6 +26,19 @@ async function main() {
   try {
     await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const query = async sql => (await db.query(sql)).rows;
+    const missingColumns = await query(`SELECT required.table_name, required.column_name
+      FROM (VALUES ('CategoryConfig', 'sectors'), ('CategoryConfig', 'componentType'),
+        ('StockItem', 'categoryId')) AS required(table_name, column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
+        WHERE actual.table_schema = 'sobra_corte' AND actual.table_name = required.table_name
+          AND actual.column_name = required.column_name)`);
+    if (missingColumns.length) {
+      await db.query('ROLLBACK');
+      console.log(JSON.stringify({ blocked: 1, schemaReady: false, missingColumns,
+        guidance: 'O esquema é anterior aos pré-requisitos desta auditoria. Ensaie as migrations anteriores em um clone antes de auditar as regras de categoria.' }, null, 2));
+      process.exitCode = 2;
+      return;
+    }
     const missingCategories = await query(`${ctes}
       SELECT s.id, s."factoryUnitId", s.sector, s.type, a.matches
       FROM category_assignments a JOIN sobra_corte."StockItem" s ON s.id = a.stock_id
