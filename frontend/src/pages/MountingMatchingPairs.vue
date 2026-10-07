@@ -5,7 +5,7 @@ import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/composables/useToast';
 import ToastNotification from '@/components/ToastNotification.vue';
-import { normalizeSector } from '@/utils/domain';
+import { normalizeSector, formatSectorName } from '@/utils/domain';
 import { 
   Footprints, Layers, Box, RefreshCw, CheckCircle2, AlertCircle, 
   MapPin, Check, ArrowRight, Search, X
@@ -15,13 +15,15 @@ const stockStore = useStockStore();
 const authStore = useAuthStore();
 
 const allPairSectors: Array<{ id: SectorType; label: string; sublabel: string; icon: any }> = [
-  { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Pés Órfãos', icon: Footprints },
-  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Solas', icon: Layers },
-  { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Cabedais e Solas', icon: Box },
+  { id: 'CORTE', label: 'Corte', sublabel: 'Categorias por lado/par', icon: Layers },
+  { id: 'APOIO', label: 'Peças Cortadas', sublabel: 'Categorias por lado/par', icon: Layers },
+  { id: 'MONTAGEM', label: 'Montagem', sublabel: 'Categorias por lado/par', icon: Footprints },
+  { id: 'PRE_FABRICADO', label: 'Pré-Fabricado', sublabel: 'Categorias por lado/par', icon: Layers },
+  { id: 'DISTRIBUICAO', label: 'Distribuição', sublabel: 'Categorias por lado/par', icon: Box },
 ];
 
-const pairSectors = computed(() => allPairSectors);
-const activeSector = ref<SectorType>('MONTAGEM');
+const pairSectors = computed(() => allPairSectors.filter(sector => stockStore.matchingPairSectors.includes(sector.id)));
+const activeSector = ref<SectorType | null>(null);
 const searchQuery = ref('');
 const selectedPair = ref<MatchingPair | null>(null);
 const matchQuantity = ref(1);
@@ -33,7 +35,7 @@ const { notification, showToast } = useToast(4000);
 
 const canOperateMatchingSector = computed(() => {
   if (!authStore.user) return false;
-  if (authStore.user.role === 'admin') return true;
+  if (authStore.user.role === 'admin' || authStore.user.isGlobalAdmin) return true;
   if (authStore.user.role === 'leitor') return false;
   if (!authStore.user.assignedSector || authStore.user.assignedSector === 'TODOS') return false;
   const normUserSec = normalizeSector(authStore.user.assignedSector);
@@ -42,7 +44,8 @@ const canOperateMatchingSector = computed(() => {
 });
 
 async function loadPairs() {
-  await stockStore.fetchMatchingPairs(activeSector.value, searchQuery.value);
+  await stockStore.fetchMatchingPairs(activeSector.value || undefined, searchQuery.value);
+  if (!stockStore.error) activeSector.value = stockStore.matchingPairSector;
 }
 
 function handleSearch() {
@@ -61,15 +64,16 @@ function selectSectorTab(sector: SectorType) {
 }
 
 function openConfirmModal(pair: MatchingPair) {
+  if (!canOperateMatchingSector.value || !authStore.can('movimentar')) return;
   selectedPair.value = pair;
   matchQuantity.value = Math.min(1, pair.formablePairs);
-  const sectorLabel = activeSector.value === 'PRE_FABRICADO' ? 'Solas' : (activeSector.value === 'DISTRIBUICAO' || activeSector.value === 'EXPEDICAO') ? 'Distribuição' : 'Montagem';
+  const sectorLabel = formatSectorName(activeSector.value || '');
   matchReason.value = `Pares de ${sectorLabel} retirados fisicamente das prateleiras e encaminhados para a produção`;
   showConfirmModal.value = true;
 }
 
 async function handleExecuteMatch() {
-  if (!selectedPair.value) return;
+  if (!selectedPair.value || !activeSector.value || !canOperateMatchingSector.value || !authStore.can('movimentar') || isSubmitting.value) return;
 
   if (matchQuantity.value <= 0 || matchQuantity.value > selectedPair.value.formablePairs) {
     showToast(`Quantidade inválida. Pares formáveis: ${selectedPair.value.formablePairs}`, 'error');
@@ -95,6 +99,14 @@ async function handleExecuteMatch() {
   }
 }
 
+watch(() => authStore.user?.unit?.code, () => {
+  activeSector.value = null;
+  selectedPair.value = null;
+  showConfirmModal.value = false;
+  searchQuery.value = '';
+  loadPairs();
+});
+
 onMounted(() => {
   loadPairs();
 });
@@ -109,7 +121,7 @@ onMounted(() => {
       <div class="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between mx-4 my-4">
         <div>
           <h1 class="text-xl font-bold text-gray-800">Casamento de Pares Multi-Setor</h1>
-          <p class="text-xs text-gray-500">Localização física inteligente de lados esquerdo e direito (Solas, Distribuição e Montagem)</p>
+          <p class="text-xs text-gray-500">Combine lados esquerdo e direito de categorias configuradas por lado/par.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -120,7 +132,7 @@ onMounted(() => {
               v-model="searchQuery"
               @keyup.enter="handleSearch"
               type="text"
-              placeholder="Buscar por SKU, Modelo ou Grade..."
+              placeholder="Buscar por código, modelo ou grade..."
               class="w-full pl-9 pr-8 py-2 text-xs border border-gray-200 rounded focus:border-blue-500 outline-none uppercase bg-white"
             />
             <button
@@ -150,10 +162,11 @@ onMounted(() => {
       </div>
 
       <!-- Seletor de Setores (Tabs Industriais) -->
-      <div class="mx-4 mb-4 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+      <div v-if="pairSectors.length" class="mx-4 mb-4 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
         <button
           v-for="sec in pairSectors"
           :key="sec.id"
+          :aria-pressed="activeSector === sec.id"
           @click="selectSectorTab(sec.id)"
           type="button"
           class="flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-all border"
@@ -168,11 +181,11 @@ onMounted(() => {
       </div>
 
       <!-- Banner de Resumo -->
-      <div class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div v-if="activeSector && !stockStore.error && !stockStore.loading" class="bg-white p-4 rounded shadow-sm border border-gray-200 mx-4 mb-4 flex flex-col md:flex-row items-center justify-between gap-4">
         <div class="space-y-1">
           <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded font-bold border border-blue-200">
-              OPORTUNIDADE DE RECUPERAÇÃO — {{ activeSector }}
+              OPORTUNIDADE DE RECUPERAÇÃO — {{ formatSectorName(activeSector || '') }}
             </span>
             <span class="text-sm font-bold text-gray-800">
               {{ stockStore.matchingPairsCount }} combinações prontas para casar
@@ -193,10 +206,19 @@ onMounted(() => {
 
       <!-- Grid de Pares Casáveis -->
       <div class="flex-1 overflow-auto px-4 pb-4">
-        <div v-if="stockStore.matchingPairs.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-if="stockStore.loading" role="status" class="p-8 text-center text-sm text-gray-500">Carregando setores e pares...</div>
+        <div v-else-if="stockStore.error" role="alert" class="rounded border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          {{ stockStore.error }}
+          <button @click="loadPairs" class="ml-2 font-semibold underline">Tentar novamente</button>
+        </div>
+        <div v-else-if="!pairSectors.length" class="rounded border border-gray-200 bg-white p-8 text-center">
+          <h3 class="text-sm font-bold text-gray-700">Nenhum setor habilitado para casamento de pares</h3>
+          <p class="mt-2 text-xs text-gray-500">O recurso requer uma categoria com cadastro por lado/par em um setor disponível para seu perfil nesta unidade.</p>
+        </div>
+        <div v-else-if="stockStore.matchingPairs.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
             v-for="pair in stockStore.matchingPairs"
-            :key="pair.sku + pair.sizeGrade + (pair.color || '')"
+            :key="`${pair.leftFootStockItemId}-${pair.rightFootStockItemId}`"
             class="bg-white rounded shadow-sm border border-gray-200 p-4 space-y-3 hover:border-blue-300 transition-colors"
           >
             <!-- Topo do Card -->
@@ -215,6 +237,8 @@ onMounted(() => {
                     {{ pair.type === 'SOLA_PROCESSADA' ? 'Sola Processada' : pair.type === 'CABEDAL' ? 'Cabedal' : pair.type }}
                   </span>
                 </div>
+                <p v-if="pair.categoryName" class="text-xs font-semibold text-gray-700">{{ pair.categoryName }}</p>
+                <p v-if="pair.subsectorName" class="text-xs text-gray-500">Subsetor: {{ pair.subsectorName }}</p>
                 <h3 class="font-mono text-base font-bold text-blue-600">{{ pair.sku }}</h3>
                 <span v-if="pair.productName && pair.productName !== pair.sku" class="text-xs font-bold text-gray-800 block">
                   {{ pair.productName }}
@@ -294,9 +318,9 @@ onMounted(() => {
           class="bg-white rounded shadow-sm border border-gray-200 p-12 text-center space-y-2"
         >
           <component :is="activeSector === 'PRE_FABRICADO' ? Layers : (activeSector === 'DISTRIBUICAO' || activeSector === 'EXPEDICAO') ? Box : Footprints" class="w-10 h-10 text-gray-300 mx-auto" />
-          <h3 class="text-sm font-bold text-gray-700">Nenhum par casável no momento para o setor {{ activeSector }}</h3>
+          <h3 class="text-sm font-bold text-gray-700">Nenhum par casável no momento para o setor {{ formatSectorName(activeSector || '') }}</h3>
           <p class="text-xs text-gray-500 max-w-md mx-auto">
-            Assim que itens de lados esquerdo e direito correspondentes (mesmo COD. PRODUTO / SKU e numeração) derem entrada no setor selecionado, eles aparecerão aqui para casamento.
+            Os pares aparecem quando há saldo nos lados esquerdo e direito da mesma categoria e subsetor, com unidade, identificação, grade e demais características compatíveis.
           </p>
         </div>
       </div>
@@ -305,7 +329,7 @@ onMounted(() => {
       <div v-if="showConfirmModal && selectedPair" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
           <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
-            <h3 class="font-bold text-gray-800">Confirmar Casamento de Par ({{ activeSector }})</h3>
+            <h3 class="font-bold text-gray-800">Confirmar Casamento de Par ({{ formatSectorName(activeSector || '') }})</h3>
             <button @click="showConfirmModal = false" class="text-gray-400 hover:text-gray-600 font-bold text-xl">
               &times;
             </button>

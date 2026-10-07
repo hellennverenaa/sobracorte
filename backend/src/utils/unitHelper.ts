@@ -24,15 +24,6 @@ export function isDiscreteSector(sector?: string | null): boolean {
   return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(s);
 }
 
-/** New stock entries in these sectors are stored as individual components.
- * A pair entry is expanded into one left and one right item by StockItemService.
- */
-export function stockEntryUnit(sector?: string | null): 'UN' | null {
-  return ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(normalizeSector(sector || ''))
-    ? CANONICAL_UNITS.UNIDADE
-    : null;
-}
-
 /** Unidades que representam peças, volumes ou pares indivisíveis. */
 export function isDiscreteUnit(unit?: string | null): boolean {
   if (!unit) return false;
@@ -48,7 +39,7 @@ export function requiresIntegerQuantity(unit?: string | null, sector?: string | 
   if (!unit || String(unit).trim() === '') {
     return isDiscreteSector(sector);
   }
-  return isDiscreteSector(sector) || isDiscreteUnit(normalizeUnit(unit, sector));
+  return isDiscreteUnit(normalizeUnit(unit, sector));
 }
 
 export const UNIT_ALIASES: Record<string, string> = Object.fromEntries([
@@ -129,6 +120,6 @@ export function validateQuantityPrecision(value: string | number): void {
 export function validateQuantity(value: number, unit: string, sector?: string | null, allowZero = false): void {
   validateUnit(unit);
   if (!Number.isFinite(value) || (allowZero ? value < 0 : value <= 0)) throw new UnitValidationError('Quantidade deve ser positiva; estoque mínimo pode ser zero.');
-  if (requiresIntegerQuantity(unit, sector) && !Number.isInteger(value)) throw new UnitValidationError('Quantidade inválida: para unidade discreta ou setor de peças deve ser um número inteiro.');
+  if (requiresIntegerQuantity(unit, sector) && !Number.isInteger(value)) throw new UnitValidationError('Quantidade inválida: para unidade discreta deve ser um número inteiro.');
   validateQuantityPrecision(value);
 }

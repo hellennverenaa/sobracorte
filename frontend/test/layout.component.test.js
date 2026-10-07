@@ -8,11 +8,11 @@ test('troca global informa progresso, mantém identidade e preserva unidade quan
   const { createRouter, createMemoryHistory } = await import('vue-router');
   const pinia = createPinia();
   const token = `header.${btoa(JSON.stringify({ id: 17, usuario: 'teste', origem: 'DASS' }))}.signature`;
-  pinia.state.value.auth = { user: { id: 17, token, role: 'admin', isGlobalAdmin: true, unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [], unitSwitchStatus: '' };
+  pinia.state.value.auth = { user: { id: 17, nome: 'JOSE AUGUSTO DA SILVA', token, role: 'admin', isGlobalAdmin: true, unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [], unitSwitchStatus: '' };
   let unitRequests = 0;
   api.get = async (url) => {
     if (url === '/factory-units') unitRequests++;
-    return { data: url === '/factory-units' ? [{ code: 'SEST' }, { code: 'VDC' }] : {} };
+    return { data: url === '/factory-units' ? [{ code: 'SEST' }, { code: 'VDC' }] : { pendingCount: 2 } };
   };
   let complete;
   api.post = () => new Promise((resolve) => { complete = resolve; });
@@ -21,6 +21,23 @@ test('troca global informa progresso, mantém identidade e preserva unidade quan
   const mounted = await mountComponent(component, { pinia, router });
   await flushPromises();
   const selector = mounted.element.querySelector('#global-unit-selector');
+  const sidebar = mounted.element.querySelector('aside');
+  assert.ok(sidebar.contains(selector));
+  assert.equal(mounted.element.querySelector('main header'), null);
+  assert.equal(mounted.element.textContent.split('Sobras DASS').length - 1, 1);
+  const summary = sidebar.querySelector('[data-user-summary]');
+  assert.match(summary.textContent, /JOSE AUGUSTO DA SILVA/);
+  assert.match(summary.textContent, /Administrador/);
+  assert.doesNotMatch(summary.textContent, /Todos os setores|Admin Master|SEST/);
+  assert.ok(summary.querySelector('[aria-label="Requisições pendentes"]'));
+  assert.match(summary.querySelector('[aria-label="Requisições pendentes"]').textContent, /2/);
+  const menu = mounted.element.querySelector('[aria-label="Abrir menu"]');
+  menu.click();
+  await flushPromises();
+  assert.equal(menu.getAttribute('aria-expanded'), 'true');
+  sidebar.querySelector('[aria-label="Fechar menu"]').click();
+  await flushPromises();
+  assert.equal(menu.getAttribute('aria-expanded'), 'false');
   selector.value = 'VDC';
   selector.dispatchEvent(new Event('change'));
   await flushPromises();

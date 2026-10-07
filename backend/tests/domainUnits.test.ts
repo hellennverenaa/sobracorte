@@ -191,14 +191,14 @@ test('Validação de Domínio: Bloqueio de entrada com unidade conflitante no lo
 
 test('Importação CSV: validateImportBatch normaliza unidades canônicas por setor', () => {
   const { parseCsvRFC4180 } = require('../src/import/csvParser');
-  const csv = 'setor;codigo;descricao;unidade;quantidade;prateleira\nCORTE;TEC-01;Tecido Algodão;m2;10.5;PRAT-A1';
+  const csv = 'setor;codigo;descricao;unidade;quantidade;prateleira;categoria\nCORTE;TEC-01;Tecido Algodão;m2;10.5;PRAT-A1;TECIDO';
   const parsed = parseCsvRFC4180(csv);
 
   const locations = [
     { id: 1, name: 'PRAT-A1', sector: 'CORTE' as any },
   ];
 
-  const result = validateImportBatch(parsed.headers, parsed.rows, 'CORTE', locations);
+  const result = validateImportBatch(parsed.headers, parsed.rows, 'CORTE', locations.map(l => ({ ...l, categoryMode: 'ALL' })), [{ id: 1, name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' }]);
 
   assert.equal(result.length, 1);
   assert.equal(result[0].unit, 'M²', 'CORTE deve normalizar m2 para M²');
@@ -208,7 +208,7 @@ test('catálogo valida símbolos, quantidades, importação e estoque mínimo se
   const { UNIT_CATALOG, validateQuantity, validateUnit } = await import('../src/utils/unitHelper');
   const { CorteItemSchema } = await import('../src/types/stock.dto');
   assert.equal(UNIT_CATALOG.length, 10);
-  const textItem = { sector: 'CORTE', code: 'T', name: 'T', unit: 'M²', quantity: '1,01', location: 'C1' };
+  const textItem = { sector: 'CORTE', categoryId: 1, code: 'T', name: 'T', unit: 'M²', quantity: '1,01', location: 'C1' };
   assert.equal(CorteItemSchema.parse(textItem).quantity, 1.01);
   assert.equal(CorteItemSchema.safeParse({ ...textItem, quantity: '1.00000000000000001' }).success, false);
   assert.equal(validateUnit('peças'), 'UN');
@@ -223,14 +223,14 @@ test('catálogo valida símbolos, quantidades, importação e estoque mínimo se
     assert.throws(() => validateQuantity(Infinity, unit.symbol));
     if (unit.integerOnly) assert.throws(() => validateQuantity(1.01, unit.symbol), /inteiro/);
     else validateQuantity(1.01, unit.symbol);
-    const item = { sector: 'CORTE', code: 'TEST', name: 'Test', quantity: 1, unit: unit.symbol, minStock: 1.0001, location: 'C1' };
+    const item = { sector: 'CORTE', categoryId: 1, code: 'TEST', name: 'Test', quantity: 1, unit: unit.symbol, minStock: 1.0001, location: 'C1' };
     assert.equal(CorteItemSchema.safeParse(item).success, false);
     assert.equal(CorteItemSchema.safeParse({ ...item, minStock: 1.01 }).success, !unit.integerOnly);
   }
-  assert.throws(() => validateQuantity(1.01, 'KG', 'APOIO'), /inteiro/);
+  validateQuantity(1.01, 'KG', 'APOIO');
   const locations = [{ id: 1, name: 'C1', sector: 'CORTE' as any }];
   for (const [unit, quantity] of [['UN', '1.01'], ['FOLHA', '1'], ['KG', '1.0001']]) {
-    assert.throws(() => validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira'], [{ rowNumber: 2, cells: ['T','Test',unit,quantity,'C1'] }], 'CORTE', locations));
+    assert.throws(() => validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira','categoria'], [{ rowNumber: 2, cells: ['T','Test',unit,quantity,'C1','TESTE'] }], 'CORTE', locations));
   }
-  assert.equal(validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira'], [{ rowNumber: 2, cells: ['T','Test','M²','1,01','C1'] }], 'CORTE', locations)[0].quantity, 1.01);
+  assert.equal(validateImportBatch(['codigo','descricao','unidade','quantidade','prateleira','categoria'], [{ rowNumber: 2, cells: ['T','Test','M²','1,01','C1','TESTE'] }], 'CORTE', locations.map(l => ({ ...l, categoryMode: 'ALL' })), [{ id: 1, name: 'TESTE', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' }])[0].quantity, 1.01);
 });

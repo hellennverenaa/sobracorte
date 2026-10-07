@@ -1,10 +1,10 @@
-import { requestStockAccess, StockAccessError } from '../auth/stockAccess';
+import { requestStockAccess, StockAccessError, assertStockSectorAccess } from '../auth/stockAccess';
 import { Request, Response } from 'express';
 import { MountingPairService } from '../services/MountingPairService';
 import { ExecuteMatchSchema } from '../types/stock.dto';
 import { SectorType } from '../generated/prisma';
 import { ZodError } from 'zod';
-import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
+import { requireActiveStockSector, normalizeSector, SectorValidationError } from '../utils/sectorHelper';
 
 const mountingPairService = new MountingPairService();
 
@@ -18,20 +18,19 @@ export class MountingPairController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const sectorParam = req.query.sector ? requireActiveStockSector(String(req.query.sector)) : undefined;
-      const validSectors: SectorType[] = ['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'];
-      const sector: SectorType = (validSectors.includes(sectorParam as SectorType)
-        ? (sectorParam as SectorType)
-        : 'MONTAGEM');
-
+      const access = { ...requestStockAccess(req), factoryUnitId: req.tenant.id };
+      const requested = req.query.sector ? requireActiveStockSector(String(req.query.sector)) : undefined;
+      if (requested && !(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, requested);
+      const availableSectors = await mountingPairService.availableSectors(req.tenant.id, access);
+      const normalizedRequested = requested ? normalizeSector(requested) as SectorType : null;
+      const sector = normalizedRequested && availableSectors.includes(normalizedRequested)
+        ? normalizedRequested
+        : availableSectors.includes('MONTAGEM') ? 'MONTAGEM' : availableSectors[0] || null;
       const searchParam = (req.query.q as string) || (req.query.search as string) || '';
-      const access = requestStockAccess(req);
-      const pairs = await mountingPairService.findMatchingPairs(req.tenant.id, sector, searchParam, {
-        ...access,
-        factoryUnitId: req.tenant.id,
-      });
+      const pairs = sector ? await mountingPairService.findMatchingPairs(req.tenant.id, sector, searchParam, access) : [];
       return res.json({
         sector,
+        availableSectors,
         totalMatchingPairsCount: pairs.length,
         pairs,
       });

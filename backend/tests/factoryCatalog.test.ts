@@ -8,10 +8,10 @@ test('catálogo fixo contém as categorias e origens aprovadas', () => {
   assert.equal(catalog.categories.length, 11);
   assert.equal(catalog.origins.length, 14);
   assert.deepEqual(catalog.categories.find(category => category.name === 'COURO'), {
-    name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M', unitLocked: true,
+    name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M', unitLocked: true, entryMode: 'QUANTITY',
   });
   assert.deepEqual(catalog.categories.find(category => category.name === 'LINHA'), {
-    name: 'LINHA', sector: 'CORTE', defaultUnitCode: 'KG', unitLocked: true,
+    name: 'LINHA', sector: 'CORTE', defaultUnitCode: 'KG', unitLocked: true, entryMode: 'QUANTITY',
   });
   assert.equal(catalog.origins.find(origin => origin.name === 'CONSUMO')?.sector, null);
   assert.equal(catalog.origins.find(origin => origin.name === 'DUBLAGEM')?.sector, 'CORTE');

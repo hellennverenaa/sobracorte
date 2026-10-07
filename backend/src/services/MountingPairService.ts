@@ -1,5 +1,6 @@
-import { assertStockSectorAccess } from '../auth/stockAccess';
+import { assertStockSectorAccess, assignedStockSector } from '../auth/stockAccess';
 import { assertStockSubsectorAccess, stockItemSubsectorSql } from '../auth/subsectorAccess';
+import { categoryAppliesToSector } from './categoryScope';
 import { pairCompatibilitySql } from './pairCompatibilitySql';
 import { movementSnapshot } from './movementSnapshot';
 import { prisma } from '../prisma';
@@ -17,6 +18,10 @@ export interface MatchingPairRawResult {
   color?: string | null;
   type?: string | null;
   sector?: SectorType;
+  categoryId?: number;
+  categoryName?: string;
+  subsectorId?: number | null;
+  subsectorName?: string | null;
   leftFootStockItemId: number;
   leftQuantity: number;
   leftLocations: string | null;
@@ -27,8 +32,19 @@ export interface MatchingPairRawResult {
 }
 
 export class MountingPairService {
+  async availableSectors(factoryUnitId: number, context: OperatorContext): Promise<SectorType[]> {
+    const assigned = context.role === 'leitor' && !context.assignedSector ? null : assignedStockSector(context);
+    const categories = await prisma.categoryConfig.findMany({
+      where: { factoryUnitId, entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN' },
+      select: { sector: true, sectors: true },
+    });
+    const sectors: SectorType[] = ['CORTE', 'APOIO', 'MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO'];
+    return sectors.filter(sector => (!assigned || normalizeStockSector(assigned) === sector) &&
+      categories.some(category => categoryAppliesToSector(category, sector)));
+  }
+
   /**
-   * Localiza instantaneamente os pares casáveis nos setores: MONTAGEM, PRE_FABRICADO (Solas) e EXPEDICAO (Cabedais)
+   * Localiza pares casáveis de categorias configuradas por lado/par em qualquer setor
    */
   async findMatchingPairs(
     factoryUnitId: number,
@@ -45,12 +61,16 @@ export class MountingPairService {
 
     const rawPairs = await prisma.$queryRaw<MatchingPairRawResult[]>`
       SELECT 
-        COALESCE(e."sku", e."pieceCode", e."productName", '-') AS "sku",
-        COALESCE(e."productName", e."description", '-') AS "productName",
+        COALESCE(e."sku", e."pieceCode", e."code", e."productName", '-') AS "sku",
+        COALESCE(e."productName", e."description", e."name", '-') AS "productName",
         e."sizeGrade",
         e."color",
         e."type",
         e.sector,
+        e."categoryId",
+        (SELECT c.name FROM sobra_corte."CategoryConfig" c WHERE c.id = e."categoryId" AND c."factoryUnitId" = e."factoryUnitId") AS "categoryName",
+        e."subsectorId",
+        (SELECT s.name FROM sobra_corte."SubsectorConfig" s WHERE s.id = e."subsectorId" AND s."factoryUnitId" = e."factoryUnitId") AS "subsectorName",
         e.id AS "leftFootStockItemId",
         e.quantity AS "leftQuantity",
         (
@@ -103,7 +123,7 @@ export class MountingPairService {
     return mapped.filter((p) =>
       p.sku.toUpperCase().includes(term) ||
       (p.productName && p.productName.toUpperCase().includes(term)) ||
-      p.sizeGrade.toUpperCase().includes(term) ||
+      (p.sizeGrade || '').toUpperCase().includes(term) ||
       (p.color && p.color.toUpperCase().includes(term))
     );
   }
@@ -116,13 +136,13 @@ export class MountingPairService {
     return prisma.$transaction(async tx => {
       await lockStockIdentityWrites(tx, factoryUnitId);
       const items = await Promise.all([dto.leftStockItemId, dto.rightStockItemId].map(id => tx.stockItem.findFirst({
-        where: { id, factoryUnitId }, include: { subsector: { select: { id: true, sector: true } }, locations: { include: { location: true } } },
+        where: { id, factoryUnitId }, include: { category: true, subsector: { select: { id: true, sector: true } }, locations: { include: { location: true } } },
       })));
       const [left, right] = items;
       if (!left || !right) throw new Error('Um ou ambos os itens de estoque não foram encontrados.');
       assertStockSubsectorAccess(context, left.subsector, left.sector);
       assertStockSubsectorAccess(context, right.subsector, right.sector);
-      if (!['PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM'].includes(left.sector)) throw new Error('O setor não permite casamento de pares.');
+      if (left.category?.entryMode !== 'SIDE_PAIR' || right.category?.entryMode !== 'SIDE_PAIR') throw new Error('A categoria não permite casamento de pares.');
       if (normalizeStockSector(left.sector) !== normalizeStockSector(dto.sector)) throw new Error('Os itens não pertencem ao setor informado para o casamento.');
       assertCompatiblePair(left, right);
       const balances = new Map<number, Prisma.Decimal>();

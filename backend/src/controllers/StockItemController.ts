@@ -141,7 +141,7 @@ export class StockItemController {
         return res.status(400).json({ error: 'Unidade fabril não identificada.' });
       }
 
-      const { sector, q, componentType } = req.query;
+      const { sector, q, categoryId } = req.query;
       const access = requestStockAccess(req);
       const assignedSector = access.role === 'leitor' && !access.assignedSector
         ? null
@@ -154,16 +154,14 @@ export class StockItemController {
         : requireActiveStockSector(requestedSector) as SectorType;
 
       const query = q ? String(q) : '';
-      const requestedComponent = String(componentType || '').trim().toUpperCase();
-      const apoioComponent = ['CABEDAL', 'PECA_CORTADA'].includes(requestedComponent)
-        ? requestedComponent as 'CABEDAL' | 'PECA_CORTADA'
-        : undefined;
+      const category = categoryId == null ? undefined : Number(categoryId);
+      if (category !== undefined && (!Number.isInteger(category) || category <= 0)) return res.status(400).json({ error: 'Categoria inválida.' });
 
       const result = await stockItemService.getSearchSuggestions(
         targetSector,
         query,
         req.tenant.id,
-        apoioComponent,
+        category,
         { ...access, factoryUnitId: req.tenant.id },
       );
       return res.json(result);

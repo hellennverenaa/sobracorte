@@ -183,3 +183,9 @@ Não há opção para incluir SEST. A operação bloqueia se não encontrar exat
 uma unidade com esse código ou se qualquer contagem da unidade protegida mudar.
 Os códigos passados em `--disable` precisam existir entre as unidades não-SEST;
 essas unidades recebem o catálogo normalmente, mas terminam com `active=false`.
+
+Categorias definem a unidade e o modo de cadastro para todos os setores. Novas entradas e requisições exigem `categoryId`. O modo `QUANTITY` registra quantidade sem lado; `SIDE_PAIR` exige unidade `UN` e lado `E`, `D` ou `PAR`. Uma entrada de 3 pares gera 3 unidades E e 3 unidades D. Unidade e modo ficam bloqueados quando a categoria possui itens vinculados.
+
+Antes de aplicar essa mudança em produção, siga a [auditoria e o procedimento de migração de categorias](CATEGORY_ENTRY_PRODUCTION.md). O reparo pontual do banco de testes não deve ser reutilizado em produção.
+
+A migração `20261007120000_category_entry_rules` deriva as regras das unidades e lados já registrados, preservando saldos, movimentos e requisições históricas. Estoque sem categoria só é associado quando nome e setor identificam uma única categoria. Categorias com unidades diferentes, itens com e sem lado ou pares persistidos como um único registro interrompem a migração e precisam ser regularizadas antes da aplicação. Os metadados antigos de subtipo permanecem arquivados para preservar referências históricas; suas rotas e configurações foram retiradas.

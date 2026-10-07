@@ -1,11 +1,11 @@
 import { StockAccessContext, assertStockSectorAccess, assertGeneralStockAccess } from '../auth/stockAccess';
 import { assertStockLocationSubsector, assertStockSubsectorAccess, assertSubsectorCategoryAllowed } from '../auth/subsectorAccess';
 import { movementSnapshot } from '../services/movementSnapshot';
-import { SectorType, ComponentType, FootSide } from '../generated/prisma';
+import { SectorType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
-import { normalizeUnit, isDiscreteUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
-import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem, stockIdentity, StockCategoryError } from '../services/stockIdentity';
-import { categoryScopeWhere } from '../services/categoryScope';
+import { normalizeUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
+import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem, stockIdentity } from '../services/stockIdentity';
+import { validateCategoryEntry } from '../services/categoryRules';
 import { requireActiveStockSector, SectorValidationError } from '../utils/sectorHelper';
 
 export interface AvailableLocation {
@@ -32,7 +32,7 @@ export interface AvailableImportCategory {
   name: string;
   sector: SectorType | null;
   sectors?: SectorType[];
-  componentType?: ComponentType | null;
+  entryMode: 'QUANTITY' | 'SIDE_PAIR';
   unitLocked?: boolean;
   defaultUnitCode?: string | null;
 }
@@ -77,7 +77,7 @@ export interface ValidatedImportItem {
   sizeGrade?: string;
   footSide?: 'E' | 'D' | null;
   categoryId?: number | null;
-  componentType?: ComponentType;
+  entryMode?: 'QUANTITY' | 'SIDE_PAIR';
   observation?: string;
   productName?: string;
   locations?: ImportItemLocationAllocation[];
@@ -276,6 +276,12 @@ export function validateImportBatch(
       else if (descUpper.startsWith('ESPUMA')) type = 'ESPUMA';
 
       const matchedCategory = categoryForImport(availableCategories, 'CORTE', type);
+      if (!matchedCategory?.id) {
+        errors.push({ row: row.rowNumber, column: 'categoria', value: type, message: 'Cadastre uma categoria correspondente ao material antes de importar.' });
+        continue;
+      }
+      try { validateCategoryEntry(matchedCategory, { unit, quantity: 0 }, true); }
+      catch (error) { errors.push({ row: row.rowNumber, column: 'categoria', value: type, message: (error as Error).message }); continue; }
       const selectedSubsector = subsectorId === null ? undefined : availableSubsectors.find(candidate => candidate.id === subsectorId);
       if (selectedSubsector?.categoryMode === 'SELECTED') {
         const allowedCategoryIds = new Set((selectedSubsector.categoryLinks || []).map(link => Number(link.categoryConfigId)));
@@ -299,7 +305,7 @@ export function validateImportBatch(
         sector: 'CORTE',
         subsectorId,
         categoryId: matchedCategory?.id,
-        componentType: matchedCategory?.componentType || 'MATERIA_PRIMA',
+        entryMode: matchedCategory?.entryMode,
         code: codigo,
         name: descricao,
         unit: normalizeUnit(unit),
@@ -422,18 +428,6 @@ export function validateImportBatch(
       });
     }
 
-    // 3. Validação de casas decimais para setores discretos
-    const isDiscreteSector = ['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(itemSector);
-    const isDiscreteMaterial = itemSector === 'CORTE' && isDiscreteUnit(normalizeUnit(rawUnit, itemSector));
-    if ((isDiscreteSector || isDiscreteMaterial) && parsedQtd.valid && !Number.isInteger(parsedQtd.value)) {
-      errors.push({
-        row: row.rowNumber,
-        column: 'quantidade',
-        value: rawQtd || '',
-        message: `O setor ${itemSector} opera apenas com unidades inteiras (peças/pares). Valores fracionados não são permitidos.`,
-      });
-    }
-
     // 4. Validação do lado do pé para Montagem quando fornecido
     const parsedSide = normalizeFootSide(rawSide);
     if (rawSide && rawSide.trim() !== '' && !parsedSide) {
@@ -504,28 +498,7 @@ export function validateImportBatch(
     }
 
     let unit = normalizeUnit(rawUnit, itemSector);
-    try { validateQuantity(parsedQtd.value, unit, itemSector, true); }
-    catch (error) { errors.push({ row: row.rowNumber, column: 'quantidade', value: String(parsedQtd.value), message: (error as Error).message }); continue; }
-
-    let type = rawType ? rawType.trim().toUpperCase() : (itemSector === 'CORTE' ? 'GERAL' : itemSector === 'PRE_FABRICADO' ? '' : itemSector);
-    if (itemSector === 'DISTRIBUICAO') {
-      const configuredType = rawType?.trim()
-        ? categoryForImport(availableCategories, itemSector, rawType)
-        : undefined;
-      if (configuredType) {
-        type = configuredType.name.trim().toUpperCase();
-      } else {
-        const normDesc = descricao.replace(/[_-]+/g, ' ');
-        if (rawType) {
-          if (rawType.toUpperCase().includes('SOLA')) type = 'SOLA_PROCESSADA';
-          else if (rawType.toUpperCase().includes('CABEDAL')) type = 'CABEDAL';
-        } else if (normDesc.includes('SOLA')) {
-          type = 'SOLA_PROCESSADA';
-        } else {
-          type = 'CABEDAL';
-        }
-      }
-    }
+    let type = rawType ? rawType.trim().toUpperCase() : '';
     if (itemSector === 'PRE_FABRICADO') {
       const allowedTypes = availableCategories
         .filter(category => categoryAppliesToSector(category, itemSector))
@@ -555,7 +528,8 @@ export function validateImportBatch(
     }
     const matchedCategory = categoryForImport(availableCategories, itemSector, type);
     const categoryId = matchedCategory?.id || undefined;
-    const componentType = matchedCategory?.componentType || undefined;
+    const entryMode = matchedCategory?.entryMode;
+    if (!rawUnit?.trim() && matchedCategory?.defaultUnitCode) unit = matchedCategory.defaultUnitCode;
     const selectedSubsector = subsectorId === null ? undefined : availableSubsectors.find(candidate => candidate.id === subsectorId);
     if (selectedSubsector?.categoryMode === 'SELECTED') {
       const allowedCategoryIds = new Set((selectedSubsector.categoryLinks || []).map(link => Number(link.categoryConfigId)));
@@ -565,12 +539,11 @@ export function validateImportBatch(
           : `Selecione uma categoria permitida no subsetor '${selectedSubsector.name}'.` });
       }
     }
-    const isApoioCabedal = itemSector === 'APOIO' && componentType === 'CABEDAL';
-    if (isApoioCabedal && (sizeIdx === -1 || rawSize?.trim() === '')) {
-      errors.push({ row: row.rowNumber, column: 'grade', value: rawSize || '', message: 'A grade é obrigatória para importar cabedal no setor Peças Cortadas.' });
-    }
-    if (isApoioCabedal && !parsedSide) {
-      errors.push({ row: row.rowNumber, column: 'lado', value: rawSide || '', message: 'Informe E, D ou PAR para importar cabedal no setor Peças Cortadas.' });
+    if (!matchedCategory?.id) {
+      errors.push({ row: row.rowNumber, column: 'categoria', value: type, message: 'Informe uma categoria configurada para este setor.' });
+    } else {
+      try { validateCategoryEntry(matchedCategory, { unit, quantity: parsedQtd.value, footSide: parsedSide }, true); }
+      catch (error) { errors.push({ row: row.rowNumber, column: error instanceof UnitValidationError && /Quantidade/.test(error.message) ? 'quantidade' : 'categoria', value: type, message: (error as Error).message }); }
     }
     if (categoryId && locationId) {
       const selectedLocation = availableLocations.find(location => location.id === locationId);
@@ -586,7 +559,7 @@ export function validateImportBatch(
     const observation = rawObs && rawObs.trim() !== '' ? rawObs.trim() : undefined;
 
     // Desmembramento de PAR em E + D para calçados
-    if (parsedSide === 'PAR' && (itemSector === 'MONTAGEM' || itemSector === 'DISTRIBUICAO' || itemSector === 'PRE_FABRICADO' || isApoioCabedal)) {
+    if (parsedSide === 'PAR' && entryMode === 'SIDE_PAIR') {
       validatedItems.push({
         rowNumber: row.rowNumber,
         sector: itemSector,
@@ -596,7 +569,7 @@ export function validateImportBatch(
         unit,
         type,
         categoryId,
-        componentType,
+        entryMode,
         quantity: parsedQtd.value,
         locationId,
         locationName,
@@ -616,7 +589,7 @@ export function validateImportBatch(
         unit,
         type,
         categoryId,
-        componentType,
+        entryMode,
         quantity: parsedQtd.value,
         locationId,
         locationName,
@@ -637,7 +610,7 @@ export function validateImportBatch(
         unit,
         type,
         categoryId,
-        componentType,
+        entryMode,
         quantity: parsedQtd.value,
         locationId,
         locationName,
@@ -710,25 +683,22 @@ export function importStockData(item: ValidatedImportItem, factoryUnitId: number
     observation: item.observation || (item.sector === 'CORTE' ? 'Importado via planilha de materiais CSV' : 'Importado via planilha de componentes CSV'),
   };
   if (item.sector === 'CORTE') return {
-    ...base, componentType: item.componentType || 'MATERIA_PRIMA' as ComponentType,
+    ...base, footSide: item.footSide || null,
     code: item.code, name: item.name,
   };
   const apoio = item.sector === 'APOIO';
-  const apoioCabedal = apoio && item.componentType === 'CABEDAL';
-  const isSolaDist = ['DISTRIBUICAO', 'EXPEDICAO'].includes(item.sector) && item.type === 'SOLA_PROCESSADA';
   return {
     ...base,
-    componentType: (item.componentType || (apoio ? 'PECA_CORTADA' : item.sector === 'PRE_FABRICADO' || isSolaDist ? 'SOLADO' : item.sector === 'MONTAGEM' ? 'PE_PRONTO' : 'CABEDAL')) as ComponentType,
     // SKU e código da peça identificam componentes. `code` é único por unidade
     // e deve ficar reservado aos materiais de CORTE (inclusive para E + D).
     code: null,
     name: item.name,
-    pieceCode: apoio && !apoioCabedal ? item.code : null,
+    pieceCode: apoio ? item.code : null,
     description: item.name,
     productName: apoio ? item.productName || null : item.productName || item.name,
-    sku: apoio && !apoioCabedal ? null : item.code,
+    sku: apoio ? null : item.code,
     color: normalizeStockColor(item.color) || null,
-    materialColor: apoio && !apoioCabedal ? item.color || 'PADRAO' : null,
+    materialColor: apoio ? item.color || 'PADRAO' : null,
     sizeGrade: item.sizeGrade || null,
     footSide: item.footSide as FootSide || null,
   };
@@ -739,6 +709,10 @@ function importIdentityKey(data: Record<string, any>) {
 }
 
 async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[], factoryUnitId: number, context?: ImportExecutionContext) {
+  for (const item of items) {
+    requireActiveStockSector(item.sector);
+    if (context) assertStockSectorAccess(context, item.sector);
+  }
   const subsetorIds = [...new Set(items.map(item => item.subsectorId).filter((id): id is number => Number.isSafeInteger(id)))];
   const subsectors = subsetorIds.length ? await tx.subsectorConfig.findMany({
     where: { factoryUnitId, id: { in: subsetorIds } },
@@ -756,75 +730,21 @@ async function validateConfiguredCategories(tx: any, items: ValidatedImportItem[
     if (context) assertStockSubsectorAccess(context, subsector, item.sector);
     assertSubsectorCategoryAllowed(subsector, item.categoryId, true);
   }
-  const preFabricatedItems = items.filter(item => item.sector === 'PRE_FABRICADO');
-  if (preFabricatedItems.length > 0) {
-    const categories = await tx.categoryConfig.findMany({
-      where: { factoryUnitId, ...categoryScopeWhere('PRE_FABRICADO') },
-      select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
-    });
-    const categoriesByName = new Map<string, any>(categories.map((category: any) => [category.name.trim().toLocaleUpperCase('pt-BR'), category]));
-    const allowedNames = [...categoriesByName.keys()];
-    const errors: ImportRowError[] = [];
-
-    for (const item of preFabricatedItems) {
-      const category = categoriesByName.get(item.type.trim().toLocaleUpperCase('pt-BR'));
-      if (!category) {
-        errors.push({
-          row: item.rowNumber,
-          column: 'tipo',
-          value: item.type,
-          message: allowedNames.length
-            ? `Categoria inválida para Pré-Fabricado. Utilize uma das categorias configuradas: ${allowedNames.join(', ')}.`
-            : 'Não há categorias configuradas para o setor Pré-Fabricado. Cadastre uma categoria em Configurações antes de importar.',
-        });
-        continue;
-      }
-      item.categoryId = category.id;
-      item.componentType = category.componentType || 'SOLADO';
-      if (category.unitLocked && category.defaultUnitCode && normalizeUnit(item.unit, item.sector) !== normalizeUnit(category.defaultUnitCode, item.sector)) {
-        throw new UnitValidationError(`A categoria ${category.name} exige a unidade ${category.defaultUnitCode}.`);
-      }
+  const categories = await tx.categoryConfig.findMany({
+    where: { factoryUnitId, id: { in: [...new Set(items.map(item => item.categoryId).filter(Boolean))] } },
+    select: { id: true, name: true, sector: true, sectors: true, entryMode: true, defaultUnitCode: true },
+  });
+  const byId = new Map<number, AvailableImportCategory>(categories.map((category: AvailableImportCategory) => [category.id!, category]));
+  for (const item of items) {
+    const category = item.categoryId ? byId.get(item.categoryId) : undefined;
+    if (!category || !categoryAppliesToSector(category, item.sector)
+      || normalizeCategoryName(category.name) !== normalizeCategoryName(item.type)
+      || item.entryMode !== undefined && item.entryMode !== category.entryMode) {
+      throw new ImportValidationError('A categoria foi alterada após a validação do arquivo.', [
+        { row: item.rowNumber, column: 'categoria', value: item.type, message: 'Revise a categoria e valide novamente o arquivo.' },
+      ]);
     }
-    if (errors.length > 0) throw new ImportValidationError('Há categorias de Pré-Fabricado que não estão mais configuradas. Nenhum item foi importado.', errors);
-  }
-
-  const categorizedItems = items.filter(item => item.categoryId);
-  if (categorizedItems.length) {
-    const allCategories = await tx.categoryConfig.findMany({
-      where: { factoryUnitId, id: { in: [...new Set(categorizedItems.map(item => item.categoryId!))] } },
-      select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
-    });
-    const byId = new Map<number, AvailableImportCategory>(allCategories.map((category: AvailableImportCategory) => [category.id!, category]));
-    for (const item of categorizedItems) {
-      const category = byId.get(item.categoryId!);
-      if (!category || !categoryAppliesToSector(category, item.sector)) {
-        throw new ImportValidationError('Uma categoria do arquivo não está mais configurada para o setor correspondente.', [
-          { row: item.rowNumber, column: 'tipo', value: item.type, message: 'Revise a categoria e valide novamente o arquivo antes de importar.' },
-        ]);
-      }
-      if (normalizeCategoryName(category.name) !== normalizeCategoryName(item.type)) {
-        throw new ImportValidationError('O tipo do material não corresponde à categoria selecionada.', [
-          { row: item.rowNumber, column: 'tipo', value: item.type, message: `Use o nome configurado para a categoria: ${category.name}.` },
-        ]);
-      }
-      const fallbackComponentType: ComponentType = item.sector === 'CORTE'
-        ? 'MATERIA_PRIMA'
-        : item.sector === 'APOIO'
-          ? 'PECA_CORTADA'
-          : item.sector === 'PRE_FABRICADO'
-            ? 'SOLADO'
-            : item.sector === 'DISTRIBUICAO' || item.sector === 'EXPEDICAO'
-              ? (item.type === 'SOLA_PROCESSADA' ? 'SOLADO' : item.type === 'CABEDAL' ? 'CABEDAL' : category.componentType || 'CABEDAL')
-              : 'PE_PRONTO';
-      if (category.componentType && (item.componentType || fallbackComponentType) !== category.componentType) {
-        throw new ImportValidationError('A classificação da categoria mudou após a validação do arquivo.', [
-          { row: item.rowNumber, column: 'tipo', value: item.type, message: 'Revise a categoria e valide novamente o arquivo antes de importar.' },
-        ]);
-      }
-      if (category.unitLocked && category.defaultUnitCode && normalizeUnit(item.unit, item.sector) !== normalizeUnit(category.defaultUnitCode, item.sector)) {
-        throw new UnitValidationError(`A categoria ${category.name} exige a unidade ${category.defaultUnitCode}.`);
-      }
-    }
+    validateCategoryEntry(category, item, true);
   }
 
 }
@@ -841,7 +761,7 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
       ] },
     });
     for (const existing of found) {
-      if (existing.code) existingByCode.set(existing.code.toUpperCase(), existing);
+      if (existing.code) existingByCode.set(JSON.stringify([existing.code.toUpperCase(), existing.footSide || null]), existing);
       existingByIdentity.set(importIdentityKey(existing), existing);
     }
   }
@@ -854,15 +774,15 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
   for (const item of items) {
     const data = importStockData(item, factoryUnitId);
     const identity = importIdentityKey(data);
-    const earlier = seenIdentities.get(identity) || (item.sector === 'CORTE' ? seenCorteCodes.get(item.code) : undefined);
+    const earlier = seenIdentities.get(identity) || (item.sector === 'CORTE' ? seenCorteCodes.get(JSON.stringify([item.code, item.footSide || null])) : undefined);
     if (earlier) {
       errors.push({ row: item.rowNumber, column: 'codigo', value: item.code, message: `Item repetido no arquivo (primeira ocorrência na linha ${earlier}).` });
       continue;
     }
     seenIdentities.set(identity, item.rowNumber);
-    if (item.sector === 'CORTE') seenCorteCodes.set(item.code, item.rowNumber);
+    if (item.sector === 'CORTE') seenCorteCodes.set(JSON.stringify([item.code, item.footSide || null]), item.rowNumber);
 
-    const existing = item.sector === 'CORTE' ? existingByCode.get(item.code) : existingByIdentity.get(identity);
+    const existing = item.sector === 'CORTE' ? existingByCode.get(JSON.stringify([item.code, item.footSide || null])) : existingByIdentity.get(identity);
     if (!existing) {
       toInsert.push(item);
       continue;
@@ -971,13 +891,6 @@ export async function executeImportTransaction(
     for (const item of items) {
       validateQuantity(item.quantity, item.unit, item.sector, true);
       item.unit = normalizeUnit(item.unit);
-      const category = item.categoryId
-        ? await tx.categoryConfig.findFirst({ where: { id: item.categoryId, factoryUnitId } })
-        : null;
-      if (item.categoryId && !category) throw new ImportValidationError('A categoria selecionada não existe nesta unidade fabril.', [
-        { row: item.rowNumber, column: 'tipo', value: item.type, message: 'Atualize as categorias e valide novamente o arquivo.' },
-      ]);
-      if (category?.unitLocked && item.unit !== category.defaultUnitCode) throw new UnitValidationError('Unidade bloqueada pela categoria.');
       const allocs = item.locations && item.locations.length > 0
         ? item.locations
         : [{ locationId: item.locationId, locationName: item.locationName, quantity: item.quantity, rowNumber: item.rowNumber }];
@@ -1008,12 +921,12 @@ export async function executeImportTransaction(
           sector: 'CORTE',
           subsectorId: item.subsectorId || null,
           categoryId: item.categoryId || null,
-          componentType: item.componentType || 'MATERIA_PRIMA',
           code: item.code,
           name: item.name,
           quantity: item.quantity,
           unit: item.unit,
           type: item.type,
+          footSide: item.footSide || null,
           observation: item.observation || 'Importado via planilha de materiais CSV',
         },
       });

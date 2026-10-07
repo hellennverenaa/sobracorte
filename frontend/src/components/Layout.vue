@@ -1,8 +1,8 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
-import { 
-  LayoutDashboard, Package, ArrowLeftRight, Users, 
+import {
+  LayoutDashboard, Package, ArrowLeftRight, Users,
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
   ClipboardList, Bell, Building2
 } from 'lucide-vue-next'
@@ -10,7 +10,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { confirmPendingChanges, unsavedChangesDialog, resolveUnsavedChanges, registerUnsavedChangesHost } from '@/composables/useUnsavedChanges'
-import { formatSectorName, ROLE_LABELS } from '@/utils/domain'
+import { ROLE_LABELS } from '@/utils/domain'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -107,20 +107,6 @@ const visibleMenuItems = computed(() => {
   })
 })
 
-const rbacSectorLabel = computed(() => {
-  const user = authStore.user
-  if (!user) return ''
-  if (user.isGlobalAdmin || user.role === 'admin') return 'Todos os setores (Admin Master)'
-  if (user.role === 'leitor') {
-    return user.linkedSector
-      ? `Referência: ${formatSectorName(user.linkedSector)} · leitura em todos`
-      : 'Consulta: todos os setores'
-  }
-  return user.assignedSector
-    ? `Setor RBAC: ${formatSectorName(user.assignedSector)}`
-    : 'Setor RBAC não vinculado'
-})
-
 async function handleUnitChange(event) {
   const targetCode = event.target.value
   if (!targetCode || targetCode === authStore.user?.unit?.code) return
@@ -147,10 +133,10 @@ async function handleUnitChange(event) {
 
 <template>
   <div class="flex h-screen bg-gray-50 font-sans text-gray-900">
-    
+
     <div v-if="isSidebarOpen" @click="isSidebarOpen = false" class="fixed inset-0 bg-black/50 z-20 md:hidden"></div>
 
-    <aside 
+    <aside id="application-sidebar"
       class="fixed md:static inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform transition-transform duration-300 md:translate-x-0 flex flex-col shadow-2xl print:hidden"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
@@ -159,13 +145,13 @@ async function handleUnitChange(event) {
           <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black shadow-lg shadow-indigo-500/50">D</div>
           <span class="text-xl font-black tracking-tight">Sobras DASS</span>
         </div>
-        <button @click="isSidebarOpen = false" class="md:hidden text-slate-400"><X /></button>
+        <button aria-label="Fechar menu" @click="isSidebarOpen = false" class="md:hidden text-slate-400"><X /></button>
       </div>
 
       <nav class="sidebar-scrollbar flex-1 p-4 space-y-2 overflow-y-auto">
-        <router-link 
-          v-for="item in visibleMenuItems" 
-          :key="item.path" 
+        <router-link
+          v-for="item in visibleMenuItems"
+          :key="item.path"
           :to="item.path"
           class="flex items-center justify-between px-4 py-3 rounded-xl transition-all font-medium text-sm"
           :class="route.path === item.path ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-slate-400 hover:bg-slate-800 hover:text-white'"
@@ -185,49 +171,16 @@ async function handleUnitChange(event) {
         </router-link>
       </nav>
 
-      <div class="p-4 border-t border-slate-800">
-        <div class="flex items-center gap-3 mb-4 px-2">
-          <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-slate-300 border-2 border-slate-600">
-            {{ authStore.user?.nome?.charAt(0).toUpperCase() }}
-          </div>
-          <div class="overflow-hidden">
-            <p class="text-sm font-bold truncate">{{ authStore.user?.nome }}</p>
-            <p class="text-xs text-slate-500 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
-            <p class="text-[11px] text-slate-400 truncate" :title="rbacSectorLabel">{{ rbacSectorLabel }}</p>
-            <p v-if="authStore.user?.authOrigin === 'EXTERNO'" class="text-xs text-slate-400 truncate" :title="`Função: ${authStore.user?.funcao} | Setor: ${formatSectorName(authStore.user?.setor, authStore.user?.setor || '-')}`">
-              Função: {{ authStore.user?.funcao }} · Setor: {{ formatSectorName(authStore.user?.setor, authStore.user?.setor || '-') }}
-            </p>
-            <p class="text-xs text-indigo-300 truncate">{{ authStore.user?.unit?.code }} — {{ authStore.user?.unit?.name }}</p>
-          </div>
-        </div>
-
-
-        <button 
-          @click="logout" 
-          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-400 hover:bg-rose-950/40 hover:text-rose-400 transition-all text-xs font-bold"
-        >
-          <LogOut class="w-4 h-4" /> Sair
-        </button>
-      </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
-      <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 print:hidden">
-        <div class="flex items-center gap-4">
-          <button @click="isSidebarOpen = true" class="text-gray-600 md:hidden"><Menu /></button>
-          <span class="font-black text-slate-900 hidden sm:inline">Sobras DASS</span>
-        </div>
-
-        <div class="flex items-center gap-4">
-          <div v-if="authStore.user?.isGlobalAdmin" class="flex flex-col items-end">
-            <label for="global-unit-selector" class="sr-only">Unidade ativa</label>
+      <div class="p-4 border-t border-slate-800 shrink-0">
+          <div v-if="authStore.user?.isGlobalAdmin" class="mb-4 flex flex-col gap-1">
+            <label for="global-unit-selector" class="text-xs font-medium text-slate-400">Unidade ativa</label>
             <div class="flex items-center gap-2">
               <Building2 class="w-4 h-4 text-indigo-600 hidden sm:block" />
               <select
                 id="global-unit-selector"
                 :value="authStore.user?.unit?.code"
                 :disabled="isSwitchingUnit"
-                class="max-w-48 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
+                class="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-wait disabled:opacity-60"
                 title="Trocar unidade fabril"
                 @change="handleUnitChange"
               >
@@ -236,22 +189,29 @@ async function handleUnitChange(event) {
                 </option>
               </select>
             </div>
-            <span v-if="unitSwitchStatus" role="status" aria-live="polite" class="mt-1 text-[10px] text-indigo-700">{{ unitSwitchStatus }}</span>
-            <div v-if="authStore.unitLoadError" role="alert" class="mt-1 max-w-64 text-right text-[10px] text-red-600">
+            <span v-if="unitSwitchStatus" role="status" aria-live="polite" class="mt-1 text-[10px] text-indigo-300">{{ unitSwitchStatus }}</span>
+            <div v-if="authStore.unitLoadError" role="alert" class="mt-1 max-w-64 text-left text-[10px] text-rose-300">
               {{ authStore.unitLoadError }}
               <button type="button" class="ml-1 underline" @click="authStore.fetchAvailableUnits({ force: true })">Tentar novamente</button>
             </div>
-            <span v-if="unitSwitchError" role="alert" class="mt-1 max-w-64 text-right text-[10px] font-semibold text-red-600">
+            <span v-if="unitSwitchError" role="alert" class="mt-1 max-w-64 text-left text-[10px] font-semibold text-rose-300">
               {{ unitSwitchError }}
             </span>
           </div>
 
+        <div class="flex items-center justify-between gap-2 mb-3 px-2" data-user-summary>
+          <div class="min-w-0">
+            <p class="text-sm font-bold truncate" :title="authStore.user?.nome || authStore.user?.usuario">{{ authStore.user?.nome || authStore.user?.usuario }}</p>
+            <p class="text-xs text-slate-400 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
+          </div>
           <!-- Central de Notificações / Requisições -->
           <router-link
             v-if="isRequisitionsEnabled"
             to="/requisitions?status=PENDENTE"
-            class="relative p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-all"
+            class="relative p-2 shrink-0 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
             title="Requisições Pendentes"
+            aria-label="Requisições pendentes"
+            @click="isSidebarOpen = false"
           >
             <Bell class="w-5 h-5" />
             <span
@@ -262,7 +222,20 @@ async function handleUnitChange(event) {
             </span>
           </router-link>
         </div>
-      </header>
+
+        <button
+          @click="logout"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-slate-400 hover:bg-rose-950/40 hover:text-rose-400 transition-all text-xs font-bold"
+        >
+          <LogOut class="w-4 h-4" /> Sair
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <div class="md:hidden flex shrink-0 items-center px-4 py-2 bg-white border-b border-gray-200 print:hidden">
+        <button type="button" @click="isSidebarOpen = true" aria-label="Abrir menu" :aria-expanded="isSidebarOpen" aria-controls="application-sidebar" class="rounded-lg p-2 text-gray-600 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-indigo-500"><Menu class="w-5 h-5" /></button>
+      </div>
       <div class="flex-1 overflow-auto bg-slate-50 relative print:bg-white print:overflow-visible print:p-0">
         <slot />
       </div>

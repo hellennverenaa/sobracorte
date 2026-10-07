@@ -9,7 +9,7 @@ async function openEntry({ category = {} } = {}) {
   const pinia = createPinia();
   pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'TESTE' } }, isAuthenticated: true };
   api.get = async url => ({ data: {
-    '/settings/categories': [{ id: 1, name: 'COURO', sector: 'CORTE', ...category }],
+    '/settings/categories': [{ id: 1, name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY', ...category }],
     '/settings/units': [{ symbol: 'M²', name: 'Metro quadrado', integerOnly: false }, { symbol: 'KG', name: 'Quilograma', integerOnly: false }],
     '/settings/locations': [{ id: 1, name: 'A1', sector: 'CORTE', categoryMode: 'ALL' }],
     '/settings/origins': [{ name: 'SOBRA', sector: 'CORTE' }],
@@ -32,7 +32,7 @@ async function openEntry({ category = {} } = {}) {
   const fill = async () => {
     await set('Código', 'MAT-01');
     await set('Nome / Descrição', 'Couro preto');
-    await set('Tipo / Categoria', '1');
+    await set('Categoria do material', '1');
     await set('Quantidade Inicial', '2.5');
     await set('Prateleira / Localização', 'A1');
     await set('Origem', 'SOBRA');
@@ -57,7 +57,7 @@ test('entrada mantém dados quando ativado, limpa após desativar e reinicia ao 
   assert.equal(writes.length, 1);
   assert.equal(entry.field('Código').value, 'MAT-01');
   assert.equal(entry.field('Quantidade Inicial').value, '2.5');
-  assert.equal(entry.field('Tipo / Categoria').value, '1');
+  assert.equal(entry.field('Categoria do material').value, '1');
   assert.equal(entry.field('Prateleira / Localização').value, 'A1');
   assert.equal(entry.field('Origem').value, 'SOBRA');
   assert.equal(entry.field('Observação adicional').value, 'Lote 10');
@@ -108,49 +108,33 @@ test('entrada com switch desligado limpa após sucesso e preserva dados após er
   entry.unmount();
 });
 
-test('Corte permite escolher unidade livre e mantém unidade fixa ao salvar com reaproveitamento', async () => {
-  const free = await openEntry();
-  await free.set('Unidade de Medida', 'KG');
-  assert.match(free.element.textContent, /Quantidade Inicial \(KG\)/);
-  assert.match(free.element.textContent, /12\.5 KG/);
-  free.unmount();
-
-  const locked = await openEntry({ category: { unitLocked: true, defaultUnitCode: 'KG' } });
-  await locked.fill();
-  assert.doesNotMatch(locked.element.textContent, /Unidade de Medida/);
-  assert.match(locked.element.textContent, /Quantidade Inicial \(KG\)/);
-  assert.match(locked.element.textContent, /Unidade fixada pela categoria/);
+test('categoria define unidade e preserva sua regra ao reaproveitar dados', async () => {
+  const entry = await openEntry({ category: { defaultUnitCode: 'KG' } });
+  await entry.fill();
+  assert.doesNotMatch(entry.element.textContent, /Unidade de Medida/);
+  assert.match(entry.element.textContent, /Quantidade Inicial \(KG\)/);
   let payload;
   api.post = async (url, data) => { payload = data.items[0]; return { data: {} }; };
-  locked.toggle.click();
-  await locked.submit();
+  entry.toggle.click();
+  await entry.submit();
   assert.equal(payload.unit, 'KG');
+  assert.equal(payload.categoryId, 1);
   assert.equal(payload.quantity, 2.5);
-  assert.match(locked.element.textContent, /Quantidade Inicial \(KG\)/);
-  locked.unmount();
+  assert.match(entry.element.textContent, /Quantidade Inicial \(KG\)/);
+  entry.unmount();
 });
 
-test('setores de peças exibem UN junto à quantidade e preservam pares e alerta de conflito', async () => {
-  const entry = await openEntry({ category: { sector: 'APOIO', unitLocked: true, defaultUnitCode: 'KG' } });
-  const selectSector = async text => {
-    const button = [...entry.element.querySelectorAll('[aria-label="Setor da entrada de estoque"] button')]
-      .find(button => button.textContent.includes(text));
-    assert.ok(button);
-    button.click();
-    await flushPromises();
-  };
-  await selectSector('Montagem');
-  assert.match(entry.element.textContent, /Quantidade Inicial \(UN\)/);
-  assert.doesNotMatch(entry.element.textContent, /Unidade de medida/);
+test('categoria de Corte permite lado/par e categoria sem lado esconde a escolha', async () => {
+  const entry = await openEntry({ category: { defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' } });
+  await entry.set('Categoria do material', '1');
   const pair = [...entry.element.querySelectorAll('button')].find(button => button.textContent.includes('Par (E + D)'));
   assert.ok(pair);
   pair.click();
   await flushPromises();
   assert.match(entry.element.textContent, /Quantidade de Pares/);
-  assert.match(entry.element.textContent, /Cada par cadastra 1 pé esquerdo e 1 direito/);
-  await selectSector('Peças Cortadas');
-  await entry.set('Tipo de material / categoria', '1');
-  assert.match(entry.element.querySelector('[role="alert"]').textContent, /incompatível com a unidade individual \(UN\)/);
-  assert.equal(entry.element.querySelector('button[type="submit"]').disabled, true);
   entry.unmount();
+  const ordinary = await openEntry();
+  await ordinary.set('Categoria do material', '1');
+  assert.equal(ordinary.element.querySelector('[aria-label="Lado do material"]'), null);
+  ordinary.unmount();
 });

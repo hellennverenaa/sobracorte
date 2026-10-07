@@ -35,7 +35,8 @@ export class RequisitionController {
       if (query.length < 2) return res.json([]);
       if (query.length > 100) return res.status(400).json({ error: 'Busca muito longa.' });
 
-      const requestedComponent = String(req.query.componentType || '').trim().toUpperCase();
+      const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
+      if (categoryId !== undefined && (!Number.isSafeInteger(categoryId) || categoryId <= 0)) return res.status(400).json({ error: 'Categoria inválida.' });
       const requestedSide = String(req.query.footSide || '').trim().toUpperCase();
       if (requestedSide && !['E', 'D', 'PAR'].includes(requestedSide)) {
         return res.status(400).json({ error: 'Lado inválido.' });
@@ -44,7 +45,7 @@ export class RequisitionController {
         requestSector: requestSector as any,
         field,
         query,
-        componentType: ['CABEDAL', 'PECA_CORTADA'].includes(requestedComponent) ? requestedComponent : undefined,
+        categoryId,
         color: req.query.color ? String(req.query.color) : undefined,
         sizeGrade: req.query.sizeGrade ? String(req.query.sizeGrade) : undefined,
         footSide: requestedSide || undefined,

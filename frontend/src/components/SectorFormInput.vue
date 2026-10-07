@@ -98,7 +98,7 @@ const formData = reactive({
   color: '',
   code: '',
   name: '',
-  unit: activeSector.value === 'CORTE' ? 'M²' : 'UN',
+  unit: '',
   subsectorId: '',
   type: '',
   pieceCode: '',
@@ -106,8 +106,7 @@ const formData = reactive({
   materialColor: '',
   productName: '',
   sku: '',
-  componentType: 'PECA_CORTADA' as 'PECA_CORTADA' | 'CABEDAL',
-  footSide: 'E' as 'E' | 'D' | 'PAR',
+  footSide: null as 'E' | 'D' | 'PAR' | null,
 });
 const savedForm = ref(JSON.stringify(formData));
 const { confirmDiscard } = useUnsavedChanges(() => JSON.stringify(formData) !== savedForm.value);
@@ -125,21 +124,15 @@ const availableSubsectors = computed(() => dbSubsectors.value.filter(subsector =
   subsector.active !== false && normalizeSector(subsector.sector) === normalizeSector(activeSector.value)
 ));
 const selectedSubsector = computed(() => availableSubsectors.value.find(subsector => String(subsector.id) === String(formData.subsectorId)) || null);
-const isApoioCabedal = computed(() => activeSector.value === 'APOIO' && formData.componentType === 'CABEDAL');
-const supportsPair = computed(() => isApoioCabedal.value || ['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value));
-const isUnitLocked = computed(() => Boolean(selectedCategory.value?.unitLocked));
-const isCategoryRequired = computed(() => ['CORTE', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(activeSector.value));
+const supportsPair = computed(() => selectedCategory.value?.entryMode === 'SIDE_PAIR');
+const isCategoryRequired = computed(() => true);
 const isSubsectorCategoryRequired = computed(() => selectedSubsector.value?.categoryMode === 'SELECTED');
-const hasUnitConfigurationConflict = computed(() => {
-  const configuredUnit = String(selectedCategory.value?.defaultUnitCode || '').trim().toUpperCase();
-  return activeSector.value !== 'CORTE'
-    && Boolean(selectedCategory.value?.unitLocked)
-    && configuredUnit !== 'UN';
-});
+const hasUnitConfigurationConflict = computed(() => Boolean(selectedCategory.value) && (
+  !selectedCategory.value.defaultUnitCode
+  || (supportsPair.value && selectedCategory.value.defaultUnitCode !== 'UN')
+));
 
-function defaultUnitForSector(sector: SectorType = activeSector.value) {
-  return sector === 'CORTE' ? 'M²' : 'UN';
-}
+function defaultUnitForSector() { return ''; }
 
 const allSectors = [
   { id: 'CORTE' as SectorType, icon: Scissors },
@@ -211,16 +204,13 @@ async function fetchDynamicSettings() {
 }
 
 function onConfiguredCategoryChange() {
-  const selected = selectedCategory.value;
   formData.location = '';
-  formData.type = selected?.name || '';
-  formData.unit = activeSector.value === 'CORTE'
-    ? selected?.defaultUnitCode || defaultUnitForSector()
-    : 'UN';
-  if (activeSector.value === 'APOIO' && (selected?.componentType === 'CABEDAL' || selected?.componentType === 'PECA_CORTADA')) {
-    formData.componentType = selected.componentType;
-  }
 }
+watch(selectedCategory, category => {
+  formData.type = category?.name || '';
+  formData.unit = category?.defaultUnitCode || '';
+  formData.footSide = category?.entryMode === 'SIDE_PAIR' ? 'E' : null;
+});
 
 const availableLocations = computed(() => {
   const currentSec = activeSector.value;
@@ -263,7 +253,7 @@ function handleSizeGradeInput(event: Event) {
 }
 
 const isIntegerQuantitySector = computed(() => {
-  return activeSector.value !== 'CORTE' || Boolean(dbUnits.value.find(unit => unit.symbol === formData.unit)?.integerOnly);
+  return Boolean(dbUnits.value.find(unit => unit.symbol === formData.unit)?.integerOnly) || ['UN', 'PAR', 'CX', 'ROLO'].includes(formData.unit);
 });
 
 function handleQuantityInput(event: Event) {
@@ -301,8 +291,7 @@ function selectSector(sector: SectorType) {
   formData.subsectorId = '';
   formData.location = '';
   formData.type = '';
-  formData.unit = defaultUnitForSector(sector);
-  if (sector === 'APOIO') formData.componentType = 'PECA_CORTADA';
+  formData.unit = defaultUnitForSector();
 
   fetchCombinations(sector);
   errorMessage.value = '';
@@ -330,8 +319,7 @@ function resetForm() {
   formData.materialColor = '';
   formData.productName = '';
   formData.sku = '';
-  formData.componentType = 'PECA_CORTADA';
-  formData.footSide = 'E';
+  formData.footSide = null;
 
   savedForm.value = JSON.stringify(formData);
 
@@ -345,7 +333,7 @@ async function handleSubmit() {
   successMessage.value = '';
 
   if (hasUnitConfigurationConflict.value) {
-    errorMessage.value = `A categoria selecionada bloqueia ${selectedCategory.value?.defaultUnitCode || 'uma unidade sem padrão'}, mas este setor registra itens individualmente em UN. Ajuste a categoria em Configurações.`;
+    errorMessage.value = 'Defina uma unidade válida na categoria. O cadastro por lado/par exige UN.';
     return;
   }
 
@@ -383,6 +371,8 @@ async function handleSubmit() {
     location: formData.location.trim().toUpperCase(),
     quantity: Number(formData.quantity),
     observation: formData.observation.trim(),
+    unit: formData.unit,
+    footSide: supportsPair.value ? formData.footSide : null,
   };
 
   switch (activeSector.value) {
@@ -402,38 +392,19 @@ async function handleSubmit() {
       break;
 
     case 'APOIO':
-      if (isApoioCabedal.value) {
-        if (!formData.sku.trim() || !formData.productName.trim() || !formData.color.trim() || !formData.sizeGrade.trim()) {
-          errorMessage.value = 'SKU, Modelo/Linha, Combinação/Cor e Grade são obrigatórios para cadastrar um cabedal.';
-          return;
-        }
-        payloadItem = {
-          ...payloadItem,
-          componentType: 'CABEDAL',
-          type: selectedCategory.value?.name || '',
-          sku: formData.sku.trim().toUpperCase(),
-          productName: formData.productName.trim().toUpperCase(),
-          description: formData.description.trim().toUpperCase() || 'CABEDAL',
-          color: formData.color.trim().toUpperCase(),
-          sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-          footSide: formData.footSide || 'E',
-        };
-      } else {
-        if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim() || !formData.materialColor.trim()) {
-          errorMessage.value = 'Código do produto, descrição, material/cor e grade são obrigatórios para peças cortadas.';
-          return;
-        }
-        payloadItem = {
-          ...payloadItem,
-          componentType: 'PECA_CORTADA',
-          type: selectedCategory.value?.name || '',
-          pieceCode: formData.pieceCode.trim().toUpperCase(),
-          productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
-          description: formData.description.trim().toUpperCase(),
-          materialColor: formData.materialColor.trim().toUpperCase(),
-          sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        };
+      if (!formData.pieceCode.trim() || !formData.description.trim() || !formData.sizeGrade.trim() || !formData.materialColor.trim()) {
+        errorMessage.value = 'Código do produto, descrição, material/cor e grade são obrigatórios.';
+        return;
       }
+      payloadItem = {
+        ...payloadItem,
+        type: selectedCategory.value.name,
+        pieceCode: formData.pieceCode.trim().toUpperCase(),
+        productName: formData.productName.trim().toUpperCase(),
+        description: formData.description.trim().toUpperCase(),
+        materialColor: formData.materialColor.trim().toUpperCase(),
+        sizeGrade: formData.sizeGrade.trim().toUpperCase(),
+      };
       break;
 
     case 'PRE_FABRICADO':
@@ -449,7 +420,7 @@ async function handleSubmit() {
         productName: formData.productName.trim().toUpperCase(),
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide || 'E',
+        footSide: supportsPair.value ? formData.footSide : null,
       };
       break;
 
@@ -468,7 +439,7 @@ async function handleSubmit() {
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide || 'E',
+        footSide: supportsPair.value ? formData.footSide : null,
       };
       break;
 
@@ -485,7 +456,7 @@ async function handleSubmit() {
         productName: formData.productName ? formData.productName.trim().toUpperCase() : '',
         color: formData.color.trim().toUpperCase(),
         sizeGrade: formData.sizeGrade.trim().toUpperCase(),
-        footSide: formData.footSide || 'E',
+        footSide: supportsPair.value ? formData.footSide : null,
       };
       break;
   }
@@ -493,7 +464,7 @@ async function handleSubmit() {
   isSubmitting.value = true;
   try {
     await stockStore.createBatch([payloadItem]);
-    successMessage.value = formData.footSide === 'PAR' && (['PRE_FABRICADO', 'DISTRIBUICAO', 'MONTAGEM'].includes(activeSector.value) || isApoioCabedal.value)
+    successMessage.value = formData.footSide === 'PAR' && supportsPair.value
       ? `Par cadastrado com sucesso no setor ${activeSector.value}!`
       : `Item cadastrado com sucesso no setor ${activeSector.value}!`;
     if (payloadItem.color) {
@@ -568,6 +539,12 @@ onMounted(async () => {
         <!-- Dados do material e suas variantes -->
         <h3 class="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Dados do material e variações</h3>
 
+        <div class="mb-4">
+          <CategorySelector v-model="formData.categoryId" @change="onConfiguredCategoryChange"
+            :categories="availableCategories" label="Categoria do material" required
+            empty-message="Cadastre uma categoria para este setor em Configurações." />
+        </div>
+
         <!-- Campos por Setor -->
         <!-- 1. CORTE -->
       <div v-if="activeSector === 'CORTE'" class="entry-form-grid entry-form-grid--sector">
@@ -594,92 +571,12 @@ onMounted(async () => {
           />
         </div>
 
-        <CategorySelector
-          v-model="formData.categoryId"
-          @change="onConfiguredCategoryChange"
-          :categories="availableCategories"
-          label="Tipo / Categoria"
-          :required="isCategoryRequired"
-          empty-message="Cadastre uma categoria para Corte em Configurações antes de lançar o material."
-        />
 
-        <div v-if="!isUnitLocked">
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Unidade de Medida *</label>
-          <select
-            v-model="formData.unit"
-            class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-            required
-          >
-            <option v-for="unit in dbUnits" :key="unit.symbol" :value="unit.symbol">
-              {{ unit.name }} ({{ unit.symbol }})
-            </option>
-            <option v-if="dbUnits.length === 0" value="M²">M² (Metro Quadrado)</option>
-          </select>
-        </div>
       </div>
 
       <!-- 2. APOIO -->
       <div v-if="activeSector === 'APOIO'" class="entry-form-grid entry-form-grid--sector">
-        <div class="col-span-full grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Material cadastrado *</label>
-            <select v-model="formData.componentType" :disabled="Boolean(selectedCategory?.componentType)"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm font-bold disabled:bg-gray-100">
-              <option value="PECA_CORTADA">Peça cortada</option>
-              <option value="CABEDAL">Cabedal</option>
-            </select>
-          </div>
-          <CategorySelector
-            v-model="formData.categoryId"
-            @change="onConfiguredCategoryChange"
-            :categories="availableCategories"
-            label="Tipo de material / categoria (opcional)"
-            help-text="A categoria também limita as prateleiras às localizações vinculadas a ela."
-          />
-        </div>
 
-        <template v-if="isApoioCabedal">
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Produto / SKU *</label>
-            <input ref="firstInputRef" v-model="formData.sku" type="text" placeholder="Ex: SKU-MODELO-01"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-mono font-bold text-blue-600" required />
-          </div>
-          <div class="entry-form-field--wide">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Modelo / Linha *</label>
-            <input v-model="formData.productName" type="text" placeholder="Ex: RACER SPEEDZONE"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600" required />
-          </div>
-          <div class="entry-form-field--wide">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição do Cabedal</label>
-            <input v-model="formData.description" type="text" placeholder="Ex: Cabedal externo"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
-            <input v-model="formData.color" :list="'combinations-list-' + activeSector" type="text" placeholder="Ex: PRETO/BRANCO"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required autocomplete="off"
-              @keydown="handleColorKeydown" @input="handleColorInput" />
-            <datalist :id="'combinations-list-' + activeSector"><option v-for="comb in availableCombinations" :key="comb" :value="comb" /></datalist>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Grade / Numeração *</label>
-            <input v-model="formData.sizeGrade" @input="handleSizeGradeInput" type="text" placeholder="Ex: 38 ou 37,5"
-              class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required />
-          </div>
-          <div class="entry-form-field--wide">
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Cabedal *</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button v-for="side in [{ value: 'E', label: 'Esquerdo' }, { value: 'D', label: 'Direito' }, { value: 'PAR', label: 'Par (E + D)' }]" :key="side.value"
-                type="button" @click="formData.footSide = side.value"
-                class="py-2 rounded font-bold text-xs transition-all border"
-                :class="formData.footSide === side.value ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'">
-                {{ side.label }}
-              </button>
-            </div>
-          </div>
-        </template>
-
-        <template v-else>
           <div>
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Código do Produto *</label>
             <input ref="firstInputRef" v-model="formData.pieceCode" type="text" placeholder="Ex: MOL-GAS-01"
@@ -705,7 +602,7 @@ onMounted(async () => {
             <input v-model="formData.sizeGrade" @input="handleSizeGradeInput" type="text" placeholder="Ex: 38 ou 37,5"
               class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold" required />
           </div>
-        </template>
+
       </div>
 
       <!-- 3. PRÉ-FABRICADO (Solas) -->
@@ -732,15 +629,6 @@ onMounted(async () => {
             required
           />
         </div>
-
-        <CategorySelector
-          v-model="formData.categoryId"
-          @change="onConfiguredCategoryChange"
-          :categories="availableCategories"
-          label="Categoria do material"
-          required
-          empty-message="Cadastre uma categoria para Pré-Fabricado em Configurações antes de lançar o material."
-        />
 
         <div class="entry-form-field--wide">
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COMBINAÇÃO da sola *</label>
@@ -775,41 +663,7 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              @click="formData.footSide = 'E'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'E' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              E
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'D'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'D' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              D
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'PAR'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'PAR'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              Par (E + D)
-            </button>
-          </div>
-        </div>
+
       </div>
 
       <!-- 4. DISTRIBUIÇÃO (Cabedais e Solas Processadas) -->
@@ -835,15 +689,6 @@ onMounted(async () => {
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white uppercase text-sm font-bold text-blue-600"
           />
         </div>
-
-        <CategorySelector
-          v-model="formData.categoryId"
-          @change="onConfiguredCategoryChange"
-          :categories="availableCategories"
-          label="Categoria do material"
-          required
-          empty-message="Cadastre uma categoria para Distribuição em Configurações antes de lançar o material."
-        />
 
         <div class="entry-form-field--wide">
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Combinação / Cor *</label>
@@ -878,53 +723,11 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              @click="formData.footSide = 'E'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'E' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              E
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'D'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'D' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              D
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'PAR'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'PAR'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              Par (E + D)
-            </button>
-          </div>
-        </div>
+
       </div>
 
       <!-- 5. MONTAGEM -->
       <div v-if="activeSector === 'MONTAGEM'" class="entry-form-grid entry-form-grid--sector">
-        <CategorySelector
-          class="col-span-full"
-          v-model="formData.categoryId"
-          @change="onConfiguredCategoryChange"
-          :categories="availableCategories"
-          label="Tipo de material / categoria (opcional)"
-          help-text="A categoria também limita as prateleiras às localizações vinculadas a ela."
-        />
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">COD. PRODUTO / SKU *</label>
           <input
@@ -981,40 +784,18 @@ onMounted(async () => {
           />
         </div>
 
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lado do Pé *</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              @click="formData.footSide = 'E'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'E' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              E
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'D'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'D' 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              D
-            </button>
-            <button
-              type="button"
-              @click="formData.footSide = 'PAR'"
-              class="py-2 rounded font-bold text-xs transition-all border text-center"
-              :class="formData.footSide === 'PAR'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'"
-            >
-              Par (E + D)
-            </button>
-          </div>
+
+      </div>
+
+      <div v-if="supportsPair" class="mt-4">
+        <label class="mb-1 block text-xs font-bold uppercase text-gray-500">Lado / Par *</label>
+        <div class="flex gap-2" role="group" aria-label="Lado do material">
+          <button v-for="side in [{ value: 'E', label: 'Esquerdo (E)' }, { value: 'D', label: 'Direito (D)' }, { value: 'PAR', label: 'Par (E + D)' }]"
+            :key="side.value" type="button" @click="formData.footSide = side.value" :aria-pressed="formData.footSide === side.value"
+            class="flex-1 rounded border px-3 py-2 text-xs font-bold"
+            :class="formData.footSide === side.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-700'">
+            {{ side.label }}
+          </button>
         </div>
       </div>
 
@@ -1023,7 +804,7 @@ onMounted(async () => {
         <h3 id="entry-stock-heading" class="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Entrada no estoque</h3>
       <div class="entry-form-grid entry-form-grid--shared">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : `Quantidade Inicial (${activeSector === 'CORTE' ? formData.unit : 'UN'})` }} *</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase mb-1">{{ formData.footSide === 'PAR' && supportsPair ? 'Quantidade de Pares' : formData.unit ? `Quantidade Inicial (${formData.unit})` : 'Quantidade Inicial' }} *</label>
           <input
             v-model="formData.quantity"
             :step="isIntegerQuantitySector ? 1 : 0.001"
@@ -1041,11 +822,11 @@ onMounted(async () => {
           <span v-else class="text-[10px] text-gray-400 mt-0.5 block">
             Estoque inicial do item (permite decimais ex: 12.5 {{ formData.unit }})
           </span>
-          <span v-if="activeSector === 'CORTE' && isUnitLocked" class="mt-0.5 block text-[10px] text-amber-600">
-            Unidade fixada pela categoria.
+          <span v-if="selectedCategory" class="mt-0.5 block text-[10px] text-amber-600">
+            Unidade definida pela categoria.
           </span>
           <span v-if="hasUnitConfigurationConflict" role="alert" class="mt-1 block text-[10px] font-semibold text-rose-700">
-            A categoria bloqueia {{ selectedCategory?.defaultUnitCode || 'uma unidade sem padrão' }}, incompatível com a unidade individual (UN) deste setor. Ajuste a unidade bloqueada em Configurações.
+            A categoria precisa de unidade válida; o modo lado/par exige UN. Ajuste em Configurações.
           </span>
         </div>
 

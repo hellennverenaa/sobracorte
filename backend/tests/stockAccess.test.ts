@@ -87,8 +87,8 @@ test('cadastro e CSV não gravam em Geral/Livre com perfil de setor', async t =>
   const tx: any = { $queryRaw: async () => [], location: {
     findUnique: async () => ({ id: 1, sector: null, categoryId: 1 }), findFirst: async () => ({ id: 1, sector: null, categoryId: 1 }),
   }, categoryConfig: {
-    findFirst: async () => ({ id: 1, name: 'TECIDO', componentType: 'MATERIA_PRIMA', unitLocked: false, defaultUnitCode: null }),
-    findMany: async () => [{ id: 1, name: 'TECIDO', sector: 'CORTE', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA', unitLocked: false, defaultUnitCode: null }],
+    findFirst: async () => ({ id: 1, name: 'TECIDO', entryMode: 'QUANTITY', unitLocked: true, defaultUnitCode: 'M²' }),
+    findMany: async () => [{ id: 1, name: 'TECIDO', sector: 'CORTE', sectors: ['CORTE'], entryMode: 'QUANTITY', unitLocked: true, defaultUnitCode: 'M²' }],
   }, stockItem: { create: async () => { writes++; } } };
   replace(t, prisma, { $transaction: async (cb: any) => cb(tx) });
   const item: any = { sector: 'CORTE', categoryId: 1, code: 'C1', name: 'TECIDO', type: 'TECIDO', quantity: 1, unit: 'M2', location: 'GERAL', locationId: 1 };

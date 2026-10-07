@@ -198,19 +198,27 @@ test(`estoque restringe destinos de ${role} e registra saída pela API oficial`,
   };
   api.post = async (url, payload) => { movement = { url, payload }; return { data: {} }; };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/inventory', component }, { path: '/:pathMatch(.*)*', component: { template: '<div />' } }] });
-  await router.push('/inventory');
+  await router.push('/inventory?sector=CORTE');
   const mounted = await mountComponent(component, { pinia, router });
   await flushPromises();
   assert.match(mounted.element.textContent, /MAT-1/);
-  mounted.element.querySelector('[title="Visualizar Detalhes"]').click();
+  const row = mounted.element.querySelector('tbody tr[tabindex="0"]');
+  assert.ok(row);
+  assert.equal(row.querySelectorAll('button').length, 0);
+  assert.equal([...mounted.element.querySelectorAll('th')].some(th => th.textContent === 'Ações'), false);
+  row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await flushPromises();
-  const details = mounted.element.querySelector('[aria-label="Detalhes do item de estoque"]');
+  const details = mounted.element.querySelector('[aria-label="Movimentação de estoque"]');
   assert.match(details.textContent, /MAT-1/);
   assert.ok(details.contains(document.activeElement));
+  assert.equal(mounted.element.querySelector('[aria-label="Detalhes do item de estoque"]'), null);
+  assert.doesNotMatch(details.textContent, /fluxo legado|A movimentação mantém o subsetor/);
+  assert.match(details.textContent, /A1/);
+  assert.equal([...details.querySelectorAll('button')].find(button => button.textContent.trim() === 'Excluir').disabled, true);
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   await flushPromises();
-  assert.equal(Boolean(mounted.element.querySelector('[aria-label="Detalhes do item de estoque"]')), false);
-  mounted.element.querySelector('[title="Registrar Movimentação de Estoque"]').click();
+  assert.equal(mounted.element.querySelector('[aria-label="Movimentação de estoque"]'), null);
+  mounted.element.querySelector('article[role="button"]').click();
   await flushPromises();
   const dialog = mounted.element.querySelector('[aria-label="Movimentação de estoque"]');
   assert.ok(dialog);
@@ -241,6 +249,7 @@ test(`estoque restringe destinos de ${role} e registra saída pela API oficial`,
   assert.ok(reads >= 2);
   assert.match(mounted.element.textContent, /registrada com sucesso/);
   assert.equal(Boolean(mounted.element.querySelector('[aria-label="Movimentação de estoque"]')), false);
+  assert.equal(mounted.element.querySelector('[aria-label="Detalhes do item de estoque"]'), null);
   mounted.unmount();
 });
 
@@ -252,7 +261,7 @@ test('entrada preserva fração digitada e rejeita unidade discreta sem truncar'
   const component = await loadComponent('src/components/SectorFormInput.vue');
   const pinia = createPinia();
   pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true, availableUnits: [] };
-  api.get = async url => ({ data: url === '/settings/units' ? [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }, { symbol: 'UN', name: 'Unidade', integerOnly: true, decimalPlaces: 0 }] : [] });
+  api.get = async url => ({ data: url === '/settings/locations' ? [{ id: 1, name: 'A1', sector: 'CORTE', categoryMode: 'ALL' }] : url === '/settings/categories' ? [{ id: 1, name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' }, { id: 2, name: 'PEÇA', sector: 'CORTE', defaultUnitCode: 'UN', entryMode: 'QUANTITY' }] : url === '/settings/units' ? [{ symbol: 'M²', name: 'Metro Quadrado', integerOnly: false, decimalPlaces: 3 }, { symbol: 'UN', name: 'Unidade', integerOnly: true, decimalPlaces: 0 }] : [] });
   let writes = 0;
   api.post = async () => { writes++; return { data: {} }; };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
@@ -267,10 +276,15 @@ test('entrada preserva fração digitada e rejeita unidade discreta sem truncar'
     await flushPromises();
     assert.equal(quantity.value, value.replace(',', '.'));
   }
-  const unit = [...mounted.element.querySelectorAll('select')].find(select => [...select.options].some(option => option.value === 'M²'));
-  assert.equal(unit.value, 'M²');
-  unit.value = 'UN';
+  const unit = mounted.element.querySelector('select[aria-required="true"]');
+  assert.ok(unit);
+  unit.value = '2';
   unit.dispatchEvent(new Event('change', { bubbles: true }));
+  await flushPromises();
+  const locationLabel = [...mounted.element.querySelectorAll('label')].find(label => label.textContent.includes('Prateleira / Localização'));
+  const location = locationLabel.parentElement.querySelector('select');
+  location.value = 'A1';
+  location.dispatchEvent(new Event('change', { bubbles: true }));
   quantity.value = '1.01';
   quantity.dispatchEvent(new Event('input', { bubbles: true }));
   await flushPromises();

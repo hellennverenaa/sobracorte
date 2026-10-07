@@ -1,6 +1,8 @@
 import type { StockTransactionClient } from '../prisma';
 import { Prisma, SectorType, FootSide, ComponentType } from '../generated/prisma';
 import { normalizeStockColor, normalizeStockSector, normalizeStockText, stockIdentity } from './stockIdentity';
+import { validateCategoryEntry } from './categoryRules';
+import { categoryAppliesToSector } from './categoryScope';
 import { normalizeUnit } from '../utils/unitHelper';
 import { stockItemScopeWhere, stockItemSubsectorSql } from '../auth/subsectorAccess';
 import { assignedStockSector, isStockMaster } from '../auth/stockAccess';
@@ -8,6 +10,7 @@ import type { StockAccessContext } from '../auth/stockAccess';
 import type { OperatorContext } from '../types/stock.dto';
 
 export type RequestIdentity = {
+  categoryId?: number | null;
   requestSector: SectorType;
   sku?: string | null;
   pieceCode?: string | null;
@@ -144,25 +147,27 @@ export async function findRequisitionStock(
   const exact = (field: string, value?: string | null) => {
     if (normalizeStockText(value)) AND.push({ [field]: { equals: normalizeStockText(value), mode: 'insensitive' } });
   };
-  const requestedComponent = normalizeStockText(req.type);
-  if (sector === 'APOIO' && requestedComponent
-    && requestedComponent !== 'CABEDAL' && requestedComponent !== 'PECA_CORTADA') return [];
-  const apoioComponent = sector === 'APOIO'
-    ? requestedComponent === 'CABEDAL' ? ComponentType.CABEDAL : ComponentType.PECA_CORTADA
-    : undefined;
-  if (sector === 'APOIO') {
-    // O campo certo depende do componente. `sku` fica reservado ao cabedal;
-    // código de peça cortada nunca é procurado em SKU ou texto livre.
-    exact(apoioComponent === 'CABEDAL' ? 'sku' : 'pieceCode', apoioComponent === 'CABEDAL'
-      ? req.sku
-      : req.pieceCode || req.sku);
-    AND.push({ componentType: apoioComponent });
+  if (req.categoryId) AND.push({ categoryId: req.categoryId });
+  if (sector === 'APOIO' && !req.categoryId) {
+    // Requisições anteriores à migração conservam sua identidade original.
+    const requested = normalizeStockText(req.type);
+    if (requested && !['CABEDAL', 'PECA_CORTADA'].includes(requested)) return [];
+    const legacyComponent = requested === 'CABEDAL' ? ComponentType.CABEDAL : ComponentType.PECA_CORTADA;
+    exact(legacyComponent === 'CABEDAL' ? 'sku' : 'pieceCode', legacyComponent === 'CABEDAL' ? req.sku : req.pieceCode || req.sku);
+    AND.push({ componentType: legacyComponent });
+  } else if (sector === 'APOIO') {
+    const identifier = normalizeStockText(req.pieceCode || req.sku);
+    if (identifier) AND.push({ OR: [
+      { pieceCode: { equals: identifier, mode: 'insensitive' } },
+      { sku: { equals: identifier, mode: 'insensitive' } },
+    ] });
+    exact('description', req.description);
   } else {
     exact(sector === 'CORTE' ? 'code' : 'sku', req.sku);
   }
   if (sector !== 'CORTE') exact('productName', req.modelName);
   if (sector === 'CORTE') exact('name', req.description);
-  if (sector !== 'APOIO') exact('type', inferredType(req, sector));
+  if (!req.categoryId && sector !== 'APOIO') exact('type', inferredType(req, sector));
   exact('sizeGrade', req.sizeGrade);
 
   const items = await tx.stockItem.findMany({
@@ -175,8 +180,7 @@ export async function findRequisitionStock(
     include: { locations: { include: { location: true } } },
   });
   return items.filter(item => {
-    const isCutPiece = sector === 'APOIO' && item.componentType === 'PECA_CORTADA';
-    if (req.color && normalizeStockColor(isCutPiece ? item.materialColor : item.color) !== normalizeStockColor(req.color)) return false;
+    if (req.color && normalizeStockColor(item.pieceCode ? item.materialColor || item.color : item.color || item.materialColor) !== normalizeStockColor(req.color)) return false;
     if (!req.footSide && item.footSide) return false;
     return true;
   });
@@ -230,14 +234,15 @@ function automaticMatchCheck(
   if (mode === 'model' && sourceSector === 'CORTE') {
     return { eligible: false, confirmationDetails };
   }
-  if (mode === 'code' && requestSector === 'MONTAGEM') {
+  if (req.categoryId && item.categoryId !== req.categoryId) return { eligible: false, confirmationDetails };
+  if (!req.categoryId && mode === 'code' && requestSector === 'MONTAGEM') {
     if (sourceSector === 'PRE_FABRICADO') return { eligible: false, confirmationDetails };
     if (sourceSector === 'DISTRIBUICAO' && sourceType !== 'CABEDAL') return { eligible: false, confirmationDetails };
     if (sourceSector === 'APOIO' && !['PECA_CORTADA', 'CABEDAL', 'PE_PRONTO'].includes(sourceType)) {
       return { eligible: false, confirmationDetails };
     }
   }
-  if (mode === 'model') {
+  if (!req.categoryId && mode === 'model') {
     if (montageCabedal) {
       if (sourceType !== 'CABEDAL') return { eligible: false, confirmationDetails };
     } else if (requestSector === 'MONTAGEM' && sourceSector === 'APOIO') {
@@ -245,7 +250,7 @@ function automaticMatchCheck(
     } else if (!expectedType || !sourceType || sourceType !== expectedType) {
       return { eligible: false, confirmationDetails };
     }
-  } else if (montageCabedal && sourceType !== 'CABEDAL') {
+  } else if (!req.categoryId && montageCabedal && sourceType !== 'CABEDAL') {
     return { eligible: false, confirmationDetails };
   }
 
@@ -390,7 +395,13 @@ export async function findRequisitionStockCandidates(
   const requestSector = normalizeStockSector(req.requestSector);
   const candidates: RequisitionStockCandidate[] = [];
   const add = (candidate: RequisitionStockCandidate | null) => { if (candidate) candidates.push(candidate); };
-  const requestUnit = req.requestUnit || (req.footSide === 'PAR' ? 'PAR' : requestSector === 'CORTE' ? 'M²' : 'UN');
+  let requestUnit = req.requestUnit || (req.footSide === 'PAR' ? 'PAR' : requestSector === 'CORTE' ? 'M²' : 'UN');
+  if (req.categoryId) {
+    const category = await tx.categoryConfig.findFirst({ where: { id: req.categoryId, factoryUnitId } });
+    if (!category || !categoryAppliesToSector(category, requestSector)) throw new Error('Categoria indisponível para o setor solicitante.');
+    const unit = validateCategoryEntry(category, { quantity: 1, footSide: req.footSide });
+    requestUnit = req.footSide === 'PAR' ? 'PAR' : unit;
+  }
 
   if (req.footSide === 'PAR') {
     const [left, right, completePairs] = await Promise.all([
@@ -417,7 +428,7 @@ export async function findRequisitionStockCandidates(
 
   // Regra operacional existente: Montagem pode aproveitar cabedal do mesmo produto
   // em Distribuição quando SKU, modelo, cor, grade e lado foram informados exatamente.
-  if (requestSector === 'MONTAGEM' && req.sku && req.modelName && req.color && req.sizeGrade && req.footSide) {
+  if (!req.categoryId && requestSector === 'MONTAGEM' && req.sku && req.modelName && req.color && req.sizeGrade && req.footSide) {
     const linked = await tx.stockItem.findMany({
       where: {
         factoryUnitId,
@@ -447,7 +458,7 @@ export async function findRequisitionStockCandidates(
   // unidade, o produto e as variantes preenchidas não entrarem em conflito.
   // O usuário ainda precisa confirmar que o material realmente atende ao pedido.
   const codeIdentity = requestSector === 'APOIO'
-    ? normalizeStockText(normalizeStockText(req.type) === 'CABEDAL' ? req.sku : req.pieceCode || req.sku)
+    ? normalizeStockText(req.pieceCode || req.sku)
     : normalizeStockText(req.sku);
   const allowAutomaticCrossSectorMatches = requestSector !== 'APOIO';
   const codeRows = codeIdentity && allowAutomaticCrossSectorMatches
@@ -579,7 +590,7 @@ export async function findUnverifiedRequisitionStockMatches(
     [field]: { equals: value, mode: 'insensitive' },
   }));
   const rows = await tx.stockItem.findMany({
-    where: { factoryUnitId, sector: { not: 'CORTE' }, quantity: { gt: 0 }, AND: context ? [stockItemScopeWhere(context), { OR }] : [{ OR }] },
+    where: { factoryUnitId, ...(req.categoryId ? { categoryId: req.categoryId } : {}), sector: { not: 'CORTE' }, quantity: { gt: 0 }, AND: context ? [stockItemScopeWhere(context), { OR }] : [{ OR }] },
     include: { locations: { include: { location: true } } },
     orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     take: 100,
@@ -652,6 +663,7 @@ export function assertCompatiblePair(left: Record<string, any>, right: Record<st
   if (left.footSide !== 'E' || right.footSide !== 'D' || normalizeStockSector(left.sector) !== normalizeStockSector(right.sector)
     || normalizeStockText(left.type) !== normalizeStockText(right.type)
     || (left.subsectorId ?? null) !== (right.subsectorId ?? null)
+    || (left.categoryId ?? null) !== (right.categoryId ?? null)
     || normalizeUnit(left.unit, left.sector) !== normalizeUnit(right.unit, right.sector)
     || Object.keys(leftIdentity).some(field => field !== 'footSide' && leftIdentity[field] !== rightIdentity[field])) {
     throw new Error('Os pés esquerdo e direito devem pertencer ao mesmo produto, modelo, material, cor e grade.');

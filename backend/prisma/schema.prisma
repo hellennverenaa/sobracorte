@@ -240,6 +240,13 @@ model RoleChangeAudit {
 
 // 🏷️ TABELA DE CONFIGURAÇÃO: Valores permitidos para Material.type
 // Substitui o array hardcoded no frontend (TECIDO, COURO, LINHA, etc.)
+enum CategoryEntryMode {
+  QUANTITY
+  SIDE_PAIR
+
+  @@schema("sobra_corte")
+}
+
 model CategoryConfig {
   id            Int         @id @default(autoincrement())
   name          String
@@ -247,9 +254,10 @@ model CategoryConfig {
   sectors       SectorType[] @default([]) // Setores em que a categoria pode ser usada; vazio com sector nulo significa geral
   subtypeId     Int?
   subtype       ComponentSubtypeConfig? @relation(fields: [subtypeId, factoryUnitId], references: [id, factoryUnitId], onDelete: NoAction)
-  componentType ComponentType? // Classificação estrutural do item, usada para distinguir peça cortada de cabedal em APOIO
+  componentType ComponentType? // Metadado legado, preservado para histórico
   unitLocked    Boolean     @default(false)
   defaultUnitCode String?
+  entryMode     CategoryEntryMode @default(QUANTITY)
   factoryUnitId Int
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id])
   locations     Location[]
@@ -264,8 +272,8 @@ model CategoryConfig {
   @@schema("sobra_corte")
 }
 
-// Opções editáveis exibidas ao classificar uma categoria. componentType preserva
-// a classificação interna opcional usada pelos fluxos especializados de estoque.
+// Opções legadas arquivadas após a adoção de regras por categoria. componentType preserva
+// a classificação histórica anterior às regras por categoria.
 model ComponentSubtypeConfig {
   id            Int            @id @default(autoincrement())
   name          String
@@ -357,7 +365,7 @@ model StockItem {
   sector        SectorType     @default(CORTE)
   subsectorId   Int?
   categoryId    Int?
-  componentType ComponentType? @default(MATERIA_PRIMA)
+  componentType ComponentType?
   quantity      Decimal        @default(0) @db.Decimal(18, 3)
   observation   String?        @default("")
   createdAt     DateTime       @default(now())
@@ -396,7 +404,7 @@ model StockItem {
 
   // 🚀 ÍNDICES COMPOSTOS ESTRATÉGICOS
   @@unique([id, factoryUnitId])
-  @@unique([factoryUnitId, code])
+  @@unique([factoryUnitId, code, footSide])
   @@index([factoryUnitId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([factoryUnitId, name])
   @@index([factoryUnitId, type])
@@ -493,6 +501,7 @@ enum RequisitionStatus {
 
 // 📋 REQUISIÇÃO DIGITAL DE REPOSIÇÃO (MÓDULO DIGITAL DE REQUISIÇÕES)
 model MaterialRequisition {
+  categoryId        Int?              // Categoria selecionada; nulo somente em requisições históricas
   id                String            @id @default(uuid())
   code              String            // Ex: REQ-2026-0001
   requestSector     SectorType        // Setor solicitante: CORTE, APOIO, PRE_FABRICADO, EXPEDICAO, MONTAGEM

@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { api, loadComponent, mountComponent, flushPromises } from './componentsHarness.js';
+
+test('abas seguem elegibilidade, persistem sem pares e distinguem erro de ausência de configuração', async () => {
+  const component = await loadComponent('src/pages/MountingMatchingPairs.vue');
+  const { createPinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'admin', unit: { code: 'SEST' } }, isAuthenticated: true };
+  let response = { sector: 'CORTE', availableSectors: ['CORTE'], pairs: [], totalMatchingPairsCount: 0 };
+  let fail = false;
+  let firstSector = 'unset';
+  api.get = async (url, config) => {
+    if (url !== '/inventory/mounting/matching-pairs') return { data: {} };
+    firstSector = config.params.sector;
+    if (fail) throw { response: { data: { error: 'Consulta indisponível' } } };
+    return { data: response };
+  };
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component }] });
+  await router.push('/');
+  const mounted = await mountComponent(component, { pinia, router });
+  await flushPromises();
+  const tabs = () => [...mounted.element.querySelectorAll('[aria-pressed]')];
+  assert.equal(firstSector, undefined);
+  assert.equal(tabs().length, 1);
+  assert.match(tabs()[0].textContent, /Corte/);
+  assert.match(mounted.element.textContent, /Nenhum par casável/);
+  const refresh = () => [...mounted.element.querySelectorAll('button')].find(button => button.textContent.trim() === 'Atualizar').click();
+  fail = true;
+  refresh();
+  await flushPromises();
+  assert.match(mounted.element.querySelector('[role="alert"]').textContent, /Consulta indisponível/);
+  assert.doesNotMatch(mounted.element.textContent, /Nenhum par casável/);
+  fail = false;
+  response = { sector: null, availableSectors: [], pairs: [], totalMatchingPairsCount: 0 };
+  refresh();
+  await flushPromises();
+  assert.equal(tabs().length, 0);
+  assert.match(mounted.element.textContent, /Nenhum setor habilitado/);
+  response = { sector: 'MONTAGEM', availableSectors: ['MONTAGEM'], pairs: [], totalMatchingPairsCount: 0 };
+  pinia.state.value.auth.user.unit.code = 'VDC';
+  await flushPromises();
+  assert.equal(firstSector, undefined);
+  assert.equal(tabs().length, 1);
+  assert.match(tabs()[0].textContent, /Montagem/);
+  mounted.unmount();
+});

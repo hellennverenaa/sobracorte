@@ -44,7 +44,7 @@
             <h2 class="font-bold text-gray-800 flex items-center gap-2 text-balance">
               <Tag class="w-4 h-4 text-indigo-500" /> Categorias de Materiais
             </h2>
-            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Nome e unidade</span>
+            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">Nome, unidade e modo de cadastro</span>
           </div>
           <p class="px-6 py-3 border-b border-gray-100 text-xs text-gray-600">Cadastre a categoria para o setor escolhido. As regras de prateleiras e subsetores ficam em suas próprias abas.</p>
           
@@ -69,16 +69,24 @@
 
               <div>
                 <label for="new-category-unit" class="block text-sm font-bold text-gray-800 mb-1">Unidade de medida</label>
-                <select id="new-category-unit" v-model="newCategory.defaultUnitCode" required :disabled="isNewCategoryUnitFixed"
+                <select id="new-category-unit" v-model="newCategory.defaultUnitCode" required
                   class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100">
                   <option value="" disabled>Selecione a unidade</option>
                   <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
                 </select>
-                <p v-if="isNewCategoryUnitFixed" class="mt-1 text-xs text-gray-500">Este setor registra cada peça individualmente em UN. Pares são compostos pelos lados esquerdo e direito.</p>
+              </div>
+
+              <div v-if="newCategory.defaultUnitCode === 'UN'">
+                <label for="new-category-entry-mode" class="mb-1 block text-sm font-bold text-gray-800">Modo de cadastro</label>
+                <select id="new-category-entry-mode" v-model="newCategory.entryMode" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm">
+                  <option value="QUANTITY">Por unidade, sem lado</option>
+                  <option value="SIDE_PAIR">Por lado/par (esquerdo, direito ou par)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Cada par registra a mesma quantidade de itens esquerdos e direitos.</p>
               </div>
 
               <details class="rounded-xl border border-gray-200 bg-gray-50/70">
-                <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700">Configurações avançadas: compartilhar entre setores ou definir fluxo especial</summary>
+                <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700">Configurações avançadas: compartilhar entre setores</summary>
                 <div class="p-4 space-y-4 border-t border-gray-200">
 
               <fieldset class="border border-gray-200 rounded-xl p-4 space-y-3">
@@ -129,17 +137,7 @@
                 </template>
               </fieldset>
 
-              <div v-if="newCategory.scopeMode === 'specific'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label for="new-category-subtype" class="block text-sm font-bold text-gray-800 mb-1">Subtipo / tipo de material <span class="font-normal text-gray-500">(opcional)</span></label>
-                  <select id="new-category-subtype" v-model="newCategory.subtypeId" :disabled="loadingComponentSubtype || !newCategory.sectors.length"
-                    class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium disabled:bg-gray-100">
-                  <option value="">Sem tipo específico</option>
-                  <option v-for="subtype in availableComponentSubtypes" :key="subtype.id" :value="subtype.id">{{ subtype.name }}</option>
-                  </select>
-                  <p class="text-xs text-gray-500 mt-1.5 text-pretty">As opções vêm dos subtipos configurados abaixo. Escolha os setores primeiro para ver apenas os tipos compatíveis.</p>
-                </div>
-              </div>
+
 
                 </div>
               </details>
@@ -153,67 +151,7 @@
             </form>
           </div>
 
-          <div v-if="canManageSubtypes" class="px-6 py-4 border-b border-gray-100 bg-gray-50/40">
-            <details>
-              <summary class="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 rounded-lg text-sm font-bold text-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
-                <span class="inline-flex items-center gap-2"><Sliders class="size-4 text-indigo-600" /> Gerenciar opções de subtipo</span>
-                <span class="text-xs font-medium text-gray-500">{{ componentSubtypes.length }} opções · abrir configuração</span>
-              </summary>
-              <div class="mt-4 grid grid-cols-1 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-5 border-t border-gray-200 pt-4">
-                <form @submit.prevent="saveComponentSubtype" class="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
-                  <div>
-                    <p class="text-xs font-bold uppercase text-indigo-700">{{ subtypeDraft.id ? 'Editar subtipo' : 'Novo subtipo' }}</p>
-                    <label for="subtype-name" class="mt-2 mb-1 block text-xs font-bold text-gray-700">Nome exibido</label>
-                    <input id="subtype-name" v-model="subtypeDraft.name" required maxlength="80" placeholder="Ex.: Forro, Napa, Palmilha"
-                      class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400" />
-                  </div>
-                  <fieldset class="space-y-2">
-                    <legend class="text-xs font-bold text-gray-700">Em quais setores essa opção pode ser usada?</legend>
-                    <div class="flex flex-wrap gap-2">
-                      <label v-for="sector in categorySectorsOptions" :key="sector.id"
-                        class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer"
-                        :class="subtypeDraft.sectors.includes(sector.id) ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-gray-200 bg-white text-gray-600'">
-                        <input v-model="subtypeDraft.sectors" type="checkbox" :value="sector.id" class="size-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                        {{ sector.label }}
-                      </label>
-                    </div>
-                  </fieldset>
-                  <p class="text-[11px] leading-relaxed text-gray-500">O subtipo será oferecido ao criar categorias dos setores marcados. As opções existentes conservam as regras atuais do estoque; as novas classificam categorias pelo fluxo padrão do setor.</p>
-                  <p v-if="!subtypeDraft.sectors.length" class="text-xs font-medium text-amber-700" role="status">Marque pelo menos um setor.</p>
-                  <div class="flex flex-wrap justify-end gap-2">
-                    <button v-if="subtypeDraft.id" type="button" @click="resetSubtypeDraft" class="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50">Cancelar</button>
-                    <button type="submit" :disabled="savingSubtype || !subtypeDraft.name.trim() || !subtypeDraft.sectors.length"
-                      class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
-                      <Plus v-if="!savingSubtype && !subtypeDraft.id" class="size-3.5" />
-                      {{ savingSubtype ? 'Salvando...' : subtypeDraft.id ? 'Salvar alterações' : 'Adicionar subtipo' }}
-                    </button>
-                  </div>
-                </form>
 
-                <div>
-                  <p class="mb-2 text-xs font-bold uppercase text-gray-500">Opções disponíveis</p>
-                  <div v-if="loadingComponentSubtype" class="rounded-xl border border-gray-200 bg-white p-5 text-center text-xs text-gray-400">Carregando subtipos...</div>
-                  <ul v-else-if="componentSubtypes.length" class="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
-                    <li v-for="subtype in componentSubtypes" :key="subtype.id" class="flex items-center justify-between gap-3 px-3 py-2.5">
-                      <div class="min-w-0">
-                        <p class="truncate text-sm font-semibold text-gray-800">{{ subtype.name }}</p>
-                        <p class="mt-0.5 text-[11px] text-gray-500">{{ subtype.sectors.map(sector => settingsSectorLabel(sector)).join(', ') }} · {{ subtype._count?.categories || 0 }} categoria(s) usando</p>
-                      </div>
-                      <div class="flex shrink-0 items-center gap-1">
-                        <button type="button" @click="editComponentSubtype(subtype)" class="rounded-md p-1.5 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" :aria-label="`Editar subtipo ${subtype.name}`" title="Editar subtipo">
-                          <Pencil class="size-4" />
-                        </button>
-                        <button type="button" @click="deleteComponentSubtype(subtype)" :disabled="(subtype._count?.categories || 0) > 0" class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-30" :aria-label="`Excluir subtipo ${subtype.name}`" :title="(subtype._count?.categories || 0) > 0 ? 'Edite as categorias vinculadas antes de excluir' : 'Excluir subtipo'">
-                          <Trash2 class="size-4" />
-                        </button>
-                      </div>
-                    </li>
-                  </ul>
-                  <p v-else class="rounded-xl border border-dashed border-gray-300 bg-white p-5 text-center text-xs text-gray-500">Nenhum subtipo cadastrado.</p>
-                </div>
-              </div>
-            </details>
-          </div>
 
           <!-- Filtro de Setor para Categorias -->
           <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between flex-wrap gap-3">
@@ -235,7 +173,7 @@
               <tr>
                 <th class="px-6 py-3">Categoria</th>
                 <th class="px-6 py-3 text-center">Setores disponíveis</th>
-                <th class="px-6 py-3 text-center">Unidade de medida</th>
+                <th class="px-6 py-3 text-center">Unidade / cadastro</th>
                 <th v-if="canManageSettings" class="px-6 py-3 text-center">Ações</th>
               </tr>
             </thead>
@@ -251,7 +189,8 @@
                   <span v-if="cat.defaultUnitCode" class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-100">
                     {{ units.find(u => u.symbol === cat.defaultUnitCode)?.name }} ({{ cat.defaultUnitCode }})
                   </span>
-                  <span v-else class="text-xs text-gray-400 italic">Livre</span>
+                  <span v-else class="text-xs text-gray-400 italic">Não configurada</span>
+                  <span class="mt-1 block text-xs text-gray-500">{{ cat.entryMode === 'SIDE_PAIR' ? 'Por lado/par' : 'Por quantidade' }}</span>
                 </td>
                 <td v-if="canManageSettings" class="px-6 py-3 text-center">
                   <div class="flex flex-wrap items-center justify-center gap-1">
@@ -856,16 +795,23 @@
 
           <div>
             <label for="edit-category-unit" class="block text-sm font-bold text-gray-800 mb-1">Unidade de medida</label>
-            <select id="edit-category-unit" v-model="editingCategory.defaultUnitCode" required :disabled="isEditCategoryUnitFixed"
+            <select id="edit-category-unit" v-model="editingCategory.defaultUnitCode" required
               class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white disabled:bg-gray-100">
               <option value="" disabled>Selecione a unidade</option>
               <option v-for="unit in units" :key="unit.symbol" :value="unit.symbol">{{ unit.name }} ({{ unit.symbol }})</option>
             </select>
-            <p v-if="isEditCategoryUnitFixed" class="mt-1 text-xs text-gray-500">Este setor registra as peças individualmente em UN.</p>
-            <p v-if="editingLegacyUnit" class="mt-1 text-xs text-amber-700">A configuração anterior usava {{ editingLegacyUnit }}. Ao salvar, a categoria passará a usar UN; os registros de estoque antigos não serão alterados.</p>
           </div>
 
-          <details class="rounded-xl border border-gray-200 bg-gray-50/70">
+          <div v-if="editingCategory.defaultUnitCode === 'UN'">
+                <label for="edit-category-entry-mode" class="mb-1 block text-sm font-bold text-gray-800">Modo de cadastro</label>
+                <select id="edit-category-entry-mode" v-model="editingCategory.entryMode" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm">
+                  <option value="QUANTITY">Por unidade, sem lado</option>
+                  <option value="SIDE_PAIR">Por lado/par (esquerdo, direito ou par)</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Cada par registra a mesma quantidade de itens esquerdos e direitos.</p>
+              </div>
+
+              <details class="rounded-xl border border-gray-200 bg-gray-50/70">
             <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-gray-700">Configurações avançadas</summary>
             <div class="space-y-4 border-t border-gray-200 p-4">
 
@@ -890,32 +836,15 @@
               </div>
               <div v-if="editingCategory.scopeMode === 'specific'" class="space-y-2">
                 <p class="text-xs font-semibold text-gray-700">Setores que poderão usar a categoria:</p>
-                <div class="flex flex-wrap gap-2">
-                  <label v-for="sector in categorySectorsOptions" :key="sector.id"
-                    class="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer"
-                    :class="editingCategory.sectors.includes(sector.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-200 text-gray-600'">
-                    <input v-model="editingCategory.sectors" type="checkbox" :value="sector.id" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                    {{ sector.label }}
-                  </label>
-                </div>
+
                 <p v-if="editingCategory.sectors.length === 0" class="text-xs font-medium text-amber-700" role="status">Escolha pelo menos um setor para salvar.</p>
               </div>
             </template>
           </fieldset>
 
-          <div v-if="editingCategory.scopeMode === 'specific'">
-            <label for="edit-category-subtype" class="block text-sm font-bold text-gray-800 mb-1">Subtipo / tipo de material <span class="font-normal text-gray-500">(opcional)</span></label>
-            <select id="edit-category-subtype" v-model="editingCategory.subtypeId" :disabled="loadingComponentSubtype || !editingCategory.sectors.length" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white disabled:bg-gray-100">
-              <option value="">Sem tipo específico</option>
-              <option v-for="subtype in availableEditComponentSubtypes" :key="subtype.id" :value="subtype.id">{{ subtype.name }}</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1.5 text-pretty">A lista mostra os subtipos permitidos para todos os setores selecionados.</p>
-          </div>
 
-              <label v-if="!isEditCategoryUnitFixed" class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
-                <input type="checkbox" v-model="editingCategory.unitLocked" :disabled="!editingCategory.defaultUnitCode" class="size-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 disabled:cursor-not-allowed" />
-                <Lock class="size-4 text-amber-600" /> Fixar unidade para novas entradas
-              </label>
+
+
             </div>
           </details>
 
@@ -1078,7 +1007,6 @@ const settingsPersisted = usePersistedFilters('settings', {
 // --- PERMISSÕES ---
 const canManageSettings = computed(() => authStore.can('gerenciar_configuracoes'))
 const isMasterAdmin = computed(() => authStore.user?.role === 'admin' || Boolean(authStore.user?.isGlobalAdmin))
-const canManageSubtypes = computed(() => canManageSettings.value && isMasterAdmin.value)
 
 // --- TABS DINÂMICAS POR PERFIL ---
 const tabs = computed(() => {
@@ -1100,11 +1028,11 @@ const { notification, showNotification } = useToast(3500)
 const { confirmState, openConfirmModal, handleConfirmedAction } = useConfirmModal()
 const settingsData = useSettings({ notify: showNotification })
 const {
-  categories, componentSubtypes, units, locations, origins,
-  loadingCategory, loadingComponentSubtype, loadingUnit, loadingLocation, loadingOrigin,
+  categories, units, locations, origins,
+  loadingCategory, loadingUnit, loadingLocation, loadingOrigin,
   loading: settingsLoading,
   error: settingsError,
-  fetchCategories, fetchComponentSubtypes, fetchUnits, fetchLocations, fetchOrigins,
+  fetchCategories, fetchUnits, fetchLocations, fetchOrigins,
 } = settingsData
 const dbSubsectors = ref([])
 
@@ -1158,96 +1086,42 @@ function formatCategorySectors(category) {
   return scopes.map(sector => settingsSectorLabel(sector)).join(', ')
 }
 
-function componentSubtypesForSectors(sectors) {
-  const normalized = (sectors || []).map(normalizeCategorySector)
-  if (!normalized.length) return []
-  return componentSubtypes.value.filter(subtype => {
-    const availableSectors = (subtype.sectors || []).map(normalizeCategorySector)
-    return normalized.every(sector => availableSectors.includes(sector))
-  })
-}
-
-const availableComponentSubtypes = computed(() => componentSubtypesForSectors(newCategory.value.sectors))
-const availableEditComponentSubtypes = computed(() => componentSubtypesForSectors(editingCategory.value.sectors))
-const hasDiscreteCategorySector = (scopeMode, sectors) => scopeMode === 'all'
-  || sectors.some(sector => normalizeCategorySector(sector) !== 'CORTE')
 const newCategory = ref({
   name: '',
   scopeMode: 'specific',
   sectors: categoryRegistrationSector.value ? [categoryRegistrationSector.value] : [],
-  subtypeId: '',
+  entryMode: 'QUANTITY',
   defaultUnitCode: categoryRegistrationSector.value && categoryRegistrationSector.value !== 'CORTE' ? 'UN' : '',
   unitLocked: true
 })
-const isNewCategoryUnitFixed = computed(() => hasDiscreteCategorySector(newCategory.value.scopeMode, newCategory.value.sectors))
 
 const showEditCategoryModal = ref(false)
 const editCategoryDialog = ref(null)
 const savingCategory = ref(false)
 const creatingCategory = ref(false)
-const savingSubtype = ref(false)
-const subtypeDraft = ref({ id: null, name: '', sectors: [] })
-const emptySubtypeDraft = () => ({ id: null, name: '', sectors: [] })
-const subtypeDraftSnapshot = ref(JSON.stringify(emptySubtypeDraft()))
 const editingCategory = ref({
   id: 0,
   name: '',
   scopeMode: 'specific',
   sectors: [],
-  subtypeId: '',
+  entryMode: 'QUANTITY',
   defaultUnitCode: '',
   unitLocked: false,
 })
-const isEditCategoryUnitFixed = computed(() => hasDiscreteCategorySector(editingCategory.value.scopeMode, editingCategory.value.sectors))
-const editingLegacyUnit = ref('')
-const editingOriginalSubtypeId = ref(null)
 const editingOriginalScope = ref('')
 
 watch(categoryRegistrationSector, sector => {
+  newCategory.value.entryMode = 'QUANTITY'
   newCategory.value.scopeMode = 'specific'
   newCategory.value.sectors = sector ? [sector] : []
-  newCategory.value.subtypeId = ''
   newCategory.value.defaultUnitCode = sector && sector !== 'CORTE' ? 'UN' : ''
 })
 
-watch(() => [newCategory.value.scopeMode, newCategory.value.sectors.join('|')], () => {
-  if (isNewCategoryUnitFixed.value) newCategory.value.defaultUnitCode = 'UN'
+watch(() => newCategory.value.defaultUnitCode, unit => {
+  if (unit !== 'UN') newCategory.value.entryMode = 'QUANTITY'
 })
-
-watch(() => [editingCategory.value.scopeMode, editingCategory.value.sectors.join('|')], () => {
-  if (isEditCategoryUnitFixed.value) editingCategory.value.defaultUnitCode = 'UN'
-})
-
-watch(() => newCategory.value.sectors.join('|'), () => {
-  if (newCategory.value.subtypeId && componentSubtypes.value.length
-    && !availableComponentSubtypes.value.some(subtype => String(subtype.id) === String(newCategory.value.subtypeId))) {
-    newCategory.value.subtypeId = ''
-  }
-})
-
-watch(() => newCategory.value.scopeMode, (mode) => {
-  if (mode === 'all') {
-    newCategory.value.subtypeId = ''
-  } else if (isCategorySectorLocked.value && assignedCategorySector.value) {
-    newCategory.value.sectors = [assignedCategorySector.value]
-  }
-})
-
-watch(() => editingCategory.value.sectors.join('|'), () => {
-  if (editingCategory.value.subtypeId && componentSubtypes.value.length
-    && !availableEditComponentSubtypes.value.some(subtype => String(subtype.id) === String(editingCategory.value.subtypeId))) {
-    editingCategory.value.subtypeId = ''
-  }
-})
-
-watch(() => editingCategory.value.scopeMode, (mode) => {
-  if (mode === 'all') {
-    editingCategory.value.subtypeId = ''
-  }
-})
-
-watch(() => editingCategory.value.defaultUnitCode, (unitCode) => {
-  if (!unitCode) editingCategory.value.unitLocked = false
+watch(() => editingCategory.value.defaultUnitCode, unit => {
+  if (unit !== 'UN') editingCategory.value.entryMode = 'QUANTITY'
 })
 
 const filteredCategories = computed(() => {
@@ -1275,8 +1149,8 @@ async function addCategory() {
     const res = await api.post('/settings/categories', {
       name: newCategory.value.name.trim(),
       sectors: newCategory.value.scopeMode === 'all' ? [] : newCategory.value.sectors,
-      subtypeId: newCategory.value.subtypeId || null,
       defaultUnitCode: newCategory.value.defaultUnitCode,
+      entryMode: newCategory.value.entryMode,
       unitLocked: true
     })
     const submittedName = newCategory.value.name.trim()
@@ -1285,12 +1159,12 @@ async function addCategory() {
       name: '',
       scopeMode: 'specific',
       sectors: [categoryRegistrationSector.value],
-      subtypeId: '',
+      entryMode: 'QUANTITY',
       defaultUnitCode: categoryRegistrationSector.value === 'CORTE' ? '' : 'UN',
       unitLocked: true
     }
     if (res.data) categories.value.unshift(res.data)
-    await Promise.all([fetchCategories(), fetchComponentSubtypes()])
+    await Promise.all([fetchCategories()])
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao criar categoria.'
     showNotification('error', msg)
@@ -1302,18 +1176,14 @@ async function addCategory() {
 function openEditCategory(category) {
   const sectors = getCategorySectors(category)
   const scopeMode = sectors.length ? 'specific' : 'all'
-  const fixedUnit = hasDiscreteCategorySector(scopeMode, sectors)
-  editingLegacyUnit.value = fixedUnit && category.defaultUnitCode && category.defaultUnitCode !== 'UN'
-    ? category.defaultUnitCode : ''
-  editingOriginalSubtypeId.value = category.subtypeId || null
   editingOriginalScope.value = JSON.stringify({ scopeMode, sectors: [...sectors].sort() })
   editingCategory.value = {
     id: category.id,
     name: category.name || '',
     scopeMode,
     sectors,
-    subtypeId: category.subtypeId || '',
-    defaultUnitCode: fixedUnit ? 'UN' : category.defaultUnitCode || '',
+    entryMode: category.entryMode || 'QUANTITY',
+    defaultUnitCode: category.defaultUnitCode || '',
     unitLocked: Boolean(category.unitLocked),
   }
   showEditCategoryModal.value = true
@@ -1332,19 +1202,18 @@ async function saveEditCategory() {
       scopeMode: editingCategory.value.scopeMode,
       sectors: [...editingCategory.value.sectors].sort(),
     }) !== editingOriginalScope.value
-    const subtypeChanged = (editingCategory.value.subtypeId || null) !== editingOriginalSubtypeId.value
     await api.put(`/settings/categories/${editingCategory.value.id}`, {
       name: editingCategory.value.name.trim(),
       sectors: isCategorySectorLocked.value || !scopeChanged
         ? undefined
         : editingCategory.value.scopeMode === 'all' ? [] : editingCategory.value.sectors,
-      subtypeId: subtypeChanged ? editingCategory.value.subtypeId || null : undefined,
+      entryMode: editingCategory.value.entryMode,
       defaultUnitCode: editingCategory.value.defaultUnitCode,
-      unitLocked: isEditCategoryUnitFixed.value ? true : Boolean(editingCategory.value.unitLocked),
+      unitLocked: true,
     })
     showNotification('success', `Categoria "${editingCategory.value.name}" atualizada com sucesso!`)
     showEditCategoryModal.value = false
-    await Promise.all([fetchCategories(), fetchComponentSubtypes()])
+    await Promise.all([fetchCategories()])
   } catch (e) {
     const msg = e.response?.data?.error || 'Erro ao atualizar categoria.'
     showNotification('error', msg)
@@ -1353,81 +1222,7 @@ async function saveEditCategory() {
   }
 }
 
-function normalizedSubtypeDraft() {
-  return {
-    id: subtypeDraft.value.id,
-    name: subtypeDraft.value.name.trim(),
-    sectors: [...subtypeDraft.value.sectors].sort(),
-  }
-}
-
-function hasUnsubmittedSubtype() {
-  return JSON.stringify(normalizedSubtypeDraft()) !== subtypeDraftSnapshot.value
-}
-
-function resetSubtypeDraft() {
-  subtypeDraft.value = emptySubtypeDraft()
-  subtypeDraftSnapshot.value = JSON.stringify(emptySubtypeDraft())
-}
-
-function editComponentSubtype(subtype) {
-  subtypeDraft.value = {
-    id: subtype.id,
-    name: subtype.name || '',
-    sectors: (subtype.sectors || []).map(normalizeCategorySector),
-  }
-  subtypeDraftSnapshot.value = JSON.stringify(normalizedSubtypeDraft())
-}
-
-async function saveComponentSubtype() {
-  if (savingSubtype.value || !subtypeDraft.value.name.trim() || !subtypeDraft.value.sectors.length) return
-  savingSubtype.value = true
-  try {
-    const payload = {
-      name: subtypeDraft.value.name.trim(),
-      sectors: subtypeDraft.value.sectors,
-    }
-    if (subtypeDraft.value.id) {
-      await api.put(`/settings/component-subtypes/${subtypeDraft.value.id}`, payload)
-      showNotification('success', `Subtipo "${payload.name}" atualizado.`)
-    } else {
-      await api.post('/settings/component-subtypes', payload)
-      showNotification('success', `Subtipo "${payload.name}" adicionado.`)
-    }
-    resetSubtypeDraft()
-    await Promise.all([fetchComponentSubtypes(), fetchCategories()])
-  } catch (e) {
-    showNotification('error', e.response?.data?.error || 'Erro ao salvar subtipo.')
-  } finally {
-    savingSubtype.value = false
-  }
-}
-
-function deleteComponentSubtype(subtype) {
-  const linked = subtype._count?.categories || 0
-  if (linked > 0) {
-    showNotification('error', 'Edite as categorias vinculadas antes de excluir este subtipo.')
-    return
-  }
-  openConfirmModal({
-    title: 'Excluir subtipo',
-    message: `Deseja excluir a opção "${subtype.name}"? Ela deixará de aparecer ao cadastrar novas categorias.`,
-    confirmText: 'Excluir subtipo',
-    variant: 'danger',
-    action: async () => {
-      try {
-        await api.delete(`/settings/component-subtypes/${subtype.id}`)
-        if (subtypeDraft.value.id === subtype.id) resetSubtypeDraft()
-        showNotification('success', `Subtipo "${subtype.name}" excluído.`)
-        await fetchComponentSubtypes()
-      } catch (e) {
-        showNotification('error', e.response?.data?.error || 'Erro ao excluir subtipo.')
-      }
-    },
-  })
-}
-
-async function deleteCategory(cat) {
+function deleteCategory(cat) {
   const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
   const linked = cat.linkedCount || 0
 
@@ -1450,7 +1245,7 @@ async function deleteCategory(cat) {
       try {
         await api.delete(`/settings/categories/${cat.id}`)
         showNotification('success', `Categoria "${cat.name}" excluída.`)
-        await Promise.all([fetchCategories(), fetchComponentSubtypes()])
+        await Promise.all([fetchCategories()])
       } catch (e) {
         const msg = e.response?.data?.error || 'Erro ao excluir categoria.'
         showNotification('error', msg)
@@ -1703,7 +1498,7 @@ function hasUnsubmittedCategory() {
     newCategory.value.name.trim()
     || newCategory.value.scopeMode !== 'specific'
     || JSON.stringify(selectedSectors) !== JSON.stringify([...defaultSectors].sort())
-    || newCategory.value.subtypeId
+    || newCategory.value.entryMode !== 'QUANTITY'
     || newCategory.value.defaultUnitCode !== defaultUnit
   )
 }
@@ -1723,7 +1518,6 @@ function hasUnsubmittedLocation() {
 
 const { confirmDiscard } = useUnsavedChanges(() => (
   hasUnsubmittedCategory() ||
-  hasUnsubmittedSubtype() ||
   hasUnsubmittedLocation() ||
   Boolean(newOrigin.value.trim()) ||
   Boolean(selectedFile.value) ||
@@ -1819,40 +1613,41 @@ const sectorCsvPattern = computed(() => {
       columns: [
         { name: 'codigo', req: true, desc: 'Código único do material. Ex: 1001' },
         { name: 'descricao', req: true, desc: 'Descrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM' },
-        { name: 'categoria', req: false, desc: 'Categoria cadastrada. Ex: TECIDO, COURO, FORRO, SINTETICO (Padrão: GERAL)' },
-        { name: 'unidade', req: false, desc: 'Sigla da unidade de medida. Ex: m², m, kg, un (Padrão: m²)' },
+        { name: 'categoria', req: true, desc: 'Categoria cadastrada e disponível para o setor. Define unidade e modo de cadastro.' },
+        { name: 'lado', req: false, desc: 'Preencha E, D ou PAR somente para categorias configuradas por lado/par.' },
+        { name: 'unidade', req: false, desc: 'Opcional: se preenchida, precisa corresponder à unidade definida na categoria.' },
         { name: 'quantidade', req: false, desc: 'Saldo numérico inicial. Ex: 150.0 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou prateleira física. Ex: A-01, B-02' },
         { name: 'subsetor', req: false, desc: 'Subsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.' },
       ],
-      headerExample: 'codigo;descricao;categoria;unidade;quantidade;prateleira;subsetor',
+      headerExample: 'codigo;descricao;categoria;lado;unidade;quantidade;prateleira;subsetor',
       examples: [
-        '1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;m²;150.0;A-01;',
-        '1002;FORRO TESPONTADO AZUL;FORRO;m;80.0;A-02;',
-        '1003;COURO LEGITIMO CASTANHO;COURO;m²;45.5;B-01;',
-        '1004;LINHA DE COSTURA REFORCADA;LINHA;rolo;20.0;C-01;',
+        '1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;;m²;150.0;A-01;',
+        '1002;FORRO TESPONTADO AZUL;FORRO;;m²;80.0;A-02;',
+        '1003;COURO LEGITIMO CASTANHO;COURO;;m;45.5;B-01;',
+        '1004;LINHA DE COSTURA REFORCADA;LINHA;;kg;20.0;C-01;',
       ],
     }
   }
 
   if (sec === 'APOIO') {
     return {
-      title: 'Padrão Exigido para o Arquivo CSV — Peças Cortadas e Cabedal',
+      title: 'Padrão Exigido para o Arquivo CSV — Peças Cortadas',
       columns: [
         { name: 'sku', req: true, desc: 'Código / SKU ou Molde da peça. Ex: MOL-001' },
         { name: 'modelo', req: true, desc: 'Linha ou Modelo de calçado. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: true, desc: 'Nome / Descrição da peça avulsa. Ex: GASPEA LATERAL' },
-        { name: 'tipo', req: false, desc: 'Categoria configurada. Para cabedal, use uma categoria classificada como Cabedal.' },
+        { name: 'tipo', req: true, desc: 'Categoria configurada para Peças Cortadas (aceita também categoria).' },
         { name: 'material_cor', req: false, desc: 'Material da peça cortada ou combinação do cabedal (aceita também combinacao ou cor).' },
         { name: 'grade', req: false, desc: 'Grade/numeração quando aplicável. Ex: 40' },
-        { name: 'lado', req: false, desc: 'Obrigatório para Cabedal: E (esquerdo), D (direito) ou PAR. Ignorado para peça cortada.' },
+        { name: 'lado', req: false, desc: 'Preencha E, D ou PAR somente quando a categoria permitir cadastro por lado/par; caso contrário deixe vazio.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças no estoque. Ex: 50 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box em Peças Cortadas. Ex: AP-01' },
         { name: 'subsetor', req: false, desc: 'Subsetor ativo de Peças Cortadas. Deixe vazio para manter o fluxo atual sem subsetor.' },
       ],
       headerExample: 'sku;modelo;peca;tipo;material_cor;grade;lado;quantidade;prateleira;subsetor',
       examples: [
-        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;PEÇAS CORTADAS;SINTETICO PRETO;40;;50;AP-01;',
+        'MOL-001;RACER SPEEDZONE;GASPEA LATERAL;MOLDE / PEÇA;SINTETICO PRETO;40;;50;AP-01;',
         'CAB-001;RACER SPEEDZONE;CABEDAL;CABEDAL;PRETO/BRANCO;40;PAR;8;AP-04;',
         'CAB-002;AIR MAX SC;CABEDAL;CABEDAL;BRANCO/PRETO;39;E;12;AP-05;',
       ],
@@ -1869,7 +1664,7 @@ const sectorCsvPattern = computed(() => {
         { name: 'tipo', req: true, desc: `Categoria configurada para Pré-Fabricado (aceita também categoria). Valores disponíveis: ${preFabricadoCategoryNames.value}.` },
         { name: 'combinacao', req: false, desc: 'Cor ou combinação do solado (também aceita cor ou material_cor). Ex: PRETO' },
         { name: 'grade', req: true, desc: 'Grade / Numeração do solado. Ex: 39/40, 41' },
-        { name: 'lado', req: false, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR.' },
+        { name: 'lado', req: false, desc: 'Preencha E, D ou PAR se a categoria permitir lado/par; caso contrário deixe vazio.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01' },
         { name: 'subsetor', req: false, desc: 'Subsetor ativo de Pré-Fabricado. Deixe vazio para manter o fluxo atual sem subsetor.' },
@@ -1891,18 +1686,19 @@ const sectorCsvPattern = computed(() => {
         { name: 'sku', req: true, desc: 'SKU ou código do produto (aceita sku ou codigo). Ex: SKU-RACER-SPD-BLK' },
         { name: 'modelo', req: true, desc: 'Nome do modelo / Linha. Ex: RACER SPEEDZONE' },
         { name: 'peca', req: false, desc: `Componente do calçado. Ex: ${pecaEx}` },
+        { name: 'tipo', req: true, desc: 'Categoria configurada para este setor (aceita também categoria).' },
         { name: 'combinacao', req: false, desc: 'Cor ou combinação do produto (o importador também aceita cor ou material_cor). Ex: PRETO, BRANCO' },
         { name: 'grade', req: true, desc: 'Grade / Numeração do calçado. Ex: 39/40, 41, 7,5' },
-        { name: 'lado', req: true, desc: 'Lado do pé: E (Esquerdo), D (Direito) ou PAR (desmembrado e consolidado automaticamente com pés avulsos e locais)' },
+        { name: 'lado', req: false, desc: 'Preencha E, D ou PAR se a categoria permitir lado/par; caso contrário deixe vazio. PAR gera E + D.' },
         { name: 'quantidade', req: false, desc: 'Quantidade de peças / pares. Ex: 20 (Padrão: 0)' },
         { name: 'prateleira', req: false, desc: 'Localização ou box. Ex: PR-01, ESTANTE 1 - NIVEL 3' },
         { name: 'subsetor', req: false, desc: `Subsetor ativo de ${secLabel}. Deixe vazio para manter o fluxo atual sem subsetor.` },
       ],
-      headerExample: 'sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira;subsetor',
+      headerExample: 'sku;modelo;peca;tipo;combinacao;grade;lado;quantidade;prateleira;subsetor',
       examples: [
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};PRETO;41;PAR;20;PR-01;`,
-        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};BRANCO;40;E;15;MO-02;`,
-        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};PRETO;38;D;10;MO-03;`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};${sec === 'MONTAGEM' ? 'PE PRONTO' : 'CABEDAL'};PRETO;41;PAR;20;PR-01;`,
+        `SKU-RACER-SPD-BLK;RACER SPEEDZONE;${pecaEx};${sec === 'MONTAGEM' ? 'PE PRONTO' : 'CABEDAL'};BRANCO;40;E;15;MO-02;`,
+        `SKU-AIRMAX-WHT;AIR MAX SC;${pecaEx};${sec === 'MONTAGEM' ? 'PE PRONTO' : 'CABEDAL'};PRETO;38;D;10;MO-03;`,
       ],
     }
   }
@@ -2059,7 +1855,7 @@ async function toggleRequisitionsModule(enable) {
 
 // INICIALIZAÇÃO
 onMounted(async () => {
-  await Promise.all([fetchCategories(), fetchComponentSubtypes(), fetchUnits(), fetchLocations(), fetchOrigins(), fetchSubsectors()])
+  await Promise.all([fetchCategories(), fetchUnits(), fetchLocations(), fetchOrigins(), fetchSubsectors()])
   if (isMasterAdmin.value) {
     await loadUnitSettings()
   }

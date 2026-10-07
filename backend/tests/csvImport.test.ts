@@ -13,23 +13,28 @@ import {
 } from '../src/import/materialImport';
 
 const mockLocations: AvailableLocation[] = [
-  { id: 1, name: 'A-01', sector: 'CORTE' },
-  { id: 2, name: 'A-02', sector: 'CORTE' },
-  { id: 3, name: 'GERAL', sector: null },
-  { id: 4, name: 'AP-01', sector: 'APOIO' },
-  { id: 5, name: 'SOL-01', sector: 'PRE_FABRICADO' },
-  { id: 6, name: 'DIS-01', sector: 'DISTRIBUICAO' },
-  { id: 7, name: 'MO-01', sector: 'MONTAGEM' },
+  { id: 1, name: 'A-01', sector: 'CORTE', categoryMode: 'ALL' },
+  { id: 2, name: 'A-02', sector: 'CORTE', categoryMode: 'ALL' },
+  { id: 3, name: 'GERAL', sector: null, categoryMode: 'ALL' },
+  { id: 4, name: 'AP-01', sector: 'APOIO', categoryMode: 'ALL' },
+  { id: 5, name: 'SOL-01', sector: 'PRE_FABRICADO', categoryMode: 'ALL' },
+  { id: 6, name: 'DIS-01', sector: 'DISTRIBUICAO', categoryMode: 'ALL' },
+  { id: 7, name: 'MO-01', sector: 'MONTAGEM', categoryMode: 'ALL' },
 ];
 
 const mockCategories: AvailableImportCategory[] = [
-  { name: 'EVA', sector: 'PRE_FABRICADO' },
-  { name: 'BORRACHA', sector: 'PRE_FABRICADO' },
+  { id: 3, name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' },
+  { id: 4, name: 'FORRO', sector: 'CORTE', defaultUnitCode: 'M', entryMode: 'QUANTITY' },
+  { id: 5, name: 'PEÇA', sector: 'APOIO', defaultUnitCode: 'UN', entryMode: 'QUANTITY' },
+  { id: 6, name: 'CABEDAL', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' },
+  { id: 7, name: 'PE PRONTO', sector: 'MONTAGEM', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' },
+  { id: 1, name: 'EVA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' },
+  { id: 2, name: 'BORRACHA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' },
 ];
 
 test('CSV de Apoio preserva modelo e descrição da peça separadamente, independentemente da ordem das colunas', () => {
-  const parsed = parseCsvRFC4180('codigo;modelo;descricao;material_cor;grade;quantidade;prateleira\n121212;RACER SPEEDZONE;LINGUETA;SINTETICO;40;100;AP-01');
-  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'APOIO', mockLocations);
+  const parsed = parseCsvRFC4180('codigo;modelo;descricao;material_cor;grade;quantidade;prateleira;categoria\n121212;RACER SPEEDZONE;LINGUETA;SINTETICO;40;100;AP-01;PEÇA');
+  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'APOIO', mockLocations, mockCategories);
   assert.equal(item.name, 'LINGUETA');
   assert.equal(item.productName, 'RACER SPEEDZONE');
   assert.equal(item.color, 'SINTETICO');
@@ -38,8 +43,8 @@ test('CSV de Apoio preserva modelo e descrição da peça separadamente, indepen
 });
 
 test('CSV de Distribuição aceita a coluna combinacao e a grava como cor do item', () => {
-  const parsed = parseCsvRFC4180('sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira\nCAB-001;RACER SPEEDZONE;CABEDAL;PRETO/BRANCO;40;E;12;DIS-01');
-  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', mockLocations);
+  const parsed = parseCsvRFC4180('sku;modelo;peca;combinacao;grade;lado;quantidade;prateleira;categoria\nCAB-001;RACER SPEEDZONE;CABEDAL;PRETO/BRANCO;40;E;12;DIS-01;CABEDAL');
+  const [item] = validateImportBatch(parsed.headers, parsed.rows, 'DISTRIBUICAO', mockLocations, mockCategories);
   const stockData = importStockData(item, 1);
 
   assert.equal(item.color, 'PRETO/BRANCO');
@@ -105,7 +110,7 @@ test('parseQuantity converte formatos numéricos brasileiros e americanos corret
 test('validateImportBatch valida com sucesso um lote de CORTE com prateleiras existentes', () => {
   const csv = 'codigo;descricao;categoria;unidade;quantidade;prateleira\n1001;TECIDO PRETO;TECIDO;M2;150.5;A-01\n1002;FORRO AZUL;FORRO;M;80;';
   const parsed = parseCsvRFC4180(csv);
-  const validated = validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations);
+  const validated = validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations, mockCategories);
 
   assert.equal(validated.length, 2);
   assert.equal(validated[0].code, '1001');
@@ -124,7 +129,7 @@ test('validateImportBatch rejeita prateleira que NÃO existe no cadastro de loca
   const parsed = parseCsvRFC4180(csv);
 
   assert.throws(() => {
-    validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations);
+    validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors.length, 1);
@@ -137,11 +142,11 @@ test('validateImportBatch rejeita prateleira que NÃO existe no cadastro de loca
 
 test('validateImportBatch rejeita prateleira pertencente a outro setor (Isolamento Setorial)', () => {
   // Tentando alocar item de MONTAGEM na prateleira A-01 (que é do CORTE)
-  const csv = 'sku;modelo;grade;lado;quantidade;prateleira\nSKU-PEG40;PEGASUS 40;41;PAR;10;A-01';
+  const csv = 'sku;modelo;grade;lado;quantidade;prateleira;categoria\nSKU-PEG40;PEGASUS 40;41;PAR;10;A-01;PE PRONTO';
   const parsed = parseCsvRFC4180(csv);
 
   assert.throws(() => {
-    validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations);
+    validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors.length, 1);
@@ -153,9 +158,9 @@ test('validateImportBatch rejeita prateleira pertencente a outro setor (Isolamen
 
 test('validateImportBatch valida prateleiras em todos os setores ativos', () => {
   // Teste Apoio
-  const csvApoio = 'sku;modelo;peca;quantidade;prateleira\nMOL-001;PEGASUS 40;GASPEA;20;AP-01';
+  const csvApoio = 'sku;modelo;peca;quantidade;prateleira;categoria\nMOL-001;PEGASUS 40;GASPEA;20;AP-01;PEÇA';
   const pApoio = parseCsvRFC4180(csvApoio);
-  const vApoio = validateImportBatch(pApoio.headers, pApoio.rows, 'APOIO', mockLocations);
+  const vApoio = validateImportBatch(pApoio.headers, pApoio.rows, 'APOIO', mockLocations, mockCategories);
   assert.equal(vApoio[0].locationId, 4);
 
   // Teste Pré-Fabricado
@@ -168,15 +173,15 @@ test('validateImportBatch valida prateleiras em todos os setores ativos', () => 
   assert.equal(vPreFab[0].color, 'PRETO');
 
   // Teste Distribuição
-  const csvDist = 'sku;modelo;grade;lado;quantidade;prateleira\nCAB-01;PEGASUS 40;41;E;30;DIS-01';
+  const csvDist = 'sku;modelo;grade;lado;quantidade;prateleira;categoria\nCAB-01;PEGASUS 40;41;E;30;DIS-01;CABEDAL';
   const pDist = parseCsvRFC4180(csvDist);
-  const vDist = validateImportBatch(pDist.headers, pDist.rows, 'DISTRIBUICAO', mockLocations);
+  const vDist = validateImportBatch(pDist.headers, pDist.rows, 'DISTRIBUICAO', mockLocations, mockCategories);
   assert.equal(vDist[0].locationId, 6);
 
   // Teste Montagem
-  const csvMont = 'sku;modelo;grade;lado;quantidade;prateleira\nMO-01;PEGASUS 40;41;PAR;10;MO-01';
+  const csvMont = 'sku;modelo;grade;lado;quantidade;prateleira;categoria\nMO-01;PEGASUS 40;41;PAR;10;MO-01;PE PRONTO';
   const pMont = parseCsvRFC4180(csvMont);
-  const vMont = validateImportBatch(pMont.headers, pMont.rows, 'MONTAGEM', mockLocations);
+  const vMont = validateImportBatch(pMont.headers, pMont.rows, 'MONTAGEM', mockLocations, mockCategories);
   assert.equal(vMont.length, 2);
   assert.equal(vMont[0].locationId, 7);
 
@@ -191,7 +196,7 @@ test('CSV aceita classificação customizada em subsetor quando categoria e loca
     categoryId: 41, categoryLinks: [{ categoryId: 41 }],
   }];
   const categories: AvailableImportCategory[] = [{
-    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', componentType: 'CABEDAL',
+    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR',
   }];
   const subsectors = [{
     id: 9, name: 'Componentes Especiais', sector: 'DISTRIBUICAO' as const, active: true,
@@ -207,7 +212,7 @@ test('CSV aceita classificação customizada em subsetor quando categoria e loca
 
 test('CSV rejeita localização ou categoria fora do subsetor selecionado', () => {
   const categories: AvailableImportCategory[] = [{
-    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', componentType: 'CABEDAL',
+    id: 41, name: 'LONA ESPECIAL', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR',
   }];
   const subsectors = [{
     id: 9, name: 'Componentes Especiais', sector: 'DISTRIBUICAO' as const, active: true,
@@ -240,7 +245,7 @@ test('formato CSV legado de Corte preserva vínculo opcional de subsetor', () =>
   cells[5] = '1003';
   cells[6] = 'TECIDO PRETO';
   cells[34] = 'Tecidos';
-  const categories: AvailableImportCategory[] = [{ id: 51, name: 'TECIDO', sector: 'CORTE', componentType: 'MATERIA_PRIMA' }];
+  const categories: AvailableImportCategory[] = [{ id: 51, name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' }];
   const subsectors = [{
     id: 15, name: 'Tecidos', sector: 'CORTE' as const, active: true,
     categoryMode: 'SELECTED' as const, categoryLinks: [{ categoryConfigId: 51 }],
@@ -277,11 +282,11 @@ test('CSV de Pré-Fabricado exige tipo configurado e rejeita categoria inválida
 });
 
 test('validateImportBatch rejeita lote com código ou descrição vazios e retorna lista linha a linha', () => {
-  const csv = 'codigo;descricao;quantidade\n;TECIDO SEM CODIGO;10\n1002;;20';
+  const csv = 'codigo;descricao;quantidade;categoria\n;TECIDO SEM CODIGO;10;TECIDO\n1002;;20;TECIDO';
   const parsed = parseCsvRFC4180(csv);
 
   assert.throws(() => {
-    validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations);
+    validateImportBatch(parsed.headers, parsed.rows, 'CORTE', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors.length, 2);
@@ -294,22 +299,22 @@ test('validateImportBatch rejeita lote com código ou descrição vazios e retor
 });
 
 test('validateImportBatch rejeita quantidade negativa e quantidade fracionada em setores discretos', () => {
-  const csvApoio = 'sku;modelo;peca;quantidade;prateleira\nMOL-001;PEGASUS 40;GASPEA;12.5;AP-01';
+  const csvApoio = 'sku;modelo;peca;quantidade;prateleira;categoria\nMOL-001;PEGASUS 40;GASPEA;12.5;AP-01;PEÇA';
   const parsedApoio = parseCsvRFC4180(csvApoio);
 
   assert.throws(() => {
-    validateImportBatch(parsedApoio.headers, parsedApoio.rows, 'APOIO', mockLocations);
+    validateImportBatch(parsedApoio.headers, parsedApoio.rows, 'APOIO', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors[0].column, 'quantidade');
-    assert(err.errors[0].message.includes('unidades inteiras'));
+    assert(err.errors[0].message.includes('inteiro'));
     return true;
   });
 
-  const csvNegativo = 'codigo;descricao;quantidade;prateleira\n1001;TECIDO;-15;A-01';
+  const csvNegativo = 'codigo;descricao;quantidade;prateleira;categoria\n1001;TECIDO;-15;A-01;TECIDO';
   const parsedNegativo = parseCsvRFC4180(csvNegativo);
   assert.throws(() => {
-    validateImportBatch(parsedNegativo.headers, parsedNegativo.rows, 'CORTE', mockLocations);
+    validateImportBatch(parsedNegativo.headers, parsedNegativo.rows, 'CORTE', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors[0].column, 'quantidade');
@@ -318,9 +323,9 @@ test('validateImportBatch rejeita quantidade negativa e quantidade fracionada em
 });
 
 test('validateImportBatch desmembra automaticamente itens com lado PAR em 1E e 1D no setor Montagem', () => {
-  const csv = 'sku;modelo;grade;lado;quantidade;prateleira\nSKU-PEG40;PEGASUS 40;41;PAR;20;MO-01';
+  const csv = 'sku;modelo;grade;lado;quantidade;prateleira;categoria\nSKU-PEG40;PEGASUS 40;41;PAR;20;MO-01;PE PRONTO';
   const parsed = parseCsvRFC4180(csv);
-  const validated = validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations);
+  const validated = validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations, mockCategories);
 
   assert.equal(validated.length, 2);
   assert.equal(validated[0].footSide, 'E');
@@ -333,11 +338,11 @@ test('validateImportBatch desmembra automaticamente itens com lado PAR em 1E e 1
 });
 
 test('validateImportBatch exige grade para o setor Montagem', () => {
-  const csv = 'sku;modelo;grade;lado;quantidade;prateleira\nSKU-PEG40;PEGASUS 40;;E;10;MO-01';
+  const csv = 'sku;modelo;grade;lado;quantidade;prateleira;categoria\nSKU-PEG40;PEGASUS 40;;E;10;MO-01;PE PRONTO';
   const parsed = parseCsvRFC4180(csv);
 
   assert.throws(() => {
-    validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations);
+    validateImportBatch(parsed.headers, parsed.rows, 'MONTAGEM', mockLocations, mockCategories);
   }, (err: any) => {
     assert(err instanceof ImportValidationError);
     assert.equal(err.errors[0].column, 'grade');

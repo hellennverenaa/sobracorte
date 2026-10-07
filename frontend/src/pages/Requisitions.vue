@@ -107,6 +107,7 @@ interface SkuSuggestion {
 }
 
 interface StagedRequisitionItem {
+  categoryId: number;
   requestSector: 'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM';
   sourceCandidateId: string;
   confirmSourceSuggestion: boolean;
@@ -211,6 +212,7 @@ function closeDetailsModal() {
 type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'ambiguous' | 'error';
 
 interface AvailabilityRequest {
+  categoryId?: number;
   requestSector: typeof currentSector.value;
   sku?: string;
   pieceCode?: string;
@@ -252,10 +254,9 @@ const otherSourceCandidates = computed(() => selectedSourceCandidate.value
   : []);
 
 const apoioIdentifier = computed({
-  get: () => formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode,
+  get: () => formItem.value.pieceCode,
   set: (value: string) => {
-    if (formItem.value.type === 'CABEDAL') formItem.value.sku = value;
-    else formItem.value.pieceCode = value;
+    formItem.value.pieceCode = value;
   },
 });
 
@@ -288,7 +289,7 @@ const isFulfilling = ref(false);
 const { units: measurementUnits, categories: materialCategories, fetchUnits, fetchCategories } = useSettings();
 onMounted(() => { fetchUnits(); fetchCategories(); });
 function integerQuantity(unit: string | undefined, sector: string) {
-  return sector !== 'CORTE' || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
+  return ['UN', 'UND', 'PAR', 'CX', 'ROLO'].includes(unit || '') || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
 }
 const requestIntegerOnly = computed(() => integerQuantity(selectedSourceCandidate.value?.unit || formItem.value.unit, currentSector.value));
 const fulfillIntegerOnly = computed(() => integerQuantity(fulfillingItem.value?.unit, fulfillingItem.value?.requestSector || ''));
@@ -309,44 +310,30 @@ const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
 const reuseSectorOptions = sectorOptions.filter(option => option.id !== 'CORTE');
-const fixedRequisitionTypes: Record<string, string[]> = {
-  PRE_FABRICADO: ['EVA', 'BORRACHA', 'TPU', 'PU'],
-  DISTRIBUICAO: ['CABEDAL', 'SOLA_PROCESSADA'],
-  EXPEDICAO: ['CABEDAL', 'SOLA_PROCESSADA'],
-};
-const currentTypeOptions = computed(() => {
-  if (currentSector.value === 'APOIO') return [
-    { value: 'PECA_CORTADA', label: 'Peça cortada' },
-    { value: 'CABEDAL', label: 'Cabedal' },
-  ];
-  const configured = materialCategories.value
-    .filter((category: any) => {
-      const scopes = Array.isArray(category.sectors) && category.sectors.length
-        ? category.sectors
-        : category.sector ? [category.sector] : [];
-      return scopes.length === 0 || scopes.some((sector: string) => normalizeSector(sector) === normalizeSector(currentSector.value));
-    })
-    .map((category: any) => String(category.name || '').trim().toUpperCase())
-    .filter(Boolean);
-  const values = [...new Set([...(fixedRequisitionTypes[currentSector.value] || []), ...configured])];
-  const labels: Record<string, string> = { EVA: 'EVA', BORRACHA: 'Borracha', CABEDAL: 'Cabedal', SOLA_PROCESSADA: 'Sola processada' };
-  return values.map(value => ({ value, label: labels[value] || value }));
-});
-const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
+const currentCategories = computed(() => materialCategories.value.filter((category: any) => {
+  const sectors = category.sectors?.length ? category.sectors : category.sector ? [category.sector] : [];
+  return !sectors.length || sectors.map(normalizeSector).includes(normalizeSector(currentSector.value));
+}));
+const currentTypeOptions = computed(() => currentCategories.value.map((category: any) => ({ value: category.name, label: category.name })));
+const selectedRequestCategory = computed(() => currentCategories.value.find((category: any) => category.name === formItem.value.type));
 const isRawMaterialRequest = computed(() => requestMode.value === 'RAW_MATERIAL');
-const isApoioCutPiece = computed(() => currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA');
-const showFootSide = computed(() => currentSector.value !== 'APOIO' || formItem.value.type === 'CABEDAL');
+const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
+const isApoioCutPiece = computed(() => currentSector.value === 'APOIO');
+const showFootSide = computed(() => selectedRequestCategory.value?.entryMode === 'SIDE_PAIR');
+watch(selectedRequestCategory, category => {
+  formItem.value.unit = category?.defaultUnitCode || '';
+  formItem.value.footSide = null;
+});
+
 const requestIdentifierLabel = computed(() => {
   if (currentSector.value === 'CORTE') return 'Código da matéria-prima *';
-  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Código da peça *';
-  if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'SKU do cabedal *';
+  if (currentSector.value === 'APOIO') return 'Código da peça *';
   if (['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(currentSector.value)) return 'Código do produto / SKU';
   return 'Código do produto / SKU *';
 });
 const requestIdentifierPlaceholder = computed(() => {
   if (currentSector.value === 'CORTE') return 'Ex: COU-BOV-01, SINT-PTO...';
-  if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') return 'Ex: MOL-GAS-01...';
-  if (currentSector.value === 'APOIO' && formItem.value.type === 'CABEDAL') return 'Ex: CAB-PEG-40-PTO...';
+  if (currentSector.value === 'APOIO') return 'Ex: MOL-GAS-01...';
   if (currentSector.value === 'MONTAGEM') return 'Busque pelo código / SKU';
   if (currentSector.value === 'PRE_FABRICADO' || currentSector.value === 'DISTRIBUICAO' || currentSector.value === 'EXPEDICAO') return 'Opcional se buscar pelo modelo';
   return 'Ex: SKU do produto ou componente...';
@@ -363,7 +350,7 @@ const currentIdentifier = computed({
 // exata que iniciou a requisição; qualquer edição invalida o resultado anterior.
 function buildAvailabilityRequest(): AvailabilityRequest {
   const isApoio = currentSector.value === 'APOIO';
-  const isApoioCutPiece = isApoio && formItem.value.type === 'PECA_CORTADA';
+  const isApoioCutPiece = isApoio;
   const sku = (isApoio ? (isApoioCutPiece ? '' : formItem.value.sku) : formItem.value.sku)?.trim().toUpperCase();
   const pieceCode = isApoioCutPiece ? formItem.value.pieceCode.trim().toUpperCase() : '';
   const modelName = formItem.value.modelName?.trim().toUpperCase();
@@ -382,6 +369,7 @@ function buildAvailabilityRequest(): AvailabilityRequest {
 
   return {
     requestSector: currentSector.value,
+    categoryId: selectedRequestCategory.value?.id,
     sku: sku || undefined,
     pieceCode: pieceCode || undefined,
     modelName: modelName || undefined,
@@ -396,6 +384,7 @@ function buildAvailabilityRequest(): AvailabilityRequest {
 function availabilityIdentityKey(request: AvailabilityRequest) {
   return JSON.stringify([
     request.requestSector,
+    request.categoryId,
     request.sku || '',
     request.pieceCode || '',
     request.modelName || '',
@@ -410,20 +399,19 @@ function availabilityIdentityKey(request: AvailabilityRequest) {
 function hasEnoughIdentityToCheck(request: AvailabilityRequest) {
   const hasSku = Boolean(request.sku);
   const hasGrade = Boolean(request.sizeGrade);
-  const hasSide = Boolean(request.footSide);
+  if (!request.categoryId) return false;
+  const hasSide = !showFootSide.value || Boolean(request.footSide);
   const hasColor = Boolean(request.color);
   const hasModel = Boolean(request.modelName);
 
   if (request.requestSector === 'CORTE') {
-    return hasSku && Boolean(formItem.value.description.trim());
+    return hasSku && Boolean(formItem.value.description.trim()) && hasSide;
   }
   if (request.requestSector === 'APOIO') {
-    if (request.type === 'CABEDAL') return hasSku && hasModel && hasColor && hasGrade && hasSide;
     return Boolean(request.pieceCode)
       && Boolean(formItem.value.description.trim())
-      && hasModel
       && hasColor
-      && hasGrade;
+      && hasGrade && hasSide;
   }
   if (request.requestSector === 'PRE_FABRICADO') {
     return (hasSku || hasModel) && Boolean(request.type) && hasModel && hasGrade && hasSide;
@@ -442,7 +430,7 @@ const hasPrimaryItemIdentity = computed(() => {
     return Boolean(formItem.value.sku.trim() && formItem.value.description.trim());
   }
   if (currentSector.value === 'APOIO') {
-    return Boolean((formItem.value.type === 'CABEDAL' ? formItem.value.sku : formItem.value.pieceCode).trim());
+    return Boolean(formItem.value.pieceCode.trim());
   }
   if (['MONTAGEM', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO'].includes(currentSector.value)) {
     return Boolean(formItem.value.sku.trim() || formItem.value.modelName.trim());
@@ -553,7 +541,7 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
   const requestVersion = ++autocompleteRequestVersion;
   const q = value.trim();
   preferredSourceStockItemIds.value = [];
-  if (q.length < 2) {
+  if (q.length < 2 || !selectedRequestCategory.value) {
     suggestions.value = [];
     suggestionsLoading.value = false;
     closeSuggestions();
@@ -571,7 +559,7 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
           requestSector: currentSector.value,
           field,
           q,
-          ...(currentSector.value === 'APOIO' ? { componentType: formItem.value.type } : {}),
+          categoryId: selectedRequestCategory.value?.id,
           ...(formItem.value.type ? { type: formItem.value.type } : {}),
           ...(formItem.value.color ? { color: formItem.value.color } : {}),
           ...(formItem.value.sizeGrade ? { sizeGrade: formItem.value.sizeGrade } : {}),
@@ -620,22 +608,18 @@ function selectSuggestion(sug: SkuSuggestion) {
   if (currentSector.value === 'CORTE') {
     formItem.value.sku = sug.code || sug.sku || '';
     formItem.value.description = sug.description;
-  } else if (currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA') {
-    formItem.value.pieceCode = sug.pieceCode || sug.code || '';
+  } else if (currentSector.value === 'APOIO') {
+    formItem.value.pieceCode = sug.pieceCode || sug.sku || sug.code || '';
     formItem.value.sku = '';
     formItem.value.description = sug.description;
-  } else if (currentSector.value === 'APOIO') {
-    formItem.value.sku = sug.sku || '';
-    formItem.value.pieceCode = '';
-  } else if (sug.sku) {
-    // Código de peça cortada não é convertido para SKU do produto solicitado.
-    formItem.value.sku = sug.sku;
+  } else {
+    formItem.value.sku = sug.sku || sug.pieceCode || sug.code || '';
   }
 
   if (sug.modelName) formItem.value.modelName = sug.modelName;
   if (sug.color) formItem.value.color = sug.color;
   if (sug.sizeGrade) formItem.value.sizeGrade = sug.sizeGrade;
-  if (sug.footSide) formItem.value.footSide = sug.footSide;
+  if (sug.footSide && showFootSide.value) formItem.value.footSide = sug.footSide;
   if (sug.unit) formItem.value.unit = sug.unit;
   availableGrades.value = sug.sizeGrade ? [sug.sizeGrade] : [];
   availableFootSides.value = sug.footSide ? [sug.footSide] : [];
@@ -655,9 +639,7 @@ function onSectorChange() {
     pieceCode: '',
     modelName: '',
     description: '',
-    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA'
-      : currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL'
-        : currentSector.value === 'APOIO' ? 'PECA_CORTADA' : '',
+    type: '',
     color: '',
     unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
@@ -781,20 +763,10 @@ function addCurrentItem() {
       return;
     }
   } else if (currentSector.value === 'APOIO') {
-    const apoioCode = formItem.value.type === 'CABEDAL'
-      ? formItem.value.sku.trim()
-      : formItem.value.pieceCode.trim();
-    if (!['CABEDAL', 'PECA_CORTADA'].includes(formItem.value.type) || !apoioCode) {
-      showToast(formItem.value.type === 'CABEDAL'
-        ? 'O SKU do cabedal é obrigatório.'
-        : 'O código da peça cortada é obrigatório.', 'error');
+    if (!formItem.value.pieceCode.trim() || !finalDesc) {
+      showToast('O código e a descrição do material são obrigatórios.', 'error');
       return;
     }
-    if (!finalDesc && formItem.value.type === 'PECA_CORTADA') {
-      showToast('A descrição da peça cortada é obrigatória.', 'error');
-      return;
-    }
-    finalDesc = finalDesc || 'CABEDAL';
   } else if (currentSector.value === 'CORTE') {
     if (!finalDesc || !formItem.value.sku.trim()) {
       showToast('O código e a descrição da matéria-prima são obrigatórios.', 'error');
@@ -804,7 +776,7 @@ function addCurrentItem() {
   }
 
   if (!Number.isFinite(formItem.value.quantityRequested) || !/^\d+(?:\.\d{1,3})?$/.test(String(formItem.value.quantityRequested)) || (requestIntegerOnly.value && !Number.isInteger(formItem.value.quantityRequested))) {
-    showToast('Quantidade inválida: peças exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
+    showToast('Quantidade inválida: unidades discretas exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
   }
   if (formItem.value.quantityRequested <= 0) {
     showToast('A quantidade solicitada deve ser maior que zero.', 'error');
@@ -838,15 +810,16 @@ function addCurrentItem() {
 
   stagedItems.value.push({
     requestSector: currentSector.value,
+    categoryId: selectedRequestCategory.value?.id,
     sourceCandidateId: selectedSourceCandidate.value!.id,
     confirmSourceSuggestion: selectedSourceCandidate.value!.requiresConfirmation
       && availabilityResult.value.confirmedSourceCandidateId === selectedSourceCandidate.value!.id,
     sourceSector: selectedSourceCandidate.value!.sourceSector,
     sourceMatchReason: selectedSourceCandidate.value!.reason,
-    sku: currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA'
+    sku: currentSector.value === 'APOIO'
       ? undefined
       : formItem.value.sku.trim().toUpperCase() || undefined,
-    pieceCode: currentSector.value === 'APOIO' && formItem.value.type === 'PECA_CORTADA'
+    pieceCode: currentSector.value === 'APOIO'
       ? formItem.value.pieceCode.trim().toUpperCase() || undefined
       : undefined,
     modelName: formItem.value.modelName.trim().toUpperCase() || (currentSector.value === 'CORTE' ? 'CORTE' : (currentSector.value === 'MONTAGEM' ? 'CALÇADO' : 'GERAL')),
@@ -873,9 +846,7 @@ function addCurrentItem() {
     pieceCode: '',
     modelName: '',
     description: '',
-    type: currentSector.value === 'PRE_FABRICADO' ? 'EVA'
-      : currentSector.value === 'DISTRIBUICAO' ? 'CABEDAL'
-        : currentSector.value === 'APOIO' ? 'PECA_CORTADA' : '',
+    type: '',
     color: '',
     unit: currentSector.value === 'CORTE' ? 'M²' : 'UN',
     sizeGrade: '',
@@ -922,6 +893,7 @@ async function submitRequisition() {
     const payload = {
       items: stagedItems.value.map((item) => ({
         requestSector: item.requestSector,
+        categoryId: item.categoryId,
         sourceCandidateId: item.sourceCandidateId,
         confirmSourceSuggestion: item.confirmSourceSuggestion,
         sku: item.sku,
@@ -996,7 +968,7 @@ function openFulfill(item: RequisitionItem) {
 async function executeFulfill() {
   if (!fulfillingItem.value) return;
   if (!Number.isFinite(fulfillQuantity.value) || !/^\d+(?:\.\d{1,3})?$/.test(String(fulfillQuantity.value)) || (fulfillIntegerOnly.value && !Number.isInteger(fulfillQuantity.value))) {
-    showToast('Quantidade inválida: peças exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
+    showToast('Quantidade inválida: unidades discretas exigem inteiros; demais unidades permitem até três casas decimais.', 'error'); return;
   }
   if (fulfillQuantity.value <= 0) {
     showToast('A quantidade a atender deve ser maior que zero.', 'error');
@@ -1436,29 +1408,15 @@ onMounted(() => {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div v-if="['APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO'].includes(currentSector)" class="sm:col-span-1">
-                <label class="block font-bold text-slate-600 uppercase mb-1">Tipo / componente *</label>
-                <select
-                  v-if="currentSector === 'APOIO'"
-                  v-model="formItem.type"
-                  @change="onApoioComponentChange"
-                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                >
-                  <option v-for="type in currentTypeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
-                </select>
-                <select
-                  v-else
-                  v-model="formItem.type"
-                  @change="onApoioComponentChange"
-                  class="w-full border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
-                >
+              <div class="sm:col-span-1">
+                <label for="requisition-category" class="mb-1 block font-bold uppercase text-slate-600">Categoria do material *</label>
+                <select id="requisition-category" v-model="formItem.type" @change="onApoioComponentChange"
+                  class="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-medium">
+                  <option value="" disabled>Selecione a categoria</option>
                   <option v-for="type in currentTypeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
                 </select>
               </div>
-              <div v-else-if="currentSector === 'MONTAGEM'" class="sm:col-span-1">
-                <label class="block font-bold text-slate-600 uppercase mb-1">Produto solicitado</label>
-                <div class="w-full border border-slate-200 p-2.5 rounded-xl font-medium text-slate-600 bg-white">Pé pronto / calçado completo</div>
-              </div>
+
 
               <div class="relative" :class="isRawMaterialRequest ? 'sm:col-span-2' : ''">
                 <label class="block font-bold text-slate-600 uppercase mb-1">{{ requestIdentifierLabel }}</label>
@@ -1582,7 +1540,7 @@ onMounted(() => {
                 <input v-else v-model="formItem.sizeGrade" type="text" placeholder="Ex: 39/40" class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white" />
               </div>
 
-              <div v-if="!isRawMaterialRequest && showFootSide">
+              <div v-if="showFootSide">
                 <label class="block font-bold text-slate-600 uppercase mb-1">Lado (E / D / PAR) *</label>
                 <div class="flex gap-1">
                   <button
@@ -1868,7 +1826,7 @@ onMounted(() => {
                         {{ formatSectorName(staged.requestSector) }}
                       </span>
                       <span v-if="staged.requestSector === 'APOIO' && staged.type" class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-sans bg-indigo-50 text-indigo-700">
-                        {{ staged.type === 'PECA_CORTADA' ? 'Peça cortada' : 'Cabedal' }}
+                        {{ staged.type }}
                       </span>
                     </div>
                     <div class="text-[11px] text-slate-600">

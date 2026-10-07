@@ -17,7 +17,7 @@ function replaceTransaction(t: any, transaction: (callback: (tx: any) => any) =>
 function apoioEntry(overrides: Record<string, unknown> = {}) {
   return {
     sector: 'APOIO',
-    componentType: 'PECA_CORTADA',
+    categoryId: 10,
     pieceCode: 'PC-1',
     description: 'ABA FRONTAL',
     materialColor: 'PRETO',
@@ -47,12 +47,12 @@ function setupItemCreation(t: any, options: {
     $queryRaw: async () => [],
     subsectorConfig: { findFirst: async ({ where }: any) => where.id === 5 && where.factoryUnitId === 1 && where.active ? subsector : null },
     categoryConfig: { findFirst: async ({ where }: any) => where.id === 10
-      ? { id: 10, name: 'PECA', sectors: ['APOIO'], componentType: 'PECA_CORTADA', unitLocked: false, defaultUnitCode: 'UN' }
+      ? { id: 10, name: 'PECA', sectors: ['APOIO'], entryMode: 'QUANTITY', unitLocked: false, defaultUnitCode: 'UN' }
       : null },
     originConfig: { findFirst: async () => null },
     location: {
       findUnique: async () => options.locationMissing ? null : {
-        id: 20, name: 'PRATELEIRA A', sector: 'APOIO', subsectorId: options.locationSubsectorId ?? 5, categoryLinks: [],
+        id: 20, name: 'PRATELEIRA A', sector: 'APOIO', subsectorId: options.locationSubsectorId ?? 5, categoryMode: 'ALL', categoryLinks: [],
       },
       create: async ({ data }: any) => {
         writes.push({ table: 'location', data });
@@ -80,10 +80,10 @@ function setupItemCreation(t: any, options: {
 }
 
 test('subsetor é opcional no DTO e associação explícita é persistida no novo item, localização e entrada', async t => {
-  const { writes, create } = setupItemCreation(t, { locationMissing: true });
+  const { writes, create } = setupItemCreation(t, {});
   await create(apoioEntry({ subsectorId: 5 }));
 
-  assert.equal(writes.find(write => write.table === 'location')?.data.subsectorId, 5);
+  assert.equal(writes.some(write => write.table === 'location'), false);
   assert.equal(writes.find(write => write.table === 'stockItem')?.data.subsectorId, 5);
   assert.equal(writes.find(write => write.table === 'stockMovement')?.data.subsectorId, 5);
   assert.equal(BatchCreateStockItemSchema.safeParse({ items: [apoioEntry()] }).success, true);
@@ -114,7 +114,7 @@ test('cadastro rejeita subsetor de outro setor, outra unidade ou sem concessão 
 test('subsetor em modo SELECTED exige categoria permitida', async t => {
   const { writes, create } = setupItemCreation(t, { categoryMode: 'SELECTED', allowedCategoryIds: [11] });
   await assert.rejects(create(apoioEntry({ subsectorId: 5, categoryId: 10, type: 'PECA' })), /categoria selecionada não está permitida/);
-  await assert.rejects(create(apoioEntry({ subsectorId: 5 })), /Selecione uma categoria permitida/);
+  assert.equal(BatchCreateStockItemSchema.safeParse({ items: [apoioEntry({ subsectorId: 5, categoryId: undefined })] }).success, false);
   assert.equal(writes.some(write => write.table === 'stockItem'), false);
 });
 

@@ -4,7 +4,7 @@ import { executeImportTransaction, planImport, type ValidatedImportItem } from '
 
 test('importação de 8.450 materiais usa lotes e mantém vínculos e saldos', async () => {
   const items: ValidatedImportItem[] = Array.from({ length: 8450 }, (_, index) => ({
-    rowNumber: index + 2, sector: 'CORTE', code: String(1000000 + index),
+    rowNumber: index + 2, sector: 'CORTE', categoryId: 1, entryMode: 'QUANTITY', code: String(1000000 + index),
     name: `TECIDO ${index}`, unit: 'M2', type: 'TECIDO', quantity: index % 2,
     locationId: 1, locationName: 'PRATELEIRA 01',
   }));
@@ -15,8 +15,8 @@ test('importação de 8.450 materiais usa lotes e mantém vínculos e saldos', a
   let nextId = 1;
   const tx: any = {
     $queryRaw: async () => [{ id: 1 }],
-    location: { findMany: async () => [{ id: 1, sector: 'CORTE', name: 'PRATELEIRA 01' }] },
-    categoryConfig: { findMany: async () => [] },
+    location: { findMany: async () => [{ id: 1, sector: 'CORTE', name: 'PRATELEIRA 01', categoryMode: 'ALL' }] },
+    categoryConfig: { findMany: async () => [{ id: 1, name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY' }] },
     stockItem: {
       findMany: async () => { queries++; return []; },
       createManyAndReturn: async ({ data }: any) => {
@@ -41,8 +41,8 @@ test('importação de componentes aplica o mesmo mapeamento abaixo e acima de 10
   async function importBatch(count: number) {
     const savedItems: any[] = [];
     let nextId = 1;
-    const location = { id: 1, name: 'SOL-01', sector: 'PRE_FABRICADO' };
-    const category = { name: 'EVA', sector: 'PRE_FABRICADO', unitLocked: true, defaultUnitCode: 'UN' };
+    const location = { id: 1, name: 'SOL-01', sector: 'PRE_FABRICADO', categoryMode: 'ALL' };
+    const category = { id: 2, entryMode: 'SIDE_PAIR', name: 'EVA', sector: 'PRE_FABRICADO', unitLocked: true, defaultUnitCode: 'UN' };
     const tx: any = {
       $queryRaw: async () => [{ id: 1 }],
       location: {
@@ -75,7 +75,7 @@ test('importação de componentes aplica o mesmo mapeamento abaixo e acima de 10
     const prisma: any = { $transaction: async (callback: any) => callback(tx) };
     const items: ValidatedImportItem[] = Array.from({ length: count }, (_, index) => ({
       rowNumber: index + 2,
-      sector: 'PRE_FABRICADO',
+      sector: 'PRE_FABRICADO', categoryId: 2, entryMode: 'SIDE_PAIR',
       code: `SOLA-${index}`,
       name: `SOLA MODELO ${index}`,
       productName: `MODELO ${index}`,

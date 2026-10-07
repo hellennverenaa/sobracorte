@@ -38,6 +38,10 @@ export interface MatchingPair {
   color?: string;
   type?: string;
   sector?: SectorType;
+  categoryId?: number;
+  categoryName?: string;
+  subsectorId?: number | null;
+  subsectorName?: string | null;
   leftFootStockItemId: number;
   leftQuantity: number;
   leftLocations: string;
@@ -84,6 +88,8 @@ export interface StockState {
   filterCategories: Array<{ id: number; name: string; sector?: SectorType | string | null; sectors?: string[]; componentType?: string | null }>;
   matchingPairs: MatchingPair[];
   matchingPairsCount: number;
+  matchingPairSectors: SectorType[];
+  matchingPairSector: SectorType | null;
   history: {
     total: number;
     page: number;
@@ -129,6 +135,8 @@ export const useStockStore = defineStore('stock', {
     filterCategories: [],
     matchingPairs: [],
     matchingPairsCount: 0,
+    matchingPairSectors: [],
+    matchingPairSector: null,
     history: {
       total: 0,
       page: 1,
@@ -252,7 +260,7 @@ export const useStockStore = defineStore('stock', {
     /**
      * Busca de pares prontos para casar multi-setor (GET /inventory/mounting/matching-pairs)
      */
-    async fetchMatchingPairs(sector: SectorType = 'MONTAGEM', search: string = '') {
+    async fetchMatchingPairs(sector?: SectorType, search: string = '') {
       const auth = useAuthStore();
       const unitCode = auth.user?.unit?.code;
       const requestId = ++this.matchingPairsRequestId;
@@ -263,10 +271,14 @@ export const useStockStore = defineStore('stock', {
           params: { sector, q: search },
         });
         if (requestId !== this.matchingPairsRequestId || unitCode !== auth.user?.unit?.code) return;
+        this.matchingPairSectors = response.data.availableSectors || [];
+        this.matchingPairSector = response.data.sector || null;
         this.matchingPairs = response.data.pairs || [];
         this.matchingPairsCount = response.data.totalMatchingPairsCount || 0;
       } catch (err: any) {
         if (requestId !== this.matchingPairsRequestId || unitCode !== auth.user?.unit?.code) return;
+        this.matchingPairs = [];
+        this.matchingPairsCount = 0;
         console.error('Erro ao buscar pares casáveis:', err);
         this.error = requestErrorMessage(err, 'Erro ao consultar pares casáveis.');
       } finally {

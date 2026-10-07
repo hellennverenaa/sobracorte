@@ -49,7 +49,7 @@ export class RequisitionService {
       requestSector: SectorType;
       field: 'IDENTIFIER' | 'MODEL';
       query: string;
-      componentType?: string;
+      categoryId?: number;
       color?: string;
       sizeGrade?: string;
       footSide?: string;
@@ -62,50 +62,16 @@ export class RequisitionService {
     const query = params.query.trim();
     if (query.length < 2) return [];
 
-    const sourceWhere: Prisma.StockItemWhereInput = requestSector === 'CORTE'
-      ? { sector: 'CORTE' }
-      : requestSector === 'APOIO'
-        ? {
-            sector: 'APOIO',
-            componentType: params.componentType === 'CABEDAL' ? 'CABEDAL' : 'PECA_CORTADA',
-          }
-        : requestSector === 'MONTAGEM'
-          ? {
-              OR: [
-                { sector: 'MONTAGEM' },
-                { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { equals: 'CABEDAL', mode: 'insensitive' } },
-                { sector: 'APOIO', componentType: { in: ['CABEDAL', 'PECA_CORTADA'] } },
-              ],
-            }
-          : requestSector === 'DISTRIBUICAO' || requestSector === 'EXPEDICAO'
-            ? {
-                OR: [
-                  { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] } },
-                  ...(params.type === 'CABEDAL' ? [{ sector: 'APOIO' as const, componentType: 'CABEDAL' as const }] : []),
-                ],
-              }
-            : { sector: requestSector as SectorType };
-
+    const sourceWhere: Prisma.StockItemWhereInput = { sector: requestSector === 'CORTE' || requestSector === 'APOIO' ? requestSector : { not: 'CORTE' } };
     const identityWhere: Prisma.StockItemWhereInput = params.field === 'MODEL'
       ? { productName: { equals: query, mode: 'insensitive' } }
       : requestSector === 'CORTE'
         ? { code: { equals: query, mode: 'insensitive' } }
-        : requestSector === 'APOIO' && params.componentType !== 'CABEDAL'
-          ? { pieceCode: { equals: query, mode: 'insensitive' } }
-          : { sku: { equals: query, mode: 'insensitive' } };
-
+        : requestSector === 'APOIO'
+          ? { OR: [{ pieceCode: { equals: query, mode: 'insensitive' } }, { sku: { equals: query, mode: 'insensitive' } }] }
+          : { OR: [{ sku: { equals: query, mode: 'insensitive' } }, { pieceCode: { equals: query, mode: 'insensitive' } }] };
     const variantFilters: Prisma.StockItemWhereInput[] = [];
-    if (params.type?.trim() && requestSector !== 'APOIO' && requestSector !== 'MONTAGEM') {
-      const requestedType = params.type.trim();
-      variantFilters.push(requestSector === 'DISTRIBUICAO' || requestSector === 'EXPEDICAO'
-        ? {
-            OR: [
-              { sector: { in: ['DISTRIBUICAO', 'EXPEDICAO'] }, type: { equals: requestedType, mode: 'insensitive' } },
-              ...(requestedType.toUpperCase() === 'CABEDAL' ? [{ sector: 'APOIO' as const, componentType: 'CABEDAL' as const }] : []),
-            ],
-          }
-        : { type: { equals: requestedType, mode: 'insensitive' } });
-    }
+    if (params.categoryId) variantFilters.push({ categoryId: params.categoryId });
     if (params.color?.trim()) {
       const color = normalizeStockColor(params.color);
       variantFilters.push({
@@ -123,7 +89,7 @@ export class RequisitionService {
     }
     if (params.footSide === 'PAR') {
       variantFilters.push({
-        footSide: requestSector === 'CORTE' ? 'PAR' : { in: ['E', 'D', 'PAR'] },
+        footSide: { in: ['E', 'D', 'PAR'] },
       });
     }
 
@@ -155,7 +121,7 @@ export class RequisitionService {
       id: item.id,
       stockItemIds: [Number(item.id)],
       sourceSector: item.sector,
-      componentType: item.componentType || undefined,
+      categoryId: item.categoryId,
       type: item.type || undefined,
       sku: item.sku || undefined,
       pieceCode: item.pieceCode || undefined,
@@ -187,8 +153,8 @@ export class RequisitionService {
     // completo no mesmo setor e na mesma variante. Itens não pareados não são
     // apresentados como se pudessem atender ao pedido.
     const pairKey = (item: any) => [
-      normalizeStockSector(item.sector), item.componentType, item.type,
-      item.sku, item.pieceCode, item.code, item.productName,
+      normalizeStockSector(item.sector), item.type,
+      item.sku, item.pieceCode, item.code, item.name, item.description, item.productName, item.subsectorId,
       normalizeStockColor(item.color || item.materialColor), item.sizeGrade, item.unit, item.categoryId,
     ].map(value => normalizeStockText(value)).join('|');
     const getPairSuggestions = () => {
@@ -295,7 +261,7 @@ export class RequisitionService {
    */
   async checkStockAvailability(
     req: {
-      requestSector: SectorType; sku?: string | null; pieceCode?: string | null; modelName?: string | null;
+      requestSector: SectorType; categoryId?: number | null; sku?: string | null; pieceCode?: string | null; modelName?: string | null;
       description: string; type?: string | null; color?: string | null; sizeGrade?: string | null; footSide?: string | null;
       sourceCandidateId?: string | null;
     },
@@ -383,8 +349,10 @@ export class RequisitionService {
       // 1. Validar disponibilidade sob o lock, sem reservar saldo.
       const selectedCandidates: RequisitionStockCandidate[] = [];
       for (const item of rawItems) {
+        if (!item.categoryId) throw new Error('Selecione uma categoria para a requisição.');
         const candidates = await findRequisitionStockCandidates(tx, factoryUnitId, {
           requestSector: item.requestSector as SectorType,
+          categoryId: item.categoryId,
           sku: item.sku || null,
           pieceCode: item.pieceCode || null,
           modelName: item.modelName || null,
@@ -431,6 +399,7 @@ export class RequisitionService {
           data: {
             code,
             requestSector: sec as SectorType,
+            categoryId: item.categoryId,
             requestUnit: selected.unit,
             sourceStockItemIds: selected.sourceStockItemIds,
             sourceCompatibilityIds: selected.sourceCompatibilityIds,

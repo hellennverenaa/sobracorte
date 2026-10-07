@@ -51,7 +51,7 @@ test('importação de CSV para Distribuição suporta combinação, pés órfão
   // Verificar se o componentType e type estão mapeados para SOLADO e SOLA_PROCESSADA
   const stockDataE = importStockData(preto75E, 1);
   assert.equal(stockDataE.type, 'SOLA_PROCESSADA');
-  assert.equal(stockDataE.componentType, 'SOLADO');
+  assert.equal(preto75E.entryMode, 'SIDE_PAIR');
   assert.equal((stockDataE as any).footSide, 'E');
 
   const stockDataD = importStockData(preto75D, 1);

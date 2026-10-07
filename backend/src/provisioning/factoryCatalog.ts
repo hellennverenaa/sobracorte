@@ -6,6 +6,7 @@ export type FactoryCatalogCategory = {
   sector: typeof ACTIVE_STOCK_SECTORS[number];
   defaultUnitCode: string;
   unitLocked: boolean;
+  entryMode: 'QUANTITY' | 'SIDE_PAIR';
 };
 
 export type FactoryCatalogOrigin = {
@@ -27,17 +28,17 @@ export type FactoryCatalog = {
  */
 export const FACTORY_CATALOG = {
   categories: [
-    { name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true },
-    { name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M', unitLocked: true },
-    { name: 'FORRO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true },
-    { name: 'SINTETICO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true },
-    { name: 'LINHA', sector: 'CORTE', defaultUnitCode: 'KG', unitLocked: true },
-    { name: 'MOLDE / PEÇA', sector: 'APOIO', defaultUnitCode: 'UN', unitLocked: true },
-    { name: 'EVA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', unitLocked: true },
-    { name: 'BORRACHA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', unitLocked: true },
-    { name: 'CABEDAL', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', unitLocked: true },
-    { name: 'SOLA_PROCESSADA', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', unitLocked: true },
-    { name: 'PE PRONTO', sector: 'MONTAGEM', defaultUnitCode: 'UN', unitLocked: true },
+    { name: 'TECIDO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'FORRO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'SINTETICO', sector: 'CORTE', defaultUnitCode: 'M²', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'LINHA', sector: 'CORTE', defaultUnitCode: 'KG', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'MOLDE / PEÇA', sector: 'APOIO', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'QUANTITY' },
+    { name: 'EVA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'SIDE_PAIR' },
+    { name: 'BORRACHA', sector: 'PRE_FABRICADO', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'SIDE_PAIR' },
+    { name: 'CABEDAL', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'SIDE_PAIR' },
+    { name: 'SOLA_PROCESSADA', sector: 'DISTRIBUICAO', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'SIDE_PAIR' },
+    { name: 'PE PRONTO', sector: 'MONTAGEM', defaultUnitCode: 'UN', unitLocked: true, entryMode: 'SIDE_PAIR' },
   ],
   origins: [
     // O schema permite apenas um setor por origem. null é o único modo de
@@ -109,7 +110,10 @@ export function validateFactoryCatalog(catalog: FactoryCatalog = FACTORY_CATALOG
       throw new FactoryCatalogValidationError(`categoria bloqueada "${name}" precisa de unidade padrão.`);
     }
 
-    return { name, sector, defaultUnitCode, unitLocked: Boolean(category.unitLocked) };
+    if (!['QUANTITY', 'SIDE_PAIR'].includes(category.entryMode) || (category.entryMode === 'SIDE_PAIR' && defaultUnitCode !== 'UN')) {
+      throw new FactoryCatalogValidationError(`modo de cadastro inválido: ${name}.`);
+    }
+    return { name, sector, defaultUnitCode, unitLocked: Boolean(category.unitLocked), entryMode: category.entryMode };
   });
 
   const originNames = new Set<string>();

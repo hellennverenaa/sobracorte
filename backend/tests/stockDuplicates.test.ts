@@ -13,14 +13,15 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   const records: any[] = [];
   let locked = false;
   const categories = [
-    { id: 1, name: 'TECIDO', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA', defaultUnitCode: 'M²', unitLocked: false },
-    { id: 2, name: 'COURO', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA', defaultUnitCode: 'M', unitLocked: false },
-    { id: 3, name: 'EVA', sectors: ['PRE_FABRICADO'], componentType: 'SOLADO', defaultUnitCode: 'UN', unitLocked: false },
-    { id: 4, name: 'BORRACHA', sectors: ['PRE_FABRICADO'], componentType: 'SOLADO', defaultUnitCode: 'UN', unitLocked: false },
-    { id: 5, name: 'CABEDAL', sectors: ['DISTRIBUICAO'], componentType: 'CABEDAL', defaultUnitCode: 'UN', unitLocked: false },
-    { id: 6, name: 'SOLA_PROCESSADA', sectors: ['DISTRIBUICAO'], componentType: 'SOLADO', defaultUnitCode: 'UN', unitLocked: false },
-    { id: 8, name: 'PE PRONTO', sectors: ['MONTAGEM'], componentType: 'PE_PRONTO', defaultUnitCode: 'UN', unitLocked: false },
-    { id: 9, name: 'PE PRONTO ESPECIAL', sectors: ['MONTAGEM'], componentType: 'PE_PRONTO', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 10, name: 'PEÇA', sectors: ['APOIO'], entryMode: 'QUANTITY', defaultUnitCode: 'UN', unitLocked: true },
+    { id: 1, name: 'TECIDO', sectors: ['CORTE'], entryMode: 'QUANTITY', defaultUnitCode: 'M²', unitLocked: false },
+    { id: 2, name: 'COURO', sectors: ['CORTE'], entryMode: 'QUANTITY', defaultUnitCode: 'M', unitLocked: false },
+    { id: 3, name: 'EVA', sectors: ['PRE_FABRICADO'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 4, name: 'BORRACHA', sectors: ['PRE_FABRICADO'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 5, name: 'CABEDAL', sectors: ['DISTRIBUICAO'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 6, name: 'SOLA_PROCESSADA', sectors: ['DISTRIBUICAO'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 8, name: 'PE PRONTO', sectors: ['MONTAGEM'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
+    { id: 9, name: 'PE PRONTO ESPECIAL', sectors: ['MONTAGEM'], entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN', unitLocked: false },
   ];
   const categoryAppliesToWhere = (category: any, where: any) => {
     const scope = where?.OR?.flatMap((condition: any) => condition.sectors?.hasSome || condition.sector?.in || []) || [];
@@ -70,7 +71,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
     try { return await callback(tx); }
     catch (error) { records.splice(count); throw error; }
   };
-  const item = { sector: 'APOIO', pieceCode: '121212', productName: 'RACER SPEEDZONE', description: 'LINGUETA', materialColor: 'SINTETICO', sizeGrade: '40', quantity: 100, location: 'A' };
+  const item = { sector: 'APOIO', categoryId: 10, pieceCode: '121212', productName: 'RACER SPEEDZONE', description: 'LINGUETA', materialColor: 'SINTETICO', sizeGrade: '40', quantity: 100, location: 'A' };
   const service = new StockItemService();
   const create = (items: any[], factoryUnitId = 1) => service.createBatch(BatchCreateStockItemSchema.parse({ items }), { factoryUnitId, role: 'admin' });
   await create([item]);
@@ -111,7 +112,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
     const input = { ...fixture, quantity: 10, location: 'A' };
     await create([input]);
     await assert.rejects(create([{ ...input, quantity: 20, location: 'B' }]), DuplicateStockItemError);
-    for (const field of Object.keys(stockIdentity(fixture)).filter(field => field !== 'type' || !fixture.categoryId)) {
+    for (const field of Object.keys(stockIdentity(fixture)).filter(field => (field !== 'type' || !fixture.categoryId) && (field !== 'footSide' || fixture.sector !== 'CORTE'))) {
       const different: any = { ...input };
       if (field === 'categoryId' || field === 'type') {
         const alternateId = fixture.sector === 'CORTE' ? 2
@@ -120,6 +121,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
         const alternateCategory = categories.find(category => category.id === alternateId)!;
         different.categoryId = alternateCategory.id;
         different.type = alternateCategory.name;
+        different.unit = alternateCategory.defaultUnitCode;
       } else {
         different[field] = field === 'footSide' ? 'D' : `DIFERENTE_${fixture.sector}`;
       }
@@ -128,10 +130,10 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
     const row: any = { ...fixture, rowNumber: 2, code: 'code' in fixture ? fixture.code : fixture.sku, name: 'name' in fixture ? fixture.name : fixture.productName, unit: fixture.unit || 'UND', type: fixture.type || fixture.sector, quantity: 10, locationId: 1, locationName: 'A' };
     await assert.rejects(executeImportTransaction(prisma, [row], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   }
-  await assert.rejects(executeImportTransaction(prisma, [{ rowNumber: 2, sector: 'APOIO', code: item.pieceCode, name: item.description, productName: item.productName, color: item.materialColor, sizeGrade: item.sizeGrade, unit: 'UND', type: '', quantity: 1, locationId: 1, locationName: 'A' }], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
+  await assert.rejects(executeImportTransaction(prisma, [{ rowNumber: 2, sector: 'APOIO', categoryId: 10, entryMode: 'QUANTITY', code: item.pieceCode, name: item.description, productName: item.productName, color: item.materialColor, sizeGrade: item.sizeGrade, unit: 'UND', type: 'PEÇA', quantity: 1, locationId: 1, locationName: 'A' }], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   await assert.rejects(create([{ ...fixtures[2], sector: 'EXPEDICAO', quantity: 10, location: 'A' }]), DuplicateStockItemError);
   const beforeImport = records.length;
-  const repeatedRow: any = { rowNumber: 2, sector: 'CORTE', code: 'CSV-NOVO', name: 'TECIDO', unit: 'M2', type: 'TECIDO', quantity: 1, locationId: 1, locationName: 'A' };
+  const repeatedRow: any = { rowNumber: 2, sector: 'CORTE', categoryId: 1, entryMode: 'QUANTITY', code: 'CSV-NOVO', name: 'TECIDO', unit: 'M2', type: 'TECIDO', quantity: 1, locationId: 1, locationName: 'A' };
   await assert.rejects(executeImportTransaction(prisma, [repeatedRow, { ...repeatedRow, rowNumber: 3 }], { factoryUnitId: 1, role: 'admin' }), DuplicateStockItemError);
   assert.equal(records.length, beforeImport, 'repetição dentro do CSV deve reverter o lote');
   const emptyModel = { ...item, pieceCode: 'SEM-MODELO', productName: '' };
@@ -152,7 +154,7 @@ test('cadastros e importações em todos os setores bloqueiam duplicatas e prese
   records.push({ ...corteRecord, id: 1000, type: 'COURO' });
   const originalCategoryLookup = prisma.categoryConfig.findFirst;
   t.after(() => { (prisma.categoryConfig as any).findFirst = originalCategoryLookup; });
-  (prisma.categoryConfig as any).findFirst = async () => ({ id: 1, name: 'TECIDO' });
+  (prisma.categoryConfig as any).findFirst = async () => categories.find(category => category.id === 1);
   await new SettingsController().updateCategory({ tenant: { id: 1 }, user: { role: 'admin' }, params: { id: '1' }, body: { name: 'COURO' } } as any, res);
   assert.equal(status, 409);
   assert.match(body.error, /categoria criaria itens duplicados/);

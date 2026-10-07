@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { validateCategoryEntry } from '../src/services/categoryRules';
 import {
   CorteItemSchema,
   ApoioItemSchema,
@@ -11,7 +12,7 @@ import {
 
 test('Corte permite quantidades com casas decimais', () => {
   const parsed = CorteItemSchema.parse({
-    sector: 'CORTE',
+    sector: 'CORTE', categoryId: 1,
     code: 'COU-001',
     name: 'Couro Bovino Preto',
     quantity: 12.75,
@@ -22,13 +23,13 @@ test('Corte permite quantidades com casas decimais', () => {
 });
 
 test('Corte aceita frações em unidades contínuas e recusa em unidades discretas', () => {
-  for (const unit of ['KG', 'M2', 'M', 'L']) assert.equal(CorteItemSchema.parse({ sector: 'CORTE', code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }).quantity, 1.5);
-  for (const unit of ['UN', 'UND', 'PC', 'PAR', 'CX', 'RL']) assert.throws(() => CorteItemSchema.parse({ sector: 'CORTE', code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }), /inteiro/);
+  for (const unit of ['KG', 'M2', 'M', 'L']) assert.equal(CorteItemSchema.parse({ sector: 'CORTE', categoryId: 1, code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }).quantity, 1.5);
+  for (const unit of ['UN', 'UND', 'PC', 'PAR', 'CX', 'RL']) assert.throws(() => CorteItemSchema.parse({ sector: 'CORTE', categoryId: 1, code: 'C7', name: 'Material', quantity: 1.5, unit, location: 'C1' }), /inteiro/);
 });
 
 test('Apoio aceita apenas números inteiros e rejeita decimais', () => {
   const valid = ApoioItemSchema.parse({
-    sector: 'APOIO',
+    sector: 'APOIO', categoryId: 1,
     pieceCode: 'GAS-001',
     description: 'Gáspea Externa',
     materialColor: 'Napa Branca',
@@ -38,24 +39,12 @@ test('Apoio aceita apenas números inteiros e rejeita decimais', () => {
   });
   assert.equal(valid.quantity, 10);
 
-  assert.throws(
-    () =>
-      ApoioItemSchema.parse({
-        sector: 'APOIO',
-        pieceCode: 'GAS-001',
-        description: 'Gáspea Externa',
-        materialColor: 'Napa Branca',
-        sizeGrade: '38',
-        quantity: 10.5,
-        location: 'Prateleira B1',
-      }),
-    /Quantidade em Peças Cortadas deve ser um número inteiro/
-  );
+  assert.throws(() => validateCategoryEntry({ name: 'TESTE', defaultUnitCode: 'UN', entryMode: 'QUANTITY' }, { quantity: 10.5 }), /inteiro/);
 });
 
 test('Pré-Fabricado aceita apenas números inteiros e rejeita decimais', () => {
   const valid = PreFabricadoItemSchema.parse({
-    sector: 'PRE_FABRICADO',
+    sector: 'PRE_FABRICADO', categoryId: 1,
     productName: 'Pegasus 40',
     type: 'EVA',
     color: 'BRANCO / GOMA',
@@ -65,24 +54,12 @@ test('Pré-Fabricado aceita apenas números inteiros e rejeita decimais', () => 
   });
   assert.equal(valid.quantity, 6);
 
-  assert.throws(
-    () =>
-      PreFabricadoItemSchema.parse({
-        sector: 'PRE_FABRICADO',
-        productName: 'Pegasus 40',
-        type: 'EVA',
-        color: 'BRANCO / GOMA',
-        sizeGrade: '38',
-        quantity: 6.2,
-        location: 'Prateleira C1',
-      }),
-    /Quantidade no setor de Pré-Fabricado deve ser um número inteiro/
-  );
+  assert.throws(() => validateCategoryEntry({ name: 'TESTE', defaultUnitCode: 'UN', entryMode: 'QUANTITY' }, { quantity: 6.2 }), /inteiro/);
 });
 
 test('Distribuição aceita apenas números inteiros e rejeita decimais', () => {
   const valid = DistribuicaoItemSchema.parse({
-    sector: 'DISTRIBUICAO',
+    sector: 'DISTRIBUICAO', categoryId: 1,
     sku: 'NKE-PEG-38',
     type: 'CABEDAL',
     color: 'PRETO',
@@ -92,24 +69,12 @@ test('Distribuição aceita apenas números inteiros e rejeita decimais', () => 
   });
   assert.equal(valid.quantity, 4);
 
-  assert.throws(
-    () =>
-      DistribuicaoItemSchema.parse({
-        sector: 'DISTRIBUICAO',
-        sku: 'NKE-PEG-38',
-        type: 'CABEDAL',
-        color: 'PRETO',
-        sizeGrade: '38',
-        quantity: 4.8,
-        location: 'Prateleira D1',
-      }),
-    /Quantidade no setor de Distribuição deve ser um número inteiro/
-  );
+  assert.throws(() => validateCategoryEntry({ name: 'TESTE', defaultUnitCode: 'UN', entryMode: 'QUANTITY' }, { quantity: 4.8 }), /inteiro/);
 });
 
 test('Montagem aceita apenas números inteiros e rejeita decimais', () => {
   const valid = MontagemItemSchema.parse({
-    sector: 'MONTAGEM',
+    sector: 'MONTAGEM', categoryId: 1,
     sku: 'NKE-PEG-38',
     productName: 'Pegasus',
     color: 'AZUL',
@@ -120,25 +85,12 @@ test('Montagem aceita apenas números inteiros e rejeita decimais', () => {
   });
   assert.equal(valid.quantity, 2);
 
-  assert.throws(
-    () =>
-      MontagemItemSchema.parse({
-        sector: 'MONTAGEM',
-        sku: 'NKE-PEG-38',
-        productName: 'Pegasus',
-        color: 'AZUL',
-        sizeGrade: '38',
-        footSide: 'E',
-        quantity: 2.1,
-        location: 'Prateleira E1',
-      }),
-    /Quantidade no setor de Montagem deve ser um número inteiro/
-  );
+  assert.throws(() => validateCategoryEntry({ name: 'TESTE', defaultUnitCode: 'UN', entryMode: 'QUANTITY' }, { quantity: 2.1 }), /inteiro/);
 });
 
 test('Unidade ausente fica a cargo do serviço para aplicar o padrão da categoria', () => {
   const apoio = ApoioItemSchema.parse({
-    sector: 'APOIO',
+    sector: 'APOIO', categoryId: 1,
     pieceCode: 'MOL-01',
     description: 'Molde Teste',
     materialColor: 'PRETO',
@@ -149,7 +101,7 @@ test('Unidade ausente fica a cargo do serviço para aplicar o padrão da categor
   assert.equal(apoio.unit, undefined);
 
   const preFab = PreFabricadoItemSchema.parse({
-    sector: 'PRE_FABRICADO',
+    sector: 'PRE_FABRICADO', categoryId: 1,
     productName: 'Sola Teste',
     type: 'EVA',
     color: 'BRANCO',
@@ -160,7 +112,7 @@ test('Unidade ausente fica a cargo do serviço para aplicar o padrão da categor
   assert.equal(preFab.unit, undefined);
 
   const dist = DistribuicaoItemSchema.parse({
-    sector: 'DISTRIBUICAO',
+    sector: 'DISTRIBUICAO', categoryId: 1,
     sku: 'CAB-01',
     type: 'CABEDAL',
     color: 'AZUL',
@@ -171,7 +123,7 @@ test('Unidade ausente fica a cargo do serviço para aplicar o padrão da categor
   assert.equal(dist.unit, undefined);
 
   const mont = MontagemItemSchema.parse({
-    sector: 'MONTAGEM',
+    sector: 'MONTAGEM', categoryId: 1,
     sku: 'MONT-01',
     sizeGrade: '40',
     footSide: 'E',
@@ -183,7 +135,7 @@ test('Unidade ausente fica a cargo do serviço para aplicar o padrão da categor
 
 test('Combinação de cor aceita formatos padronizados (com barra e hífen)', () => {
   const preFab = PreFabricadoItemSchema.parse({
-    sector: 'PRE_FABRICADO',
+    sector: 'PRE_FABRICADO', categoryId: 1,
     productName: 'Pegasus 40',
     type: 'EVA',
     color: 'BRANCO/GOMA',
@@ -194,7 +146,7 @@ test('Combinação de cor aceita formatos padronizados (com barra e hífen)', ()
   assert.equal(preFab.color, 'BRANCO/GOMA');
 
   const dist = DistribuicaoItemSchema.parse({
-    sector: 'DISTRIBUICAO',
+    sector: 'DISTRIBUICAO', categoryId: 1,
     sku: 'CAB-01',
     type: 'CABEDAL',
     color: 'PRETO-VERMELHO',
@@ -207,7 +159,7 @@ test('Combinação de cor aceita formatos padronizados (com barra e hífen)', ()
 
 test('RequisitionItemInputSchema preenche CALÇADO COMPLETO por padrão quando description não informada', () => {
   const req = RequisitionItemInputSchema.parse({
-    requestSector: 'MONTAGEM',
+    requestSector: 'MONTAGEM', categoryId: 1,
     sku: 'NKE-PEG-38',
     modelName: 'PEGASUS 40',
     sizeGrade: '38',

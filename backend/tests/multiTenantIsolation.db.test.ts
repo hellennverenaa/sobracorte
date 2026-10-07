@@ -18,14 +18,15 @@ test('SQL bruto de pares e dashboard mantém unidade, setor e joins locais', {
   })));
   const fixtures = await Promise.all(units.map(async (unit, index) => {
     const location = await prismaForInternalUse.location.create({ data: { factoryUnitId: unit.id, name: index ? 'FOREIGN.LOCATION' : 'LOCAL.LOCATION', sector: 'MONTAGEM' } });
+    const category = await prismaForInternalUse.categoryConfig.create({ data: { factoryUnitId: unit.id, name: 'PARES', sector: 'MONTAGEM', defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR', unitLocked: true } });
     const items = await Promise.all(['E', 'D'].map(async side => {
       const item = await prismaForInternalUse.stockItem.create({ data: {
-        factoryUnitId: unit.id, sector: 'MONTAGEM', sku: 'SAME.SKU', productName: 'Same model', sizeGrade: '40', color: 'BLACK', unit: 'UND', footSide: side as 'E' | 'D', quantity: index ? 99 : 2,
+        factoryUnitId: unit.id, categoryId: category.id, sector: 'MONTAGEM', sku: 'SAME.SKU', productName: 'Same model', sizeGrade: '40', color: 'BLACK', unit: 'UN', footSide: side as 'E' | 'D', quantity: index ? 99 : 2,
       } });
       await prismaForInternalUse.stockItemLocation.create({ data: { factoryUnitId: unit.id, stockItemId: item.id, locationId: location.id, quantity: index ? 99 : 2 } });
       return item;
     }));
-    await prismaForInternalUse.stockItem.create({ data: { factoryUnitId: unit.id, sector: 'CORTE', code: 'OTHER.SECTOR', name: 'Other sector', unit: 'M2', quantity: 77 } });
+    await prismaForInternalUse.stockItem.create({ data: { factoryUnitId: unit.id, sector: 'CORTE', code: 'OTHER.SECTOR', name: 'Other sector', unit: 'M²', quantity: 77 } });
     return items;
   }));
   await tenantStorage.run({ tenantId: units[0].id }, async () => {
@@ -64,7 +65,7 @@ test('modelos canônicos isolam leituras, escritas singulares, lotes e rollback 
   })));
   const fixtures = await Promise.all(units.map(async unit => {
     const item = await prismaForInternalUse.stockItem.create({
-      data: { factoryUnitId: unit.id, sector: 'CORTE', code: `C7_${suffix}`, name: 'Canonical item', quantity: 1, unit: 'M2' },
+      data: { factoryUnitId: unit.id, sector: 'CORTE', code: `C7_${suffix}`, name: 'Canonical item', quantity: 1, unit: 'M²' },
     });
     const location = await prismaForInternalUse.location.create({
       data: { factoryUnitId: unit.id, name: `C7_${suffix}`, sector: 'CORTE' },
@@ -157,7 +158,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
       factoryUnitId: tenantTwo.id,
       code: `FOREIGN_${suffix}`,
       name: 'Foreign material',
-      unit: 'M2',
+      unit: 'M²',
       type: 'TEST',
     },
   });
@@ -168,7 +169,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
         factoryUnitId: tenantOne.id,
         code: `LOCAL_${suffix}`,
         name: 'Local material',
-        unit: 'M2',
+        unit: 'M²',
         type: 'TEST',
       },
     });
@@ -181,7 +182,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
           factoryUnitId: tenantTwo.id,
           code: `CROSS_CREATE_${suffix}`,
           name: 'Cross create',
-          unit: 'M2',
+          unit: 'M²',
           type: 'TEST',
         },
       }),
@@ -193,7 +194,7 @@ test('TenantGuard isola operações reais entre duas unidades', {
           factoryUnitId: tenantTwo.id,
           code: `CROSS_BATCH_${suffix}`,
           name: 'Cross batch',
-          unit: 'M2',
+          unit: 'M²',
           type: 'TEST',
         }],
       }),
@@ -212,13 +213,13 @@ test('TenantGuard isola operações reais entre duas unidades', {
         where: { id_factoryUnitId: { id: foreign.id, factoryUnitId: tenantTwo.id } },
       }),
       () => prisma.stockItem.upsert({
-        where: { factoryUnitId_code: { factoryUnitId: tenantTwo.id, code: foreign.code! } },
+        where: { id_factoryUnitId: { factoryUnitId: tenantTwo.id, id: foreign.id } },
         update: { name: 'Cross upsert' },
         create: {
           factoryUnitId: tenantTwo.id,
           code: foreign.code,
           name: 'Cross upsert',
-          unit: 'M2',
+          unit: 'M²',
           type: 'TEST',
         },
       }),
@@ -235,13 +236,13 @@ test('TenantGuard isola operações reais entre duas unidades', {
     );
 
     const localUpsert = await prisma.stockItem.upsert({
-      where: { factoryUnitId_code: { factoryUnitId: tenantOne.id, code: local.code! } },
+      where: { id_factoryUnitId: { factoryUnitId: tenantOne.id, id: local.id } },
       update: { name: 'Local material updated' },
       create: {
         factoryUnitId: tenantOne.id,
         code: local.code,
         name: 'Local material updated',
-        unit: 'M2',
+        unit: 'M²',
         type: 'TEST',
       },
     });

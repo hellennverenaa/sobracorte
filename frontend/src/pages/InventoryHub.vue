@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType, InventorySectorFilter } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
 import { api } from '@/services/httpClient';
 import SectorFormInput from '@/components/SectorFormInput.vue';
-import InventoryItemDetails from '@/components/InventoryItemDetails.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useConfirmModal } from '@/composables/useConfirmModal';
 import { useToast } from '@/composables/useToast';
@@ -19,9 +18,9 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
 import { useModalFocus } from '@/composables/useModalFocus';
 import { formatSectorName, normalizeSector, SECTOR_OPTIONS } from '@/utils/domain';
 import { 
-  Plus, RefreshCw, ArrowLeftRight, X, Eye, 
+  Plus, RefreshCw, ArrowLeftRight, X,
   Scissors, Wrench, Layers, Box, Footprints,
-  ArrowDownRight, ArrowUpRight, Trash2, User, CheckCircle2, AlertCircle, Info,
+  ArrowDownRight, ArrowUpRight, CheckCircle2, AlertCircle, Info,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, SlidersHorizontal, ChevronDown
 } from 'lucide-vue-next';
 
@@ -180,13 +179,16 @@ const movementSnapshot = ref('');
 const movementValues = () => JSON.stringify([movementType.value, movementQuantity.value, selectedLocationId.value, destinationLocationId.value, movementReason.value, movementObservation.value]);
 const { confirmDiscard } = useUnsavedChanges(() => showMovementModal.value && movementValues() !== movementSnapshot.value);
 async function closeMovementModal() {
-  if (!movementLoading.value && await confirmDiscard()) showMovementModal.value = false;
+  if (!movementLoading.value && await confirmDiscard()) {
+    showMovementModal.value = false;
+    selectedItem.value = null;
+  }
 }
 useModalFocus(() => showMovementModal.value, movementDialog, closeMovementModal);
 useModalFocus(() => showEntryForm.value, entryDialog, closeEntryForm);
 
-// Modal de Detalhes
-const viewingItem = ref<any>(null);
+const canMoveSelectedItem = computed(() => Boolean(selectedItem.value &&
+  authStore.can('movimentar') && canOperateSector(selectedItem.value.sector)));
 
 // Permissão para Excluir (apenas admin_master e admin_setor no respectivo setor)
 function canOperateSector(sector: string | null | undefined) {
@@ -200,6 +202,16 @@ function canDeleteItem(item: any) {
   const role = authStore.user?.role;
   if (role === 'admin' || authStore.user?.isGlobalAdmin === true) return true;
   return role === 'admin_setor' && canOperateSector(item?.sector);
+}
+
+async function deleteViewedItem() {
+  const item = selectedItem.value;
+  if (!item || !canDeleteItem(item) || Number(item.quantity) !== 0) return;
+  if (!(await confirmDiscard())) return;
+  showMovementModal.value = false;
+  selectedItem.value = null;
+  await nextTick();
+  confirmDelete(item);
 }
 
 // Modal de Confirmação Corporativo
@@ -218,6 +230,7 @@ function confirmDelete(item: any) {
     action: async () => {
       try {
         await api.delete(`/inventory/stock-items/${item.id}`);
+
         showToast('Item excluído com sucesso!');
         await loadData(currentPage.value);
       } catch (error: any) {
@@ -361,7 +374,7 @@ const maxAvailableBalance = computed(() => {
 
 const { units: measurementUnits, fetchUnits } = useSettings({ notify: message => showToast(message, 'error') });
 onMounted(fetchUnits);
-const movementIntegerOnly = computed(() => selectedItem.value?.sector !== 'CORTE' || Boolean(measurementUnits.value.find(unit => unit.symbol === getItemUnitBadge(selectedItem.value))?.integerOnly));
+const movementIntegerOnly = computed(() => Boolean(measurementUnits.value.find(unit => unit.symbol === getItemUnitBadge(selectedItem.value))?.integerOnly) || ['UN', 'PAR', 'CX', 'ROLO'].includes(getItemUnitBadge(selectedItem.value)));
 const movementQuantityInvalid = computed(() => {
   const qty = Number(movementQuantity.value);
   return !Number.isFinite(qty) || qty <= 0 || (movementIntegerOnly.value ? !Number.isInteger(qty) : !/^\d+(?:\.\d{1,3})?$/.test(String(qty)));
@@ -463,8 +476,8 @@ watch(selectedLocationId, () => {
 
 const canOperateCurrentSector = computed(() => canOperateSector(activeTab.value));
 
-function openMovementModal(item: any) {
-  if (!canOperateSector(item?.sector)) return;
+async function openMovementModal(item: any) {
+  if (!item) return;
   selectedItem.value = {
     ...item,
     sector: item.sector || activeTab.value,
@@ -495,7 +508,7 @@ function openMovementModal(item: any) {
 }
 
 async function handleConfirmMovement() {
-  if (!selectedItem.value || isFormInvalid.value) return;
+  if (!selectedItem.value || !canMoveSelectedItem.value || isFormInvalid.value || movementLoading.value) return;
 
   const qty = Number(movementQuantity.value);
   if (isNaN(qty) || qty <= 0) {
@@ -534,7 +547,7 @@ async function handleConfirmMovement() {
     showToast(`Movimentação (${movementType.value}) registrada com sucesso!`);
     showMovementModal.value = false;
     selectedItem.value = null;
-    loadData(currentPage.value);
+    await loadData(currentPage.value);
   } catch (err: any) {
     showToast(err.message || 'Erro ao registrar movimentação', 'error');
   } finally {
@@ -562,7 +575,7 @@ function getItemDescription(item: any) {
 
 function getInventoryCardTitle(item: any) {
   const sector = normalizeSector(item?.sector || activeTab.value);
-  if (sector === 'APOIO') return item.componentType === 'CABEDAL' ? item.sku || item.productName : item.pieceCode || item.sku;
+  if (sector === 'APOIO') return item.pieceCode || item.sku || item.productName;
   if (sector === 'CORTE') return item.code || item.sku || getItemIdentifier(item);
   return item.sku || item.productName || getItemIdentifier(item);
 }
@@ -606,7 +619,7 @@ function getInventoryCardFields(item: any) {
       add('Prateleira', location);
       break;
     case 'APOIO':
-      add('Material / categoria', `${item.description || item.name || '—'} · ${getInventoryTypeLabel(item.type || (item.componentType === 'CABEDAL' ? 'CABEDAL' : 'PECA_CORTADA'))}`);
+      add('Material / categoria', `${item.description || item.name || '—'} · ${getInventoryTypeLabel(item.type || '—')}`);
       add('Combinação / cor', item.color || item.materialColor);
       add('Grade', item.sizeGrade);
       add('Lado', getInventoryCardSide(item));
@@ -947,6 +960,7 @@ onMounted(() => {
       <!-- Inventário por setor -->
       <div class="px-4 pb-4">
         <div class="overflow-hidden rounded-b border border-gray-200 bg-white shadow-sm">
+          <p class="border-b border-gray-100 px-4 py-2 text-xs text-gray-500">Selecione um item para ver detalhes e ações.</p>
           <div class="hidden overflow-x-auto xl:block">
           <table class="inventory-stock-table w-full text-left border-collapse">
             <thead class="bg-gray-50 sticky top-0 z-10">
@@ -957,7 +971,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b">Tipo / Variação</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
               <!-- Headers CORTE -->
               <tr v-if="activeTab === 'CORTE'">
@@ -966,7 +979,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Tipo</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
               <!-- Headers APOIO -->
@@ -978,7 +990,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
               <!-- Headers PRÉ-FABRICADO -->
@@ -990,7 +1001,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
               <!-- Headers DISTRIBUIÇÃO -->
@@ -1002,7 +1012,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
 
               <!-- Headers MONTAGEM -->
@@ -1013,7 +1022,6 @@ onMounted(() => {
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Lado do Pé</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Prateleira</th>
                 <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-right">Saldo</th>
-                <th class="px-4 py-3 text-xs font-bold text-gray-500 uppercase border-b text-center">Ações</th>
               </tr>
             </thead>
 
@@ -1021,7 +1029,13 @@ onMounted(() => {
               <tr
                 v-for="item in currentSectorItems"
                 :key="item.id"
-                class="hover:bg-gray-50 border-b last:border-b-0 transition-colors"
+                tabindex="0"
+                aria-haspopup="dialog"
+                :aria-label="`Abrir detalhes de ${getItemIdentifier(item)}`"
+                @click="openMovementModal(item)"
+                @keydown.enter.prevent="openMovementModal(item)"
+                @keydown.space.prevent="openMovementModal(item)"
+                class="cursor-pointer hover:bg-blue-50 border-b last:border-b-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
               >
                 <template v-if="activeTab === 'TODOS'">
                   <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ getItemIdentifier(item) }}</td>
@@ -1042,7 +1056,7 @@ onMounted(() => {
                 </template>
                 <!-- Colunas CORTE -->
                 <template v-if="activeTab === 'CORTE'">
-                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code || item.sku }}</td>
+                  <td class="px-4 py-3 font-mono text-sm font-bold text-blue-600">{{ item.code || item.sku }} <span v-if="item.footSide" class="ml-1 text-xs">({{ item.footSide }})</span></td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">{{ item.name || item.productName }}</td>
                   <td class="px-4 py-3 text-center">
                     <span class="px-2 py-0.5 text-xs bg-gray-100 rounded-full font-bold text-gray-600 border border-gray-200">
@@ -1065,12 +1079,12 @@ onMounted(() => {
                 <!-- Colunas APOIO -->
                 <template v-if="activeTab === 'APOIO'">
                   <td class="px-4 py-3">
-                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.componentType === 'CABEDAL' ? item.sku : item.pieceCode }}</span>
+                    <span class="font-mono text-sm font-bold text-blue-600 block">{{ item.pieceCode || item.sku }}</span>
                     <span v-if="item.productName" class="text-xs font-bold text-gray-700 block"><span class="font-medium text-gray-500">Modelo/Linha:</span> {{ item.productName }}</span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700 font-medium">
                     <span class="block">{{ item.description || item.type || '—' }}</span>
-                    <span class="text-[10px] uppercase text-gray-400">{{ item.componentType === 'CABEDAL' ? 'Cabedal' : 'Peça cortada' }}</span>
+                    <span class="text-[10px] uppercase text-gray-400">{{ getInventoryTypeLabel(item.type || '—') }}</span>
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-600">{{ item.color || item.materialColor || '—' }}</td>
                   <td class="px-4 py-3 text-center font-bold text-gray-800">{{ item.sizeGrade }}</td>
@@ -1197,51 +1211,10 @@ onMounted(() => {
                   </td>
                 </template>
 
-                <!-- Ações -->
-                <td class="px-4 py-3 text-center">
-                  <div class="flex items-center justify-center gap-2">
-                    <button
-                      @click="viewingItem = item"
-                      class="min-h-9 whitespace-nowrap text-gray-600 hover:text-blue-700 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-200 px-2.5 rounded text-xs flex items-center gap-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                      title="Visualizar Detalhes"
-                    >
-                      <Eye class="w-3.5 h-3.5" />
-                      <span class="hidden xl:inline">Detalhes</span>
-                    </button>
-
-                    <span
-                      v-if="!canOperateSector(item.sector)"
-                      class="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded"
-                      title="Você pode consultar este setor, mas suas permissões de alteração não incluem este setor."
-                    >
-                      Somente leitura
-                    </span>
-
-                    <button
-                      v-if="authStore.can('movimentar') && canOperateSector(item.sector)"
-                      @click="openMovementModal(item)"
-                      class="min-h-9 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white px-3 rounded text-xs font-semibold flex items-center gap-1 shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                      title="Registrar Movimentação de Estoque"
-                    >
-                      <ArrowLeftRight class="w-3.5 h-3.5" />
-                      <span>Movimentar</span>
-                    </button>
-
-                    <button
-                      v-if="canDeleteItem(item)"
-                      @click="confirmDelete(item)"
-                      class="min-h-9 whitespace-nowrap text-gray-500 hover:text-red-700 bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 px-2.5 rounded text-xs flex items-center gap-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                      title="Excluir Item do Estoque (Apenas Saldo Zerado)"
-                    >
-                      <Trash2 class="w-3.5 h-3.5" />
-                      <span class="hidden xl:inline">Excluir</span>
-                    </button>
-                  </div>
-                </td>
               </tr>
 
               <tr v-if="!stockStore.loading && !stockStore.error && currentSectorItems.length === 0">
-                <td colspan="8" class="p-8 text-center text-gray-400 font-medium text-sm">
+                <td :colspan="activeTab === 'CORTE' ? 5 : activeTab === 'TODOS' || activeTab === 'MONTAGEM' ? 6 : 7" class="p-8 text-center text-gray-400 font-medium text-sm">
                   {{ activeTab === 'TODOS' ? 'Nenhum item encontrado na unidade.' : 'Nenhum item encontrado para este setor.' }}
                 </td>
               </tr>
@@ -1261,7 +1234,14 @@ onMounted(() => {
               <article
                 v-for="item in currentSectorItems"
                 :key="`card-${item.id}`"
-                class="min-w-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/20 sm:p-4"
+                role="button"
+                tabindex="0"
+                aria-haspopup="dialog"
+                :aria-label="`Abrir detalhes de ${getItemIdentifier(item)}`"
+                @click="openMovementModal(item)"
+                @keydown.enter.prevent="openMovementModal(item)"
+                @keydown.space.prevent="openMovementModal(item)"
+                class="min-w-0 cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 sm:p-4"
               >
                 <header class="flex min-w-0 items-start justify-between gap-3">
                   <div class="min-w-0 flex-1">
@@ -1288,48 +1268,9 @@ onMounted(() => {
                   </div>
                 </dl>
 
-                <footer class="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-                  <button
-                    type="button"
-                    @click="viewingItem = item"
-                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                    title="Visualizar Detalhes"
-                    aria-label="Visualizar detalhes do item"
-                  >
-                    <Eye class="h-4 w-4" />
-                    <span>Detalhes</span>
-                  </button>
-
-                  <span
-                    v-if="!canOperateSector(item.sector)"
-                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-600"
-                    title="Você pode consultar este setor, mas suas permissões de alteração não incluem este setor."
-                  >
-                    Somente leitura
-                  </span>
-
-                  <button
-                    v-if="authStore.can('movimentar') && canOperateSector(item.sector)"
-                    type="button"
-                    @click="openMovementModal(item)"
-                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    title="Registrar Movimentação de Estoque"
-                  >
-                    <ArrowLeftRight class="h-4 w-4" />
-                    <span>Movimentar</span>
-                  </button>
-
-                  <button
-                    v-if="canDeleteItem(item)"
-                    type="button"
-                    @click="confirmDelete(item)"
-                    class="inline-flex min-h-10 min-w-[7.25rem] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                    title="Excluir Item do Estoque (Apenas Saldo Zerado)"
-                  >
-                    <Trash2 class="h-4 w-4" />
-                    <span>Excluir</span>
-                  </button>
-                </footer>
+                <p class="mt-3 flex items-center justify-end gap-1 border-t border-gray-100 pt-3 text-xs font-semibold text-blue-700" aria-hidden="true">
+                  Ver detalhes <ChevronRight class="h-4 w-4" />
+                </p>
               </article>
             </div>
           </div>
@@ -1398,20 +1339,17 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Modal de Detalhes Padrão Materials.vue -->
-      <InventoryItemDetails :item="viewingItem" :unit="viewingItem ? getItemUnitBadge(viewingItem) : ''" @close="viewingItem = null" />
-
       <!-- MODAL UNIFICADO ROBUSTO DE MOVIMENTAÇÃO DE ESTOQUE MULTI-SETOR -->
-      <div v-if="showMovementModal && selectedItem" ref="movementDialog" role="dialog" aria-modal="true" aria-label="Movimentação de estoque" tabindex="-1" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div v-if="showMovementModal && selectedItem" ref="movementDialog" role="dialog" aria-modal="true" :aria-label="canMoveSelectedItem ? 'Movimentação de estoque' : 'Detalhes do item de estoque'" tabindex="-1" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
           <!-- Cabeçalho do Modal -->
           <div class="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <div>
               <h3 class="font-bold text-gray-800 text-base flex items-center gap-2">
                 <ArrowLeftRight class="w-5 h-5 text-blue-600" />
-                <span>Movimentar Estoque</span>
+                <span>{{ canMoveSelectedItem ? 'Movimentar Estoque' : 'Detalhes do Item' }}</span>
               </h3>
-              <p class="text-xs text-gray-500">Registro com rastreabilidade auditável e controle por prateleira</p>
+              <p v-if="!canMoveSelectedItem" class="text-xs text-gray-500">Somente leitura</p>
             </div>
             <button @click="closeMovementModal" aria-label="Fechar movimentação" class="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none">
               &times;
@@ -1432,25 +1370,22 @@ onMounted(() => {
 
               <div class="text-xs font-semibold text-gray-800 mb-2">
                 {{ getItemDescription(selectedItem) }}
-                <span v-if="selectedItem.sector === 'PRE_FABRICADO' && selectedItem.type" class="text-emerald-700 font-bold ml-1">
-                  [{{ getInventoryTypeLabel(selectedItem.type) }}]
-                </span>
-                <span v-if="(selectedItem.sector === 'DISTRIBUICAO' || selectedItem.sector === 'EXPEDICAO') && selectedItem.type" class="text-indigo-700 font-bold ml-1">
-                  [{{ getInventoryTypeLabel(selectedItem.type) }}]
-                </span>
                 <span v-if="selectedItem.sizeGrade" class="text-gray-600 font-normal">
                   - Grade: <strong>{{ selectedItem.sizeGrade }}</strong>
                 </span>
                 <span v-if="selectedItem.footSide" class="text-gray-600 font-normal ml-1">
-                  ({{ selectedItem.footSide === 'E' ? 'Pé Esquerdo' : 'Pé Direito' }})
+                  ({{ selectedItem.footSide === 'E' ? 'Pé Esquerdo' : selectedItem.footSide === 'D' ? 'Pé Direito' : 'Par' }})
                 </span>
               </div>
 
-              <div class="flex items-center justify-between border-t border-blue-100/80 pt-2 text-xs">
-                <span class="text-gray-600">Subsetor do item:</span>
-                <span class="font-semibold text-gray-800">{{ selectedItem.subsector?.name || 'Sem subsetor (fluxo legado do setor)' }}</span>
+              <div v-if="selectedItem.subsector?.name" class="flex items-center justify-between border-t border-blue-100/80 pt-2 text-xs">
+                <span class="text-gray-600">Subsetor:</span>
+                <span class="font-semibold text-gray-800">{{ selectedItem.subsector.name }}</span>
               </div>
-              <p class="mt-1 text-[10px] text-gray-500">A movimentação mantém o subsetor do item; somente localizações desse mesmo escopo são aceitas.</p>
+              <div v-if="selectedItem.type" class="flex items-center justify-between gap-2 pt-2 text-xs">
+                <span class="text-gray-600">Categoria:</span>
+                <span class="font-semibold text-gray-800">{{ selectedItem.type }}</span>
+              </div>
 
               <div class="flex items-center justify-between text-xs pt-2 border-t border-blue-100/80">
                 <span class="text-gray-600">Saldo Atual Total:</span>
@@ -1463,6 +1398,26 @@ onMounted(() => {
               </div>
             </div>
 
+            <details class="rounded-lg border border-gray-200 bg-white p-3">
+              <summary class="cursor-pointer font-semibold text-gray-700 focus-visible:outline-blue-500">Mais detalhes e localizações</summary>
+              <dl class="mt-3 space-y-2 text-gray-700">
+                <div v-if="selectedItem.sku"><dt class="font-semibold">SKU</dt><dd>{{ selectedItem.sku }}</dd></div>
+                <div v-if="selectedItem.pieceCode"><dt class="font-semibold">Código da peça</dt><dd>{{ selectedItem.pieceCode }}</dd></div>
+                <div v-if="selectedItem.productName"><dt class="font-semibold">Modelo / Linha</dt><dd>{{ selectedItem.productName }}</dd></div>
+                <div v-if="selectedItem.materialColor || selectedItem.color"><dt class="font-semibold">Material / Cor</dt><dd>{{ selectedItem.materialColor || selectedItem.color }}</dd></div>
+                <div v-if="selectedItem.minStock != null"><dt class="font-semibold">Estoque mínimo</dt><dd>{{ formatNumber(selectedItem.minStock) }} {{ getItemUnitBadge(selectedItem) }}</dd></div>
+                <div v-if="selectedItem.observation"><dt class="font-semibold">Observações do item</dt><dd class="whitespace-pre-wrap">{{ selectedItem.observation }}</dd></div>
+                <div><dt class="font-semibold">Saldo por localização</dt>
+                  <dd v-for="location in selectedItem.locations || []" :key="location.locationId || location.location?.id" class="flex justify-between gap-3 py-1">
+                    <span>{{ location.location?.name || location.name || 'Localização sem nome' }}</span>
+                    <span>{{ formatNumber(location.quantity) }} {{ getItemUnitBadge(selectedItem) }}</span>
+                  </dd>
+                  <dd v-if="!selectedItem.locations?.length">{{ selectedItem.locationDisplay || 'Sem localização' }}</dd>
+                </div>
+              </dl>
+            </details>
+
+            <template v-if="canMoveSelectedItem">
             <!-- Seletor Visual de Tipo de Operação (3 Botões Simplificados) -->
             <div>
               <label class="block font-bold text-gray-600 uppercase mb-1.5 tracking-wide">
@@ -1645,41 +1600,32 @@ onMounted(() => {
               ></textarea>
             </div>
 
-            <!-- Identificação do Operador Responsável -->
-            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <User class="w-4 h-4 text-gray-500" />
-                <div>
-                  <span class="text-[11px] text-gray-500 block">Operador Responsável</span>
-                  <span class="font-bold text-gray-800 text-xs">
-                    {{ authStore.user?.nome || authStore.user?.usuario || 'Operador Logado' }}
-                  </span>
-                </div>
-              </div>
-              <span class="text-[11px] font-mono bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-700 font-semibold">
-                Matrícula: {{ authStore.user?.registration || authStore.user?.matricula || authStore.user?.matriculaDass || authStore.user?.id || '-' }}
-              </span>
-            </div>
+            </template>
           </div>
 
           <!-- Rodapé do Modal -->
           <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="text-xs text-amber-700 font-medium flex items-center gap-1.5 w-full sm:w-auto">
+            <div v-if="canMoveSelectedItem" class="text-xs text-amber-700 font-medium flex items-center gap-1.5 w-full sm:w-auto">
               <span v-if="isFormInvalid && formValidationHint" class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 px-2.5 py-1.5 rounded-lg font-medium text-[11px]">
                 <AlertCircle class="w-3.5 h-3.5 shrink-0 text-amber-600" />
                 <span>{{ formValidationHint }}</span>
               </span>
             </div>
-            <div class="flex justify-end gap-3 w-full sm:w-auto shrink-0">
+            <button v-if="canDeleteItem(selectedItem)" type="button" @click="deleteViewedItem"
+              :disabled="movementLoading || Number(selectedItem.quantity) !== 0"
+              :title="Number(selectedItem.quantity) !== 0 ? 'A exclusão exige estoque zerado' : 'Excluir item do estoque'"
+              class="text-xs font-medium text-red-700 rounded-lg px-3 py-2 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">Excluir</button>
+            <div class="flex justify-end gap-3 w-full sm:w-auto shrink-0 sm:ml-auto">
               <button
                 type="button"
                 @click="closeMovementModal"
                 class="bg-white hover:bg-gray-100 text-gray-700 font-medium px-4 py-2 rounded-lg text-xs border border-gray-300 transition-colors"
               >
-                Cancelar
+                Fechar
               </button>
               <button
                 type="button"
+                v-if="canMoveSelectedItem"
                 :disabled="movementLoading || isFormInvalid"
                 @click="handleConfirmMovement"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-xs shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors"
@@ -1709,7 +1655,7 @@ onMounted(() => {
 
 <style scoped>
 .inventory-stock-table {
-  min-width: 76rem;
+  min-width: 56rem;
   table-layout: auto;
 }
 
@@ -1738,7 +1684,7 @@ onMounted(() => {
 
 .inventory-stock-table th:last-child,
 .inventory-stock-table td:last-child {
-  min-width: 14.5rem;
+  min-width: 8.5rem;
 }
 
 .inventory-stock-table td:nth-last-child(2) {

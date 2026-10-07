@@ -1,4 +1,4 @@
-import { ComponentType, Prisma, SectorType } from '../generated/prisma';
+import { Prisma } from '../generated/prisma';
 import { FACTORY_CATALOG, type FactoryCatalog, validateFactoryCatalog } from './factoryCatalog';
 
 export type FactoryProvisioningUnit = {
@@ -8,18 +8,6 @@ export type FactoryProvisioningUnit = {
 };
 
 type ProvisioningTransaction = Prisma.TransactionClient;
-
-const DEFAULT_COMPONENT_SUBTYPES: Array<{
-  name: string;
-  sectors: SectorType[];
-  componentType: ComponentType;
-}> = [
-  { name: 'Matéria-prima', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA' },
-  { name: 'Peça cortada', sectors: ['APOIO'], componentType: 'PECA_CORTADA' },
-  { name: 'Cabedal', sectors: ['APOIO', 'DISTRIBUICAO'], componentType: 'CABEDAL' },
-  { name: 'Solado', sectors: ['PRE_FABRICADO', 'DISTRIBUICAO'], componentType: 'SOLADO' },
-  { name: 'Pé pronto', sectors: ['MONTAGEM'], componentType: 'PE_PRONTO' },
-];
 
 function auditData(factoryUnitId: number, kind: 'Categoria' | 'Origem', name: string, sector: string | null, unit?: string, locked?: boolean) {
   const details = [
@@ -53,31 +41,13 @@ export async function createFactoryWithCatalog(
     },
   });
 
-  const subtypeIds = new Map<ComponentType, number>();
-  for (const subtype of DEFAULT_COMPONENT_SUBTYPES) {
-    const createdSubtype = await tx.componentSubtypeConfig.create({
-      data: { ...subtype, factoryUnitId: factory.id },
-    });
-    subtypeIds.set(subtype.componentType, createdSubtype.id);
-  }
-
   for (const category of catalog.categories) {
-    const componentType: ComponentType = category.sector === 'CORTE'
-      ? 'MATERIA_PRIMA'
-      : category.sector === 'APOIO'
-        ? 'PECA_CORTADA'
-        : category.sector === 'PRE_FABRICADO'
-          ? 'SOLADO'
-          : category.sector === 'DISTRIBUICAO'
-            ? (category.name.includes('SOLA') ? 'SOLADO' : 'CABEDAL')
-            : 'PE_PRONTO';
     await tx.categoryConfig.create({
       data: {
         name: category.name,
         sector: category.sector,
         sectors: [category.sector],
-        subtypeId: subtypeIds.get(componentType),
-        componentType,
+        entryMode: category.entryMode,
         defaultUnitCode: category.defaultUnitCode,
         unitLocked: category.unitLocked,
         factoryUnitId: factory.id,

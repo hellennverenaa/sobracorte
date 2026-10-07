@@ -18,9 +18,15 @@ export const pairCompatibilitySql = Prisma.sql`
   e."factoryUnitId" = d."factoryUnitId"
   AND (CASE WHEN e.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE e.sector::text END)
     = (CASE WHEN d.sector::text = 'EXPEDICAO' THEN 'DISTRIBUICAO' ELSE d.sector::text END)
-  AND ${Prisma.join(['sku', 'productName', 'sizeGrade', 'type'].map(field =>
+  AND ${Prisma.join(['code', 'name', 'sku', 'pieceCode', 'description', 'productName', 'sizeGrade', 'type'].map(field =>
     Prisma.sql`${normalizedText('e', field)} = ${normalizedText('d', field)}`), ' AND ')}
   AND REGEXP_REPLACE(${normalizedText('e', 'color')}, '[[:space:]]+', '', 'g')
     = REGEXP_REPLACE(${normalizedText('d', 'color')}, '[[:space:]]+', '', 'g')
+  AND e."categoryId" = d."categoryId"
+  AND EXISTS (SELECT 1 FROM sobra_corte."CategoryConfig" category
+    WHERE category.id = e."categoryId" AND category."factoryUnitId" = e."factoryUnitId"
+      AND category."entryMode" = 'SIDE_PAIR')
+  AND e."subsectorId" IS NOT DISTINCT FROM d."subsectorId"
+  AND ${normalizedText('e', 'materialColor')} = ${normalizedText('d', 'materialColor')}
   AND ${normalizedPairUnit('e')} = ${normalizedPairUnit('d')}
 `;

@@ -6,8 +6,8 @@ import { StockCategoryError, StockOriginError, assertStockLocationCategory } fro
 import { BatchCreateStockItemSchema } from '../src/types/stock.dto';
 
 const categories = [
-  { id: 10, name: 'TECIDO', sectors: ['CORTE'], componentType: 'MATERIA_PRIMA', defaultUnitCode: 'M²', unitLocked: true },
-  { id: 11, name: 'MOLDE / PEÇA', sectors: ['APOIO'], componentType: 'PECA_CORTADA', defaultUnitCode: 'UN', unitLocked: false },
+  { id: 10, name: 'TECIDO', sectors: ['CORTE'], entryMode: 'QUANTITY', defaultUnitCode: 'M²', unitLocked: true },
+  { id: 11, name: 'MOLDE / PEÇA', sectors: ['APOIO'], entryMode: 'QUANTITY', defaultUnitCode: 'UN', unitLocked: false },
 ];
 
 function setupStockDb(t: any, origins: Array<{ name: string; sector: string | null }> = []) {
@@ -69,7 +69,7 @@ test('estoques exigem categoria em Corte, Pré-Fabricado e Distribuição', asyn
     { sector: 'DISTRIBUICAO', sku: 'D1', color: 'PRETO', sizeGrade: '40', quantity: 1, location: 'PRAT-A' },
   ];
   for (const item of cases) {
-    await assert.rejects(create(item), StockCategoryError);
+    assert.equal(BatchCreateStockItemSchema.safeParse({ items: [item] }).success, false);
   }
 });
 
@@ -87,14 +87,14 @@ test('estoque rejeita categoria de outro setor e aplica unidade bloqueada da cat
   assert.equal(created[0].unit, 'M²');
 });
 
-test('Apoio sem categoria persiste categoria e tipo nulos', async t => {
+test('Apoio com categoria persiste a classificação e o saldo inicial', async t => {
   const { create, created, movements, originQueries } = setupStockDb(t);
   await create({
-    sector: 'APOIO', componentType: 'PECA_CORTADA', pieceCode: 'MOL-1', productName: '',
+    sector: 'APOIO', categoryId: 11, pieceCode: 'MOL-1', productName: '',
     description: 'MOLDE', materialColor: 'PRETO', sizeGrade: '40', quantity: 2, location: 'PRAT-A',
   });
-  assert.equal(created[0].categoryId, null);
-  assert.equal(created[0].type, null);
+  assert.equal(created[0].categoryId, 11);
+  assert.equal(created[0].type, 'MOLDE / PEÇA');
   assert.equal(originQueries.length, 0);
   assert.equal(movements[0].origem, 'Saldo Inicial / Entrada no Setor');
 });
@@ -104,7 +104,7 @@ test('cadastro inicial registra a origem configurada para o setor no histórico'
     { name: 'SOBRA DE PEÇA CORTADA', sector: 'APOIO' },
   ]);
   await create({
-    sector: 'APOIO', componentType: 'PECA_CORTADA', pieceCode: 'MOL-1', productName: '',
+    sector: 'APOIO', categoryId: 11, pieceCode: 'MOL-1', productName: '',
     description: 'MOLDE', materialColor: 'PRETO', sizeGrade: '40', quantity: 2,
     location: 'PRAT-A', origem: 'SOBRA DE PEÇA CORTADA', observation: 'Conferência inicial',
   });
@@ -119,7 +119,7 @@ test('cadastro inicial rejeita origem cadastrada para outro setor', async t => {
     { name: 'SOBRA DE CABEDAL', sector: 'DISTRIBUICAO' },
   ]);
   await assert.rejects(create({
-    sector: 'APOIO', componentType: 'PECA_CORTADA', pieceCode: 'MOL-1', productName: '',
+    sector: 'APOIO', categoryId: 11, pieceCode: 'MOL-1', productName: '',
     description: 'MOLDE', materialColor: 'PRETO', sizeGrade: '40', quantity: 2,
     location: 'PRAT-A', origem: 'SOBRA DE CABEDAL',
   }), StockOriginError);

@@ -291,7 +291,7 @@ test('entre candidatos compatíveis, estoque de etapas mais prontas aparece prim
   assert.deepEqual(candidates.map(candidate => candidate.sourceSector), ['MONTAGEM', 'APOIO']);
 });
 
-test('autocomplete APOIO consulta somente o identificador exato do componente e não agrega variantes', async t => {
+test('autocomplete APOIO filtra categoria e identificador exato sem agregar variantes', async t => {
   const originalFindMany = (prisma.stockItem as any).findMany;
   const queries: any[] = [];
   const cutPieceRows = [
@@ -304,9 +304,10 @@ test('autocomplete APOIO consulta somente o identificador exato do componente e 
   };
   t.after(() => { (prisma.stockItem as any).findMany = originalFindMany; });
 
-  const suggestions = await new StockItemService().getSearchSuggestions('APOIO' as any, 'CUT-101', 7, 'PECA_CORTADA');
-  assert.deepEqual(queries[0].componentType, 'PECA_CORTADA');
-  assert.deepEqual(queries[0].OR, [{ pieceCode: { equals: 'CUT-101', mode: 'insensitive' } }]);
+  const suggestions = await new StockItemService().getSearchSuggestions('APOIO' as any, 'CUT-101', 7, 12);
+  assert.equal(queries[0].categoryId, 12);
+  assert.equal(queries[0].componentType, undefined);
+  assert.deepEqual(queries[0].OR, [{ sku: { equals: 'CUT-101', mode: 'insensitive' } }, { pieceCode: { equals: 'CUT-101', mode: 'insensitive' } }]);
   assert.deepEqual(suggestions.map((suggestion: any) => [suggestion.id, suggestion.availableQuantity, suggestion.sizeGrades[0]]), [
     [441, 2, '40'],
     [442, 6, '41'],
@@ -339,14 +340,15 @@ test('sugere um par fornecedor E+D sem combinar saldos de outros itens', async (
 test('API exige confirmação para criar requisição com sugestão automática', async t => {
   const originalTransaction = prisma.$transaction;
   t.after(() => { (prisma as any).$transaction = originalTransaction; });
-  const tx: any = transactionFor([stockItem()]);
+  const tx: any = transactionFor([stockItem({ categoryId: 12 })]);
+  tx.categoryConfig = { findFirst: async () => ({ id: 12, name: 'MATERIAL', sectors: ['MONTAGEM', 'APOIO'], defaultUnitCode: 'UN', entryMode: 'SIDE_PAIR' }) };
   tx.$queryRaw = async () => [];
   (prisma as any).$transaction = async (callback: (transaction: any) => unknown) => callback(tx);
 
   const service = new RequisitionService();
   await assert.rejects(service.createRequisition({
     items: [{
-      ...mountingRequest(),
+      ...mountingRequest(), categoryId: 12,
       sourceCandidateId: 'stock:101',
       quantityRequested: 1,
       reason: 'REPOSIÇÃO',
@@ -357,25 +359,16 @@ test('API exige confirmação para criar requisição com sugestão automática'
 
 test('DTO mantém falsa a confirmação ausente, preservando payloads legados', () => {
   const parsed = RequisitionItemInputSchema.parse({
-    requestSector: 'MONTAGEM',
+    requestSector: 'MONTAGEM', categoryId: 12,
     quantityRequested: 1,
     reason: 'REPOSIÇÃO',
   });
   assert.equal(parsed.confirmSourceSuggestion, false);
 });
 
-test('DTO exige identificador coerente com o componente solicitado em APOIO', () => {
-  const cabedal = CheckStockAvailabilitySchema.safeParse({
-    requestSector: 'APOIO', type: 'CABEDAL', sku: 'CAB-204', description: 'CABEDAL',
-  });
-  const cutPiece = CheckStockAvailabilitySchema.safeParse({
-    requestSector: 'APOIO', type: 'PECA_CORTADA', pieceCode: 'CUT-101', description: 'GASPEA',
-  });
-  const wrongField = CheckStockAvailabilitySchema.safeParse({
-    requestSector: 'APOIO', type: 'PECA_CORTADA', sku: 'CUT-101', description: 'GASPEA',
-  });
-
-  assert.equal(cabedal.success, true);
-  assert.equal(cutPiece.success, true);
-  assert.equal(wrongField.success, false);
+test('DTO exige categoria e permite identificadores sem subtipo em APOIO', () => {
+  for (const identity of [{ sku: 'CAB-204' }, { pieceCode: 'CUT-101' }]) {
+    assert.equal(CheckStockAvailabilitySchema.safeParse({ requestSector: 'APOIO', categoryId: 12, description: 'MATERIAL', ...identity }).success, true);
+    assert.equal(CheckStockAvailabilitySchema.safeParse({ requestSector: 'APOIO', description: 'MATERIAL', ...identity }).success, false);
+  }
 });

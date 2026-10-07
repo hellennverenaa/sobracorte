@@ -51,10 +51,10 @@ export function normalizeStockColor(value: unknown) {
 
 export function stockIdentity(data: Record<string, any>) {
   const sector = normalizeStockSector(data.sector);
-  const fields = sector === 'CORTE' ? ['code', 'name', 'type', 'categoryId']
-    : sector === 'APOIO' && data.componentType === 'CABEDAL'
+  const fields = sector === 'CORTE' ? ['code', 'name', 'type', 'footSide', 'categoryId']
+    : sector === 'APOIO' && data.sku && !data.pieceCode
       ? ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide', 'categoryId']
-      : sector === 'APOIO' ? ['pieceCode', 'productName', 'type', 'description', 'materialColor', 'sizeGrade', 'categoryId']
+      : sector === 'APOIO' ? ['pieceCode', 'productName', 'type', 'description', 'materialColor', 'sizeGrade', 'footSide', 'categoryId']
     : sector === 'MONTAGEM' ? ['sku', 'productName', 'color', 'sizeGrade', 'footSide', 'categoryId']
     : ['sku', 'productName', 'type', 'color', 'sizeGrade', 'footSide', 'categoryId'];
   return Object.fromEntries(fields.map(field => [field,

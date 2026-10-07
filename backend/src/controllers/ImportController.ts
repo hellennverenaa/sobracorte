@@ -58,7 +58,7 @@ export class ImportController {
       });
       const availableCategories: AvailableImportCategory[] = await prisma.categoryConfig.findMany({
         where: { factoryUnitId },
-        select: { id: true, name: true, sector: true, sectors: true, componentType: true, unitLocked: true, defaultUnitCode: true },
+        select: { id: true, name: true, sector: true, sectors: true, entryMode: true, defaultUnitCode: true },
       });
       const availableSubsectors: AvailableImportSubsector[] = await prisma.subsectorConfig.findMany({
         where: {

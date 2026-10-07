@@ -31,14 +31,6 @@ export const SectorEnum = z.enum([
   'CONFIGURACOES',
 ]);
 
-export const ComponentTypeEnum = z.enum([
-  'MATERIA_PRIMA',
-  'PECA_CORTADA',
-  'SOLADO',
-  'CABEDAL',
-  'PE_PRONTO',
-]);
-
 export const FootSideEnum = z.enum(['E', 'D', 'PAR']);
 
 export const MovementTypeEnum = z.enum([
@@ -57,9 +49,10 @@ export const MovementTypeEnum = z.enum([
 export const CorteItemSchema = z.object({
   sector: z.literal('CORTE'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   code: z.string().trim().min(1, 'Código da matéria-prima é obrigatório'),
   name: z.string().trim().min(1, 'Descrição/Nome é obrigatório'),
+  footSide: FootSideEnum.optional().nullable(),
   quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   type: z.string().trim().optional().default(''),
@@ -81,8 +74,7 @@ export const CorteItemSchema = z.object({
 export const ApoioItemSchema = z.object({
   sector: z.literal('APOIO'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
-  componentType: z.enum(['PECA_CORTADA', 'CABEDAL']).optional(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   type: z.string().trim().optional().default(''),
   pieceCode: z.string().trim().optional().default(''),
   sku: z.string().trim().optional().default(''),
@@ -92,37 +84,30 @@ export const ApoioItemSchema = z.object({
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().optional().default(''),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: quantityInput(z.coerce.number().int('Quantidade em Peças Cortadas deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),
   observation: z.string().trim().optional().default(''),
 }).superRefine((item, ctx) => {
-  if (item.componentType === 'CABEDAL') {
-    if (!item.sku.trim()) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'SKU do cabedal é obrigatório.' });
-    if (!item.sizeGrade.trim()) ctx.addIssue({ code: 'custom', path: ['sizeGrade'], message: 'Grade do cabedal é obrigatória.' });
-    if (!(item.color || item.materialColor).trim()) ctx.addIssue({ code: 'custom', path: ['color'], message: 'Combinação/cor do cabedal é obrigatória.' });
-    if (!item.footSide) ctx.addIssue({ code: 'custom', path: ['footSide'], message: 'Selecione o lado do cabedal.' });
-  } else {
-    if (!item.pieceCode.trim()) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Código da peça cortada é obrigatório.' });
-    if (!item.description.trim()) ctx.addIssue({ code: 'custom', path: ['description'], message: 'Descrição da peça é obrigatória.' });
-    if (!item.sizeGrade.trim()) ctx.addIssue({ code: 'custom', path: ['sizeGrade'], message: 'Grade da peça é obrigatória.' });
-    if (!item.materialColor.trim()) ctx.addIssue({ code: 'custom', path: ['materialColor'], message: 'Material e cor são obrigatórios.' });
-  }
+  if (!(item.pieceCode || item.sku).trim()) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Código do produto é obrigatório.' });
+  if (!item.description.trim()) ctx.addIssue({ code: 'custom', path: ['description'], message: 'Descrição do material é obrigatória.' });
+  if (!item.sizeGrade.trim()) ctx.addIssue({ code: 'custom', path: ['sizeGrade'], message: 'Grade é obrigatória.' });
+  if (!(item.materialColor || item.color).trim()) ctx.addIssue({ code: 'custom', path: ['materialColor'], message: 'Material/cor é obrigatório.' });
 });
 
 // 🔹 3. PRÉ-FABRICADO: Solas por Produto
 export const PreFabricadoItemSchema = z.object({
   sector: z.literal('PRE_FABRICADO'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   sku: z.string().trim().optional().default(''),
   productName: z.string().trim().min(1, 'Nome do Modelo / Linha é obrigatório'),
   type: z.string().trim().optional().default(''),
   color: z.string().trim().min(1, 'Cor do solado é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Pré-Fabricado deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),
@@ -133,14 +118,14 @@ export const PreFabricadoItemSchema = z.object({
 export const DistribuicaoItemSchema = z.object({
   sector: z.literal('DISTRIBUICAO'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   type: z.string().trim().optional().default(''),
   color: z.string().trim().min(1, 'Cor do componente/cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Distribuição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),
@@ -151,14 +136,14 @@ export const DistribuicaoItemSchema = z.object({
 export const ExpedicaoItemSchema = z.object({
   sector: z.literal('EXPEDICAO'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
-  type: z.enum(['CABEDAL', 'SOLA_PROCESSADA']).optional().default('CABEDAL'),
+  type: z.string().trim().optional().default(''),
   color: z.string().trim().min(1, 'Cor do cabedal é obrigatória'),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
   footSide: FootSideEnum.optional().nullable(),
-  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Expedição deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),
@@ -169,14 +154,14 @@ export const ExpedicaoItemSchema = z.object({
 export const MontagemItemSchema = z.object({
   sector: z.literal('MONTAGEM'),
   subsectorId: z.number().int().positive().optional().nullable(),
-  categoryId: z.coerce.number().int().positive().optional().nullable(),
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   type: z.string().trim().optional().default(''),
   sku: z.string().trim().min(1, 'Código do Produto/SKU é obrigatório'),
   productName: z.string().trim().optional().default(''),
   color: z.string().trim().optional().default(''),
   sizeGrade: z.string().trim().min(1, 'Grade/Numeração é obrigatória'),
-  footSide: FootSideEnum,
-  quantity: quantityInput(z.coerce.number().int('Quantidade no setor de Montagem deve ser um número inteiro (sem decimais)').positive('Quantidade deve ser maior que zero')),
+  footSide: FootSideEnum.optional().nullable(),
+  quantity: quantityInput(z.coerce.number().positive('Quantidade deve ser maior que zero')),
   unit: unitInput(),
   location: z.string().trim().min(1, 'Prateleira/Localização é obrigatória'),
   origem: z.string().trim().optional().default(''),
@@ -238,25 +223,8 @@ export const RequisitionStatusEnum = z.enum([
   'CANCELADA',
 ]);
 
-function validateApoioRequisitionIdentity(
-  item: { requestSector: string; type?: string; sku?: string; pieceCode?: string },
-  ctx: z.RefinementCtx,
-) {
-  if (item.requestSector !== 'APOIO') return;
-  if (item.type !== 'CABEDAL' && item.type !== 'PECA_CORTADA') {
-    ctx.addIssue({ code: 'custom', path: ['type'], message: 'Selecione Cabedal ou Peça cortada para requisições de Peças Cortadas.' });
-    return;
-  }
-  if (item.type === 'CABEDAL') {
-    if (!item.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'Informe o SKU do cabedal.' });
-    if (item.pieceCode) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Cabedal deve ser identificado pelo SKU.' });
-  } else {
-    if (!item.pieceCode) ctx.addIssue({ code: 'custom', path: ['pieceCode'], message: 'Informe o código da peça cortada.' });
-    if (item.sku) ctx.addIssue({ code: 'custom', path: ['sku'], message: 'Peça cortada deve ser identificada pelo código da peça.' });
-  }
-}
-
 export const RequisitionItemInputSchema = z.object({
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sourceCandidateId: z.string().trim().min(1).max(300).optional(),
   confirmSourceSuggestion: z.boolean().optional().default(false),
@@ -270,7 +238,7 @@ export const RequisitionItemInputSchema = z.object({
   footSide: FootSideEnum.optional().nullable(),
   quantityRequested: quantityInput(z.coerce.number().positive('Quantidade solicitada deve ser maior que zero')),
   reason: z.string().trim().min(1, 'Motivo do defeito/avaria é obrigatório').transform((val) => val.toUpperCase()),
-}).superRefine(validateApoioRequisitionIdentity);
+});
 
 export const CreateRequisitionPayloadSchema = z.union([
   RequisitionItemInputSchema,
@@ -280,6 +248,7 @@ export const CreateRequisitionPayloadSchema = z.union([
 ]);
 
 export const CheckStockAvailabilitySchema = z.object({
+  categoryId: z.coerce.number().int().positive('Selecione uma categoria.'),
   requestSector: z.enum(['CORTE', 'APOIO', 'PRE_FABRICADO', 'DISTRIBUICAO', 'EXPEDICAO', 'MONTAGEM']),
   sku: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   pieceCode: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
@@ -289,7 +258,7 @@ export const CheckStockAvailabilitySchema = z.object({
   color: z.string().trim().optional().transform((val) => val ? normalizeStockColor(val) : undefined),
   sizeGrade: z.string().trim().optional().transform((val) => val ? val.toUpperCase() : undefined),
   footSide: FootSideEnum.optional().nullable(),
-}).superRefine(validateApoioRequisitionIdentity);
+});
 
 export const RequisitionFilterSchema = z.object({
   status: RequisitionStatusEnum.optional(),

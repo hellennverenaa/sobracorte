@@ -6,7 +6,7 @@ import { RequisitionService } from '../src/services/RequisitionService';
 import { debitStockItem } from '../src/services/stockDebit';
 import { assertCompatiblePair, findRequisitionStock } from '../src/services/requisitionStock';
 
-const item = (id = 1, footSide = 'E', quantity = 131): any => ({ id, factoryUnitId: 1, sector: 'MONTAGEM', sku: 'SKU', productName: 'MODELO', color: 'AZUL', sizeGrade: '40', footSide, type: 'CABEDAL', unit: 'UND', quantity,
+const item = (id = 1, footSide = 'E', quantity = 131): any => ({ id, categoryId: 1, category: { entryMode: 'SIDE_PAIR', defaultUnitCode: 'UN' }, factoryUnitId: 1, sector: 'MONTAGEM', sku: 'SKU', productName: 'MODELO', color: 'AZUL', sizeGrade: '40', footSide, type: 'CABEDAL', unit: 'UND', quantity,
   locations: [{ locationId: 1, quantity: quantity - 43, location: { name: 'A' } }, { locationId: 2, quantity: 43, location: { name: 'B' } }] });
 const matches = (record: any, where: any): boolean => Object.entries(where).every(([key, value]: any) => {
   if (key === 'AND') return value.every((part: any) => matches(record, part));
