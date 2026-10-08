@@ -395,6 +395,7 @@ export class SettingsController {
       } else if (targetSector) {
         whereClause.OR = [
           { sector: targetSector as any },
+          ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' }] : []),
           { sector: null }
         ];
       }
@@ -685,7 +686,7 @@ export class SettingsController {
           });
           for (const link of links) {
             if (targetSector !== undefined) assertStockLocationSector({ sector: targetSector }, link.stockItem.sector);
-            if (link.stockItem.categoryId && finalCategoryIds && finalCategoryIds.length > 0
+            if (categoryMode === 'SELECTED' && link.stockItem.categoryId && finalCategoryIds
               && !finalCategoryIds.includes(link.stockItem.categoryId)) {
               throw new Error('A localização não pode perder a categoria de um item que ainda possui saldo nela.');
             }
@@ -849,6 +850,7 @@ export class SettingsController {
       } else if (targetSector) {
         whereClause.OR = [
           { sector: targetSector as any },
+          ...(targetSector === 'DISTRIBUICAO' ? [{ sector: 'EXPEDICAO' }] : []),
           { sector: null }
         ];
       }

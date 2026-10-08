@@ -1,0 +1,738 @@
+[
+  {
+    "name": "Admin setor dashboard",
+    "snapshot": {
+      "url": "/sobra_corte/",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nConfigurações\n\nUsuário sintético admin_setor\n\nAdministrador de setor\n\n1\nSair\n\nÚltima atualização: 08/10/2026, 09:46:16\n\nPAINEL DE CONTROLE MULTI-SETOR\n5 SETORES FABRIS\nRASTREABILIDADE EM TEMPO REAL\n09:46:16\nÚLTIMA ATUALIZAÇÃO · QUI., 08 DE OUT.\nCorte (Matéria-Prima)\nLimpar filtros\n\nESTOQUE POR UNIDADE DE MEDIDA\n\n0,125 KG\n2,75 M\n16.041,624 M²\n\n70 cadastros ativos no setor\n\nTAXA DE OPERAÇÕES DE SAÍDA — CORTE\n\n3%\n2 saídas realizadas\n\nPARADOS SEM GIRO (>30D)\n\n0\n\nAtenção Operacional\n\nSAÍDAS DE SOBRAS (CORTE)\n\nELIMINAÇÃO DE SOBRAS\n0,375 M² de saídas\n2 saídas para a produção\nCADASTROS POR SETOR\n5\nSETORES\nCORTE (MATÉRIA-PRIMA)\n100.0%\n70 cadastros\nPEÇAS CORTADAS (MOLDES/PEÇAS)\n0.0%\n0 cadastros\nPRÉ-FABRICADO (SOLAS)\n0.0%\n0 cadastros\nDISTRIBUIÇÃO (CABEDAIS/SOLAS)\n0.0%\n0 cadastros\nMONTAGEM (PÉS ÓRFÃOS)\n0.0%\n0 cadastros\nORIGEM DAS ENTRADAS (REGISTROS)\n3\nFONTES\nOUTROS\n95.8%\n68 registros\nSALDO INICIAL / IMPLANTAÇÃO\n2.8%\n2 registros\nCONSUMO\n1.4%\n1 registros\nTOP 5 COM MAIS SOBRAS\nACÚMULO\nM²\nKG\nM\n1\n\nTECIDO CAFÉ / AÇÃO\n\nCód: QA-PAG-3 · TECIDO\n\n1.000,999M²\n2\n\nTECIDO CAFÉ / AÇÃO\n\nCód: QA-PAG-7 · TECIDO\n\n1.000,999M²\n3\n\nTECIDO CAFÉ / AÇÃO\n\nCód: QA-PAG-11 · TECIDO\n\n1.000,999M²\n4\n\nTECIDO CAFÉ / AÇÃO\n\nCód: QA-PAG-15 · TECIDO\n\n1.000,999M²\n5\n\nTECIDO CAFÉ / AÇÃO\n\nCód: QA-PAG-19 · TECIDO\n\n1.000,999M²\nESTOQUE ACUMULADO POR UNIDADE",
+      "fields": [],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte (Matéria-Prima)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "M²",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "KG",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "M",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "recommendation",
+            "level": "verbose",
+            "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
+            "timestamp": 1791463574784.213,
+            "url": "http://127.0.0.1:24180/sobra_corte/login",
+            "args": [
+              {
+                "type": "object",
+                "subtype": "node",
+                "className": "HTMLInputElement",
+                "description": "input.w-full.pl-12.pr-4.py-3.5.bg-slate-50.border.border-slate-200.rounded-xl.outline-none.focus:ring-2.focus:ring-indigo-500.focus:border-indigo-500.text-slate-800.font-medium.shadow-inner.transition-all",
+                "objectId": "8828213945129983562.2.1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Admin setor requisições",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nConfigurações\n\nUsuário sintético admin_setor\n\nAdministrador de setor\n\n1\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n2\n\nCOM SALDO EM SOBRAS\n\n1 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "recommendation",
+            "level": "verbose",
+            "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
+            "timestamp": 1791463574784.213,
+            "url": "http://127.0.0.1:24180/sobra_corte/login",
+            "args": [
+              {
+                "type": "object",
+                "subtype": "node",
+                "className": "HTMLInputElement",
+                "description": "input.w-full.pl-12.pr-4.py-3.5.bg-slate-50.border.border-slate-200.rounded-xl.outline-none.focus:ring-2.focus:ring-indigo-500.focus:border-indigo-500.text-slate-800.font-medium.shadow-inner.transition-all",
+                "objectId": "8828213945129983562.2.1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Leitor requisições",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\n\nUsuário sintético leitor\n\nLeitor\n\n1\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\n\nTOTAL DE ITENS SOLICITADOS\n\n2\n\nCOM SALDO EM SOBRAS\n\n1 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "recommendation",
+            "level": "verbose",
+            "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
+            "timestamp": 1791463574784.213,
+            "url": "http://127.0.0.1:24180/sobra_corte/login",
+            "args": [
+              {
+                "type": "object",
+                "subtype": "node",
+                "className": "HTMLInputElement",
+                "description": "input.w-full.pl-12.pr-4.py-3.5.bg-slate-50.border.border-slate-200.rounded-xl.outline-none.focus:ring-2.focus:ring-indigo-500.focus:border-indigo-500.text-slate-800.font-medium.shadow-inner.transition-all",
+                "objectId": "8828213945129983562.2.1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Configurações",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nCategorias de Materiais\nNome, unidade e modo de cadastro\n\nCadastre a categoria para o setor escolhido. As regras de prateleiras e subsetores ficam em suas próprias abas.\n\nNome da categoria\nSetor da categoria\nSelecione o setor\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nUnidade de medida\nSelecione a unidade\nUnidade (UN)\nPar (PAR)\nCaixa (CX)\nRolo (ROLO)\nMetro (M)\nMetro Quadrado (M²)\nCentímetro (CM)\nLitro (L)\nGrama (G)\nQuilograma (KG)\nConfigurações avançadas: compartilhar entre setores\n Salvar categoria\nCATEGORIAS CADASTRADAS\nFILTRAR SETOR:\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nCATEGORIA\tSETORES DISPONÍVEIS\tUNIDADE / CADASTRO\tAÇÕES\nBORRACHA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nCABEDAL\tDistribuição\tUnidade (UN)\nPor lado/par\n\t\n\nCOURO\tCorte\tMetro (M)\nPor quantidade\n\t\n\nEVA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nFORRO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nLINHA\tCorte\tQuilograma (KG)\nPor quantidade\n\t\n\nMOLDE / PEÇA\tPeças Cortadas\tUnidade (UN)\nPor quantidade\n\t\n\nPE PRONTO\tMontagem\tUnidade (UN)\nPor lado/par\n\t\n\nSINTETICO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nSOLA_PROCESSADA\tDistribuição\tUnidade (UN)\nPor lado/par\n\t\n\nTECIDO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "new-category-name",
+          "placeholder": "Ex.: Couro, Cabedal, Tecido",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "category-registration-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione o setor"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "new-category-unit",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a unidade"
+            },
+            {
+              "value": "UN",
+              "text": "Unidade (UN)"
+            },
+            {
+              "value": "PAR",
+              "text": "Par (PAR)"
+            },
+            {
+              "value": "CX",
+              "text": "Caixa (CX)"
+            },
+            {
+              "value": "ROLO",
+              "text": "Rolo (ROLO)"
+            },
+            {
+              "value": "M",
+              "text": "Metro (M)"
+            },
+            {
+              "value": "M²",
+              "text": "Metro Quadrado (M²)"
+            },
+            {
+              "value": "CM",
+              "text": "Centímetro (CM)"
+            },
+            {
+              "value": "L",
+              "text": "Litro (L)"
+            },
+            {
+              "value": "G",
+              "text": "Grama (G)"
+            },
+            {
+              "value": "KG",
+              "text": "Quilograma (KG)"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "specific"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "all"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "CORTE"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "APOIO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "PRE_FABRICADO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "DISTRIBUICAO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "MONTAGEM"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Salvar categoria",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "recommendation",
+            "level": "verbose",
+            "text": "[DOM] Input elements should have autocomplete attributes (suggested: \"current-password\"): (More info: https://goo.gl/9p2vKq) %o",
+            "timestamp": 1791463574784.213,
+            "url": "http://127.0.0.1:24180/sobra_corte/login",
+            "args": [
+              {
+                "type": "object",
+                "subtype": "node",
+                "className": "HTMLInputElement",
+                "description": "input.w-full.pl-12.pr-4.py-3.5.bg-slate-50.border.border-slate-200.rounded-xl.outline-none.focus:ring-2.focus:ring-indigo-500.focus:border-indigo-500.text-slate-800.font-medium.shadow-inner.transition-all",
+                "objectId": "8828213945129983562.2.1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+]

@@ -70,7 +70,7 @@ test('rotas reais de autenticação com provedor e persistência simulados', asy
   };
   (prisma.user as any).findMany = async () => [];
   (prisma.userRoleBinding as any).findMany = async () => storedBinding && storedIdentity
-    ? [{ ...storedBinding, identity: storedIdentity }]
+    ? [{ ...storedBinding, identity: storedIdentity, subsectorAccesses: [] }]
     : [];
   (prisma.stockItem as any).count = async () => 0;
   (prisma.stockItem as any).findMany = async () => [];

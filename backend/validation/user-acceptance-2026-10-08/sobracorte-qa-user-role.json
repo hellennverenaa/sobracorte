@@ -1,0 +1,110 @@
+{
+  "url": "/sobra_corte/users",
+  "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nPermissões e setor vinculados com sucesso!\nGestão de Usuários e RBAC Setorial\n\nGerencie os níveis de acesso e vincule setores de operação para Líderes e Movimentadores\n\nAuditoria de Permissões\nUsuário / Nome\tSetor RH / Função\tNível de Acesso\tSetor Vinculado (RBAC)\tEscopo de subsetores\tAções\n\nU\n\nUsuário sintético admin\n\nQA_ADMIN\n\n\t\n\nTodos os Setores\n\nNÃO DEFINIDO\n\n\t\nAdmin Master\n\tTodos os Setores (Master)\tTodos os subsetores da unidade\t\n\n\nU\n\nUsuário sintético admin_setor\n\nQA_ADMIN_SETOR\n\n\t\n\nTodos os Setores\n\nNÃO DEFINIDO\n\n\t\nAdmin de Setor\n\t\nCorte\n\tTodos de Corte\t\n\n\nU\n\nUsuário sintético leitor\n\nQA_LEITOR\n\n\t\n\nTodos os Setores\n\nNÃO DEFINIDO\n\n\t\nLeitor\n\tTodos os setores (leitura)\tNenhum vínculo explícito · legado conforme setor\t\n\n\nU\n\nUsuário sintético lider\n\nQA_LIDER\n\n\t\n\nTodos os Setores\n\nNÃO DEFINIDO\n\n\t\nMovimentador\n\t\nCorte\n\tNenhum vínculo explícito · legado conforme setor\t\n\n\nU\n\nUsuário sintético movimentador\n\nQA_MOVIMENTADOR\n\n\t\n\nTodos os Setores\n\nNÃO DEFINIDO\n\n\t\nMovimentador\n\t\nCorte\n\tNenhum vínculo explícito · legado conforme setor\t\nAuditoria de Alteração de Permissões RBAC\n\nRastreabilidade formal de promoções, trocas de papéis e vínculos de setores\n\n×\nDATA / HORA\tUSUÁRIO AFETADO\tPAPEL ANTERIOR ➔ NOVO\tSETOR RBAC\tALTERADO POR\n08/10/2026, 09:04\t\n\nUsuário sintético lider\n\nQA_LIDER\n\n\t\nLíder\n➔\nMovimentador\n\tCorte\t\n\nUsuário sintético admin\n\nMatrícula: 99000\n\nFechar",
+  "fields": [
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "id": "",
+      "placeholder": "Buscar por nome, setor ou matrícula...",
+      "value": ""
+    }
+  ],
+  "buttons": [
+    {
+      "text": "",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Sair",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Auditoria de Permissões",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Editar Permissão e Setor",
+      "disabled": true
+    },
+    {
+      "text": "",
+      "title": "Remover Usuário",
+      "disabled": true
+    },
+    {
+      "text": "",
+      "title": "Editar Permissão e Setor",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Remover Usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Gerenciar subsetores do usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Editar Permissão e Setor",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Remover Usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Gerenciar subsetores do usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Editar Permissão e Setor",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Remover Usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Gerenciar subsetores do usuário",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Editar Permissão e Setor",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "Remover Usuário",
+      "disabled": false
+    },
+    {
+      "text": "×",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Fechar",
+      "title": "",
+      "disabled": false
+    }
+  ]
+}

@@ -25,6 +25,7 @@ const dashboardDomain = useDashboard({
 const selectedSector = dashboardDomain.selectedSector
 const sectorIcons = { TODOS: Layers, CORTE: Scissors, APOIO: Box, PRE_FABRICADO: Package, DISTRIBUICAO: Layers, MONTAGEM: Footprints }
 const sectorFilterOptions = computed(() => SECTOR_OPTIONS
+  .filter(sector => !dashboardDomain.assignedSector.value || sector.id === dashboardDomain.assignedSector.value)
   .map(sector => ({ ...sector, icon: sectorIcons[sector.id] || Layers })))
 
 // --- ESTADOS DE DADOS (CARREGADOS EM 1 ÚNICA REQUISIÇÃO) ---

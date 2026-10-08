@@ -1,0 +1,1657 @@
+[
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "SINTETICO",
+      "code": "QA-SIN-01",
+      "quantity": "1,25",
+      "location": "Área de Triagem QA"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor CORTE!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n1\nCorte\n1\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n1\nde\n1\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "LINHA",
+      "code": "QA-LIN-01",
+      "quantity": "0,125",
+      "location": "QA CORTE A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor CORTE!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n2\nCorte\n2\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n2\nde\n2\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "COURO",
+      "code": "QA-COU-01",
+      "quantity": "2.75",
+      "location": "QA CORTE B"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor CORTE!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n3\nCorte\n3\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n3\nde\n3\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "TECIDO",
+      "code": "QA-ZERO",
+      "quantity": "0",
+      "location": "QA CORTE A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nA quantidade inicial deve ser maior que zero.\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL (M²) *\nEstoque inicial do item (permite decimais ex: 12.5 M²)\nUnidade definida pela categoria.\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n3\nCorte\n3\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n3\nde\n3\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "292",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": "QA-ZERO"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": "PRETO"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "0"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "QA CORTE A",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "OUTROS",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "TECIDO",
+      "code": "QA-NEG",
+      "quantity": "-1",
+      "location": "QA CORTE A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nA quantidade inicial deve ser maior que zero.\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL (M²) *\nEstoque inicial do item (permite decimais ex: 12.5 M²)\nUnidade definida pela categoria.\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n3\nCorte\n3\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n3\nde\n3\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "292",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": "QA-NEG"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": "PRETO"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "-1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "QA CORTE A",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "OUTROS",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Corte",
+      "category": "SINTETICO",
+      "code": "QA-SIN-01",
+      "quantity": "1,25",
+      "location": "Área de Triagem QA"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\n\nEste material já existe no estoque. Para adicionar saldo, utilize a movimentação de entrada do item existente.\n\nTentar novamente\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nEste material já existe no estoque. Para adicionar saldo, utilize a movimentação de entrada do item existente.\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL (M²) *\nEstoque inicial do item (permite decimais ex: 12.5 M²)\nUnidade definida pela categoria.\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n3\nCorte\n3\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n3\nde\n3\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "295",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "293",
+            "text": "COURO"
+          },
+          {
+            "value": "294",
+            "text": "FORRO"
+          },
+          {
+            "value": "296",
+            "text": "LINHA"
+          },
+          {
+            "value": "295",
+            "text": "SINTETICO"
+          },
+          {
+            "value": "292",
+            "text": "TECIDO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MAT-COU-01",
+        "value": "QA-SIN-01"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Couro Nobuck Preto",
+        "value": "PRETO"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1.25"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "Área de Triagem QA",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA CORTE B",
+            "text": "QA CORTE B"
+          },
+          {
+            "value": "QA CORTE A",
+            "text": "QA CORTE A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "OUTROS",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "RETALHO",
+            "text": "RETALHO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "GANHO NO ROLO",
+            "text": "GANHO NO ROLO"
+          },
+          {
+            "value": "ERRO DE ENFESTO",
+            "text": "ERRO DE ENFESTO"
+          },
+          {
+            "value": "DUBLAGEM",
+            "text": "DUBLAGEM"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Código, descrição, modelo, cor...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "inventory-model-filter",
+        "placeholder": "Ex.: Racer Speedzone",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Peças Cortadas",
+      "category": "MOLDE / PEÇA",
+      "code": "QA-PEC-01",
+      "quantity": "3",
+      "location": "QA APOIO A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor APOIO!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nMOLDE / PEÇA\nCÓDIGO DO PRODUTO *\nNOME DO MODELO / LINHA *\nDESCRIÇÃO DA PEÇA *\nMATERIAL / COR *\nGRADE / NUMERAÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA APOIO B\nQA APOIO A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nSOBRA DE PEÇA CORTADA\nOUTROS (Geral)\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n4\nCorte\n3\nPeças Cortadas\n1\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n4\nde\n4\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "297",
+            "text": "MOLDE / PEÇA"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: MOL-GAS-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: RACER SPEEDZONE",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Gáspea Externa",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: Napa Sintética Branca",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 38 ou 37,5",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA APOIO B",
+            "text": "QA APOIO B"
+          },
+          {
+            "value": "QA APOIO A",
+            "text": "QA APOIO A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "SOBRA DE PEÇA CORTADA",
+            "text": "SOBRA DE PEÇA CORTADA"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Pré-Fabricado",
+      "category": "EVA",
+      "code": "QA-EVA-01",
+      "quantity": "5",
+      "location": "QA PRE_FABRICADO A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor PRE_FABRICADO!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nBORRACHA\nEVA\nCOD. PRODUTO / SKU *\nNOME DO MODELO / LINHA *\nCOMBINAÇÃO DA SOLA *\n1 sugestão(ões) salva(s)\nGRADE / NUMERAÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA PRE_FABRICADO B\nQA PRE_FABRICADO A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nSOBRA DE BORRACHA\nSOBRA DE EVA\nOUTROS (Geral)\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n5\nCorte\n3\nPeças Cortadas\n1\nPré-Fabricado\n1\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-EVA-01\n\nQA QA-EVA-01\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n40\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n5\nde\n5\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "299",
+            "text": "BORRACHA"
+          },
+          {
+            "value": "298",
+            "text": "EVA"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: SOL-PEG40-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: RACER CARBON 3",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: BRANCO/GOMA ou PRETO-VERMELHO",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 39 ou 40,5",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA PRE_FABRICADO B",
+            "text": "QA PRE_FABRICADO B"
+          },
+          {
+            "value": "QA PRE_FABRICADO A",
+            "text": "QA PRE_FABRICADO A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "SOBRA DE BORRACHA",
+            "text": "SOBRA DE BORRACHA"
+          },
+          {
+            "value": "SOBRA DE EVA",
+            "text": "SOBRA DE EVA"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Distribuição",
+      "category": "SOLA_PROCESSADA",
+      "code": "QA-SOL-01",
+      "quantity": "4",
+      "location": "QA DISTRIBUICAO A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor DISTRIBUICAO!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCABEDAL\nSOLA_PROCESSADA\nCOD. PRODUTO / SKU *\nNOME DO MODELO / LINHA\nCOMBINAÇÃO / COR *\n1 sugestão(ões) salva(s)\nGRADE / NUMERAÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA DISTRIBUICAO B\nQA DISTRIBUICAO A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nSOBRA DE SOLA PROCESSADA\nSOBRA DE CABEDAL\nOUTROS (Geral)\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n6\nCorte\n3\nPeças Cortadas\n1\nPré-Fabricado\n1\nDistribuição\n1\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SOL-01\n\nQA QA-SOL-01\n\nSALDO\n4 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nSOLA_PROCESSADA\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (4 UN)\n\nVer detalhes\n\nQA-EVA-01\n\nQA QA-EVA-01\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n40\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n6\nde\n6\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "300",
+            "text": "CABEDAL"
+          },
+          {
+            "value": "301",
+            "text": "SOLA_PROCESSADA"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: NKE-PEG40-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: RACER SPEEDZONE",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: PRETO-VERMELHO ou BRANCO/GOMA",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 41 ou 41,5",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA DISTRIBUICAO B",
+            "text": "QA DISTRIBUICAO B"
+          },
+          {
+            "value": "QA DISTRIBUICAO A",
+            "text": "QA DISTRIBUICAO A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "SOBRA DE SOLA PROCESSADA",
+            "text": "SOBRA DE SOLA PROCESSADA"
+          },
+          {
+            "value": "SOBRA DE CABEDAL",
+            "text": "SOBRA DE CABEDAL"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Distribuição",
+      "category": "CABEDAL",
+      "code": "QA-CAB-01",
+      "quantity": "2",
+      "location": "QA DISTRIBUICAO B"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor DISTRIBUICAO!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCABEDAL\nSOLA_PROCESSADA\nCOD. PRODUTO / SKU *\nNOME DO MODELO / LINHA\nCOMBINAÇÃO / COR *\n2 sugestão(ões) salva(s)\nGRADE / NUMERAÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA DISTRIBUICAO B\nQA DISTRIBUICAO A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nSOBRA DE SOLA PROCESSADA\nSOBRA DE CABEDAL\nOUTROS (Geral)\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n7\nCorte\n3\nPeças Cortadas\n1\nPré-Fabricado\n1\nDistribuição\n2\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-CAB-01\n\nQA QA-CAB-01\n\nSALDO\n2 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO B (2 UN)\n\nVer detalhes\n\nQA-SOL-01\n\nQA QA-SOL-01\n\nSALDO\n4 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nSOLA_PROCESSADA\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (4 UN)\n\nVer detalhes\n\nQA-EVA-01\n\nQA QA-EVA-01\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n40\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n7\nde\n7\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "300",
+            "text": "CABEDAL"
+          },
+          {
+            "value": "301",
+            "text": "SOLA_PROCESSADA"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: NKE-PEG40-01",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: RACER SPEEDZONE",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: PRETO-VERMELHO ou BRANCO/GOMA",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 41 ou 41,5",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA DISTRIBUICAO B",
+            "text": "QA DISTRIBUICAO B"
+          },
+          {
+            "value": "QA DISTRIBUICAO A",
+            "text": "QA DISTRIBUICAO A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "SOBRA DE SOLA PROCESSADA",
+            "text": "SOBRA DE SOLA PROCESSADA"
+          },
+          {
+            "value": "SOBRA DE CABEDAL",
+            "text": "SOBRA DE CABEDAL"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      }
+    ]
+  },
+  {
+    "test": {
+      "sector": "Montagem",
+      "category": "PE PRONTO",
+      "code": "QA-MON-01",
+      "quantity": "6",
+      "location": "QA MONTAGEM A"
+    },
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor MONTAGEM!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nPE PRONTO\nCOD. PRODUTO / SKU *\nNOME DO MODELO / LINHA *\nCOMBINAÇÃO / COR *\n1 sugestão(ões) salva(s)\nGRADE / NUMERAÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA MONTAGEM B\nQA MONTAGEM A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nSOBRA DE PÉ PRONTO\nOUTROS (Geral)\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n8\nCorte\n3\nPeças Cortadas\n1\nPré-Fabricado\n1\nDistribuição\n2\nMontagem\n1\n\nSelecione um item para ver detalhes e ações.\n\nQA-MON-01\n\nQA QA-MON-01\n\nSALDO\n6 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA MONTAGEM A (6 UN)\n\nVer detalhes\n\nQA-CAB-01\n\nQA QA-CAB-01\n\nSALDO\n2 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO B (2 UN)\n\nVer detalhes\n\nQA-SOL-01\n\nQA QA-SOL-01\n\nSALDO\n4 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nSOLA_PROCESSADA\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (4 UN)\n\nVer detalhes\n\nQA-EVA-01\n\nQA QA-EVA-01\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n40\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.25 M²)\n\nVer detalhes\n\nMostrando\n1\na\n8\nde\n8\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione uma categoria..."
+          },
+          {
+            "value": "302",
+            "text": "PE PRONTO"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: NKE-PEG40-BLK",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: RACER SPEEDZONE",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: BRANCO/PRETO ou PRETO-GOMA",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 38 ou 38,5",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: 10",
+        "value": "1"
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione a Prateleira..."
+          },
+          {
+            "value": "Área de Triagem QA",
+            "text": "Área de Triagem QA"
+          },
+          {
+            "value": "QA MONTAGEM B",
+            "text": "QA MONTAGEM B"
+          },
+          {
+            "value": "QA MONTAGEM A",
+            "text": "QA MONTAGEM A"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Selecione um motivo (opcional)..."
+          },
+          {
+            "value": "SOBRA DE REQUISIÇÃO",
+            "text": "SOBRA DE REQUISIÇÃO (Geral)"
+          },
+          {
+            "value": "SOBRA DE PÉ PRONTO",
+            "text": "SOBRA DE PÉ PRONTO"
+          },
+          {
+            "value": "OUTROS",
+            "text": "OUTROS (Geral)"
+          },
+          {
+            "value": "DEVOLUÇÃO",
+            "text": "DEVOLUÇÃO (Geral)"
+          },
+          {
+            "value": "CONSUMO",
+            "text": "CONSUMO (Geral)"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Detalhe complementar...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "checkbox",
+        "id": "",
+        "placeholder": "",
+        "value": "on"
+      }
+    ]
+  }
+]

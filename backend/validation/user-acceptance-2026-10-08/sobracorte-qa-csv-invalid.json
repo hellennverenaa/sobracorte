@@ -1,0 +1,131 @@
+{
+  "url": "/sobra_corte/settings",
+  "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\nForam encontrados erros de validação na planilha. Nenhum registro foi importado.\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nImportação Multi-Setor em Lote (CSV)\n\nCadastre materiais e componentes fabris em lote para todos os setores industriais.\n\nModelo: Corte\nModelo: Peças Cortadas\nModelo: Pré-Fabricado\nModelo: Distribuição\nModelo: Montagem\nBaixar Modelo (.csv)\nPadrão Exigido para o Arquivo CSV — CORTE (Matéria-Prima)\n\nPara garantir o processamento correto e evitar rejeição no setor selecionado, seu arquivo .csv deve utilizar delimitador por ponto e vírgula (;) ou vírgula (,) e conter as colunas especificadas abaixo no cabeçalho (primeira linha):\n\nCOLUNA\tOBRIGATORIEDADE\tDESCRIÇÃO & EXEMPLO\ncodigo\tObrigatório\tCódigo único do material. Ex: 1001\ndescricao\tObrigatório\tDescrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM\ncategoria\tObrigatório\tCategoria cadastrada e disponível para o setor. Define unidade e modo de cadastro.\nlado\tOpcional\tPreencha E, D ou PAR somente para categorias configuradas por lado/par.\nunidade\tOpcional\tOpcional: se preenchida, precisa corresponder à unidade definida na categoria.\nquantidade\tOpcional\tSaldo numérico inicial. Ex: 150.0 (Padrão: 0)\nprateleira\tOpcional\tLocalização ou prateleira física. Ex: A-01, B-02\nsubsetor\tOpcional\tSubsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.\nEXEMPLO DE ARQUIVO CSV VÁLIDO (CORTE)\nCODIFICAÇÃO: UTF-8\ncodigo;descricao;categoria;lado;unidade;quantidade;prateleira;subsetor\n1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;;m²;150.0;A-01;\n1002;FORRO TESPONTADO AZUL;FORRO;;m²;80.0;A-02;\n1003;COURO LEGITIMO CASTANHO;COURO;;m;45.5;B-01;\n1004;LINHA DE COSTURA REFORCADA;LINHA;;kg;20.0;C-01;\n\n\nArraste e solte o arquivo CSV aqui\n\nou clique no botão abaixo para navegar nos arquivos\n\nSelecionar Arquivo .CSV\n\nsobracorte-qa-invalid.csv\n\n0.1 KB\n\nSetor de Destino Padrão:\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n(Utilizado caso a planilha não contenha a coluna 'setor')\nValidar e Visualizar Importação\n\nFalha na Validação da Planilha (Nenhum item foi importado)\n\nForam encontrados erros de validação na planilha. Nenhum registro foi importado.\n\nINCONSISTÊNCIAS ENCONTRADAS (1 ERRO):\nLINHA\tCOLUNA\tVALOR\tMOTIVO DA REJEIÇÃO\n2\tquantidade\tabc\tA quantidade deve ser um número válido maior ou igual a zero, com até três casas decimais.",
+  "fields": [
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "id": "",
+      "value": "CORTE",
+      "options": [
+        {
+          "value": "CORTE",
+          "text": "Modelo: Corte"
+        },
+        {
+          "value": "APOIO",
+          "text": "Modelo: Peças Cortadas"
+        },
+        {
+          "value": "PRE_FABRICADO",
+          "text": "Modelo: Pré-Fabricado"
+        },
+        {
+          "value": "DISTRIBUICAO",
+          "text": "Modelo: Distribuição"
+        },
+        {
+          "value": "MONTAGEM",
+          "text": "Modelo: Montagem"
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "file",
+      "id": "",
+      "placeholder": "",
+      "value": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "id": "",
+      "value": "CORTE",
+      "options": [
+        {
+          "value": "CORTE",
+          "text": "Corte"
+        },
+        {
+          "value": "APOIO",
+          "text": "Peças Cortadas"
+        },
+        {
+          "value": "PRE_FABRICADO",
+          "text": "Pré-Fabricado"
+        },
+        {
+          "value": "DISTRIBUICAO",
+          "text": "Distribuição"
+        },
+        {
+          "value": "MONTAGEM",
+          "text": "Montagem"
+        }
+      ]
+    }
+  ],
+  "buttons": [
+    {
+      "text": "",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Sair",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Categorias",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Subsetores",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Localizações / Prateleiras",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Origens / Motivos",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Importar CSV",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Unidade Fabril",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Baixar Modelo (.csv)",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "",
+      "title": "",
+      "disabled": false
+    },
+    {
+      "text": "Validar e Visualizar Importação",
+      "title": "",
+      "disabled": false
+    }
+  ]
+}

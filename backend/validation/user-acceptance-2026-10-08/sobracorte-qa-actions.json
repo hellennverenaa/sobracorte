@@ -1,0 +1,2060 @@
+[
+  {
+    "name": "Movimentação ENTRADA 0.125",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nMovimentação (ENTRADA) registrada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\n1\nSelecionados:\nBusca: QA-SIN-01\nLimpar filtros\nSetor do estoque\nTodos os Setores\n1\nCorte\n1\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,375 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.375 M²)\n\nVer detalhes\n\nMostrando\n1\na\n1\nde\n1\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": "QA-SIN-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (1) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (1) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (0) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (0) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (0) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (0) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Limpar busca",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": true
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Movimentação SAÍDA 0.25",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nMovimentação (SAIDA) registrada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\n1\nSelecionados:\nBusca: QA-SIN-01\nLimpar filtros\nSetor do estoque\nTodos os Setores\n1\nCorte\n1\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nÁrea de Triagem QA (1.125 M²)\n\nVer detalhes\n\nMostrando\n1\na\n1\nde\n1\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": "QA-SIN-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (1) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (1) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (0) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (0) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (0) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (0) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Limpar busca",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": true
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Movimentação TRANSFERÊNCIA 0.5",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nMovimentação (TRANSFERENCIA) registrada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\n1\nSelecionados:\nBusca: QA-SIN-01\nLimpar filtros\nSetor do estoque\nTodos os Setores\n1\nCorte\n1\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nQA CORTE B (0.5 M²) | Área de Triagem QA (0.625 M²)\n\nVer detalhes\n\nMostrando\n1\na\n1\nde\n1\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": "QA-SIN-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (1) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (1) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (0) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (0) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (0) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (0) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Limpar busca",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": true
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Movimentação SAÍDA 9999",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\n1\nSelecionados:\nBusca: QA-SIN-01\nLimpar filtros\nSetor do estoque\nTodos os Setores\n1\nCorte\n1\nPeças Cortadas\n0\nPré-Fabricado\n0\nDistribuição\n0\nMontagem\n0\n\nSelecione um item para ver detalhes e ações.\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nQA CORTE B (0.5 M²) | Área de Triagem QA (0.625 M²)\n\nVer detalhes\n\nMostrando\n1\na\n1\nde\n1\nitens encontrados em todos os setores\nAnterior\n1 / 1\nPróxima\nMovimentar Estoque\n×\nQA-SIN-01\nSETOR CORTE\nPRETO\nCategoria:\nSINTETICO\nSaldo Atual Total:\n1,125 M²\nMais detalhes e localizações\nTIPO DE OPERAÇÃO *\nENTRADA\nSAÍDA\nTRANSFERÊNCIA\nQUANTIDADE A MOVIMENTAR *\nSaldo disponível na prateleira: 0,5 M²\nM²\n\nQuantidade excede o saldo disponível (0,5 M²)\n\nPRATELEIRA DE SAÍDA *\nQA CORTE B (Saldo: 0,5 M²)\nÁrea de Triagem QA (Saldo: 0,625 M²)\nOBSERVAÇÕES / JUSTIFICATIVA\nQuantidade excede o saldo da prateleira (máx: 0,5 M²).\nExcluir\nFechar\nConfirmar SAIDA",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": "QA-SIN-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (1) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (1) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (0) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (0) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (0) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (0) "
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "placeholder": "0.00",
+          "value": "9999"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "265",
+          "options": [
+            {
+              "value": "265",
+              "text": "QA CORTE B (Saldo: 0,5 M²)"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA (Saldo: 0,625 M²)"
+            }
+          ]
+        },
+        {
+          "tag": "TEXTAREA",
+          "type": "textarea",
+          "id": "",
+          "placeholder": "Detalhes operacionais sobre a movimentação...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Limpar busca",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem0",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": true
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "ENTRADA",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "SAÍDA",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "TRANSFERÊNCIA",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Excluir",
+          "title": "A exclusão exige estoque zerado",
+          "disabled": true
+        },
+        {
+          "text": "Fechar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar SAIDA",
+          "title": "",
+          "disabled": true
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Paginação próxima",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n79\nCorte\n68\nPeças Cortadas\n1\nPré-Fabricado\n3\nDistribuição\n4\nMontagem\n3\n\nSelecione um item para ver detalhes e ações.\n\nQA-PAG-20\n\nTECIDO AZUL 20\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-19\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-18\n\nTECIDO AZUL 18\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-17\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-16\n\nTECIDO AZUL 16\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-15\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-14\n\nTECIDO AZUL 14\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-13\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-12\n\nTECIDO AZUL 12\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-11\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-10\n\nTECIDO AZUL 10\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-9\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-8\n\nTECIDO AZUL 8\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-7\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-6\n\nTECIDO AZUL 6\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-5\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-4\n\nTECIDO AZUL 4\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-3\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-2\n\nTECIDO AZUL 2\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-1\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-0\n\nTECIDO AZUL 0\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-MON-01\n\nQA QA-MON-01\n\nSALDO\n6 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA MONTAGEM A (6 UN)\n\nVer detalhes\n\nQA-CAB-01\n\nQA QA-CAB-01\n\nSALDO\n2 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO B (2 UN)\n\nVer detalhes\n\nQA-SOL-01\n\nQA QA-SOL-01\n\nSALDO\n4 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nSOLA_PROCESSADA\nGRADE\n01\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (4 UN)\n\nVer detalhes\n\nQA-EVA-01\n\nQA QA-EVA-01\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n40\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA QA-PEC-01\n\nQA QA-PEC-01\n\nSALDO\n3 UN\nSETOR\nPeças Cortadas\nTIPO / VARIAÇÃO\nMOLDE / PEÇA\nGRADE\n01\nPRATELEIRA\nQA APOIO A (3 UN)\n\nVer detalhes\n\nQA-COU-01\n\nPRETO\n\nSALDO\n2,75 M\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nCOURO\nPRATELEIRA\nQA CORTE B (2.75 M)\n\nVer detalhes\n\nQA-LIN-01\n\nPRETO\n\nSALDO\n0,125 KG\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nLINHA\nPRATELEIRA\nQA CORTE A (0.125 KG)\n\nVer detalhes\n\nQA-SIN-01\n\nPRETO\n\nSALDO\n1,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nQA CORTE B (0.5 M²) | Área de Triagem QA (0.625 M²)\n\nVer detalhes\n\nMostrando\n51\na\n79\nde\n79\nitens encontrados em todos os setores\nAnterior\n2 / 2\nPróxima",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (79) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (68) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (1) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (3) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (4) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (3) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores79",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte68",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição4",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": false
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": true
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      },
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460498409.196,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Paginação anterior",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n79\nCorte\n68\nPeças Cortadas\n1\nPré-Fabricado\n3\nDistribuição\n4\nMontagem\n3\n\nSelecione um item para ver detalhes e ações.\n\nQA-PAR-MONTAGEM\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA MONTAGEM A (5 UN)\n\nVer detalhes\n\nQA-PAR-MONTAGEM\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA MONTAGEM A (5 UN)\n\nVer detalhes\n\nQA-PAR-DISTRIBUICAO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA DISTRIBUICAO A (5 UN)\n\nVer detalhes\n\nQA-PAR-DISTRIBUICAO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (5 UN)\n\nVer detalhes\n\nQA-PAR-PRE_FABRICADO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA-PAR-PRE_FABRICADO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA-PAG-64\n\nTECIDO AZUL 64\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-63\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-62\n\nTECIDO AZUL 62\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-61\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-60\n\nTECIDO AZUL 60\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-59\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-58\n\nTECIDO AZUL 58\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-57\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-56\n\nTECIDO AZUL 56\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-55\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-54\n\nTECIDO AZUL 54\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-53\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-52\n\nTECIDO AZUL 52\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-51\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-50\n\nTECIDO AZUL 50\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-49\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-48\n\nTECIDO AZUL 48\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-47\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-46\n\nTECIDO AZUL 46\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-45\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-44\n\nTECIDO AZUL 44\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-43\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-42\n\nTECIDO AZUL 42\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-41\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-40\n\nTECIDO AZUL 40\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-39\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-38\n\nTECIDO AZUL 38\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-37\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-36\n\nTECIDO AZUL 36\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-35\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-34\n\nTECIDO AZUL 34\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-33\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-32\n\nTECIDO AZUL 32\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-31\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-30\n\nTECIDO AZUL 30\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-29\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-28\n\nTECIDO AZUL 28\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-27\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-26\n\nTECIDO AZUL 26\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-25\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-24\n\nTECIDO AZUL 24\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-23\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-22\n\nTECIDO AZUL 22\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-21\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nMostrando\n1\na\n50\nde\n79\nitens encontrados em todos os setores\nAnterior\n1 / 2\nPróxima",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (79) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (68) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (1) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (3) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (4) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (3) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores79",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte68",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição4",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      },
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460498409.196,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pares disponíveis",
+    "snapshot": {
+      "url": "/sobra_corte/mounting-pairs",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nCasamento de Pares Multi-Setor\n\nCombine lados esquerdo e direito de categorias configuradas por lado/par.\n\nBuscar\nAtualizar\nMontagem\n(Categorias por lado/par)\nPré-Fabricado\n(Categorias por lado/par)\nDistribuição\n(Categorias por lado/par)\nOPORTUNIDADE DE RECUPERAÇÃO — Montagem\n1 combinações prontas para casar\n\nLocalize os itens nas prateleiras indicadas, retire fisicamente e confirme para liberar o par completo.\n\nPARES FORMÁVEIS\n5\nCOD. PRODUTO / SKU\nPE PRONTO\n\nPE PRONTO\n\nQA-PAR-MONTAGEM\nMODELO QA\nCombinação: PRETO/BRANCO\nGRADE\n\n7,5\n\nPÉ ESQUERDO (E)\nQtd: 5\nPrateleira:\n\nQA MONTAGEM A\n\nPÉ DIREITO (D)\nQtd: 5\nPrateleira:\n\nQA MONTAGEM A\n\nForma 5 par(es) completo(s)\nCasar e Baixar",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Buscar por código, modelo ou grade...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Casar e Baixar",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      },
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460498409.196,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Confirmação casamento",
+    "snapshot": {
+      "url": "/sobra_corte/mounting-pairs",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nCasamento de Pares Multi-Setor\n\nCombine lados esquerdo e direito de categorias configuradas por lado/par.\n\nBuscar\nAtualizar\nMontagem\n(Categorias por lado/par)\nPré-Fabricado\n(Categorias por lado/par)\nDistribuição\n(Categorias por lado/par)\nOPORTUNIDADE DE RECUPERAÇÃO — Montagem\n1 combinações prontas para casar\n\nLocalize os itens nas prateleiras indicadas, retire fisicamente e confirme para liberar o par completo.\n\nPARES FORMÁVEIS\n5\nCOD. PRODUTO / SKU\nPE PRONTO\n\nPE PRONTO\n\nQA-PAR-MONTAGEM\nMODELO QA\nCombinação: PRETO/BRANCO\nGRADE\n\n7,5\n\nPÉ ESQUERDO (E)\nQtd: 5\nPrateleira:\n\nQA MONTAGEM A\n\nPÉ DIREITO (D)\nQtd: 5\nPrateleira:\n\nQA MONTAGEM A\n\nForma 5 par(es) completo(s)\nCasar e Baixar\nConfirmar Casamento de Par (Montagem)\n×\nCOD. PRODUTO / SKU:\nQA-PAR-MONTAGEM\nTIPO / MATERIAL:\nPE PRONTO\nMODELO / LINHA:\nMODELO QA\nCOMBINAÇÃO / COR:\nPRETO/BRANCO\nGRADE:\n7,5\n\nLOCALIZAÇÃO DAS PRATELEIRAS:\n\nPÉ ESQUERDO (E)\nQA MONTAGEM A\nPÉ DIREITO (D)\nQA MONTAGEM A\nQUANTIDADE A CASAR *\nMáximo disponível: 5 par(es)\nOBSERVAÇÃO / DESTINO\nCancelar\nConfirmar Retirada e Baixar",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Buscar por código, modelo ou grade...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "placeholder": "",
+          "value": "1"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "",
+          "value": "Pares de Montagem retirados fisicamente das prateleiras e encaminhados para a produção"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição(Categorias por lado/par)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Casar e Baixar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar Retirada e Baixar",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "events": [
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460484495.618,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      },
+      {
+        "method": "Log.entryAdded",
+        "params": {
+          "entry": {
+            "source": "intervention",
+            "level": "error",
+            "text": "Blocked attempt to show a 'beforeunload' confirmation panel for a frame that never had a user gesture since its load. https://www.chromestatus.com/feature/5082396709879808",
+            "timestamp": 1791460498409.196,
+            "url": "http://127.0.0.1:24180/sobra_corte/inventory?sector=TODOS&q=QA-SIN-01&page=1"
+          }
+        }
+      }
+    ]
+  }
+]

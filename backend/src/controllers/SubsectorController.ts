@@ -12,9 +12,16 @@ class SubsectorApiError extends Error {
   }
 }
 
-function normalizedName(value: string) {
-  return value.trim().normalize('NFKD').replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-zA-Z0-9]+/gu, '_').replace(/^_+|_+$/gu, '').toUpperCase();
+async function normalizedName(value: string) {
+  // A mesma expressão da constraint: o PostgreSQL define a chave, inclusive
+  // para acentos e regras de caixa da collation instalada.
+  const [row] = await prisma.$queryRaw<Array<{ key: string }>>`
+    SELECT upper(regexp_replace(
+      regexp_replace(${value}::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'),
+      '[[:space:]-]+', '_', 'g'
+    )) AS key
+  `;
+  return row.key;
 }
 
 function positiveIds(value: unknown, fieldName: string): number[] {
@@ -141,7 +148,7 @@ export class SubsectorController {
       const sector = requireActiveStockSector(String(req.body?.sector || ''));
       requireManagementAccess(context, sector);
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-      const key = normalizedName(name);
+      const key = await normalizedName(name);
       if (!name || !key) throw new SubsectorApiError('Informe o nome do subsetor.');
       if (name.length > 100) throw new SubsectorApiError('O nome do subsetor deve ter no máximo 100 caracteres.');
 
@@ -207,7 +214,7 @@ export class SubsectorController {
       }
 
       const name = req.body?.name === undefined ? existing.name : typeof req.body.name === 'string' ? req.body.name.trim() : '';
-      const key = normalizedName(name);
+      const key = await normalizedName(name);
       if (!name || !key) throw new SubsectorApiError('Informe o nome do subsetor.');
       if (name.length > 100) throw new SubsectorApiError('O nome do subsetor deve ter no máximo 100 caracteres.');
       const active = req.body?.active === undefined ? existing.active : req.body.active;

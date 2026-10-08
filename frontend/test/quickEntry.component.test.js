@@ -150,3 +150,18 @@ test('categoria de Corte permite lado/par e categoria sem lado esconde a escolha
   assert.equal(ordinary.element.querySelector('[aria-label="Lado do material"]'), null);
   ordinary.unmount();
 });
+
+test('origem opcional permite envio com seleção vazia', async () => {
+  const entry = await openEntry();
+  const writes = [];
+  api.post = async (_url, payload) => { writes.push(payload.items[0]); return { data: {} }; };
+  try {
+    await entry.fill();
+    await entry.set('Origem', '');
+    assert.equal(entry.field('Origem').required, false);
+    assert.equal(entry.element.querySelector('form').checkValidity(), true);
+    await entry.submit();
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].origem, '');
+  } finally { entry.unmount(); }
+});

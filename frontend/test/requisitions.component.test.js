@@ -92,3 +92,25 @@ test('página de requisições consulta a inbox ao montar', async () => {
   assert.equal(Boolean(mounted.element.querySelector('[aria-label="Fechar nova solicitação"]')), false)
   mounted.unmount()
 })
+
+test('leitor consulta inbox sem ação de cadastro nem catálogo restrito', async () => {
+  const { createPinia } = await import('pinia');
+  const { createRouter, createMemoryHistory } = await import('vue-router');
+  const component = await loadComponent('src/pages/Requisitions.vue');
+  const pinia = createPinia();
+  pinia.state.value.auth = { user: { role: 'leitor', unit: { code: 'TESTE' } }, isAuthenticated: true, availableUnits: [] };
+  const calls = [];
+  api.get = async endpoint => {
+    calls.push(endpoint);
+    return endpoint === '/requisitions' ? { data: { data: [], total: 0, totalPages: 1 } } : { data: [] };
+  };
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/requisitions', component }] });
+  await router.push('/requisitions');
+  const mounted = await mountComponent(component, { pinia, router });
+  try {
+    await flushPromises();
+    assert.ok(calls.includes('/requisitions'));
+    assert.equal(calls.includes('/settings/categories'), false);
+    assert.equal([...mounted.element.querySelectorAll('button')].some(button => button.textContent.includes('Nova Solicitação')), false);
+  } finally { mounted.unmount(); }
+});

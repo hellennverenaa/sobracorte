@@ -5,6 +5,7 @@ import {
   locationScopeWhere,
   stockItemScopeWhere,
   stockMovementScopeWhere,
+  stockItemSubsectorSql,
 } from '../src/auth/subsectorAccess';
 import { StockAccessError } from '../src/auth/stockAccess';
 import { prisma } from '../src/prisma';
@@ -99,7 +100,10 @@ test('API cria subsetor e normaliza nome sem duplicar categoria', async t => {
     subsectorConfig: { create: async ({ data }: any) => { createData = data; return { id: 41, ...data }; } },
     stockMovement: { create: async () => ({ id: 91 }) },
   };
-  replace(t, prisma, { $transaction: async (callback: any) => callback(tx) });
+  replace(t, prisma, {
+    $queryRaw: async () => [{ key: 'SERIGRAFIA' }],
+    $transaction: async (callback: any) => callback(tx),
+  });
   const result = response();
   await tenantStorage.run({ tenantId: 3 }, () => new SubsectorController().create({
     tenant: { id: 3 },
@@ -115,7 +119,7 @@ test('API cria subsetor e normaliza nome sem duplicar categoria', async t => {
 test('API rejeita categoria de outra unidade/setor antes de criar subsetor', async t => {
   let transactionStarted = false;
   replace(t, prisma.categoryConfig, { findMany: async () => [] });
-  replace(t, prisma, { $transaction: async () => { transactionStarted = true; } });
+  replace(t, prisma, { $queryRaw: async () => [{ key: 'SERIGRAFIA' }], $transaction: async () => { transactionStarted = true; } });
   const result = response();
   await tenantStorage.run({ tenantId: 3 }, () => new SubsectorController().create({
     tenant: { id: 3 },
@@ -206,4 +210,36 @@ test('API preserva concessão anterior de subsetor arquivado sem permitir nova c
   } as any, result.res));
   assert.equal(result.status, 200);
   assert.deepEqual(saved, [{ bindingId: 24, subsectorId: 8, factoryUnitId: 3 }]);
+});
+
+test('SQL de subsetor usa identificadores de coluna e parametriza somente o setor', () => {
+  for (const alias of ['e', 'd', 'm', 's'] as const) {
+    const query = stockItemSubsectorSql(alias, { role: 'admin_setor', assignedSector: 'CORTE', subsectorIds: [] });
+    assert.ok(query.sql.includes(`ss."factoryUnitId" = ${alias}."factoryUnitId"`));
+    assert.deepEqual(query.values, ['CORTE']);
+  }
+});
+
+test('cadastro conserva a normalização acentuada retornada pelo PostgreSQL', async t => {
+  let created: any;
+  const tx: any = {
+    subsectorConfig: { create: async ({ data }: any) => { created = data; return { id: 42, ...data }; } },
+    stockMovement: { create: async () => ({ id: 92 }) },
+  };
+  replace(t, prisma, {
+    $queryRaw: async (strings: TemplateStringsArray, value: string) => {
+      assert.equal(value, 'Revisão Café');
+      assert.ok(strings.join('').includes('[[:space:]-]+'));
+      return [{ key: 'REVISÃO_CAFÉ' }];
+    },
+    $transaction: async (callback: any) => callback(tx),
+  });
+  const result = response();
+  await tenantStorage.run({ tenantId: 3 }, () => new SubsectorController().create({
+    tenant: { id: 3 }, user: { usuario: 'ADMIN', nome: 'Admin' },
+    effectiveContext: { effectiveRole: 'admin', assignedSector: null, subsectorIds: [], isGlobalAdmin: false },
+    body: { sector: 'CORTE', name: 'Revisão Café', categoryMode: 'ALL' },
+  } as any, result.res));
+  assert.equal(result.status, 201);
+  assert.equal(created.normalizedName, 'REVISÃO_CAFÉ');
 });

@@ -1,0 +1,765 @@
+[
+  {
+    "name": "Criação subsetor com acentos",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\nSubsetor \"QA Revisão Café 20261008\" criado.\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nSubsetores\n\nOrganize materiais dentro de um setor. Itens antigos sem subsetor continuam no fluxo atual e não serão reclassificados.\n\nCriar subsetor\nSETOR PRINCIPAL\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nNOME DO SUBSETOR\nCATEGORIAS DE MATERIAL ACEITAS\nTodas as categorias do setor\nPadrão; categorias novas também ficam disponíveis.\nSelecionar categorias\nUsa categorias já cadastradas, sem criar cópias.\nCriar subsetor\nSubsetores cadastrados\n2\nQA Revisão Café 20261008\nCorte\nAtivo\n\nTodas as categorias do setor · 0 item(ns) · 0 localização(ões)\n\nEditar\nArquivar\nQASERIGRAFIA\nCorte\nAtivo\n\nTodas as categorias do setor · 0 item(ns) · 0 localização(ões)\n\nEditar\nArquivar",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "subsector-parent-sector",
+          "value": "CORTE",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "subsector-name",
+          "placeholder": "Ex.: Serigrafia",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "ALL"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "SELECTED"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Criar subsetor",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Editar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Arquivar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Editar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Arquivar",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Entrada sem origem",
+    "snapshot": {
+      "url": "/sobra_corte/inventory",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nEntrada realizada com sucesso!\nEstoque Multi-Setor\n\nGestão centralizada de saldos e sobras nos 5 setores industriais\n\nAtualizar\nNova Entrada Rápida\nNova Entrada Rápida\n\nCadastre saldo no setor escolhido\n\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nItem cadastrado com sucesso no setor CORTE!\nDADOS DO MATERIAL E VARIAÇÕES\nCATEGORIA DO MATERIAL *\nSelecione uma categoria...\nCOURO\nFORRO\nLINHA\nSINTETICO\nTECIDO\nCÓDIGO DO MATERIAL *\nNOME / DESCRIÇÃO *\nENTRADA NO ESTOQUE\nQUANTIDADE INICIAL *\nEstoque inicial do item (permite decimais ex: 12.5 )\nSUBSETOR (OPCIONAL)\nSem subsetor (fluxo atual do setor)\nQA Revisão Café 20261008\nQASERIGRAFIA\nPRATELEIRA / LOCALIZAÇÃO (CONFIGURAÇÕES) *\nSelecione a Prateleira...\nÁrea de Triagem QA\nQA CORTE B\nQA CORTE A\nMOTIVO / ORIGEM DA SOBRA (OPCIONAL)\nSelecione um motivo (opcional)...\nSOBRA DE REQUISIÇÃO (Geral)\nRETALHO\nOUTROS (Geral)\nGANHO NO ROLO\nERRO DE ENFESTO\nDUBLAGEM\nDEVOLUÇÃO (Geral)\nCONSUMO (Geral)\nO motivo escolhido será registrado no histórico desta entrada.\nOBSERVAÇÃO ADICIONAL (OPCIONAL)\nManter dados após salvar\nCancelar\nGravar Entrada\nBUSCAR POR CÓDIGO, DESCRIÇÃO OU CARACTERÍSTICA\nBuscar\nFiltros\nSetor do estoque\nTodos os Setores\n82\nCorte\n71\nPeças Cortadas\n1\nPré-Fabricado\n3\nDistribuição\n4\nMontagem\n3\n\nSelecione um item para ver detalhes e ações.\n\nQA-OPTIONAL-FIX\n\nQA ENTRADA SEM ORIGEM\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nSINTETICO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-CSV-002\n\nFORRO SINTÉTICO\n\nSALDO\n2,5 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nFORRO\nPRATELEIRA\nQA CORTE B (2.5 M²)\n\nVer detalhes\n\nQA-CSV-001\n\nTECIDO CAFÉ; AZUL\n\nSALDO\n0,123 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.123 M²)\n\nVer detalhes\n\nQA-PAR-MONTAGEM\n\nMODELO QA\n\nSALDO\n3 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA MONTAGEM A (3 UN)\n\nVer detalhes\n\nQA-PAR-MONTAGEM\n\nMODELO QA\n\nSALDO\n3 UN\nSETOR\nMontagem (Pés Órfãos)\nTIPO / VARIAÇÃO\nPE PRONTO\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA MONTAGEM A (3 UN)\n\nVer detalhes\n\nQA-PAR-DISTRIBUICAO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA DISTRIBUICAO A (5 UN)\n\nVer detalhes\n\nQA-PAR-DISTRIBUICAO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nDistribuição\nTIPO / VARIAÇÃO\nCABEDAL\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA DISTRIBUICAO A (5 UN)\n\nVer detalhes\n\nQA-PAR-PRE_FABRICADO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n7,5\nLADO\nPé direito (D)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA-PAR-PRE_FABRICADO\n\nMODELO QA\n\nSALDO\n5 UN\nSETOR\nPré-Fabricado (Solas)\nTIPO / VARIAÇÃO\nEVA\nGRADE\n7,5\nLADO\nPé esquerdo (E)\nPRATELEIRA\nQA PRE_FABRICADO A (5 UN)\n\nVer detalhes\n\nQA-PAG-64\n\nTECIDO AZUL 64\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-63\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-62\n\nTECIDO AZUL 62\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-61\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-60\n\nTECIDO AZUL 60\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-59\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-58\n\nTECIDO AZUL 58\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-57\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-56\n\nTECIDO AZUL 56\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-55\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-54\n\nTECIDO AZUL 54\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-53\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-52\n\nTECIDO AZUL 52\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-51\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-50\n\nTECIDO AZUL 50\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-49\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-48\n\nTECIDO AZUL 48\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-47\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-46\n\nTECIDO AZUL 46\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-45\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-44\n\nTECIDO AZUL 44\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-43\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-42\n\nTECIDO AZUL 42\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-41\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-40\n\nTECIDO AZUL 40\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-39\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-38\n\nTECIDO AZUL 38\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-37\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-36\n\nTECIDO AZUL 36\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-35\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-34\n\nTECIDO AZUL 34\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-33\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-32\n\nTECIDO AZUL 32\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-31\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-30\n\nTECIDO AZUL 30\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-29\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-28\n\nTECIDO AZUL 28\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nQA-PAG-27\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n1.000,999 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1000.999 M²)\n\nVer detalhes\n\nQA-PAG-26\n\nTECIDO AZUL 26\n\nSALDO\n1,25 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (1.25 M²)\n\nVer detalhes\n\nQA-PAG-25\n\nTECIDO CAFÉ / AÇÃO\n\nSALDO\n0,125 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.125 M²)\n\nVer detalhes\n\nQA-PAG-24\n\nTECIDO AZUL 24\n\nSALDO\n0,001 M²\nSETOR\nCorte (Matéria-Prima)\nTIPO / VARIAÇÃO\nTECIDO\nPRATELEIRA\nQA CORTE A (0.001 M²)\n\nVer detalhes\n\nMostrando\n1\na\n50\nde\n82\nitens encontrados em todos os setores\nAnterior\n1 / 2\nPróxima",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione uma categoria..."
+            },
+            {
+              "value": "293",
+              "text": "COURO"
+            },
+            {
+              "value": "294",
+              "text": "FORRO"
+            },
+            {
+              "value": "296",
+              "text": "LINHA"
+            },
+            {
+              "value": "295",
+              "text": "SINTETICO"
+            },
+            {
+              "value": "292",
+              "text": "TECIDO"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: MAT-COU-01",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: Couro Nobuck Preto",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: 10",
+          "value": "1"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "entry-subsector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Sem subsetor (fluxo atual do setor)"
+            },
+            {
+              "value": "4",
+              "text": "QA Revisão Café 20261008"
+            },
+            {
+              "value": "3",
+              "text": "QASERIGRAFIA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a Prateleira..."
+            },
+            {
+              "value": "Área de Triagem QA",
+              "text": "Área de Triagem QA"
+            },
+            {
+              "value": "QA CORTE B",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "QA CORTE A",
+              "text": "QA CORTE A"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione um motivo (opcional)..."
+            },
+            {
+              "value": "SOBRA DE REQUISIÇÃO",
+              "text": "SOBRA DE REQUISIÇÃO (Geral)"
+            },
+            {
+              "value": "RETALHO",
+              "text": "RETALHO"
+            },
+            {
+              "value": "OUTROS",
+              "text": "OUTROS (Geral)"
+            },
+            {
+              "value": "GANHO NO ROLO",
+              "text": "GANHO NO ROLO"
+            },
+            {
+              "value": "ERRO DE ENFESTO",
+              "text": "ERRO DE ENFESTO"
+            },
+            {
+              "value": "DUBLAGEM",
+              "text": "DUBLAGEM"
+            },
+            {
+              "value": "DEVOLUÇÃO",
+              "text": "DEVOLUÇÃO (Geral)"
+            },
+            {
+              "value": "CONSUMO",
+              "text": "CONSUMO (Geral)"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Detalhe complementar...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "on"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Código, descrição, modelo, cor...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-model-filter",
+          "placeholder": "Ex.: Racer Speedzone",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "inventory-material-color-filter",
+          "placeholder": "Ex.: Napa sintética preta",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-location-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todas as localizações"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-type-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os tipos"
+            },
+            {
+              "value": "BORRACHA",
+              "text": "Borracha"
+            },
+            {
+              "value": "CABEDAL",
+              "text": "Cabedal"
+            },
+            {
+              "value": "EVA",
+              "text": "EVA (Sola não processada)"
+            },
+            {
+              "value": "SOLA_PROCESSADA",
+              "text": "Sola processada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-balance-filter",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os saldos"
+            },
+            {
+              "value": "with_balance",
+              "text": "Com saldo"
+            },
+            {
+              "value": "zero_balance",
+              "text": "Saldo zerado"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-page-size",
+          "value": "50",
+          "options": [
+            {
+              "value": "50",
+              "text": "50 itens por página"
+            },
+            {
+              "value": "100",
+              "text": "100 itens por página"
+            },
+            {
+              "value": "200",
+              "text": "200 itens por página"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "inventory-sector-mobile",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (82) "
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (71) "
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas (1) "
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (3) "
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição (4) "
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (3) "
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "Atualizar estoque",
+          "disabled": false
+        },
+        {
+          "text": "Nova Entrada Rápida",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Gravar Entrada",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Todos os Setores82",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Corte71",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Peças Cortadas1",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pré-Fabricado3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Distribuição4",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Montagem3",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Primeira Página",
+          "disabled": true
+        },
+        {
+          "text": "Anterior",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Próxima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Última Página",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Atendimento unidade M²",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n2\n\nCOM SALDO EM SOBRAS\n\n1 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAtender Requisição REQ-2026-0002\n×\nQA-SIN-01 — SINTETICO\nPRETO\nA baixa será feita diretamente neste estoque fornecedor; não haverá transferência para outro setor.\nEstoque fornecedor: Corte\nMaterial que será baixado: QA-SIN-01 — PRETO\nCompatibilidade: Material compatível no setor CORTE.\nSolicitado: 0.25 | Disponível em Sobras: 1 M²\nPrateleiras: QA CORTE B (0.375), Área de Triagem QA (0.625)\nQUANTIDADE A ATENDER / BAIXAR (M²) *\nOBSERVAÇÃO DO ATENDIMENTO\nCancelar\nConfirmar Baixa em Estoque",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "placeholder": "",
+          "value": "0.25"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: Material consumido diretamente pelo setor solicitante...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar Baixa em Estoque",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  }
+]

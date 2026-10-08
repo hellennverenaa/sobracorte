@@ -115,6 +115,7 @@ function subsectorMembershipWhere(context: StockAccessContext, field: 'stockItem
 /** Filtro equivalente para consultas SQL parametrizadas sobre StockItem. */
 export function stockItemSubsectorSql(alias: 'e' | 'd' | 'm' | 's', context: StockAccessContext) {
   const column = Prisma.raw(`${alias}."subsectorId"`);
+  const factoryColumn = Prisma.raw(`${alias}."factoryUnitId"`);
   if (context.subsectorIds === undefined || isStockMaster(context)) return Prisma.sql`TRUE`;
   if (context.role === 'admin_setor') {
     const sector = assignedStockSector(context);
@@ -123,7 +124,7 @@ export function stockItemSubsectorSql(alias: 'e' | 'd' | 'm' | 's', context: Sto
       OR EXISTS (
         SELECT 1 FROM sobra_corte."SubsectorConfig" ss
         WHERE ss.id = ${column}
-          AND ss."factoryUnitId" = ${alias}."factoryUnitId"
+          AND ss."factoryUnitId" = ${factoryColumn}
           AND ss.sector = ${sector}::sobra_corte."SectorType"
       )
     )`;

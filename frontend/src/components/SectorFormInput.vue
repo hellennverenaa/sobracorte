@@ -866,7 +866,6 @@ onMounted(async () => {
           <select
             v-model="formData.origem"
             class="w-full border border-gray-200 p-2 rounded outline-none focus:border-blue-500 bg-white text-sm disabled:bg-gray-100 disabled:text-gray-400"
-            required
             :disabled="availableOrigins.length === 0"
           >
             <option value="" disabled>

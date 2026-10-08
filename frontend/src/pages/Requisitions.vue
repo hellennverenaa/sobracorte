@@ -21,6 +21,7 @@ import {
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
+const canCreateRequisition = computed(() => authStore.user?.role !== 'leitor');
 const route = useRoute();
 const router = useRouter();
 
@@ -287,7 +288,7 @@ const fulfillQuantity = ref(1);
 const fulfillObservation = ref('');
 const isFulfilling = ref(false);
 const { units: measurementUnits, categories: materialCategories, fetchUnits, fetchCategories } = useSettings();
-onMounted(() => { fetchUnits(); fetchCategories(); });
+onMounted(() => { fetchUnits(); if (canCreateRequisition.value) fetchCategories(); });
 function integerQuantity(unit: string | undefined, sector: string) {
   return ['UN', 'UND', 'PAR', 'CX', 'ROLO'].includes(unit || '') || Boolean(measurementUnits.value.find((entry: any) => entry.symbol === unit)?.integerOnly);
 }
@@ -729,6 +730,7 @@ function sourceItemSummary(items?: Array<Record<string, any>>) {
 }
 
 function openCreate() {
+  if (!canCreateRequisition.value) return;
   stagedItems.value = [];
   reasonErrorVisible.value = false;
   requestMode.value = 'PRODUCT_REUSE';
@@ -1055,6 +1057,7 @@ onMounted(() => {
           </button>
 
           <button
+            v-if="canCreateRequisition"
             @click="openCreate"
             class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20"
           >
@@ -1936,7 +1939,7 @@ onMounted(() => {
 
           <div>
             <label class="block font-bold text-slate-600 uppercase mb-1">
-              Quantidade a Atender / Baixar ({{ fulfillingItem.footSide === 'PAR' ? 'Pares Completos' : 'Unidades' }}) *
+              Quantidade a Atender / Baixar ({{ fulfillingItem.footSide === 'PAR' ? 'Pares Completos' : fulfillingItem.unit || 'Unidades' }}) *
             </label>
             <input
               v-model.number="fulfillQuantity"
