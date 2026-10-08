@@ -1,0 +1,984 @@
+[
+  {
+    "name": "Busca todos setores por trecho",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n3\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n4\n\nCOM SALDO EM SOBRAS\n\n3 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0004\n08/10/2026, 10:13\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0003\n08/10/2026, 10:12\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.1\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nREUTILIZAR PRODUTO OU COMPONENTE · MONTAGEM\nBUSCAR NO SETOR\nTodos os setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n\nBusca por código/SKU: Montagem, Distribuição, Pré-Fabricado, Peças Cortadas e Corte.\n\nCÓDIGO DO PRODUTO / SKU *\nQA-MON-01QA QA-MON-01\nMontagem · QAQA-MON-01 · Grade 01 · Pé esquerdo\nQA MONTAGEM A (6)\n6 UN\nUsar esta sobra\nQA-PAR-MONTAGEMMODELO QA\nMontagem · PRETO/BRANCO · Grade 7,5 · Pé esquerdo\nQA MONTAGEM A (3)\n3 UN\nUsar esta sobra\nQA-PAR-MONTAGEMMODELO QA\nMontagem · PRETO/BRANCO · Grade 7,5 · Par\nQA MONTAGEM A (3)\n3 PAR\nUsar esta sobra\nQA-PAR-MONTAGEMMODELO QA\nMontagem · PRETO/BRANCO · Grade 7,5 · Pé direito\nQA MONTAGEM A (3)\n3 UN\nUsar esta sobra\nQA-SOL-01QA QA-SOL-01\nDistribuição · QAQA-SOL-01 · Grade 01 · Pé esquerdo\nQA DISTRIBUICAO A (4)\n4 UN\nUsar esta sobra\nQA-CAB-01QA QA-CAB-01\nDistribuição · QAQA-CAB-01 · Grade 01 · Pé esquerdo\nQA DISTRIBUICAO B (2)\n2 UN\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Pé esquerdo\nQA DISTRIBUICAO A (5)\n5 UN\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Par\nQA DISTRIBUICAO A (5)\n5 PAR\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Pé direito\nQA DISTRIBUICAO A (5)\n5 UN\nUsar esta sobra\nQA-EVA-01QA QA-EVA-01\nPré-Fabricado · QAQA-EVA-01 · Grade 40 · Pé esquerdo\nQA PRE_FABRICADO A (5)\n5 UN\nUsar esta sobra\nQA-PAR-PRE_FABRICADOMODELO QA\nPré-Fabricado · PRETO/BRANCO · Grade 7,5 · Pé esquerdo\nQA PRE_FABRICADO A (5)\n5 UN\nUsar esta sobra\nQA-PAR-PRE_FABRICADOMODELO QA\nPré-Fabricado · PRETO/BRANCO · Grade 7,5 · Par\nQA PRE_FABRICADO A (5)\n5 PAR\nUsar esta sobra\nQA-PAR-PRE_FABRICADOMODELO QA\nPré-Fabricado · PRETO/BRANCO · Grade 7,5 · Pé direito\nQA PRE_FABRICADO A (5)\n5 UN\nUsar esta sobra\nQA QA-PEC-01QA QA-PEC-01\nPeças Cortadas · QA QA-PEC-01 · Grade 01 · Lado não cadastrado\nQA APOIO A (3)\n3 UN\nUsar esta sobra\nQA-SIN-01SINTETICO\nCorte · Lado não cadastrado\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n1 M²\nUsar esta sobra\nQA-LIN-01LINHA\nCorte · Lado não cadastrado\nQA CORTE A (0.125)\n0.125 KG\nUsar esta sobra\nQA-COU-01COURO\nCorte · Lado não cadastrado\nQA CORTE B (2.75)\n2.75 M\nUsar esta sobra\nQA-PAG-0TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.001)\n0.001 M²\nUsar esta sobra\nQA-PAG-1TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.125)\n0.125 M²\nUsar esta sobra\nQA-PAG-2TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1.25)\n1.25 M²\nUsar esta sobra\nQA-PAG-3TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1000.999)\n1000.999 M²\nUsar esta sobra\nQA-PAG-4TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.001)\n0.001 M²\nUsar esta sobra\nQA-PAG-5TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.125)\n0.125 M²\nUsar esta sobra\nQA-PAG-6TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1.25)\n1.25 M²\nUsar esta sobra\nQA-PAG-7TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1000.999)\n1000.999 M²\nUsar esta sobra\nQA-PAG-8TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.001)\n0.001 M²\nUsar esta sobra\nQA-PAG-9TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.125)\n0.125 M²\nUsar esta sobra\nQA-PAG-10TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1.25)\n1.25 M²\nUsar esta sobra\nQA-PAG-11TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (1000.999)\n1000.999 M²\nUsar esta sobra\nQA-PAG-12TECIDO\nCorte · Lado não cadastrado\nQA CORTE A (0.001)\n0.001 M²\nUsar esta sobra\nMODELO / LINHA *\nMATERIAL / COR *\nGRADE / TAMANHO *\n\nComplete as variantes obrigatórias para consultar o saldo disponível.\n\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (0)\nNenhum item adicionado ainda. Preencha o formulário acima e clique em \"Adicionar Item\".\nCancelar\nConfirmar e Enviar Requisição (0 itens)",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Busque pelo código / SKU",
+          "value": "QA"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: RACER SPEEDZONE",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: PRETO/BRANCO",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: 39/40",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-MON-01QA QA-MON-01Montagem  · QAQA-MON-01 · Grade 01 · Pé esquerdoQA MONTAGEM A (6)6 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-MONTAGEMMODELO QAMontagem  · PRETO/BRANCO · Grade 7,5 · Pé esquerdoQA MONTAGEM A (3)3 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-MONTAGEMMODELO QAMontagem  · PRETO/BRANCO · Grade 7,5 · ParQA MONTAGEM A (3)3 PARUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-MONTAGEMMODELO QAMontagem  · PRETO/BRANCO · Grade 7,5 · Pé direitoQA MONTAGEM A (3)3 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-SOL-01QA QA-SOL-01Distribuição  · QAQA-SOL-01 · Grade 01 · Pé esquerdoQA DISTRIBUICAO A (4)4 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-CAB-01QA QA-CAB-01Distribuição  · QAQA-CAB-01 · Grade 01 · Pé esquerdoQA DISTRIBUICAO B (2)2 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · Pé esquerdoQA DISTRIBUICAO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · ParQA DISTRIBUICAO A (5)5 PARUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · Pé direitoQA DISTRIBUICAO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-EVA-01QA QA-EVA-01Pré-Fabricado  · QAQA-EVA-01 · Grade 40 · Pé esquerdoQA PRE_FABRICADO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-PRE_FABRICADOMODELO QAPré-Fabricado  · PRETO/BRANCO · Grade 7,5 · Pé esquerdoQA PRE_FABRICADO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-PRE_FABRICADOMODELO QAPré-Fabricado  · PRETO/BRANCO · Grade 7,5 · ParQA PRE_FABRICADO A (5)5 PARUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-PRE_FABRICADOMODELO QAPré-Fabricado  · PRETO/BRANCO · Grade 7,5 · Pé direitoQA PRE_FABRICADO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA QA-PEC-01QA QA-PEC-01Peças Cortadas  · QA QA-PEC-01 · Grade 01 · Lado não cadastradoQA APOIO A (3)3 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-SIN-01SINTETICOCorte  · Lado não cadastradoQA CORTE B (0.375), Área de Triagem QA (0.625)1 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-LIN-01LINHACorte  · Lado não cadastradoQA CORTE A (0.125)0.125 KGUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-COU-01COUROCorte  · Lado não cadastradoQA CORTE B (2.75)2.75 MUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-0TECIDOCorte  · Lado não cadastradoQA CORTE A (0.001)0.001 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-1TECIDOCorte  · Lado não cadastradoQA CORTE A (0.125)0.125 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-2TECIDOCorte  · Lado não cadastradoQA CORTE A (1.25)1.25 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-3TECIDOCorte  · Lado não cadastradoQA CORTE A (1000.999)1000.999 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-4TECIDOCorte  · Lado não cadastradoQA CORTE A (0.001)0.001 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-5TECIDOCorte  · Lado não cadastradoQA CORTE A (0.125)0.125 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-6TECIDOCorte  · Lado não cadastradoQA CORTE A (1.25)1.25 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-7TECIDOCorte  · Lado não cadastradoQA CORTE A (1000.999)1000.999 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-8TECIDOCorte  · Lado não cadastradoQA CORTE A (0.001)0.001 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-9TECIDOCorte  · Lado não cadastradoQA CORTE A (0.125)0.125 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-10TECIDOCorte  · Lado não cadastradoQA CORTE A (1.25)1.25 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-11TECIDOCorte  · Lado não cadastradoQA CORTE A (1000.999)1000.999 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAG-12TECIDOCorte  · Lado não cadastradoQA CORTE A (0.001)0.001 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Adicionar Item à Requisição",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar e Enviar Requisição (0 itens)",
+          "title": "",
+          "disabled": true
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Busca restrita distribuição",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n3\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n4\n\nCOM SALDO EM SOBRAS\n\n3 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0004\n08/10/2026, 10:13\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0003\n08/10/2026, 10:12\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.1\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nREUTILIZAR PRODUTO OU COMPONENTE · DISTRIBUIÇÃO\nBUSCAR NO SETOR\nTodos os setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n\nBusca por código/SKU: Montagem, Distribuição, Pré-Fabricado, Peças Cortadas e Corte.\n\nCÓDIGO DO PRODUTO / SKU *\nQA-SOL-01QA QA-SOL-01\nDistribuição · QAQA-SOL-01 · Grade 01 · Pé esquerdo\nQA DISTRIBUICAO A (4)\n4 UN\nUsar esta sobra\nQA-CAB-01QA QA-CAB-01\nDistribuição · QAQA-CAB-01 · Grade 01 · Pé esquerdo\nQA DISTRIBUICAO B (2)\n2 UN\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Pé esquerdo\nQA DISTRIBUICAO A (5)\n5 UN\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Par\nQA DISTRIBUICAO A (5)\n5 PAR\nUsar esta sobra\nQA-PAR-DISTRIBUICAOMODELO QA\nDistribuição · PRETO/BRANCO · Grade 7,5 · Pé direito\nQA DISTRIBUICAO A (5)\n5 UN\nUsar esta sobra\nMODELO / LINHA *\nMATERIAL / COR *\nGRADE / TAMANHO *\n\nComplete as variantes obrigatórias para consultar o saldo disponível.\n\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (0)\nNenhum item adicionado ainda. Preencha o formulário acima e clique em \"Adicionar Item\".\nCancelar\nConfirmar e Enviar Requisição (0 itens)",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "DISTRIBUICAO",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Opcional se buscar pelo modelo",
+          "value": "QA"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: RACER SPEEDZONE",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: PRETO/BRANCO",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: 39/40",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-SOL-01QA QA-SOL-01Distribuição  · QAQA-SOL-01 · Grade 01 · Pé esquerdoQA DISTRIBUICAO A (4)4 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-CAB-01QA QA-CAB-01Distribuição  · QAQA-CAB-01 · Grade 01 · Pé esquerdoQA DISTRIBUICAO B (2)2 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · Pé esquerdoQA DISTRIBUICAO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · ParQA DISTRIBUICAO A (5)5 PARUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-PAR-DISTRIBUICAOMODELO QADistribuição  · PRETO/BRANCO · Grade 7,5 · Pé direitoQA DISTRIBUICAO A (5)5 UNUsar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Adicionar Item à Requisição",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar e Enviar Requisição (0 itens)",
+          "title": "",
+          "disabled": true
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Autopreenchimento distribuição",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n3\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n4\n\nCOM SALDO EM SOBRAS\n\n3 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0004\n08/10/2026, 10:13\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0003\n08/10/2026, 10:12\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.1\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nREUTILIZAR PRODUTO OU COMPONENTE · DISTRIBUIÇÃO\nBUSCAR NO SETOR\nTodos os setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n\nBusca por código/SKU: Montagem, Distribuição, Pré-Fabricado, Peças Cortadas e Corte.\n\nCÓDIGO DO PRODUTO / SKU *\nMODELO / LINHA *\nMATERIAL / COR *\nGRADE / TAMANHO *\nSelecione a grade\n01\nLADO (E / D / PAR) *\nPé esquerdo\nPé direito\nPar\nMOTIVO DA AVARIA / DEFEITO *\nQUANTIDADE * (UN)\n\nORIGEM SELECIONADA\n\nDistribuição · QA-SOL-01 · SOLA_PROCESSADA · Modelo QA QA-SOL-01\n4 UN\nQA DISTRIBUICAO A (4)\nVer detalhes do item\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (0)\nNenhum item adicionado ainda. Preencha o formulário acima e clique em \"Adicionar Item\".\nCancelar\n\nO motivo da avaria/defeito é obrigatório. Clique para destacar o campo.\n\nConfirmar e Enviar Requisição (0 itens)",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "DISTRIBUICAO",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Opcional se buscar pelo modelo",
+          "value": "QA-SOL-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: RACER SPEEDZONE",
+          "value": "QA QA-SOL-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: PRETO/BRANCO",
+          "value": "QAQA-SOL-01"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "01",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a grade"
+            },
+            {
+              "value": "01",
+              "text": "01"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: quebra de agulha, rasgo, mancha de cola...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "placeholder": "",
+          "value": "1"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "source-candidate-stock:6335",
+          "placeholder": "",
+          "value": "on"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pé esquerdo",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Pé direito",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Par",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Adicionar Item à Requisição",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar e Enviar Requisição (0 itens)",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  }
+]

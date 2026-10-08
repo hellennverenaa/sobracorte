@@ -165,6 +165,7 @@ const reasonErrorVisible = ref(false);
 const requestMode = ref<'RAW_MATERIAL' | 'PRODUCT_REUSE'>('PRODUCT_REUSE');
 
 // Formulário do item corrente
+const searchSector = ref('TODOS');
 const currentSector = ref<'CORTE' | 'APOIO' | 'PRE_FABRICADO' | 'DISTRIBUICAO' | 'EXPEDICAO' | 'MONTAGEM'>('MONTAGEM');
 const formItem = ref({
   sku: '',
@@ -311,7 +312,7 @@ const sectorIcons = { CORTE: Scissors, APOIO: Wrench, PRE_FABRICADO: Layers, DIS
 const sectorOptions = SECTOR_OPTIONS
   .filter(option => sectorIcons[option.id])
   .map(option => ({ ...option, icon: sectorIcons[option.id] }));
-const reuseSectorOptions = sectorOptions.filter(option => option.id !== 'CORTE');
+const reuseSectorOptions = sectorOptions;
 const currentCategories = computed(() => materialCategories.value.filter((category: any) => {
   const sectors = category.sectors?.length ? category.sectors : category.sector ? [category.sector] : [];
   return !sectors.length || sectors.map(normalizeSector).includes(normalizeSector(currentSector.value));
@@ -325,7 +326,7 @@ const showFootSide = computed(() => selectedRequestCategory.value?.entryMode ===
 watch(selectedRequestCategory, category => {
   formItem.value.unit = category?.defaultUnitCode || '';
   formItem.value.footSide = null;
-});
+}, { flush: 'sync' });
 
 const requestIdentifierLabel = computed(() => {
   if (currentSector.value === 'CORTE') return 'Código da matéria-prima *';
@@ -543,7 +544,7 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
   const requestVersion = ++autocompleteRequestVersion;
   const q = value.trim();
   preferredSourceStockItemIds.value = [];
-  if (q.length < 2 || (!isRawMaterialRequest.value && !selectedRequestCategory.value)) {
+  if (q.length < 2) {
     suggestions.value = [];
     suggestionsLoading.value = false;
     closeSuggestions();
@@ -558,14 +559,10 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
     try {
       const res = await api.get('/requisitions/search-suggestions', {
         params: {
-          requestSector: currentSector.value,
+          requestSector: isRawMaterialRequest.value ? 'CORTE' : searchSector.value,
           field,
           q,
-          categoryId: isRawMaterialRequest.value ? undefined : selectedRequestCategory.value?.id,
-          ...(!isRawMaterialRequest.value && formItem.value.type ? { type: formItem.value.type } : {}),
-          ...(formItem.value.color ? { color: formItem.value.color } : {}),
-          ...(formItem.value.sizeGrade ? { sizeGrade: formItem.value.sizeGrade } : {}),
-          ...(formItem.value.footSide ? { footSide: formItem.value.footSide } : {}),
+
         },
       });
       if (requestVersion !== autocompleteRequestVersion) return;
@@ -584,11 +581,9 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
 
 // O identificador e o modelo localizam a mesma lista de variantes do estoque.
 function onSkuInput() {
-  if (isRawMaterialRequest.value) {
-    formItem.value.type = '';
-    formItem.value.description = '';
-    formItem.value.modelName = '';
-  }
+  formItem.value.type = '';
+  formItem.value.description = '';
+  formItem.value.modelName = '';
   formItem.value.sizeGrade = '';
   formItem.value.color = '';
   formItem.value.footSide = null;
@@ -612,9 +607,11 @@ function selectSuggestion(sug: SkuSuggestion) {
   suggestionsLoading.value = false;
   preferredSourceStockItemIds.value = [...sug.stockItemIds];
 
+  currentSector.value = normalizeSector(sug.sourceSector) as typeof currentSector.value;
+  const category = currentCategories.value.find((entry: any) => entry.id === sug.categoryId);
+  formItem.value.type = category?.name || sug.type || '';
+  formItem.value.description = sug.description;
   if (currentSector.value === 'CORTE') {
-    const category = currentCategories.value.find((entry: any) => entry.id === sug.categoryId);
-    formItem.value.type = category?.name || sug.type || '';
     formItem.value.sku = sug.code || sug.sku || '';
     formItem.value.description = sug.description;
     if (isRawMaterialRequest.value && !formItem.value.reason.trim()) formItem.value.reason = 'REPOSIÇÃO DE MATÉRIA-PRIMA';
@@ -668,6 +665,7 @@ function onSectorChange() {
 
 function onRequestModeChange(mode: 'RAW_MATERIAL' | 'PRODUCT_REUSE') {
   requestMode.value = mode;
+  searchSector.value = 'TODOS';
   currentSector.value = mode === 'RAW_MATERIAL' ? 'CORTE' : 'MONTAGEM';
   onSectorChange();
 }
@@ -743,6 +741,7 @@ function openCreate() {
   stagedItems.value = [];
   reasonErrorVisible.value = false;
   requestMode.value = 'PRODUCT_REUSE';
+  searchSector.value = 'TODOS';
   currentSector.value = 'MONTAGEM';
   onSectorChange();
   createInitial.value = JSON.stringify(formItem.value);
@@ -1408,30 +1407,21 @@ onMounted(() => {
               Digite o código, selecione o material sugerido e informe a quantidade necessária.
             </p>
             <div v-else>
-              <label class="block font-bold text-slate-600 uppercase mb-1">Setor solicitante *</label>
+              <label class="block font-bold text-slate-600 uppercase mb-1">Buscar no setor</label>
               <select
-                v-model="currentSector"
-                @change="onSectorChange"
+                v-model="searchSector"
+                @change="currentSector = searchSector === 'TODOS' ? 'MONTAGEM' : searchSector; onSectorChange()"
                 class="w-full sm:max-w-sm border border-slate-200 p-2.5 rounded-xl font-medium outline-none focus:border-indigo-500 bg-white"
               >
+                <option value="TODOS">Todos os setores</option>
                 <option v-for="sector in reuseSectorOptions" :key="sector.id" :value="sector.id">{{ formatSectorName(sector.id) }}</option>
               </select>
-              <p class="mt-1 text-[10px] text-slate-500">A busca considera produto/componente e variantes exatas; matérias-primas do Corte têm um fluxo separado.</p>
+              <p class="mt-1 text-[10px] text-slate-500">Busca por código/SKU: Montagem, Distribuição, Pré-Fabricado, Peças Cortadas e Corte.</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div v-if="!isRawMaterialRequest" class="sm:col-span-1">
-                <label for="requisition-category" class="mb-1 block font-bold uppercase text-slate-600">Categoria do material *</label>
-                <select id="requisition-category" v-model="formItem.type" @change="onApoioComponentChange"
-                  class="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-medium">
-                  <option value="" disabled>Selecione a categoria</option>
-                  <option v-for="type in currentTypeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
-                </select>
-              </div>
-
-
               <div class="relative" :class="isRawMaterialRequest ? 'sm:col-span-2' : ''">
-                <label class="block font-bold text-slate-600 uppercase mb-1">{{ requestIdentifierLabel }}</label>
+                <label class="block font-bold text-slate-600 uppercase mb-1">{{ isRawMaterialRequest ? requestIdentifierLabel : 'Código do produto / SKU *' }}</label>
                 <input
                   v-model="currentIdentifier"
                   @input="onSkuInput"

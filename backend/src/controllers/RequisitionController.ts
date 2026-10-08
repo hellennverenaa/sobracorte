@@ -23,9 +23,9 @@ export class RequisitionController {
       }
 
       const requestSector = String(req.query.requestSector || '').trim().toUpperCase();
-      requireActiveStockSector(requestSector);
+      if (requestSector !== 'TODOS') requireActiveStockSector(requestSector);
       const access = requestStockAccess(req);
-      if (!(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, requestSector);
+      if (requestSector !== 'TODOS' && !(access.role === 'leitor' && !access.assignedSector)) assertStockSectorAccess(access, requestSector);
 
       const field = String(req.query.field || '').trim().toUpperCase();
       if (field !== 'IDENTIFIER' && field !== 'MODEL') {

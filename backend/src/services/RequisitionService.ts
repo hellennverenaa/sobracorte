@@ -46,7 +46,7 @@ export class RequisitionService {
    */
   async searchStockSuggestions(
     params: {
-      requestSector: SectorType;
+      requestSector: SectorType | 'TODOS';
       field: 'IDENTIFIER' | 'MODEL';
       query: string;
       categoryId?: number;
@@ -58,18 +58,14 @@ export class RequisitionService {
     factoryUnitId: number,
     context?: OperatorContext,
   ) {
-    const requestSector = normalizeStockSector(params.requestSector);
+    const requestSector = params.requestSector === 'TODOS' ? 'TODOS' : normalizeStockSector(params.requestSector);
     const query = params.query.trim();
     if (query.length < 2) return [];
 
-    const sourceWhere: Prisma.StockItemWhereInput = { sector: requestSector === 'CORTE' || requestSector === 'APOIO' ? requestSector : { not: 'CORTE' } };
+    const priority: SectorType[] = ['MONTAGEM', 'DISTRIBUICAO', 'PRE_FABRICADO', 'APOIO', 'CORTE'];
     const identityWhere: Prisma.StockItemWhereInput = params.field === 'MODEL'
-      ? { productName: { equals: query, mode: 'insensitive' } }
-      : requestSector === 'CORTE'
-        ? { code: { contains: query, mode: 'insensitive' } }
-        : requestSector === 'APOIO'
-          ? { OR: [{ pieceCode: { equals: query, mode: 'insensitive' } }, { sku: { equals: query, mode: 'insensitive' } }] }
-          : { OR: [{ sku: { equals: query, mode: 'insensitive' } }, { pieceCode: { equals: query, mode: 'insensitive' } }] };
+      ? { productName: { contains: query, mode: 'insensitive' } }
+      : { OR: ['sku', 'pieceCode', 'code'].map(field => ({ [field]: { contains: query, mode: 'insensitive' } })) };
     const variantFilters: Prisma.StockItemWhereInput[] = [];
     if (params.categoryId) variantFilters.push({ categoryId: params.categoryId });
     if (params.color?.trim()) {
@@ -93,16 +89,17 @@ export class RequisitionService {
       });
     }
 
-    const items = await prisma.stockItem.findMany({
+    const sectors: SectorType[] = requestSector === 'TODOS' ? priority : [requestSector as SectorType];
+    const items = (await Promise.all(sectors.map(sector => prisma.stockItem.findMany({
       where: {
         factoryUnitId,
         quantity: { gt: 0 },
-        AND: [sourceWhere, identityWhere, ...variantFilters, ...(context ? [stockItemScopeWhere(context)] : [])],
+        AND: [{ sector: sector === 'DISTRIBUICAO' ? { in: ['DISTRIBUICAO', 'EXPEDICAO'] } : sector }, identityWhere, ...variantFilters, ...(context ? [stockItemScopeWhere(context)] : [])],
       },
       include: { locations: { include: { location: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take: 100,
-    });
+    })))).flat();
 
     const matchesRequestedVariants = (item: any) => {
       const itemColor = item.color || item.materialColor || '';
@@ -138,9 +135,7 @@ export class RequisitionService {
         .map((link: any) => `${link.location.name} (${link.quantity})`),
     });
     const sortByBestSource = (suggestions: any[]) => {
-      const preferredSectors = requestSector === 'MONTAGEM'
-        ? ['MONTAGEM', 'DISTRIBUICAO', 'APOIO']
-        : [requestSector, 'MONTAGEM', 'DISTRIBUICAO', 'APOIO'];
+      const preferredSectors: string[] = priority;
       return suggestions.sort((left, right) => {
         const leftRank = preferredSectors.indexOf(normalizeStockSector(left.sourceSector));
         const rightRank = preferredSectors.indexOf(normalizeStockSector(right.sourceSector));
@@ -161,7 +156,7 @@ export class RequisitionService {
       const pairs: any[] = [];
       const pairGroups = new Map<string, { left?: any; right?: any; complete?: any }>();
       for (const item of filteredItems) {
-        if (item.footSide === 'PAR' && normalizeStockSector(item.sector) === requestSector) {
+        if (item.footSide === 'PAR' && (requestSector === 'TODOS' || normalizeStockSector(item.sector) === requestSector)) {
           const key = `complete|${item.id}`;
           pairGroups.set(key, { complete: item });
           continue;

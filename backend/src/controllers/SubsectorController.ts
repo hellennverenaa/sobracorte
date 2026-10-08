@@ -164,12 +164,14 @@ export class SubsectorController {
             name,
             normalizedName: key,
             categoryMode,
-            ...(categoryMode === 'SELECTED' ? {
-              categoryLinks: { create: validCategoryIds.map((categoryConfigId: number) => ({ categoryConfigId, factoryUnitId: req.tenant!.id })) },
-            } : {}),
           },
           include: includeConfigRelations(),
         });
+        if (categoryMode === 'SELECTED' && validCategoryIds.length) {
+          await tx.subsectorCategory.createMany({
+            data: validCategoryIds.map((categoryConfigId: number) => ({ subsectorId: subsector.id, categoryConfigId, factoryUnitId: req.tenant!.id })),
+          });
+        }
         await tx.stockMovement.create({
           data: {
             factoryUnitId: req.tenant!.id,
@@ -182,7 +184,10 @@ export class SubsectorController {
             reason: `Criação do subsetor ${subsector.name} no setor ${sector}.`,
           },
         });
-        return subsector;
+        return tx.subsectorConfig.findUniqueOrThrow({
+          where: { id_factoryUnitId: { id: subsector.id, factoryUnitId: req.tenant!.id } },
+          include: includeConfigRelations(),
+        });
       });
       return res.status(201).json(created);
     } catch (error) {
@@ -238,12 +243,14 @@ export class SubsectorController {
             normalizedName: key,
             active,
             categoryMode,
-            ...(categoryMode === 'SELECTED' ? {
-              categoryLinks: { create: validCategoryIds.map((categoryConfigId: number) => ({ categoryConfigId, factoryUnitId: req.tenant!.id })) },
-            } : {}),
           },
           include: includeConfigRelations(),
         });
+        if (categoryMode === 'SELECTED' && validCategoryIds.length) {
+          await tx.subsectorCategory.createMany({
+            data: validCategoryIds.map((categoryConfigId: number) => ({ subsectorId: subsector.id, categoryConfigId, factoryUnitId: req.tenant!.id })),
+          });
+        }
         await tx.stockMovement.create({
           data: {
             factoryUnitId: req.tenant!.id,
@@ -256,7 +263,10 @@ export class SubsectorController {
             reason: `Edição do subsetor ${existing.name}: nome "${name}", setor ${requestedSector}, status ${active ? 'ativo' : 'arquivado'}, categorias ${categoryMode}.`,
           },
         });
-        return subsector;
+        return tx.subsectorConfig.findUniqueOrThrow({
+          where: { id_factoryUnitId: { id: subsector.id, factoryUnitId: req.tenant!.id } },
+          include: includeConfigRelations(),
+        });
       });
       return res.json(updated);
     } catch (error) {

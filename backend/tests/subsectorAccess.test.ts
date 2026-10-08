@@ -94,10 +94,12 @@ test('API lista apenas subsetores explicitamente atribuídos a papel operacional
 
 test('API cria subsetor e normaliza nome sem duplicar categoria', async t => {
   let createData: any;
+  let links: any;
   replace(t, prisma.categoryConfig, { findMany: async () => [{ id: 11 }] });
   const tx: any = {
     categoryConfig: { findMany: async () => [{ id: 11 }] },
-    subsectorConfig: { create: async ({ data }: any) => { createData = data; return { id: 41, ...data }; } },
+    subsectorConfig: { create: async ({ data }: any) => { createData = data; return { id: 41, ...data }; }, findUniqueOrThrow: async () => ({ id: 41, ...createData }) },
+    subsectorCategory: { createMany: async ({ data }: any) => { links = data; } },
     stockMovement: { create: async () => ({ id: 91 }) },
   };
   replace(t, prisma, {
@@ -113,7 +115,8 @@ test('API cria subsetor e normaliza nome sem duplicar categoria', async t => {
   } as any, result.res));
   assert.equal(result.status, 201);
   assert.equal(createData.normalizedName, 'SERIGRAFIA');
-  assert.deepEqual(createData.categoryLinks.create, [{ categoryConfigId: 11, factoryUnitId: 3 }]);
+  assert.equal(createData.categoryLinks, undefined);
+  assert.deepEqual(links, [{ subsectorId: 41, categoryConfigId: 11, factoryUnitId: 3 }]);
 });
 
 test('API rejeita categoria de outra unidade/setor antes de criar subsetor', async t => {
@@ -223,7 +226,7 @@ test('SQL de subsetor usa identificadores de coluna e parametriza somente o seto
 test('cadastro conserva a normalização acentuada retornada pelo PostgreSQL', async t => {
   let created: any;
   const tx: any = {
-    subsectorConfig: { create: async ({ data }: any) => { created = data; return { id: 42, ...data }; } },
+    subsectorConfig: { create: async ({ data }: any) => { created = data; return { id: 42, ...data }; }, findUniqueOrThrow: async () => ({ id: 42, ...created }) },
     stockMovement: { create: async () => ({ id: 92 }) },
   };
   replace(t, prisma, {

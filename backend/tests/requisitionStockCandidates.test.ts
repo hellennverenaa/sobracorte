@@ -372,3 +372,28 @@ test('DTO exige categoria e permite identificadores sem subtipo em APOIO', () =>
     assert.equal(CheckStockAvailabilitySchema.safeParse({ requestSector: 'APOIO', description: 'MATERIAL', ...identity }).success, false);
   }
 });
+
+test('sugestões gerais usam trecho do identificador, prioridade de setores e escopo autorizado', async t => {
+  const original = prisma.stockItem.findMany;
+  t.after(() => { prisma.stockItem.findMany = original; });
+  const queries: any[] = [];
+  const priority = ['MONTAGEM', 'DISTRIBUICAO', 'PRE_FABRICADO', 'APOIO', 'CORTE'];
+  prisma.stockItem.findMany = (async ({ where }: any) => {
+    queries.push(where);
+    const sectorFilter = where.AND[0].sector;
+    const sector = typeof sectorFilter === 'string' ? sectorFilter : sectorFilter.in[0];
+    assert.equal(where.factoryUnitId, 7);
+    assert.deepEqual(where.AND[1].OR.map((entry: any) => Object.values(entry)[0]), Array(3).fill({ contains: 'SKU', mode: 'insensitive' }));
+    assert.ok(where.AND.length > 2, 'consulta deve aplicar escopo do usuário');
+    return [{ ...stockItem(), id: priority.indexOf(sector) + 1, sector, footSide: null }];
+  }) as any;
+  const service = new RequisitionService();
+  const context = { factoryUnitId: 7, role: 'admin', subsectorIds: [] };
+  const all = await service.searchStockSuggestions({ requestSector: 'TODOS', field: 'IDENTIFIER', query: 'SKU' }, 7, context);
+  assert.deepEqual(all.map(entry => entry.sourceSector), priority);
+  assert.equal(queries.length, 5);
+  queries.length = 0;
+  const specific = await service.searchStockSuggestions({ requestSector: 'APOIO', field: 'IDENTIFIER', query: 'SKU' }, 7, context);
+  assert.equal(queries.length, 1);
+  assert.deepEqual(specific.map(entry => entry.sourceSector), ['APOIO']);
+});
