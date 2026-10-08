@@ -478,6 +478,7 @@
 
           <div class="p-6 space-y-6">
 
+            <p class="text-sm text-slate-600">O modelo baixado contém apenas os cabeçalhos. Preencha com categorias e localizações cadastradas na unidade ativa. Os exemplos abaixo são ilustrativos.</p>
             <!-- CARD DE INSTRUÇÕES E FORMATO EXIGIDO (UX/UI DINÂMICA POR SETOR) -->
             <div class="bg-gradient-to-br from-slate-50 to-blue-50/40 border border-blue-100 rounded-2xl p-6 space-y-4">
               <div class="flex items-center gap-2 text-blue-900 font-bold text-sm">
@@ -569,6 +570,14 @@
 
             <div v-if="importPreview" class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950 space-y-1">
               <p class="font-bold">Prévia da importação — nenhum item foi gravado</p>
+              <p>{{ importPreview.linhasArquivo }} linhas do arquivo · {{ importPreview.processados }} itens após consolidar quantidades e converter pares.</p>
+              <details v-if="importPreview.itensIgnorados?.length" class="rounded-lg border border-blue-200 p-2">
+                <summary class="cursor-pointer font-bold">Revisar itens ignorados — saldos existentes não serão atualizados</summary>
+                <p v-for="item in importPreview.itensIgnorados" :key="item.row + '-' + item.code" class="mt-2 text-xs">
+                  Linha {{ item.row }} · {{ item.code }} · arquivo: {{ item.quantity }} {{ item.unit }} · estoque: {{ item.existingQuantity }} {{ item.unit }}.
+                  Localizações no arquivo: {{ item.locations.join(' | ') }}. No estoque: {{ item.existingLocations.join(' | ') }}.
+                </p>
+              </details>
               <p>{{ importPreview.processados }} processados · {{ importPreview.novos }} novos · {{ importPreview.ignorados }} já cadastrados e ignorados</p>
               <p>{{ importPreview.saldosZero }} com saldo zero · {{ importPreview.localizacoesPadrao }} usando localização padrão</p>
               <p>Localizações: {{ importPreview.prateleiras.slice(0, 5).join(', ') }}{{ importPreview.prateleiras.length > 5 ? '…' : '' }}</p>
@@ -656,9 +665,15 @@
                   <div v-if="importResult.errors && importResult.errors.length > 0" class="mt-3 pt-3 border-t border-red-200">
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-xs font-bold uppercase tracking-wider text-red-900">
-                        Inconsistências Encontradas ({{ importResult.totalErrors || importResult.errors.length }} {{ (importResult.totalErrors || importResult.errors.length) === 1 ? 'erro' : 'erros' }}{{ importResult.totalErrors > importResult.errors.length ? ', primeiras 100 exibidas' : '' }}):
+                        Inconsistências Encontradas ({{ importResult.totalErrors || importResult.errors.length }} {{ (importResult.totalErrors || importResult.errors.length) === 1 ? 'erro' : 'erros' }}{{ importResult.errors.length > 100 ? ', primeiros 100 exibidos; baixe a lista completa' : '' }}):
                       </span>
                     </div>
+                    <p class="mb-2 text-xs">Se escolher outra localização, clique em Validar novamente. O sistema continuará verificando setor, subsetor e categoria; a planilha original não será alterada.</p>
+                    <button @click="downloadImportErrors" class="mb-2 text-xs font-bold underline">Baixar todos os erros (CSV)</button>
+                    <details class="mb-3 text-xs">
+                      <summary class="cursor-pointer font-bold">Agrupar por causa ({{ importErrorGroups.length }} grupos)</summary>
+                      <p v-for="(group, index) in importErrorGroups" :key="index" class="mt-2">{{ group.column }} · {{ group.value }} · {{ group.message }} · Linhas: {{ group.rows.join(', ') }}</p>
+                    </details>
                     <div class="max-h-60 overflow-y-auto rounded-lg border border-red-200 bg-white">
                       <table class="w-full text-left text-xs">
                         <thead class="bg-red-100/70 text-red-900 font-bold uppercase sticky top-0">
@@ -670,11 +685,17 @@
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-red-100 text-gray-800 font-medium font-sans">
-                          <tr v-for="(err, idx) in importResult.errors" :key="idx" class="hover:bg-red-50/50">
+                          <tr v-for="(err, idx) in importResult.errors.slice(0, 100)" :key="idx" class="hover:bg-red-50/50">
                             <td class="px-3 py-1.5 text-center font-bold text-red-700 font-mono">{{ err.row }}</td>
                             <td class="px-3 py-1.5 font-bold font-mono text-indigo-700">{{ err.column }}</td>
                             <td class="px-3 py-1.5 font-mono text-gray-600 truncate max-w-[120px]">{{ err.value || '(vazio)' }}</td>
-                            <td class="px-3 py-1.5 text-red-800">{{ err.message }}</td>
+                            <td class="px-3 py-1.5 text-red-800">{{ err.message }}
+                              <label v-if="err.column === 'prateleira'" class="mt-2 block font-medium">Usar localização cadastrada nesta linha:
+                                <select v-model="localizationMappings[err.row]" class="mt-1 block max-w-xs rounded border bg-white p-1 text-slate-700">
+                                  <option value="">Manter valor do arquivo</option>
+                                  <option v-for="location in locations" :key="location.id" :value="location.id">{{ location.name }} · {{ formatSectorName(location.sector, 'Geral') }}</option>
+                                </select>
+                              </label></td>
                           </tr>
                         </tbody>
                       </table>
@@ -982,6 +1003,7 @@
 </template>
 
 <script setup>
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, onMounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -1597,6 +1619,23 @@ const selectedFile = ref(null)
 const importing = ref(false)
 const importResult = ref(null)
 const importPreview = ref(null)
+const localizationMappings = ref({})
+watch(localizationMappings, () => { importPreview.value = null }, { deep: true })
+const importErrorGroups = computed(() => {
+  const groups = new Map()
+  for (const error of importResult.value?.errors || []) {
+    const key = JSON.stringify([error.column, error.value, error.message])
+    const group = groups.get(key) || { ...error, rows: [] }
+    group.rows.push(error.row); groups.set(key, group)
+  }
+  return [...groups.values()]
+})
+function downloadImportErrors() {
+  const cell = value => '"' + String(value ?? '').replace(/^[=+@-]/, "'$&").replace(/"/g, '""') + '"'
+  const lines = [['linha', 'coluna', 'valor', 'motivo'], ...(importResult.value?.errors || []).map(e => [e.row, e.column, e.value, e.message])]
+  const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.map(row => row.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8;' }))
+  const link = document.createElement('a'); link.href = url; link.download = 'erros_importacao.csv'; link.click(); URL.revokeObjectURL(url)
+}
 const templateSector = computed({
   get: () => settingsPersisted.filters.value.templateSector || 'CORTE',
   set: value => { settingsPersisted.filters.value.templateSector = value || 'CORTE' },
@@ -1722,12 +1761,12 @@ watch(templateSector, (newSec) => {
     importSector.value = newSec
   }
 })
-watch(importSector, () => { importPreview.value = null })
+watch(importSector, () => { importPreview.value = null; localizationMappings.value = {} })
 
 function downloadCSVTemplate(targetSector = templateSector.value || 'CORTE') {
   templateSector.value = targetSector
   const pat = sectorCsvPattern.value
-  const content = `${pat.headerExample}\n${pat.examples.join('\n')}\n`
+  const content = `${pat.headerExample}\n`
   const sectorSlug = formatSectorName(targetSector, targetSector)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
@@ -1747,18 +1786,20 @@ function downloadCSVTemplate(targetSector = templateSector.value || 'CORTE') {
 
 function handleFileSelect(event) {
   const file = event.target.files[0]
-  if (file) {
+  if (file && /\.csv$/i.test(file.name)) {
     selectedFile.value = file
+    localizationMappings.value = {}
     importResult.value = null
     importPreview.value = null
-  }
+  } else if (file) { showNotification('error', 'Apenas arquivos .csv são aceitos.') }
   event.target.value = null // reset input
 }
 
 function handleDrop(event) {
   const file = event.dataTransfer.files[0]
-  if (file && file.name.endsWith('.csv')) {
+  if (file && /\.csv$/i.test(file.name)) {
     selectedFile.value = file
+    localizationMappings.value = {}
     importResult.value = null
     importPreview.value = null
   } else {
@@ -1770,6 +1811,9 @@ function importFormData() {
   const formData = new FormData()
   formData.append('arquivo', selectedFile.value)
   formData.append('sector', importSector.value)
+  const mappings = Object.entries(localizationMappings.value).filter(([, id]) => id).map(([row, id]) => ({ row: Number(row), locationId: Number(id) }))
+  if (mappings.length) formData.append('localizationMappings', JSON.stringify(mappings))
+  if (importPreview.value?.planoHash) formData.append('planoHash', importPreview.value.planoHash)
   return formData
 }
 
@@ -1866,6 +1910,7 @@ onMounted(async () => {
     await loadUnitSettings()
   }
 })
+useDataRefresh(fetchSubsectors, { paths: ['/settings'] })
 </script>
 
 <style scoped>

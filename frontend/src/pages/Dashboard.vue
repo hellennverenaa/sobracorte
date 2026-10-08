@@ -1,4 +1,5 @@
 <script setup>
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import Layout from '@/components/Layout.vue'
 import PageState from '@/components/PageState.vue'
@@ -657,6 +658,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(refreshInterval)
 })
+useDataRefresh(loadData, { paths: ['/inventory', '/requisitions', '/import', '/settings'] })
 </script>
 
 <template>

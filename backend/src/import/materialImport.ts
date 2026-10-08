@@ -1,7 +1,7 @@
 import { StockAccessContext, assertStockSectorAccess, assertGeneralStockAccess } from '../auth/stockAccess';
 import { assertStockLocationSubsector, assertStockSubsectorAccess, assertSubsectorCategoryAllowed } from '../auth/subsectorAccess';
 import { movementSnapshot } from '../services/movementSnapshot';
-import { SectorType, FootSide } from '../generated/prisma';
+import { Prisma, SectorType, FootSide } from '../generated/prisma';
 import { ParsedCsvRow } from './csvParser';
 import { normalizeUnit, validateQuantity, validateQuantityPrecision, UnitValidationError } from '../utils/unitHelper';
 import { assertStockLocationCategory, assertStockLocationSector, lockStockIdentityWrites, normalizeStockColor, rejectDuplicateStockItem, stockIdentity } from '../services/stockIdentity';
@@ -651,10 +651,10 @@ export function validateImportBatch(
       consolidatedByIdentity.set(key, consolidatedItem);
       consolidated.push(consolidatedItem);
     } else {
-      existing.quantity += item.quantity;
+      existing.quantity = new Prisma.Decimal(existing.quantity).plus(item.quantity).toNumber();
       const locMatch = existing.locations?.find(l => l.locationId === item.locationId);
       if (locMatch) {
-        locMatch.quantity += item.quantity;
+        locMatch.quantity = new Prisma.Decimal(locMatch.quantity).plus(item.quantity).toNumber();
       } else {
         existing.locations?.push({
           locationId: item.locationId,
@@ -759,6 +759,7 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
       where: { factoryUnitId, OR: [
         { code: { in: batch } }, { sku: { in: batch } }, { pieceCode: { in: batch } },
       ] },
+      include: { locations: { include: { location: true } } },
     });
     for (const existing of found) {
       if (existing.code) existingByCode.set(JSON.stringify([existing.code.toUpperCase(), existing.footSide || null]), existing);
@@ -771,6 +772,7 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
   const toInsert: ValidatedImportItem[] = [];
   const errors: ImportRowError[] = [];
   let ignored = 0;
+  const ignoredItems: Array<{ row: number; code: string; quantity: number; existingQuantity: number; unit: string; locations: string[]; existingLocations: string[] }> = [];
   for (const item of items) {
     const data = importStockData(item, factoryUnitId);
     const identity = importIdentityKey(data);
@@ -791,6 +793,11 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
     const sameSubsector = (existing.subsectorId ?? null) === (data.subsectorId ?? null);
     if (sameIdentity && sameSubsector && normalizeUnit(existing.unit, item.sector) === data.unit) {
       ignored++;
+      ignoredItems.push({ row: item.rowNumber, code: item.code, quantity: item.quantity,
+        existingQuantity: Number(existing.quantity), unit: data.unit,
+        locations: (item.locations || [{ locationName: item.locationName, quantity: item.quantity }]).map(l => `${l.locationName}: ${l.quantity}`),
+        existingLocations: (existing.locations || []).map((l: any) => `${l.location?.name || l.locationId}: ${l.quantity}`),
+      });
       continue;
     }
     errors.push({
@@ -804,7 +811,7 @@ export async function planImport(prisma: any, items: ValidatedImportItem[], fact
           : 'O item já existe com a mesma identidade, mas outra unidade de medida.',
     });
   }
-  return { toInsert, ignored, errors };
+  return { toInsert, ignored, ignoredItems, errors };
 }
 
 async function executeBulkImport(tx: any, items: ValidatedImportItem[], context: ImportExecutionContext): Promise<ImportExecutionResult> {

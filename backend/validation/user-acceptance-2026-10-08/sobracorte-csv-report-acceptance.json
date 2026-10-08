@@ -1,0 +1,932 @@
+[
+  {
+    "name": "Relatório inicial",
+    "snapshot": {
+      "url": "/sobra_corte/reports",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nCentral de Relatórios Analíticos\n\nConsulte, audite e exporte métricas de estoque, movimentações e requisições fabris.\n\nImprimir relatório completo\nImprimir página atual\nExportar CSV\nMovimentações & Estoque\nRequisições de Reposição Fabril\nSETOR INDUSTRIAL\nTodos os Setores (Geral)\nCorte (Matéria-Prima)\nPeças Cortadas\nPré-Fabricado (Solas)\nDistribuição\nMontagem (Pés Órfãos)\nTIPO DE OPERAÇÃO\nTodas as Operações\nEntradas de Sobras\nSaídas (Inclui Casamentos e Requisições)\nTransferências entre Prateleiras\nCasamento de Pares (Multi-Setor)\nSaídas por Requisição\nRefugos / Descartes\nSUBSETOR\nTodos os subsetores autorizados\nQA Revisão Café 20261008\nQASERIGRAFIA\nQA SERIGRAFIA SELECTED\nPERÍODO DE TEMPO\nÚltimos 30 Dias (Padrão)\nEste Mês\nEsta Semana\nHoje\nEste Ano\nTodos os Registros\nPeríodo Personalizado\nBUSCAR CÓDIGO / SKU / MATERIAL\nLimpar Filtros\nAplicar Filtros\nHISTÓRICO\n\nTOTAL REGISTROS\n\n89\n\nAuditoria de Linha\n\nLANÇAMENTOS\n\nENTRADAS REALIZADAS\n\n84\nLANÇAMENTOS\nVOLUME TOTAL:\n0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UN\nBAIXAS\n\nSAÍDAS / UTILIZAÇÕES\n\n4\nLANÇAMENTOS\nVOLUME TOTAL:\n0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UN\nMONTAGEM & SOLAS\n\nPARES FORMADOS\n\n2\nPARES\n\n4 pés baixados\n\nDESCARTES\n\nREFUGOS / PERDAS\n\n0\nLANÇAMENTOS\nVOLUME FÍSICO:\n0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UN\nData / Hora\tSetor\tOperação\tCódigo / SKU\tDescrição do Material\tQtd\tLocalização\tMotivo / Origem\n08/10/2026 10:11\tCORTE\tENTRADA\t-\tComponente Multi-Setor\t1 NÃO INFORMADA\t-\tQA EXCLUSAO HISTORICO\n08/10/2026 09:46\tCORTE\tENTRADA\tQA-OPTIONAL-FIX\tQA ENTRADA SEM ORIGEM\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:59\tCORTE\tENTRADA\tQA-CSV-002\tFORRO SINTÉTICO\t2,5 M²\tQA CORTE B\tImportação inicial via planilha CSV\n08/10/2026 08:59\tCORTE\tENTRADA\tQA-CSV-001\tTECIDO CAFÉ; AZUL\t0,123 M²\tQA CORTE A\tImportação inicial via planilha CSV\n08/10/2026 08:56\tCORTE\tSAÍDA REQ.\tQA-SIN-01\tPRETO\t0,125 M²\tQA CORTE B\tAtendimento digital da requisição REQ-2026-0001 · setor solicitante CORTE; origem CORTE · Material compatível no setor CORTE.\n08/10/2026 08:55\tMONTAGEM\tCASAM. PAR\tQA-PAR-MONTAGEM\tMODELO QA\t2 UN\tQA MONTAGEM A\tCasamento de Par - Pé D casado com ID 6407.\n08/10/2026 08:55\tMONTAGEM\tCASAM. PAR\tQA-PAR-MONTAGEM\tMODELO QA\t2 UN\tQA MONTAGEM A\tCasamento de Par - Pé E casado com ID 6408.\n08/10/2026 08:54\tCORTE\tTRANSF.\tQA-SIN-01\tPRETO\t0,5 M²\tÁrea de Triagem QA ➔ QA CORTE B\tTransferência de Localização\n08/10/2026 08:54\tCORTE\tSAÍDA\tQA-SIN-01\tPRETO\t0,25 M²\tÁrea de Triagem QA\tConsumo / Saída\n08/10/2026 08:54\tCORTE\tENTRADA\tQA-SIN-01\tPRETO\t0,125 M²\tÁrea de Triagem QA\tCONSUMO\n08/10/2026 08:52\tMONTAGEM\tENTRADA\tQA-PAR-MONTAGEM\tMODELO QA\t5 UN\tQA MONTAGEM A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tMONTAGEM\tENTRADA\tQA-PAR-MONTAGEM\tMODELO QA\t5 UN\tQA MONTAGEM A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tDISTRIB.\tENTRADA\tQA-PAR-DISTRIBUICAO\tMODELO QA\t5 UN\tQA DISTRIBUICAO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tDISTRIB.\tENTRADA\tQA-PAR-DISTRIBUICAO\tMODELO QA\t5 UN\tQA DISTRIBUICAO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tPRÉ-FAB.\tENTRADA\tQA-PAR-PRE_FABRICADO\tMODELO QA\t5 UN\tQA PRE_FABRICADO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tPRÉ-FAB.\tENTRADA\tQA-PAR-PRE_FABRICADO\tMODELO QA\t5 UN\tQA PRE_FABRICADO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-64\tTECIDO AZUL 64\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-63\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-62\tTECIDO AZUL 62\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-61\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-60\tTECIDO AZUL 60\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-59\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-58\tTECIDO AZUL 58\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-57\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-56\tTECIDO AZUL 56\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-55\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-54\tTECIDO AZUL 54\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-53\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-52\tTECIDO AZUL 52\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-51\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-50\tTECIDO AZUL 50\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-49\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-48\tTECIDO AZUL 48\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-47\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-46\tTECIDO AZUL 46\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-45\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-44\tTECIDO AZUL 44\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-43\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-42\tTECIDO AZUL 42\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-41\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-40\tTECIDO AZUL 40\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-39\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-38\tTECIDO AZUL 38\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-37\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-36\tTECIDO AZUL 36\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-35\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-34\tTECIDO AZUL 34\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-33\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-32\tTECIDO AZUL 32\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-31\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\nTotal: 89 registros\n<\n1 de 2\n>",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (Geral)"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (Matéria-Prima)"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (Solas)"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (Pés Órfãos)"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todas as Operações"
+            },
+            {
+              "value": "ENTRADA",
+              "text": "Entradas de Sobras"
+            },
+            {
+              "value": "SAIDA",
+              "text": "Saídas (Inclui Casamentos e Requisições)"
+            },
+            {
+              "value": "TRANSFERENCIA",
+              "text": "Transferências entre Prateleiras"
+            },
+            {
+              "value": "CASAMENTO_PAR",
+              "text": "Casamento de Pares (Multi-Setor)"
+            },
+            {
+              "value": "SAIDA_REQUISICAO",
+              "text": "Saídas por Requisição"
+            },
+            {
+              "value": "REFUGO",
+              "text": "Refugos / Descartes"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os subsetores autorizados"
+            },
+            {
+              "value": "4",
+              "text": "QA Revisão Café 20261008"
+            },
+            {
+              "value": "3",
+              "text": "QASERIGRAFIA"
+            },
+            {
+              "value": "5",
+              "text": "QA SERIGRAFIA SELECTED"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "last_30_days",
+          "options": [
+            {
+              "value": "last_30_days",
+              "text": "Últimos 30 Dias (Padrão)"
+            },
+            {
+              "value": "mes_atual",
+              "text": "Este Mês"
+            },
+            {
+              "value": "semana",
+              "text": "Esta Semana"
+            },
+            {
+              "value": "hoje",
+              "text": "Hoje"
+            },
+            {
+              "value": "ano_atual",
+              "text": "Este Ano"
+            },
+            {
+              "value": "all",
+              "text": "Todos os Registros"
+            },
+            {
+              "value": "custom",
+              "text": "Período Personalizado"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: SKU, Código, Modelo...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Imprimir relatório completo",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Imprimir página atual",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Exportar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Movimentações & Estoque",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Requisições de Reposição Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Aplicar Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "<",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": ">",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Impressão completa",
+    "printed": {
+      "rows": 89,
+      "text": "\n    DSobras DASSDashboardEstoque Multi-SetorCasamento de ParesRequisições3HistóricoRelatóriosUsuáriosConfiguraçõesUsuário sintético adminAdministrador Sair  GRUPO DASS — UNIDADE QA_USER_20261008 (Unidade sintética de aceitação) Relatório Gerencial de Gestão de Sobras e MovimentaçõesEmissão: 08/10/2026 às 14:13Emissor: Usuário sintético admin (Mat: 99000)Setor: Todos os Setores (Geral)Operação: Todas as OperaçõesPeríodo: Últimos 30 Dias (Padrão)Filtro: GeralRelatório completo · 89 registros apresentados de 89. Totais dos registros consultados.Lançamentos de entrada: 84 lanç. Vol: 0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UNLançamentos de saída: 4 lanç. Vol: 0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UNCasamento Pares: 2 pares (4 pés baixados)Lançamentos de refugo: 0 lanç. Vol: 0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UN Central de Relatórios Analíticos  Consulte, audite e exporte métricas de estoque, movimentações e requisições fabris.  Imprimir relatório completo Imprimir página atualExportar CSV Movimentações & Estoque  Requisições de Reposição Fabril  Setor Industrial Todos os Setores (Geral)Corte (Matéria-Prima)Peças CortadasPré-Fabricado (Solas)DistribuiçãoMontagem (Pés Órfãos) Tipo de Operação Todas as OperaçõesEntradas de SobrasSaídas (Inclui Casamentos e Requisições)Transferências entre PrateleirasCasamento de Pares (Multi-Setor)Saídas por RequisiçãoRefugos / Descartes Subsetor Todos os subsetores autorizadosQA Revisão Café 20261008QASERIGRAFIAQA SERIGRAFIA SELECTED Período de Tempo Últimos 30 Dias (Padrão)Este MêsEsta SemanaHojeEste AnoTodos os RegistrosPeríodo Personalizado Buscar Código / SKU / Material  Limpar Filtros  Aplicar FiltrosHistóricoTotal Registros89 Auditoria de Linha LançamentosEntradas Realizadas84lançamentosVolume Total:0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UNBaixasSaídas / Utilizações4lançamentosVolume Total:0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UNMontagem & SolasPares Formados2pares4 pés baixados DescartesRefugos / Perdas0lançamentosVolume Físico:0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UNData / HoraSetorOperaçãoCódigo / SKUDescrição do MaterialQtdLocalizaçãoMotivo / Origem08/10/2026 10:11CORTEENTRADA-Componente Multi-Setor1 NÃO INFORMADA-QA EXCLUSAO HISTORICO08/10/2026 09:46CORTEENTRADAQA-OPTIONAL-FIXQA ENTRADA SEM ORIGEM0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:59CORTEENTRADAQA-CSV-002FORRO SINTÉTICO2,5 M²QA CORTE BImportação inicial via planilha CSV08/10/2026 08:59CORTEENTRADAQA-CSV-001TECIDO CAFÉ; AZUL0,123 M²QA CORTE AImportação inicial via planilha CSV08/10/2026 08:56CORTESAÍDA REQ.QA-SIN-01PRETO0,125 M²QA CORTE BAtendimento digital da requisição REQ-2026-0001 · setor solicitante CORTE; origem CORTE · Material compatível no setor CORTE.08/10/2026 08:55MONTAGEMCASAM. PARQA-PAR-MONTAGEMMODELO QA2 UNQA MONTAGEM ACasamento de Par - Pé D casado com ID 6407.08/10/2026 08:55MONTAGEMCASAM. PARQA-PAR-MONTAGEMMODELO QA2 UNQA MONTAGEM ACasamento de Par - Pé E casado com ID 6408.08/10/2026 08:54CORTETRANSF.QA-SIN-01PRETO0,5 M²Área de Triagem QA ➔ QA CORTE BTransferência de Localização08/10/2026 08:54CORTESAÍDAQA-SIN-01PRETO0,25 M²Área de Triagem QAConsumo / Saída08/10/2026 08:54CORTEENTRADAQA-SIN-01PRETO0,125 M²Área de Triagem QACONSUMO08/10/2026 08:52MONTAGEMENTRADAQA-PAR-MONTAGEMMODELO QA5 UNQA MONTAGEM AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52MONTAGEMENTRADAQA-PAR-MONTAGEMMODELO QA5 UNQA MONTAGEM AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52DISTRIB.ENTRADAQA-PAR-DISTRIBUICAOMODELO QA5 UNQA DISTRIBUICAO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52DISTRIB.ENTRADAQA-PAR-DISTRIBUICAOMODELO QA5 UNQA DISTRIBUICAO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52PRÉ-FAB.ENTRADAQA-PAR-PRE_FABRICADOMODELO QA5 UNQA PRE_FABRICADO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52PRÉ-FAB.ENTRADAQA-PAR-PRE_FABRICADOMODELO QA5 UNQA PRE_FABRICADO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52CORTEENTRADAQA-PAG-64TECIDO AZUL 640,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-63TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-62TECIDO AZUL 621,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-61TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-60TECIDO AZUL 600,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-59TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-58TECIDO AZUL 581,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-57TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-56TECIDO AZUL 560,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-55TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-54TECIDO AZUL 541,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-53TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-52TECIDO AZUL 520,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-51TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-50TECIDO AZUL 501,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-49TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-48TECIDO AZUL 480,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-47TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-46TECIDO AZUL 461,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-45TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-44TECIDO AZUL 440,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-43TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-42TECIDO AZUL 421,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-41TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-40TECIDO AZUL 400,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-39TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-38TECIDO AZUL 381,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-37TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-36TECIDO AZUL 360,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-35TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-34TECIDO AZUL 341,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-33TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-32TECIDO AZUL 320,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-31TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-30TECIDO AZUL 301,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-29TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-28TECIDO AZUL 280,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-27TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-26TECIDO AZUL 261,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-25TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-24TECIDO AZUL 240,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-23TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-22TECIDO AZUL 221,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-21TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-20TECIDO AZUL 200,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-19TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-18TECIDO AZUL 181,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-17TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-16TECIDO AZUL 160,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-15TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-14TECIDO AZUL 141,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-13TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-12TECIDO AZUL 120,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-11TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-10TECIDO AZUL 101,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-9TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-8TECIDO AZUL 80,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-7TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-6TECIDO AZUL 61,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-5TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-4TECIDO AZUL 40,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-3TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-2TECIDO AZUL 21,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-1TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-0TECIDO AZUL 00,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:51MONTAGEMENTRADAQA-MON-01QA QA-MON-016 UNQA MONTAGEM AEntrada em lote via terminal de chão de fábrica08/10/2026 08:51DISTRIB.ENTRADAQA-CAB-01QA QA-CAB-012 UNQA DISTRIBUICAO BEntrada em lote via terminal de chão de fábrica08/10/2026 08:51DISTRIB.ENTRADAQA-SOL-01QA QA-SOL-014 UNQA DISTRIBUICAO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:51PRÉ-FAB.ENTRADAQA-EVA-01QA QA-EVA-015 UNQA PRE_FABRICADO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:51Peças CortadasENTRADAQA QA-PEC-01QA QA-PEC-013 UNQA APOIO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:51CORTEENTRADAQA-COU-01PRETO2,75 MQA CORTE BEntrada em lote no Estoque de Corte08/10/2026 08:51CORTEENTRADAQA-LIN-01PRETO0,125 KGQA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:50CORTEENTRADAQA-SIN-01PRETO1,25 M²Área de Triagem QAEntrada em lote no Estoque de CorteTotal: 89 registros<1 de 2>\n  \n\n"
+    }
+  },
+  {
+    "name": "Após impressão completa",
+    "snapshot": {
+      "url": "/sobra_corte/reports",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nCentral de Relatórios Analíticos\n\nConsulte, audite e exporte métricas de estoque, movimentações e requisições fabris.\n\nImprimir relatório completo\nImprimir página atual\nExportar CSV\nMovimentações & Estoque\nRequisições de Reposição Fabril\nSETOR INDUSTRIAL\nTodos os Setores (Geral)\nCorte (Matéria-Prima)\nPeças Cortadas\nPré-Fabricado (Solas)\nDistribuição\nMontagem (Pés Órfãos)\nTIPO DE OPERAÇÃO\nTodas as Operações\nEntradas de Sobras\nSaídas (Inclui Casamentos e Requisições)\nTransferências entre Prateleiras\nCasamento de Pares (Multi-Setor)\nSaídas por Requisição\nRefugos / Descartes\nSUBSETOR\nTodos os subsetores autorizados\nQA Revisão Café 20261008\nQASERIGRAFIA\nQA SERIGRAFIA SELECTED\nPERÍODO DE TEMPO\nÚltimos 30 Dias (Padrão)\nEste Mês\nEsta Semana\nHoje\nEste Ano\nTodos os Registros\nPeríodo Personalizado\nBUSCAR CÓDIGO / SKU / MATERIAL\nLimpar Filtros\nAplicar Filtros\nHISTÓRICO\n\nTOTAL REGISTROS\n\n89\n\nAuditoria de Linha\n\nLANÇAMENTOS\n\nENTRADAS REALIZADAS\n\n84\nLANÇAMENTOS\nVOLUME TOTAL:\n0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UN\nBAIXAS\n\nSAÍDAS / UTILIZAÇÕES\n\n4\nLANÇAMENTOS\nVOLUME TOTAL:\n0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UN\nMONTAGEM & SOLAS\n\nPARES FORMADOS\n\n2\nPARES\n\n4 pés baixados\n\nDESCARTES\n\nREFUGOS / PERDAS\n\n0\nLANÇAMENTOS\nVOLUME FÍSICO:\n0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UN\nData / Hora\tSetor\tOperação\tCódigo / SKU\tDescrição do Material\tQtd\tLocalização\tMotivo / Origem\n08/10/2026 10:11\tCORTE\tENTRADA\t-\tComponente Multi-Setor\t1 NÃO INFORMADA\t-\tQA EXCLUSAO HISTORICO\n08/10/2026 09:46\tCORTE\tENTRADA\tQA-OPTIONAL-FIX\tQA ENTRADA SEM ORIGEM\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:59\tCORTE\tENTRADA\tQA-CSV-002\tFORRO SINTÉTICO\t2,5 M²\tQA CORTE B\tImportação inicial via planilha CSV\n08/10/2026 08:59\tCORTE\tENTRADA\tQA-CSV-001\tTECIDO CAFÉ; AZUL\t0,123 M²\tQA CORTE A\tImportação inicial via planilha CSV\n08/10/2026 08:56\tCORTE\tSAÍDA REQ.\tQA-SIN-01\tPRETO\t0,125 M²\tQA CORTE B\tAtendimento digital da requisição REQ-2026-0001 · setor solicitante CORTE; origem CORTE · Material compatível no setor CORTE.\n08/10/2026 08:55\tMONTAGEM\tCASAM. PAR\tQA-PAR-MONTAGEM\tMODELO QA\t2 UN\tQA MONTAGEM A\tCasamento de Par - Pé D casado com ID 6407.\n08/10/2026 08:55\tMONTAGEM\tCASAM. PAR\tQA-PAR-MONTAGEM\tMODELO QA\t2 UN\tQA MONTAGEM A\tCasamento de Par - Pé E casado com ID 6408.\n08/10/2026 08:54\tCORTE\tTRANSF.\tQA-SIN-01\tPRETO\t0,5 M²\tÁrea de Triagem QA ➔ QA CORTE B\tTransferência de Localização\n08/10/2026 08:54\tCORTE\tSAÍDA\tQA-SIN-01\tPRETO\t0,25 M²\tÁrea de Triagem QA\tConsumo / Saída\n08/10/2026 08:54\tCORTE\tENTRADA\tQA-SIN-01\tPRETO\t0,125 M²\tÁrea de Triagem QA\tCONSUMO\n08/10/2026 08:52\tMONTAGEM\tENTRADA\tQA-PAR-MONTAGEM\tMODELO QA\t5 UN\tQA MONTAGEM A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tMONTAGEM\tENTRADA\tQA-PAR-MONTAGEM\tMODELO QA\t5 UN\tQA MONTAGEM A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tDISTRIB.\tENTRADA\tQA-PAR-DISTRIBUICAO\tMODELO QA\t5 UN\tQA DISTRIBUICAO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tDISTRIB.\tENTRADA\tQA-PAR-DISTRIBUICAO\tMODELO QA\t5 UN\tQA DISTRIBUICAO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tPRÉ-FAB.\tENTRADA\tQA-PAR-PRE_FABRICADO\tMODELO QA\t5 UN\tQA PRE_FABRICADO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tPRÉ-FAB.\tENTRADA\tQA-PAR-PRE_FABRICADO\tMODELO QA\t5 UN\tQA PRE_FABRICADO A\tEntrada em lote via terminal de chão de fábrica\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-64\tTECIDO AZUL 64\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-63\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-62\tTECIDO AZUL 62\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-61\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-60\tTECIDO AZUL 60\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-59\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-58\tTECIDO AZUL 58\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-57\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-56\tTECIDO AZUL 56\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-55\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-54\tTECIDO AZUL 54\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-53\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-52\tTECIDO AZUL 52\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-51\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-50\tTECIDO AZUL 50\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-49\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-48\tTECIDO AZUL 48\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-47\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-46\tTECIDO AZUL 46\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-45\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-44\tTECIDO AZUL 44\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-43\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-42\tTECIDO AZUL 42\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-41\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-40\tTECIDO AZUL 40\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-39\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-38\tTECIDO AZUL 38\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-37\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-36\tTECIDO AZUL 36\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-35\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-34\tTECIDO AZUL 34\t1,25 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-33\tTECIDO CAFÉ / AÇÃO\t0,125 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-32\tTECIDO AZUL 32\t0,001 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\n08/10/2026 08:52\tCORTE\tENTRADA\tQA-PAG-31\tTECIDO CAFÉ / AÇÃO\t1.000,999 M²\tQA CORTE A\tEntrada em lote no Estoque de Corte\nTotal: 89 registros\n<\n1 de 2\n>",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores (Geral)"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte (Matéria-Prima)"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado (Solas)"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem (Pés Órfãos)"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todas as Operações"
+            },
+            {
+              "value": "ENTRADA",
+              "text": "Entradas de Sobras"
+            },
+            {
+              "value": "SAIDA",
+              "text": "Saídas (Inclui Casamentos e Requisições)"
+            },
+            {
+              "value": "TRANSFERENCIA",
+              "text": "Transferências entre Prateleiras"
+            },
+            {
+              "value": "CASAMENTO_PAR",
+              "text": "Casamento de Pares (Multi-Setor)"
+            },
+            {
+              "value": "SAIDA_REQUISICAO",
+              "text": "Saídas por Requisição"
+            },
+            {
+              "value": "REFUGO",
+              "text": "Refugos / Descartes"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os subsetores autorizados"
+            },
+            {
+              "value": "4",
+              "text": "QA Revisão Café 20261008"
+            },
+            {
+              "value": "3",
+              "text": "QASERIGRAFIA"
+            },
+            {
+              "value": "5",
+              "text": "QA SERIGRAFIA SELECTED"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "last_30_days",
+          "options": [
+            {
+              "value": "last_30_days",
+              "text": "Últimos 30 Dias (Padrão)"
+            },
+            {
+              "value": "mes_atual",
+              "text": "Este Mês"
+            },
+            {
+              "value": "semana",
+              "text": "Esta Semana"
+            },
+            {
+              "value": "hoje",
+              "text": "Hoje"
+            },
+            {
+              "value": "ano_atual",
+              "text": "Este Ano"
+            },
+            {
+              "value": "all",
+              "text": "Todos os Registros"
+            },
+            {
+              "value": "custom",
+              "text": "Período Personalizado"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: SKU, Código, Modelo...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Imprimir relatório completo",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Imprimir página atual",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Exportar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Movimentações & Estoque",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Requisições de Reposição Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Limpar Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Aplicar Filtros",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "<",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": ">",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Impressão página",
+    "printed": {
+      "rows": 50,
+      "text": "\n    DSobras DASSDashboardEstoque Multi-SetorCasamento de ParesRequisições3HistóricoRelatóriosUsuáriosConfiguraçõesUsuário sintético adminAdministrador Sair  GRUPO DASS — UNIDADE QA_USER_20261008 (Unidade sintética de aceitação) Relatório Gerencial de Gestão de Sobras e MovimentaçõesEmissão: 08/10/2026 às 14:13Emissor: Usuário sintético admin (Mat: 99000)Setor: Todos os Setores (Geral)Operação: Todas as OperaçõesPeríodo: Últimos 30 Dias (Padrão)Filtro: GeralPágina 1 de 2 · 50 registros apresentados de 89. Os totais representam todo o filtro; esta impressão contém apenas a página indicada.Lançamentos de entrada: 84 lanç. Vol: 0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UNLançamentos de saída: 4 lanç. Vol: 0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UNCasamento Pares: 2 pares (4 pés baixados)Lançamentos de refugo: 0 lanç. Vol: 0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UN Central de Relatórios Analíticos  Consulte, audite e exporte métricas de estoque, movimentações e requisições fabris.  Imprimir relatório completo Imprimir página atualExportar CSV Movimentações & Estoque  Requisições de Reposição Fabril  Setor Industrial Todos os Setores (Geral)Corte (Matéria-Prima)Peças CortadasPré-Fabricado (Solas)DistribuiçãoMontagem (Pés Órfãos) Tipo de Operação Todas as OperaçõesEntradas de SobrasSaídas (Inclui Casamentos e Requisições)Transferências entre PrateleirasCasamento de Pares (Multi-Setor)Saídas por RequisiçãoRefugos / Descartes Subsetor Todos os subsetores autorizadosQA Revisão Café 20261008QASERIGRAFIAQA SERIGRAFIA SELECTED Período de Tempo Últimos 30 Dias (Padrão)Este MêsEsta SemanaHojeEste AnoTodos os RegistrosPeríodo Personalizado Buscar Código / SKU / Material  Limpar Filtros  Aplicar FiltrosHistóricoTotal Registros89 Auditoria de Linha LançamentosEntradas Realizadas84lançamentosVolume Total:0,125 KG | 2,75 M | 16.042,124 M² | 1 NÃO INFORMADA | 50 UNBaixasSaídas / Utilizações4lançamentosVolume Total:0 KG | 0 M | 0,375 M² | 0 NÃO INFORMADA | 4 UNMontagem & SolasPares Formados2pares4 pés baixados DescartesRefugos / Perdas0lançamentosVolume Físico:0 KG | 0 M | 0 M² | 0 NÃO INFORMADA | 0 UNData / HoraSetorOperaçãoCódigo / SKUDescrição do MaterialQtdLocalizaçãoMotivo / Origem08/10/2026 10:11CORTEENTRADA-Componente Multi-Setor1 NÃO INFORMADA-QA EXCLUSAO HISTORICO08/10/2026 09:46CORTEENTRADAQA-OPTIONAL-FIXQA ENTRADA SEM ORIGEM0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:59CORTEENTRADAQA-CSV-002FORRO SINTÉTICO2,5 M²QA CORTE BImportação inicial via planilha CSV08/10/2026 08:59CORTEENTRADAQA-CSV-001TECIDO CAFÉ; AZUL0,123 M²QA CORTE AImportação inicial via planilha CSV08/10/2026 08:56CORTESAÍDA REQ.QA-SIN-01PRETO0,125 M²QA CORTE BAtendimento digital da requisição REQ-2026-0001 · setor solicitante CORTE; origem CORTE · Material compatível no setor CORTE.08/10/2026 08:55MONTAGEMCASAM. PARQA-PAR-MONTAGEMMODELO QA2 UNQA MONTAGEM ACasamento de Par - Pé D casado com ID 6407.08/10/2026 08:55MONTAGEMCASAM. PARQA-PAR-MONTAGEMMODELO QA2 UNQA MONTAGEM ACasamento de Par - Pé E casado com ID 6408.08/10/2026 08:54CORTETRANSF.QA-SIN-01PRETO0,5 M²Área de Triagem QA ➔ QA CORTE BTransferência de Localização08/10/2026 08:54CORTESAÍDAQA-SIN-01PRETO0,25 M²Área de Triagem QAConsumo / Saída08/10/2026 08:54CORTEENTRADAQA-SIN-01PRETO0,125 M²Área de Triagem QACONSUMO08/10/2026 08:52MONTAGEMENTRADAQA-PAR-MONTAGEMMODELO QA5 UNQA MONTAGEM AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52MONTAGEMENTRADAQA-PAR-MONTAGEMMODELO QA5 UNQA MONTAGEM AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52DISTRIB.ENTRADAQA-PAR-DISTRIBUICAOMODELO QA5 UNQA DISTRIBUICAO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52DISTRIB.ENTRADAQA-PAR-DISTRIBUICAOMODELO QA5 UNQA DISTRIBUICAO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52PRÉ-FAB.ENTRADAQA-PAR-PRE_FABRICADOMODELO QA5 UNQA PRE_FABRICADO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52PRÉ-FAB.ENTRADAQA-PAR-PRE_FABRICADOMODELO QA5 UNQA PRE_FABRICADO AEntrada em lote via terminal de chão de fábrica08/10/2026 08:52CORTEENTRADAQA-PAG-64TECIDO AZUL 640,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-63TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-62TECIDO AZUL 621,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-61TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-60TECIDO AZUL 600,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-59TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-58TECIDO AZUL 581,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-57TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-56TECIDO AZUL 560,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-55TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-54TECIDO AZUL 541,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-53TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-52TECIDO AZUL 520,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-51TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-50TECIDO AZUL 501,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-49TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-48TECIDO AZUL 480,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-47TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-46TECIDO AZUL 461,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-45TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-44TECIDO AZUL 440,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-43TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-42TECIDO AZUL 421,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-41TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-40TECIDO AZUL 400,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-39TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-38TECIDO AZUL 381,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-37TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-36TECIDO AZUL 360,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-35TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-34TECIDO AZUL 341,25 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-33TECIDO CAFÉ / AÇÃO0,125 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-32TECIDO AZUL 320,001 M²QA CORTE AEntrada em lote no Estoque de Corte08/10/2026 08:52CORTEENTRADAQA-PAG-31TECIDO CAFÉ / AÇÃO1.000,999 M²QA CORTE AEntrada em lote no Estoque de CorteTotal: 89 registros<1 de 2>\n  \n\n"
+    }
+  },
+  {
+    "name": "Erros completos e mapeamento",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\nForam encontrados erros de validação na planilha. Nenhum registro foi importado.\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nImportação Multi-Setor em Lote (CSV)\n\nCadastre materiais e componentes fabris em lote para todos os setores industriais.\n\nModelo: Corte\nModelo: Peças Cortadas\nModelo: Pré-Fabricado\nModelo: Distribuição\nModelo: Montagem\nBaixar Modelo (.csv)\n\nO modelo baixado contém apenas os cabeçalhos. Preencha com categorias e localizações cadastradas na unidade ativa. Os exemplos abaixo são ilustrativos.\n\nPadrão Exigido para o Arquivo CSV — CORTE (Matéria-Prima)\n\nPara garantir o processamento correto e evitar rejeição no setor selecionado, seu arquivo .csv deve utilizar delimitador por ponto e vírgula (;) ou vírgula (,) e conter as colunas especificadas abaixo no cabeçalho (primeira linha):\n\nCOLUNA\tOBRIGATORIEDADE\tDESCRIÇÃO & EXEMPLO\ncodigo\tObrigatório\tCódigo único do material. Ex: 1001\ndescricao\tObrigatório\tDescrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM\ncategoria\tObrigatório\tCategoria cadastrada e disponível para o setor. Define unidade e modo de cadastro.\nlado\tOpcional\tPreencha E, D ou PAR somente para categorias configuradas por lado/par.\nunidade\tOpcional\tOpcional: se preenchida, precisa corresponder à unidade definida na categoria.\nquantidade\tOpcional\tSaldo numérico inicial. Ex: 150.0 (Padrão: 0)\nprateleira\tOpcional\tLocalização ou prateleira física. Ex: A-01, B-02\nsubsetor\tOpcional\tSubsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.\nEXEMPLO DE ARQUIVO CSV VÁLIDO (CORTE)\nCODIFICAÇÃO: UTF-8\ncodigo;descricao;categoria;lado;unidade;quantidade;prateleira;subsetor\n1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;;m²;150.0;A-01;\n1002;FORRO TESPONTADO AZUL;FORRO;;m²;80.0;A-02;\n1003;COURO LEGITIMO CASTANHO;COURO;;m;45.5;B-01;\n1004;LINHA DE COSTURA REFORCADA;LINHA;;kg;20.0;C-01;\n\n\nArraste e solte o arquivo CSV aqui\n\nou clique no botão abaixo para navegar nos arquivos\n\nSelecionar Arquivo .CSV\n\nqa_review.csv\n\n0.2 KB\n\nSetor de Destino Padrão:\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n(Utilizado caso a planilha não contenha a coluna 'setor')\nValidar e Visualizar Importação\n\nFalha na Validação da Planilha (Nenhum item foi importado)\n\nForam encontrados erros de validação na planilha. Nenhum registro foi importado.\n\nINCONSISTÊNCIAS ENCONTRADAS (2 ERROS):\n\nSe escolher outra localização, clique em Validar novamente. O sistema continuará verificando setor, subsetor e categoria; a planilha original não será alterada.\n\nBaixar todos os erros (CSV)\nAgrupar por causa (1 grupos)\nLINHA\tCOLUNA\tVALOR\tMOTIVO DA REJEIÇÃO\n2\tprateleira\tQA APOIO A\tA prateleira 'QA APOIO A' não está cadastrada no sistema. Cadastre-a previamente em Configurações > Localizações para o setor APOIO ou corrija a planilha.\nUsar localização cadastrada nesta linha:\nManter valor do arquivo\nÁrea de Triagem QA · Geral\nQA MONTAGEM B · Montagem\nQA MONTAGEM A · Montagem\nQA DISTRIBUICAO B · Distribuição\nQA DISTRIBUICAO A · Distribuição\nQA PRE_FABRICADO B · Pré-Fabricado\nQA PRE_FABRICADO A · Pré-Fabricado\nQA APOIO B · Peças Cortadas\nQA APOIO A · Peças Cortadas\nQA CORTE B · Corte\nQA CORTE A · Corte\n\n3\tprateleira\tQA APOIO A\tA prateleira 'QA APOIO A' não está cadastrada no sistema. Cadastre-a previamente em Configurações > Localizações para o setor APOIO ou corrija a planilha.\nUsar localização cadastrada nesta linha:\nManter valor do arquivo\nÁrea de Triagem QA · Geral\nQA MONTAGEM B · Montagem\nQA MONTAGEM A · Montagem\nQA DISTRIBUICAO B · Distribuição\nQA DISTRIBUICAO A · Distribuição\nQA PRE_FABRICADO B · Pré-Fabricado\nQA PRE_FABRICADO A · Pré-Fabricado\nQA APOIO B · Peças Cortadas\nQA APOIO A · Peças Cortadas\nQA CORTE B · Corte\nQA CORTE A · Corte",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "CORTE",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Modelo: Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Modelo: Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Modelo: Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Modelo: Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Modelo: Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "file",
+          "id": "",
+          "placeholder": "",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "APOIO",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Manter valor do arquivo"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA · Geral"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B · Montagem"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A · Montagem"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B · Distribuição"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A · Distribuição"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B · Pré-Fabricado"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A · Pré-Fabricado"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B · Peças Cortadas"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A · Peças Cortadas"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B · Corte"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A · Corte"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Manter valor do arquivo"
+            },
+            {
+              "value": "274",
+              "text": "Área de Triagem QA · Geral"
+            },
+            {
+              "value": "273",
+              "text": "QA MONTAGEM B · Montagem"
+            },
+            {
+              "value": "272",
+              "text": "QA MONTAGEM A · Montagem"
+            },
+            {
+              "value": "271",
+              "text": "QA DISTRIBUICAO B · Distribuição"
+            },
+            {
+              "value": "270",
+              "text": "QA DISTRIBUICAO A · Distribuição"
+            },
+            {
+              "value": "269",
+              "text": "QA PRE_FABRICADO B · Pré-Fabricado"
+            },
+            {
+              "value": "268",
+              "text": "QA PRE_FABRICADO A · Pré-Fabricado"
+            },
+            {
+              "value": "267",
+              "text": "QA APOIO B · Peças Cortadas"
+            },
+            {
+              "value": "266",
+              "text": "QA APOIO A · Peças Cortadas"
+            },
+            {
+              "value": "265",
+              "text": "QA CORTE B · Corte"
+            },
+            {
+              "value": "264",
+              "text": "QA CORTE A · Corte"
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Baixar Modelo (.csv)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Validar e Visualizar Importação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Baixar todos os erros (CSV)",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": [
+      {
+        "method": "httpError",
+        "status": 422,
+        "url": "http://127.0.0.1:24180/api/sobracorte/import/csv/preview"
+      }
+    ]
+  },
+  {
+    "name": "Prévia decimal e mapeamento",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\nForam encontrados erros de validação na planilha. Nenhum registro foi importado.\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nImportação Multi-Setor em Lote (CSV)\n\nCadastre materiais e componentes fabris em lote para todos os setores industriais.\n\nModelo: Corte\nModelo: Peças Cortadas\nModelo: Pré-Fabricado\nModelo: Distribuição\nModelo: Montagem\nBaixar Modelo (.csv)\n\nO modelo baixado contém apenas os cabeçalhos. Preencha com categorias e localizações cadastradas na unidade ativa. Os exemplos abaixo são ilustrativos.\n\nPadrão Exigido para o Arquivo CSV — CORTE (Matéria-Prima)\n\nPara garantir o processamento correto e evitar rejeição no setor selecionado, seu arquivo .csv deve utilizar delimitador por ponto e vírgula (;) ou vírgula (,) e conter as colunas especificadas abaixo no cabeçalho (primeira linha):\n\nCOLUNA\tOBRIGATORIEDADE\tDESCRIÇÃO & EXEMPLO\ncodigo\tObrigatório\tCódigo único do material. Ex: 1001\ndescricao\tObrigatório\tDescrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM\ncategoria\tObrigatório\tCategoria cadastrada e disponível para o setor. Define unidade e modo de cadastro.\nlado\tOpcional\tPreencha E, D ou PAR somente para categorias configuradas por lado/par.\nunidade\tOpcional\tOpcional: se preenchida, precisa corresponder à unidade definida na categoria.\nquantidade\tOpcional\tSaldo numérico inicial. Ex: 150.0 (Padrão: 0)\nprateleira\tOpcional\tLocalização ou prateleira física. Ex: A-01, B-02\nsubsetor\tOpcional\tSubsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.\nEXEMPLO DE ARQUIVO CSV VÁLIDO (CORTE)\nCODIFICAÇÃO: UTF-8\ncodigo;descricao;categoria;lado;unidade;quantidade;prateleira;subsetor\n1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;;m²;150.0;A-01;\n1002;FORRO TESPONTADO AZUL;FORRO;;m²;80.0;A-02;\n1003;COURO LEGITIMO CASTANHO;COURO;;m;45.5;B-01;\n1004;LINHA DE COSTURA REFORCADA;LINHA;;kg;20.0;C-01;\n\n\nArraste e solte o arquivo CSV aqui\n\nou clique no botão abaixo para navegar nos arquivos\n\nSelecionar Arquivo .CSV\n\nqa_review.csv\n\n0.2 KB\n\nSetor de Destino Padrão:\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\n(Utilizado caso a planilha não contenha a coluna 'setor')\n\nPrévia da importação — nenhum item foi gravado\n\n2 linhas do arquivo · 1 itens após consolidar quantidades e converter pares.\n\n1 processados · 1 novos · 0 já cadastrados e ignorados\n\n0 com saldo zero · 0 usando localização padrão\n\nLocalizações: QA APOIO A\n\nCodificação detectada: UTF-8. Itens existentes não terão seus saldos alterados.\n\nLinha\tSetor\tSubsetor\tSKU / código\tModelo / peça\tTipo\tCor / combinação\tGrade / lado\tSaldo / unidade\tLocalização\n2\tPeças Cortadas\tSem subsetor\tQA-CSV-REVIEW\tQA MODELO\nQA PECA\n\tQA FRAC\tAZUL\t—\t0.3 KG\t\nQA APOIO A (0.3)\nConfirmar Importação de Materiais",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "CORTE",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Modelo: Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Modelo: Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Modelo: Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Modelo: Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Modelo: Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "file",
+          "id": "",
+          "placeholder": "",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "APOIO",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Baixar Modelo (.csv)",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar Importação de Materiais",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": [
+      {
+        "method": "httpError",
+        "status": 422,
+        "url": "http://127.0.0.1:24180/api/sobracorte/import/csv/preview"
+      }
+    ]
+  },
+  {
+    "name": "Importação decimal concluída",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n3\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\n1 itens importados com sucesso!\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nImportação Multi-Setor em Lote (CSV)\n\nCadastre materiais e componentes fabris em lote para todos os setores industriais.\n\nModelo: Corte\nModelo: Peças Cortadas\nModelo: Pré-Fabricado\nModelo: Distribuição\nModelo: Montagem\nBaixar Modelo (.csv)\n\nO modelo baixado contém apenas os cabeçalhos. Preencha com categorias e localizações cadastradas na unidade ativa. Os exemplos abaixo são ilustrativos.\n\nPadrão Exigido para o Arquivo CSV — CORTE (Matéria-Prima)\n\nPara garantir o processamento correto e evitar rejeição no setor selecionado, seu arquivo .csv deve utilizar delimitador por ponto e vírgula (;) ou vírgula (,) e conter as colunas especificadas abaixo no cabeçalho (primeira linha):\n\nCOLUNA\tOBRIGATORIEDADE\tDESCRIÇÃO & EXEMPLO\ncodigo\tObrigatório\tCódigo único do material. Ex: 1001\ndescricao\tObrigatório\tDescrição completa do material. Ex: TECIDO SINTETICO PRETO 1.4MM\ncategoria\tObrigatório\tCategoria cadastrada e disponível para o setor. Define unidade e modo de cadastro.\nlado\tOpcional\tPreencha E, D ou PAR somente para categorias configuradas por lado/par.\nunidade\tOpcional\tOpcional: se preenchida, precisa corresponder à unidade definida na categoria.\nquantidade\tOpcional\tSaldo numérico inicial. Ex: 150.0 (Padrão: 0)\nprateleira\tOpcional\tLocalização ou prateleira física. Ex: A-01, B-02\nsubsetor\tOpcional\tSubsetor ativo do mesmo setor. Deixe vazio para manter o fluxo atual sem subsetor.\nEXEMPLO DE ARQUIVO CSV VÁLIDO (CORTE)\nCODIFICAÇÃO: UTF-8\ncodigo;descricao;categoria;lado;unidade;quantidade;prateleira;subsetor\n1001;TECIDO SINTETICO PRETO 1.4MM;TECIDO;;m²;150.0;A-01;\n1002;FORRO TESPONTADO AZUL;FORRO;;m²;80.0;A-02;\n1003;COURO LEGITIMO CASTANHO;COURO;;m;45.5;B-01;\n1004;LINHA DE COSTURA REFORCADA;LINHA;;kg;20.0;C-01;\n\n\nArraste e solte o arquivo CSV aqui\n\nou clique no botão abaixo para navegar nos arquivos\n\nSelecionar Arquivo .CSV\n\nImportação multi-setor concluída com sucesso.\n\n1 materiais cadastrados · 0 já existentes e ignorados · 1 processados no total.\n\n✓ Prateleiras e Localizações vinculadas: 0 · Movimentações de Saldo Inicial geradas: 1",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "CORTE",
+          "options": [
+            {
+              "value": "CORTE",
+              "text": "Modelo: Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Modelo: Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Modelo: Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Modelo: Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Modelo: Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "file",
+          "id": "",
+          "placeholder": "",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Baixar Modelo (.csv)",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": [
+      {
+        "method": "httpError",
+        "status": 422,
+        "url": "http://127.0.0.1:24180/api/sobracorte/import/csv/preview"
+      }
+    ]
+  }
+]

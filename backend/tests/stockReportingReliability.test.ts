@@ -69,7 +69,8 @@ test('relatório e CSV incluem requisições e preservam snapshots após renomea
       assert.equal(item.codigo, 'SKU-original');
       assert.equal(item.nomeModelo, 'Modelo original');
       assert.equal(item.descricao, 'Descrição original');
-      assert.equal(item.unidade, 'UND');
+      assert.equal(item.unidade, 'UN', 'alias UND deve ser apresentado como unidade canônica, sem alterar o snapshot');
+      assert.equal(historical.itemUnit, 'UND');
       assert.equal(item.gradeTamanho, '40');
       assert.equal(item.ladoPe, 'E');
       assert.equal(item.cor, 'AZUL');
@@ -79,7 +80,7 @@ test('relatório e CSV incluem requisições e preservam snapshots após renomea
     const exported = capture();
     await controller.exportMovements({ user: { role: 'admin' }, tenant: { id: 1 }, query: { movementType, search: 'Modelo original' } } as any, exported.res);
     assert.equal(exported.chunks.length, 3);
-    assert.match(exported.chunks[1], /SAIDA_REQUISICAO.*SKU-original.*Descrição original.*CABEDAL.*40.*E.*UND.*Local original/);
+    assert.match(exported.chunks[1], /SAIDA_REQUISICAO.*SKU-original.*Descrição original.*CABEDAL.*40.*E.*UN.*Local original/);
     assert.doesNotMatch(exported.chunks.join(''), /renomeado|Descrição nova|Modelo novo|VERMELHO/);
     csv = false;
   }
@@ -138,4 +139,19 @@ test('dashboard separa volumes de saída e calcula origem pela contagem de regis
   assert.equal(result.body.origemSobras[0].origem, 'Origem B');
   assert.equal(result.body.origemSobras[0].percentage, 75);
   assert.equal(result.body.origemSobras[1].percentage, 25);
+});
+
+test('unidade efetiva histórica é a mesma no detalhe e no agregado', async t => {
+  replace(t, prisma.stockMovement, {
+    findMany: async () => [{ id: 1, sector: 'CORTE', type: 'SAIDA', quantity: 0.3, stockItemId: 7, stockItem: { id: 7, unit: 'KG' } }],
+    count: async () => 1, aggregate: async () => ({ _sum: { quantity: 0.3 } }),
+    groupBy: async () => [{ sector: 'CORTE', type: 'SAIDA', itemUnit: null, stockItemId: 7, _sum: { quantity: 0.3 }, _count: { _all: 1 } }],
+  });
+  replace(t, prisma.stockItem, { findMany: async () => [{ id: 7, unit: 'KG' }] });
+  replace(t, prisma.location, { findMany: async () => [] });
+  const result = capture();
+  await new ReportController().movements({ tenant: { id: 1 }, user: { role: 'admin' }, query: {} } as any, result.res);
+  assert.equal(result.body.items[0].unidade, 'KG');
+  assert.equal(result.body.totals.volumePorUnidade.KG.saida, 0.3);
+  assert.equal(result.body.totals.volumePorUnidade.UN, undefined);
 });

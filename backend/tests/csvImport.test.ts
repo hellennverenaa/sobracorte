@@ -349,3 +349,12 @@ test('validateImportBatch exige grade para o setor Montagem', () => {
     return true;
   });
 });
+
+test('consolidação soma decimais sem criar casas adicionais de precisão', () => {
+  const parsed = parseCsvRFC4180('sku;modelo;peca;tipo;material_cor;quantidade;prateleira\nQA-DEC;MODELO;PEÇA;PEÇA;AZUL;0.1;AP-01\nQA-DEC;MODELO;PEÇA;PEÇA;AZUL;0.2;AP-01');
+  const categories = mockCategories.map(category => category.id === 5 ? { ...category, defaultUnitCode: 'KG' } : category);
+  const items = validateImportBatch(parsed.headers, parsed.rows, 'APOIO', mockLocations, categories);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].quantity, 0.3);
+  assert.equal(items[0].locations?.[0].quantity, 0.3);
+});

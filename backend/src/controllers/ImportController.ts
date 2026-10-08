@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { UnitValidationError } from '../utils/unitHelper';
 import { requestStockAccess, assignedStockSector, assertStockSectorAccess, isStockMaster, StockAccessError } from '../auth/stockAccess';
 import { assertStockSubsectorAccess, locationScopeWhere } from '../auth/subsectorAccess';
@@ -74,6 +75,26 @@ export class ImportController {
       });
 
       // 3. Validação de Lote em Memória (Pre-Flight) com validação de prateleiras existentes
+      if (req.body?.localizationMappings) {
+        let mappings: unknown;
+        try { mappings = JSON.parse(req.body.localizationMappings); }
+        catch { return res.status(400).json({ error: 'Mapeamento de localizações inválido.' }); }
+        if (!Array.isArray(mappings) || mappings.length > parsed.rows.length) return res.status(400).json({ error: 'Mapeamento de localizações inválido.' });
+        const locationColumn = parsed.headers.findIndex(header => ['prateleira', 'localizacao', 'localização', 'location', 'box', 'estante', 'endereco'].includes(header.trim().toLowerCase()));
+        if (locationColumn < 0) return res.status(400).json({ error: 'A planilha não contém uma coluna de localização para mapear.' });
+        const mappedRows = new Set<number>();
+        for (const mapping of mappings) {
+          const row = parsed.rows.find(row => row.rowNumber === mapping?.row);
+          const location = availableLocations.find(location => location.id === mapping?.locationId);
+          if (!row || !location || mappedRows.has(row.rowNumber)) return res.status(400).json({ error: 'Linha ou localização indisponível no mapeamento.' });
+          mappedRows.add(row.rowNumber);
+          row.cells[locationColumn] = location.name;
+          const mappedItems = validateImportBatch(parsed.headers, [row], defaultSector, availableLocations, availableCategories, availableSubsectors);
+          if (mappedItems.some(item => item.locationId !== location.id)) {
+            return res.status(422).json({ error: 'A localização escolhida não corresponde ao setor e subsetor desta linha.', errors: [{ row: row.rowNumber, column: 'prateleira', value: location.name, message: 'Escolha uma localização do mesmo setor e subsetor do item.' }], totalErrors: 1 });
+          }
+        }
+      }
       let validatedItems;
       try {
         validatedItems = validateImportBatch(parsed.headers, parsed.rows, defaultSector, availableLocations, availableCategories, availableSubsectors);
@@ -81,7 +102,7 @@ export class ImportController {
         if (validationErr instanceof ImportValidationError) {
           return res.status(422).json({
             error: validationErr.message,
-            errors: validationErr.errors.slice(0, 100), totalErrors: validationErr.errors.length,
+            errors: validationErr.errors, totalErrors: validationErr.errors.length,
           });
         }
         throw validationErr;
@@ -99,10 +120,19 @@ export class ImportController {
       if (plan.errors.length) {
         return res.status(422).json({
           error: 'Foram encontrados conflitos no arquivo. Nenhum item foi importado.',
-          errors: plan.errors.slice(0, 100), totalErrors: plan.errors.length,
+          errors: plan.errors, totalErrors: plan.errors.length,
         });
       }
 
+      const planHash = createHash('sha256').update(req.file.buffer).update(JSON.stringify({
+        factoryUnitId, defaultSector, items: validatedItems, ignored: plan.ignoredItems,
+        locations: [...availableLocations].sort((a, b) => a.id - b.id),
+        categories: [...availableCategories].sort((a, b) => (a.id || 0) - (b.id || 0)),
+        subsectors: [...availableSubsectors].sort((a, b) => a.id - b.id),
+      })).digest('hex');
+      if (!preview && req.body?.planoHash && req.body.planoHash !== planHash) {
+        return res.status(409).json({ error: 'O estoque ou as configurações mudaram desde a prévia. Valide novamente o arquivo antes de confirmar.' });
+      }
       if (preview) {
         const previewLimit = 100;
         const previewItems = validatedItems.slice(0, previewLimit).map(item => ({
@@ -124,9 +154,12 @@ export class ImportController {
         }));
 
         return res.status(200).json({
+          planoHash: planHash,
           processados: validatedItems.length,
           novos: plan.toInsert.length,
           ignorados: plan.ignored,
+          itensIgnorados: plan.ignoredItems,
+          linhasArquivo: parsed.rows.length,
           saldosZero: validatedItems.filter(item => item.quantity === 0).length,
           localizacoesPadrao: validatedItems.filter(item => item.locationDefaulted).length,
           prateleiras: [...new Set(validatedItems.flatMap(item => (item.locations && item.locations.length > 0 ? item.locations.map(l => l.locationName) : [item.locationName])))].filter(Boolean).sort(),
@@ -176,6 +209,9 @@ export class ImportController {
       }
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2028') {
         return res.status(503).json({ error: 'A importação excedeu o tempo de processamento. Nenhum item foi importado; tente novamente após revisar o tamanho do lote.' });
+      }
+      if (error instanceof ImportValidationError) {
+        return res.status(422).json({ error: error.message, errors: error.errors, totalErrors: error.errors.length });
       }
       console.error('Erro na importação do CSV:', error);
       return res.status(500).json({ error: 'Erro interno ao processar a planilha CSV.' });

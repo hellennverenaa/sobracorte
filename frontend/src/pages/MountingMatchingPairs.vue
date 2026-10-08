@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, computed, onMounted, watch } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, MatchingPair, SectorType } from '@/stores/stockStore';
@@ -110,6 +111,7 @@ watch(() => authStore.user?.unit?.code, () => {
 onMounted(() => {
   loadPairs();
 });
+useDataRefresh(loadPairs, { paths: ['/inventory', '/requisitions', '/import'] });
 </script>
 
 <template>

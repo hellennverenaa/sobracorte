@@ -24,6 +24,10 @@ function formatReportSector(sector: unknown): unknown {
   return sector === 'APOIO' ? 'Peças Cortadas' : sector;
 }
 
+function reportUnit(unit?: string | null, sector?: string | null): string {
+  return unit ? normalizeUnit(unit, sector) : 'NÃO INFORMADA';
+}
+
 export function decimalString(val: unknown): string {
   if (val === null || val === undefined) return '0';
   const num = Number(val);
@@ -283,7 +287,7 @@ export class ReportController {
           _sum: { quantity: true },
         }),
         prisma.stockMovement.groupBy({
-          by: ['type', 'sector', 'itemUnit'],
+          by: ['type', 'sector', 'itemUnit', 'stockItemId'],
           where: stockWhere,
           _sum: { quantity: true },
           _count: { _all: true },
@@ -322,7 +326,7 @@ export class ReportController {
           setorOrigem: m.sourceSector,
           setorDestino: m.destinationSector,
           quantidade: m.quantity,
-          unidade: m.itemUnit ?? item?.unit ?? 'UND',
+          unidade: reportUnit(m.itemUnit || item?.unit, m.sector),
           prateleira: locFormatted,
           origem: m.origem || 'Geração no Setor',
           motivo: m.reason || m.origem || '-',
@@ -333,7 +337,7 @@ export class ReportController {
             codigo: code,
             descricao: desc,
             tipo: m.itemCategory ?? item?.type ?? m.sector,
-            unidade: m.itemUnit ?? item?.unit ?? 'UND',
+            unidade: reportUnit(m.itemUnit || item?.unit, m.sector),
           },
           nomeMaterial: desc,
         };
@@ -360,9 +364,18 @@ export class ReportController {
       const requisicao = typeStats('SAIDA_REQUISICAO');
       const refugo = typeStats('REFUGO');
       const transferencia = typeStats('TRANSFERENCIA');
+      const legacyIds = [...new Set(movementUnitGroups.filter(group => !group.itemUnit && group.stockItemId).map(group => group.stockItemId!))];
+      const legacyItems = legacyIds.length ? await prisma.stockItem.findMany({
+        where: { factoryUnitId, id: { in: legacyIds } }, select: { id: true, unit: true },
+      }) : [];
+      const legacyUnits = new Map(legacyItems.map(item => [item.id, item.unit]));
+      const effectiveUnit = (group: typeof movementUnitGroups[number]) => {
+        const unit = group.itemUnit || (group.stockItemId ? legacyUnits.get(group.stockItemId) : null);
+        return reportUnit(unit, group.sector);
+      };
       const volumeByUnit = new Map<string, { entrada: number; saida: number; refugo: number; transferencia: number }>();
       for (const group of movementUnitGroups) {
-        const unit = normalizeUnit(group.itemUnit, group.sector);
+        const unit = effectiveUnit(group);
         const current = volumeByUnit.get(unit) || { entrada: 0, saida: 0, refugo: 0, transferencia: 0 };
         const quantity = Number(group._sum.quantity ?? 0);
         if (group.type === 'ENTRADA') current.entrada += quantity;
@@ -374,7 +387,7 @@ export class ReportController {
       const unitSubtotal = (field: 'type' | 'sector', key: string) => {
         const units = new Map<string, { quantidadeTotal: number }>();
         for (const group of movementUnitGroups.filter(group => group[field] === key)) {
-          const unit = normalizeUnit(group.itemUnit, group.sector);
+          const unit = effectiveUnit(group);
           const current = units.get(unit) || { quantidadeTotal: 0 };
           current.quantidadeTotal += Number(group._sum.quantity ?? 0);
           units.set(unit, current);
@@ -385,7 +398,7 @@ export class ReportController {
         };
       };
       const volumePorUnidade = Object.fromEntries(volumeByUnit);
-      const singleReportUnit = volumeByUnit.size === 1;
+      const singleReportUnit = volumeByUnit.size === 1 && !volumeByUnit.has('NÃO INFORMADA');
       const volumeTotalSaida = saida.quantity + casamento.quantity + requisicao.quantity;
       const saidaCount = saida.count + casamento.count + requisicao.count;
       const volumeEntradaCorte = movementGroups
@@ -756,15 +769,18 @@ export class ReportController {
 
       // 1. Stream StockMovement
       {
-        let lastStockId: number | undefined = undefined;
+        let cursor: { id: number; createdAt: Date } | undefined;
         while (true) {
           const batch: any[] = await prisma.stockMovement.findMany({
             where: {
               ...stockWhere,
-              ...(lastStockId !== undefined && { id: { lt: lastStockId } }),
+              ...(cursor && { AND: [stockWhere, { OR: [
+                { createdAt: { lt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+              ] }] }),
             },
             take: batchSize,
-            orderBy: { id: 'desc' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             include: {
               stockItem: true,
               subsector: { select: { name: true } },
@@ -798,7 +814,7 @@ export class ReportController {
               m.itemSizeGrade ?? item?.sizeGrade ?? '-',
               m.itemFootSide ?? item?.footSide ?? '-',
               decimalString(m.quantity),
-              m.itemUnit ?? item?.unit ?? 'UND',
+              reportUnit(m.itemUnit || item?.unit, m.sector),
               locFormatted,
               m.origem || 'Geração no Setor',
               m.reason || m.origem || '-',
@@ -814,7 +830,7 @@ export class ReportController {
           }
 
           if (batch.length < batchSize) break;
-          lastStockId = batch[batch.length - 1].id;
+          cursor = { id: batch[batch.length - 1].id, createdAt: batch[batch.length - 1].createdAt };
         }
       }
 
@@ -924,16 +940,19 @@ export class ReportController {
       ]));
 
       const batchSize = 500;
-      let lastId: number | undefined = undefined;
+      let cursor: { id: string; createdAt: Date } | undefined;
 
       while (true) {
         const batch: any[] = await prisma.materialRequisition.findMany({
           where: {
             ...whereClause,
-            ...(lastId !== undefined && { id: { lt: lastId } }),
+            ...(cursor && { AND: [whereClause, { OR: [
+              { createdAt: { lt: cursor.createdAt } },
+              { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+            ] }] }),
           },
           take: batchSize,
-          orderBy: { id: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         });
 
         if (batch.length === 0) break;
@@ -963,7 +982,7 @@ export class ReportController {
         }
 
         if (batch.length < batchSize) break;
-        lastId = batch[batch.length - 1].id;
+        cursor = { id: batch[batch.length - 1].id, createdAt: batch[batch.length - 1].createdAt };
       }
 
       return res.end();

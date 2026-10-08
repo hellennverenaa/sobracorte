@@ -1,10 +1,11 @@
 <script setup>
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import {
   LayoutDashboard, Package, ArrowLeftRight, Users,
   LogOut, Menu, X, FileBarChart, Settings, Layers, Footprints, History,
-  ClipboardList, Bell, Building2
+  ClipboardList, Building2
 } from 'lucide-vue-next'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { api } from '@/services/httpClient'
@@ -129,6 +130,7 @@ async function handleUnitChange(event) {
     isSwitchingUnit.value = false
   }
 }
+useDataRefresh(fetchPendingCount, { paths: ['/requisitions', '/inventory', '/import'], local: true })
 </script>
 
 <template>
@@ -204,23 +206,6 @@ async function handleUnitChange(event) {
             <p class="text-sm font-bold truncate" :title="authStore.user?.nome || authStore.user?.usuario">{{ authStore.user?.nome || authStore.user?.usuario }}</p>
             <p class="text-xs text-slate-400 truncate">{{ ROLE_LABELS[authStore.user?.role] || 'Leitor' }}</p>
           </div>
-          <!-- Central de Notificações / Requisições -->
-          <router-link
-            v-if="isRequisitionsEnabled"
-            to="/requisitions?status=PENDENTE"
-            class="relative p-2 shrink-0 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
-            title="Requisições Pendentes"
-            aria-label="Requisições pendentes"
-            @click="isSidebarOpen = false"
-          >
-            <Bell class="w-5 h-5" />
-            <span
-              v-if="pendingCount > 0"
-              class="absolute top-1 right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[10px] font-black flex items-center justify-center animate-pulse"
-            >
-              {{ pendingCount }}
-            </span>
-          </router-link>
         </div>
 
         <button

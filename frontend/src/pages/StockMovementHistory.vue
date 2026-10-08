@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, onMounted, reactive, computed } from 'vue';
 import Layout from '@/components/Layout.vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
@@ -142,6 +143,7 @@ function formatItemDetails(item: any, mov?: any) {
 onMounted(() => {
   loadHistory();
 });
+useDataRefresh(loadHistory, { paths: ['/inventory', '/requisitions', '/import', '/settings'] });
 </script>
 
 <template>

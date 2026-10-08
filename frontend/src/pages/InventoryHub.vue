@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
@@ -673,6 +674,7 @@ onMounted(() => {
   if (route.query.sector !== initialSector) router.replace({ query: { ...route.query, sector: initialSector } });
   loadData(currentPage.value);
 });
+useDataRefresh(() => loadData(currentPage.value), { paths: ['/inventory', '/settings', '/import', '/requisitions'] });
 </script>
 
 <template>

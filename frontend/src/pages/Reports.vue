@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { useDataRefresh } from '../composables/useDataRefresh'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import Layout from '@/components/Layout.vue'
 import PageState from '@/components/PageState.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -35,7 +36,7 @@ const reportDomain = useReports({
 })
 
 // --- TIPO DE RELATÓRIO ATIVO ---
-const { reportType, filters, loading, error: reportError, reportData, currentPage, pagination, reportTotals } = reportDomain
+const { reportType, filters, loading, error: reportError, reportData, currentPage, pagination, reportTotals, appliedFilters, appliedQuery, filtersDirty } = reportDomain
 const isRequisitionsEnabled = computed(() => authStore.user?.unit?.enableRequisitions !== false)
 const availableSubsectors = ref([])
 
@@ -46,18 +47,22 @@ const loadError = computed(() => reportError.value
 
 // --- HELPERS DE VOLUME & UNIDADES ---
 const currentUnitSuffix = computed(() => {
-  const sec = filters.value.sector
-  if (sec === 'CORTE') return 'm²'
-  if (sec === 'MONTAGEM' || sec === 'PRE_FABRICADO') return 'pares/pés'
-  if (sec === 'APOIO' || sec === 'DISTRIBUICAO') return 'un'
-  return 'un'
+  const units = Object.keys(reportTotals.value.volumePorUnidade || {})
+  return units.length === 1 ? units[0] : units.length ? 'por unidade' : '—'
 })
+
+function formatUnitVolumes(field, fallback) {
+  const entries = Object.entries(reportTotals.value.volumePorUnidade || {})
+  return entries.length
+    ? entries.map(([unit, values]) => `${formatVolume(values[field])} ${unit}`).join(' | ')
+    : `${formatVolume(fallback)} ${currentUnitSuffix.value}`
+}
 
 function formatVolume(val) {
   if (val === null || val === undefined) return '—'
   const num = Number(val)
   if (isNaN(num)) return '0'
-  return num.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  return num.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
 }
 
 // --- PERMISSÕES RBAC ---
@@ -77,6 +82,7 @@ const sectors = computed(() => SECTOR_OPTIONS.filter(sector =>
   label: sector.id === 'TODOS' ? 'Todos os Setores (Geral)' : sector.label,
 })))
 
+const displayedFilters = computed(() => appliedFilters.value || filters.value)
 const reportSubsectors = computed(() => {
   const sector = normalizeSector(filters.value.sector)
   return availableSubsectors.value.filter(subsector => sector === 'TODOS' || normalizeSector(subsector.sector) === sector)
@@ -188,76 +194,52 @@ const isExporting = ref(false)
 
 // --- EXPORTAÇÃO CSV VIA STREAMING HTTP CONTÍNUO ---
 async function downloadExcel() {
-  if (isExporting.value) return
+  if (isExporting.value || loading.value) return
+  if (filtersDirty.value) { showNotification('error', 'Aplique os filtros antes de exportar.'); return }
   isExporting.value = true
-
   try {
-    const dates = getDatesFromPeriod(filters.value.periodo, filters.value)
-    if (filters.value.periodo === 'custom' && !dates) {
-      showNotification('error', "Selecione as datas de início e fim para o período personalizado.")
-      isExporting.value = false
-      return
-    }
-
-    let endpoint = ''
-    let defaultFilename = ''
-
-    if (reportType.value === 'requisitions') {
-      const params = new URLSearchParams({
-        sector: filters.value.sector,
-        status: filters.value.status,
-      })
-      if (dates?.start && dates?.end) {
-        params.append('dataInicio', dates.start)
-        params.append('dataFim', dates.end)
-      }
-      if (filters.value.search) params.append('search', filters.value.search)
-
-      endpoint = `/reports/requisitions/export?${params.toString()}`
-      const secName = sectorFilenameSuffix(filters.value.sector)
-      defaultFilename = `SobrasDASS_Requisicoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
-    } else {
-      const params = new URLSearchParams({
-        sector: filters.value.sector,
-        tipoMovimento: filters.value.tipoMovimento,
-        origin: filters.value.origin,
-      })
-      if (filters.value.subsectorId) params.append('subsectorId', String(filters.value.subsectorId))
-      if (dates?.start && dates?.end) {
-        params.append('dataInicio', dates.start)
-        params.append('dataFim', dates.end)
-      }
-      if (filters.value.search) params.append('search', filters.value.search)
-
-      endpoint = `/reports/movements/export?${params.toString()}`
-      const secName = sectorFilenameSuffix(filters.value.sector)
-      defaultFilename = `SobrasDASS_Movimentacoes${secName}_${new Date().toISOString().split('T')[0]}.csv`
-    }
-
-    showNotification('success', 'Iniciando download contínuo do relatório completo...')
-
-    const res = await api.get(endpoint, { responseType: 'blob' })
+    const [endpoint, query] = appliedQuery.value.split('?')
+    const params = new URLSearchParams(query)
+    params.delete('page'); params.delete('limit')
+    const res = await api.get(`${endpoint}/export?${params}`, { responseType: 'blob' })
     const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    const url = window.URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', defaultFilename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-
-    showNotification('success', 'Relatório completo baixado com sucesso!')
-  } catch (error) {
-    console.error('Erro ao exportar relatório por streaming:', error)
-    showNotification('error', 'Falha ao processar exportação contínua do relatório.')
-  } finally {
-    isExporting.value = false
-  }
+    link.href = url
+    link.download = `SobrasDASS_${reportType.value}_${new Date().toISOString().split('T')[0]}.csv`
+    link.click(); URL.revokeObjectURL(url)
+    showNotification('success', 'Relatório completo baixado.')
+  } catch (error) { showNotification('error', requestErrorMessage(error, 'Falha ao exportar relatório.')) }
+  finally { isExporting.value = false }
 }
 
-function printPDF() {
-  window.print()
+const preparingPrint = ref(false)
+const printingComplete = ref(false)
+async function printPDF(complete = true) {
+  if (preparingPrint.value || loading.value) return
+  if (filtersDirty.value) { showNotification('error', 'Aplique os filtros antes de imprimir.'); return }
+  const previousItems = reportData.value
+  const previousTotals = reportTotals.value
+  const previousPagination = pagination.value
+  preparingPrint.value = true
+  try {
+    if (complete) {
+      const result = await reportDomain.completeReport()
+      reportData.value = result.items
+      reportTotals.value = result.totals
+      pagination.value = result.pagination
+    }
+    printingComplete.value = complete
+    await nextTick()
+    window.print()
+  } catch (error) { showNotification('error', requestErrorMessage(error, error.message || 'Falha ao preparar impressão.')) }
+  finally {
+    reportData.value = previousItems
+    reportTotals.value = previousTotals
+    pagination.value = previousPagination
+    printingComplete.value = false
+    preparingPrint.value = false
+  }
 }
 
 // --- PAGINAÇÃO NO SERVIDOR ---
@@ -314,16 +296,16 @@ function getTypeShort(tipo) {
 }
 
 function getPeriodLabel() {
-  if (filters.value.periodo === 'custom') {
-    if (filters.value.dataInicio && filters.value.dataFim) {
-      const d1 = new Date(filters.value.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')
-      const d2 = new Date(filters.value.dataFim + 'T23:59:59').toLocaleDateString('pt-BR')
+  if (displayedFilters.value.periodo === 'custom') {
+    if (displayedFilters.value.dataInicio && displayedFilters.value.dataFim) {
+      const d1 = new Date(displayedFilters.value.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')
+      const d2 = new Date(displayedFilters.value.dataFim + 'T23:59:59').toLocaleDateString('pt-BR')
       return `${d1} a ${d2}`
     }
     return 'Período Personalizado'
   }
-  const found = periods.find(p => p.value === filters.value.periodo)
-  return found ? found.label : filters.value.periodo
+  const found = periods.find(p => p.value === displayedFilters.value.periodo)
+  return found ? found.label : displayedFilters.value.periodo
 }
 
 // --- CORES DE BADGES ---
@@ -366,6 +348,7 @@ function formatReportReason(value) {
   if (!text) return '-'
   return text.replace(/(?:^|\s)Obs(?:ervação)?\s*:\s*.*$/i, '').trim() || '-'
 }
+useDataRefresh(async () => { if (preparingPrint.value) return; await Promise.all([fetchOrigins(), fetchSubsectors()]); if (!filtersDirty.value && !preparingPrint.value) await generateReport(currentPage.value); }, { paths: ['/inventory', '/requisitions', '/import', '/settings'] })
 </script>
 
 <template>
@@ -393,29 +376,34 @@ function formatReportReason(value) {
         </div>
 
         <div class="grid grid-cols-4 gap-2 mt-1.5 pt-1.5 border-t border-slate-300 text-[9px] text-slate-800">
-          <div><span class="font-bold text-slate-900">Setor:</span> {{ getSectorLabel(filters.sector) }}</div>
-          <div><span class="font-bold text-slate-900">{{ reportType === 'requisitions' ? 'Status:' : 'Operação:' }}</span> {{ reportType === 'requisitions' ? filters.status : getOperationLabel(filters.tipoMovimento) }}</div>
+          <div><span class="font-bold text-slate-900">Setor:</span> {{ getSectorLabel(displayedFilters.sector) }}</div>
+          <div><span class="font-bold text-slate-900">{{ reportType === 'requisitions' ? 'Status:' : 'Operação:' }}</span> {{ reportType === 'requisitions' ? displayedFilters.status : getOperationLabel(displayedFilters.tipoMovimento) }}</div>
           <div><span class="font-bold text-slate-900">Período:</span> {{ getPeriodLabel() }}</div>
-          <div><span class="font-bold text-slate-900">Filtro:</span> {{ filters.search || 'Geral' }}</div>
+          <div><span class="font-bold text-slate-900">Filtro:</span> {{ displayedFilters.search || 'Geral' }}</div>
         </div>
 
+        <p class="hidden print:block text-[10px] font-semibold">
+          {{ printingComplete ? 'Relatório completo' : `Página ${currentPage} de ${pagination.totalPages}` }} · {{ reportData.length }} registros apresentados de {{ pagination.total }}.
+          {{ printingComplete ? 'Totais dos registros consultados.' : 'Os totais representam todo o filtro; esta impressão contém apenas a página indicada.' }}
+        </p>
+        <p v-if="filtersDirty" role="status" class="print:hidden rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Filtros alterados. Gere o relatório para atualizar dados, impressão e exportação.</p>
         <!-- Síntese Executiva de Movimentações (Visão Dupla: Operações vs Volume Físico) -->
         <div v-if="reportType === 'movements' && reportData.length > 0" class="mt-1.5 pt-1.5 border-t border-slate-300 grid grid-cols-4 gap-2 text-[9px] bg-slate-50 p-1.5 rounded">
           <div>
-            <strong>Entradas Realizadas:</strong> {{ reportTotals.qtdOperacoesEntrada }} op
-            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.volumeTotalEntrada) }} {{ currentUnitSuffix }}</span>
+            <strong>Lançamentos de entrada:</strong> {{ reportTotals.qtdOperacoesEntrada }} lanç.
+            <span class="text-slate-600 block">Vol: {{ formatUnitVolumes('entrada', reportTotals.volumeTotalEntrada) }}</span>
           </div>
           <div>
-            <strong>Saídas Realizadas:</strong> {{ reportTotals.qtdOperacoesSaida }} op
-            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.volumeTotalSaida) }} {{ currentUnitSuffix }}</span>
+            <strong>Lançamentos de saída:</strong> {{ reportTotals.qtdOperacoesSaida }} lanç.
+            <span class="text-slate-600 block">Vol: {{ formatUnitVolumes('saida', reportTotals.volumeTotalSaida) }}</span>
           </div>
           <div>
             <strong>Casamento Pares:</strong> {{ reportTotals.totalCasamentosPares }} pares
             <span class="text-slate-600 block">({{ reportTotals.totalCasamentosPares * 2 }} pés baixados)</span>
           </div>
           <div>
-            <strong>Refugos / Perdas:</strong> {{ reportTotals.qtdOperacoesRefugo || 0 }} op
-            <span class="text-slate-600 block">Vol: {{ formatVolume(reportTotals.totalRefugos) }} {{ currentUnitSuffix }}</span>
+            <strong>Lançamentos de refugo:</strong> {{ reportTotals.qtdOperacoesRefugo || 0 }} lanç.
+            <span class="text-slate-600 block">Vol: {{ formatUnitVolumes('refugo', reportTotals.totalRefugos) }}</span>
           </div>
         </div>
       </div>
@@ -434,12 +422,14 @@ function formatReportReason(value) {
         <div class="flex items-center gap-2" v-if="reportData.length > 0">
           <button
             type="button"
-            @click="printPDF"
+            @click="printPDF(true)"
+            :disabled="loading || preparingPrint || filtersDirty"
             aria-label="Imprimir ou salvar o relatório em PDF"
             class="px-3.5 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow hover:bg-slate-900 transition-all flex items-center gap-1.5"
           >
-            <Printer class="w-4 h-4" /> Imprimir / PDF
+            <Printer class="w-4 h-4" /> {{ preparingPrint ? 'Preparando impressão…' : 'Imprimir relatório completo' }}
           </button>
+          <button @click="printPDF(false)" :disabled="loading || preparingPrint || filtersDirty" class="px-3 py-2 text-xs font-bold text-slate-600">Imprimir página atual</button>
           <button
             v-if="canExport"
             type="button"
@@ -657,20 +647,12 @@ function formatReportReason(value) {
             <p class="text-[11px] font-bold text-emerald-700 uppercase mt-0.5">Entradas Realizadas</p>
             <div class="flex items-baseline gap-1 mt-1">
               <span class="text-2xl font-black text-emerald-800">{{ reportTotals.qtdOperacoesEntrada.toLocaleString('pt-BR') }}</span>
-              <span class="text-xs font-bold text-emerald-600 uppercase">operações</span>
+              <span class="text-xs font-bold text-emerald-600 uppercase">lançamentos</span>
             </div>
           </div>
           <div class="mt-2 border-t border-emerald-100 pt-1.5">
             <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
-            <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-emerald-700 leading-tight">
-              <template v-for="([unit, values], index) in Object.entries(reportTotals.volumePorUnidade)" :key="unit">
-                <span v-if="index > 0" class="font-normal text-slate-400"> | </span>{{ formatVolume(values.entrada) }} {{ unit }}
-              </template>
-            </span>
-            <span v-else class="block text-xs font-black text-emerald-700 leading-tight">
-              <template v-if="reportTotals.volumeTotalEntrada !== null">{{ formatVolume(reportTotals.volumeTotalEntrada) }} <span class="text-[10px] font-bold text-emerald-600 uppercase">{{ currentUnitSuffix }}</span></template>
-              <span v-else>múltiplas unidades</span>
-            </span>
+            <span class="block text-xs font-black text-emerald-700 leading-tight">{{ formatUnitVolumes('entrada', reportTotals.volumeTotalEntrada) }}</span>
           </div>
         </div>
 
@@ -684,20 +666,12 @@ function formatReportReason(value) {
             <p class="text-[11px] font-bold text-blue-700 uppercase mt-0.5">Saídas / Utilizações</p>
             <div class="flex items-baseline gap-1 mt-1">
               <span class="text-2xl font-black text-blue-800">{{ reportTotals.qtdOperacoesSaida.toLocaleString('pt-BR') }}</span>
-              <span class="text-xs font-bold text-blue-600 uppercase">operações</span>
+              <span class="text-xs font-bold text-blue-600 uppercase">lançamentos</span>
             </div>
           </div>
           <div class="mt-2 border-t border-blue-100 pt-1.5">
             <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Total:</span>
-            <span v-if="filters.sector === 'TODOS'" class="block text-[11px] font-black text-blue-700 leading-tight">
-              <template v-for="([unit, values], index) in Object.entries(reportTotals.volumePorUnidade)" :key="unit">
-                <span v-if="index > 0" class="font-normal text-slate-400"> | </span>{{ formatVolume(values.saida) }} {{ unit }}
-              </template>
-            </span>
-            <span v-else class="block text-xs font-black text-blue-700 leading-tight">
-              <template v-if="reportTotals.volumeTotalSaida !== null">{{ formatVolume(reportTotals.volumeTotalSaida) }} <span class="text-[10px] font-bold text-blue-600 uppercase">{{ currentUnitSuffix }}</span></template>
-              <span v-else>múltiplas unidades</span>
-            </span>
+            <span class="block text-xs font-black text-blue-700 leading-tight">{{ formatUnitVolumes('saida', reportTotals.volumeTotalSaida) }}</span>
           </div>
         </div>
 
@@ -728,14 +702,14 @@ function formatReportReason(value) {
             </div>
             <p class="text-[11px] font-bold text-red-700 uppercase mt-0.5">Refugos / Perdas</p>
             <div class="flex items-baseline gap-1 mt-1">
-              <span class="text-2xl font-black text-red-800">{{ reportTotals.qtdOperacoesRefugo ? reportTotals.qtdOperacoesRefugo.toLocaleString('pt-BR') : reportTotals.totalRefugos.toLocaleString('pt-BR') }}</span>
-              <span class="text-xs font-bold text-red-600 uppercase">{{ reportTotals.qtdOperacoesRefugo ? 'lançamentos' : currentUnitSuffix }}</span>
+              <span class="text-2xl font-black text-red-800">{{ (reportTotals.qtdOperacoesRefugo || 0).toLocaleString('pt-BR') }}</span>
+              <span class="text-xs font-bold text-red-600 uppercase">lançamentos</span>
             </div>
           </div>
           <div class="mt-2 border-t border-red-100 pt-1.5">
             <span class="text-[10px] font-bold text-slate-500 uppercase">Volume Físico:</span>
             <span class="block text-xs font-black text-red-700 leading-tight">
-              {{ formatVolume(reportTotals.totalRefugos) }} <span class="text-[10px] font-bold text-red-600 uppercase">{{ currentUnitSuffix }}</span>
+              {{ formatUnitVolumes('refugo', reportTotals.totalRefugos) }}
             </span>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { useDataRefresh } from './useDataRefresh'
 import { computed, ref } from 'vue'
 import { api } from '../services/httpClient'
 import { requestErrorMessage } from '../utils/domain'
@@ -15,7 +16,12 @@ export function useSettings({ notify = () => {} } = {}) {
   const loadingOrigin = ref(false)
   const error = ref('')
 
+  const loadedCollections = new Map()
+
+  useDataRefresh(() => Promise.all([...loadedCollections.values()].map(fetch => fetch())), { paths: ['/settings'] })
+
   async function fetchCollection(target, loading, endpoint, message) {
+    loadedCollections.set(endpoint, () => fetchCollection(target, loading, endpoint, message))
     loading.value = true
     error.value = ''
     try {

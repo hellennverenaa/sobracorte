@@ -22,7 +22,7 @@ test('Reports consulta no servidor e preserva total da paginação', async () =>
       data: {
         items: [{ id: 'movement-1', data: new Date().toISOString(), setor: 'CORTE', tipo: 'ENTRADA', quantidade: 2, unidade: 'M²', responsavel: 'Operador', prateleira: 'PRAT-A1', motivo: 'Casamento de Par - Pé D. Obs: detalhe operacional' }],
         pagination: { page: 1, limit: 50, total: 101, totalPages: 3 },
-        totals: { totalRegistros: 101, qtdOperacoesEntrada: 1 },
+        totals: { totalRegistros: 101, qtdOperacoesEntrada: 1, volumeTotalSaida: null, volumeSaidas: null, totalRefugos: null, qtdOperacoesRefugo: 0, volumePorUnidade: { 'M²': { entrada: 2, saida: 3.125, refugo: 0 }, KG: { entrada: 0, saida: 1.5, refugo: 0 } } },
       },
     }
   }
@@ -30,6 +30,7 @@ test('Reports consulta no servidor e preserva total da paginação', async () =>
   await flushPromises()
   assert.ok(calls.some((path) => path.startsWith('/reports/movements?')))
   assert.match(mounted.element.textContent, /Total: 101 registros/)
+  assert.match(mounted.element.textContent, /Vol: 3,125 M² \| 1,5 KG/)
   assert.match(mounted.element.textContent, /Casamento de Par - Pé D\./)
   assert.doesNotMatch(mounted.element.textContent, /detalhe operacional/)
   const locationCell = [...mounted.element.querySelectorAll('.report-table-movements td')]
@@ -143,4 +144,32 @@ test('Reports envia o subsetor selecionado na consulta de movimentos', async () 
   const reportCalls = calls.filter(path => path.startsWith('/reports/movements?'));
   assert.ok(reportCalls.some(path => new URL(path, 'http://localhost').searchParams.get('subsectorId') === '12'));
   mounted.unmount();
+});
+
+test('relatório ignora respostas obsoletas e carrega todas as páginas para imprimir', async () => {
+  const { useReports } = await loadComponent('src/composables/useReports.js');
+  const waiting = [];
+  const state = useReports({ autoLoad: false, api: { get: () => new Promise(resolve => waiting.push(resolve)) } });
+  const oldRequest = state.generateReport();
+  state.filters.value.search = 'NOVO';
+  const newRequest = state.generateReport();
+  const data = id => ({ data: { items: [{ id }], totals: {}, pagination: { total: 1, totalPages: 1 } } });
+  waiting[1](data('novo')); await newRequest;
+  waiting[0](data('antigo')); await oldRequest;
+  assert.equal(state.reportData.value[0].id, 'novo');
+  assert.equal(state.appliedFilters.value.search, 'NOVO');
+  state.filters.value.search = 'ALTERADO';
+  await assert.rejects(state.completeReport(), /Aplique os filtros/);
+
+  const calls = [];
+  const complete = useReports({ autoLoad: false, api: { get: async url => {
+    calls.push(url);
+    const page = Number(new URL(url, 'http://localhost').searchParams.get('page'));
+    return { data: { items: page === 1 ? Array.from({ length: 200 }, (_, id) => ({ id })) : [{ id: 200 }], totals: {}, pagination: { total: 201, totalPages: 2 } } };
+  } } });
+  await complete.generateReport();
+  const result = await complete.completeReport();
+  assert.equal(result.items.length, 201);
+  assert.ok(calls.at(-1).includes('page=2'));
+  assert.ok(calls.at(-1).includes('limit=200'));
 });

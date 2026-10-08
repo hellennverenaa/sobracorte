@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, reactive, nextTick, onMounted, computed, watch } from 'vue';
 import { useStockStore, SectorType } from '@/stores/stockStore';
 import { useAuthStore } from '@/stores/auth';
@@ -206,10 +207,12 @@ async function fetchDynamicSettings() {
 function onConfiguredCategoryChange() {
   formData.location = '';
 }
-watch(selectedCategory, category => {
+watch(selectedCategory, (category, previous) => {
   formData.type = category?.name || '';
   formData.unit = category?.defaultUnitCode || '';
-  formData.footSide = category?.entryMode === 'SIDE_PAIR' ? 'E' : null;
+  if (category?.id !== previous?.id || category?.entryMode !== previous?.entryMode) {
+    formData.footSide = category?.entryMode === 'SIDE_PAIR' ? 'E' : null;
+  }
 });
 
 const availableLocations = computed(() => {
@@ -493,6 +496,7 @@ onMounted(async () => {
   savedForm.value = JSON.stringify(formData);
   firstInputRef.value?.focus();
 });
+useDataRefresh(async () => { await fetchDynamicSettings(); combinationsCache.value = {}; await fetchCombinations(activeSector.value); }, { paths: ['/settings', '/inventory', '/import'], local: true });
 </script>
 
 <template>

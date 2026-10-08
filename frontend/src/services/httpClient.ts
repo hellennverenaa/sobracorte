@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { buildRefreshedSessionUser } from './interceptors/sessionRefresh'
 import { decodeJwtPayload } from './decodeJwtPayload'
+import { publishDataUpdate } from './dataUpdates'
 
 export type RequestConfig = {
   headers?: Record<string, string>
@@ -165,7 +166,7 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
 
     let response: Response
     try {
-      response = await fetch(fullUrl, { method, headers, body, credentials: 'include' })
+      response = await fetch(fullUrl, { method, headers, body, credentials: 'include', cache: 'no-store' })
     } catch (error) {
       const networkError = error instanceof Error ? error : new Error('Network Error')
       ;(networkError as any).code = 'ERR_NETWORK'
@@ -178,7 +179,12 @@ function createClient(baseURL: string | undefined, options: { refreshOn401: bool
       headers: response.headers,
       config: { ...config, url, method },
     }
-    if (response.ok) return result
+    if (response.ok) {
+      if (options.refreshOn401 && method !== 'GET' && !url.startsWith('/auth/') && url !== '/import/csv/preview') {
+        publishDataUpdate(url, headers.get('X-Dass-Unit'))
+      }
+      return result
+    }
 
     const error = new HttpError(errorMessage(result.data, response.statusText, response.status), result)
     if (options.refreshOn401 && response.status === 401 && !config._retry && !shouldSkipRefresh(url) && getStoredUser() && options.authApi) {

@@ -98,8 +98,8 @@ test('relatórios paginam no banco e calculam totais fora da página', async () 
     movement.count = async () => 101;
     movement.aggregate = async () => ({ _sum: { quantity: 500 } });
     movement.groupBy = async () => [
-      { type: 'ENTRADA', sector: 'CORTE', _count: { _all: 100 }, _sum: { quantity: 400 } },
-      { type: 'SAIDA', sector: 'CORTE', _count: { _all: 1 }, _sum: { quantity: 100 } },
+      { type: 'ENTRADA', sector: 'CORTE', itemUnit: 'M²', _count: { _all: 100 }, _sum: { quantity: 400 } },
+      { type: 'SAIDA', sector: 'CORTE', itemUnit: 'M²', _count: { _all: 1 }, _sum: { quantity: 100 } },
     ];
     location.findMany = async () => [];
     const movementCapture = responseCapture();
@@ -266,4 +266,31 @@ test('exportações de movimentações e requisições exibem Peças Cortadas se
     requisition.findMany = originals.requisitionFindMany;
     location.findMany = originals.locationFindMany;
   }
+});
+
+test('exportação cronológica continua depois de 500 registros mesmo com IDs fora de ordem', async t => {
+  const previous = prisma.stockMovement.findMany;
+  const previousLocations = prisma.location.findMany;
+  t.after(() => { prisma.stockMovement.findMany = previous; prisma.location.findMany = previousLocations; });
+  const rows = Array.from({ length: 501 }, (_, index) => ({
+    id: index + 1, createdAt: new Date(Date.UTC(2026, 9, 8, 12) - index * 60000),
+    sector: 'CORTE', type: 'ENTRADA', quantity: 1, itemCode: `QA-${index + 1}`, itemUnit: 'M²',
+  }));
+  let calls = 0;
+  prisma.stockMovement.findMany = (async (args: any) => {
+    assert.deepEqual(args.orderBy, [{ createdAt: 'desc' }, { id: 'desc' }]);
+    calls++;
+    if (calls === 1) return rows.slice(0, 500);
+    assert.equal(args.where.AND[1].OR[0].createdAt.lt.getTime(), rows[499].createdAt.getTime());
+    assert.equal(args.where.AND[1].OR[1].id.lt, 500);
+    return rows.slice(500);
+  }) as any;
+  prisma.location.findMany = (async () => []) as any;
+  const chunks: string[] = [];
+  await new ReportController().exportMovements({ tenant: { id: 1 }, user: { role: 'admin' }, query: {} } as any, {
+    setHeader() {}, write(value: string) { chunks.push(value); return true; }, end() {},
+  } as any);
+  assert.equal(calls, 2);
+  assert.equal(chunks.length, 502);
+  assert.ok(chunks.at(-1)?.includes('QA-501'));
 });

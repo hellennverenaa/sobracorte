@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useDataRefresh } from '../composables/useDataRefresh'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Layout from '@/components/Layout.vue';
@@ -323,9 +324,9 @@ const isRawMaterialRequest = computed(() => requestMode.value === 'RAW_MATERIAL'
 const apoioSideOptions: Array<'E' | 'D' | 'PAR'> = ['E', 'D', 'PAR'];
 const isApoioCutPiece = computed(() => currentSector.value === 'APOIO');
 const showFootSide = computed(() => selectedRequestCategory.value?.entryMode === 'SIDE_PAIR');
-watch(selectedRequestCategory, category => {
+watch(selectedRequestCategory, (category, previous) => {
   formItem.value.unit = category?.defaultUnitCode || '';
-  formItem.value.footSide = null;
+  if (category?.id !== previous?.id || category?.entryMode !== previous?.entryMode) formItem.value.footSide = null;
 }, { flush: 'sync' });
 
 const requestIdentifierLabel = computed(() => {
@@ -1022,6 +1023,7 @@ async function cancelItem(item: RequisitionItem) {
 onMounted(() => {
   loadRequisitions(1);
 });
+useDataRefresh(() => loadRequisitions(), { paths: ['/requisitions', '/inventory', '/import'] });
 </script>
 
 <template>
