@@ -66,7 +66,7 @@ export class RequisitionService {
     const identityWhere: Prisma.StockItemWhereInput = params.field === 'MODEL'
       ? { productName: { equals: query, mode: 'insensitive' } }
       : requestSector === 'CORTE'
-        ? { code: { equals: query, mode: 'insensitive' } }
+        ? { code: { contains: query, mode: 'insensitive' } }
         : requestSector === 'APOIO'
           ? { OR: [{ pieceCode: { equals: query, mode: 'insensitive' } }, { sku: { equals: query, mode: 'insensitive' } }] }
           : { OR: [{ sku: { equals: query, mode: 'insensitive' } }, { pieceCode: { equals: query, mode: 'insensitive' } }] };
@@ -539,7 +539,7 @@ export class RequisitionService {
         }
       }
       const amount = new Prisma.Decimal(dto.quantity);
-      if (!amount.isPositive() || amount.decimalPlaces() > 3 || amount.gt(new Prisma.Decimal(req.quantityRequested).minus(req.quantityFulfilled))) {
+      if (amount.lte(0) || amount.decimalPlaces() > 3 || amount.gt(new Prisma.Decimal(req.quantityRequested).minus(req.quantityFulfilled))) {
         throw new Error('A quantidade informada é inválida ou excede a pendência da requisição.');
       }
       const candidate = await this.getSelectedSourceCandidate(req, factoryUnitId, tx, context);

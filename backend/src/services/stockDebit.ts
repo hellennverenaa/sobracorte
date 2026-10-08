@@ -21,7 +21,7 @@ export async function debitStockItem(tx: StockTransactionClient, item: ItemWithL
   for (const link of locations) {
     if (remaining.isZero()) break;
     const debit = Prisma.Decimal.min(link.quantity, remaining);
-    if (!debit.isPositive()) continue;
+    if (debit.lte(0)) continue;
     assertStockLocationSector(link.location, item.sector);
     debits.push({ locationId: link.locationId, locationName: link.location.name, quantity: debit });
     remaining = remaining.minus(debit);

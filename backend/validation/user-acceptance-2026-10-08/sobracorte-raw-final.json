@@ -1,0 +1,357 @@
+{
+  "staged": {
+    "url": "/sobra_corte/requisitions",
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n2\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n2\nSair\nItem adicionado à lista da requisição.\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n3\n\nCOM SALDO EM SOBRAS\n\n2 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0003\n08/10/2026, 10:12\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.1\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nSOLICITAR MATÉRIA-PRIMA PARA CORTE\n\nDigite o código, selecione o material sugerido e informe a quantidade necessária.\n\nCÓDIGO DA MATÉRIA-PRIMA *\nDESCRIÇÃO / TIPO DO MATERIAL *\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (1)\nTotal de peças: 0.125\n1\nQA-SIN-01 Corte\nPRETO\nQtd: 0.125\nOrigem: CorteDisp: 1 M²\nCancelar\nConfirmar e Enviar Requisição (1 itens)",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "requisition-status",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Todos os Status"
+          },
+          {
+            "value": "PENDENTE",
+            "text": "Pendente"
+          },
+          {
+            "value": "ATENDIDA_TOTAL",
+            "text": "Atendida Total"
+          },
+          {
+            "value": "ATENDIDA_PARCIAL",
+            "text": "Atendida Parcial"
+          },
+          {
+            "value": "CANCELADA",
+            "text": "Cancelada"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "requisition-sector",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Todos os Setores"
+          },
+          {
+            "value": "CORTE",
+            "text": "Corte"
+          },
+          {
+            "value": "APOIO",
+            "text": "Peças Cortadas"
+          },
+          {
+            "value": "PRE_FABRICADO",
+            "text": "Pré-Fabricado"
+          },
+          {
+            "value": "DISTRIBUICAO",
+            "text": "Distribuição"
+          },
+          {
+            "value": "MONTAGEM",
+            "text": "Montagem"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "requisition-search",
+        "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: COU-BOV-01, SINT-PTO...",
+        "value": ""
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "placeholder": "Ex: couro bovino preto, sintético...",
+        "value": ""
+      }
+    ],
+    "buttons": [
+      {
+        "text": "",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Sair",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Prontos p/ Atendimento",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Atualizar",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Nova Solicitação",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Buscar",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Atender",
+        "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Cancelar Solicitação",
+        "disabled": false
+      },
+      {
+        "text": "Atender",
+        "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Cancelar Solicitação",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "×",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Adicionar Item à Requisição",
+        "title": "",
+        "disabled": true
+      },
+      {
+        "text": "",
+        "title": "Remover item",
+        "disabled": false
+      },
+      {
+        "text": "Cancelar",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Confirmar e Enviar Requisição (1 itens)",
+        "title": "",
+        "disabled": false
+      }
+    ]
+  },
+  "final": {
+    "url": "/sobra_corte/requisitions",
+    "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n2\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n2\nSair\nRequisição REQ-2026-0004 aberta com sucesso contendo 1 item(ns)!\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n4\n\nCOM SALDO EM SOBRAS\n\n3 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0004\n08/10/2026, 10:13\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0003\n08/10/2026, 10:12\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.1\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t",
+    "fields": [
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "requisition-status",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Todos os Status"
+          },
+          {
+            "value": "PENDENTE",
+            "text": "Pendente"
+          },
+          {
+            "value": "ATENDIDA_TOTAL",
+            "text": "Atendida Total"
+          },
+          {
+            "value": "ATENDIDA_PARCIAL",
+            "text": "Atendida Parcial"
+          },
+          {
+            "value": "CANCELADA",
+            "text": "Cancelada"
+          }
+        ]
+      },
+      {
+        "tag": "SELECT",
+        "type": "select-one",
+        "id": "requisition-sector",
+        "value": "",
+        "options": [
+          {
+            "value": "",
+            "text": "Todos os Setores"
+          },
+          {
+            "value": "CORTE",
+            "text": "Corte"
+          },
+          {
+            "value": "APOIO",
+            "text": "Peças Cortadas"
+          },
+          {
+            "value": "PRE_FABRICADO",
+            "text": "Pré-Fabricado"
+          },
+          {
+            "value": "DISTRIBUICAO",
+            "text": "Distribuição"
+          },
+          {
+            "value": "MONTAGEM",
+            "text": "Montagem"
+          }
+        ]
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "requisition-search",
+        "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+        "value": ""
+      }
+    ],
+    "buttons": [
+      {
+        "text": "",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Sair",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Prontos p/ Atendimento",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Atualizar",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Nova Solicitação",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Buscar",
+        "title": "",
+        "disabled": false
+      },
+      {
+        "text": "Atender",
+        "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Cancelar Solicitação",
+        "disabled": false
+      },
+      {
+        "text": "Atender",
+        "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Cancelar Solicitação",
+        "disabled": false
+      },
+      {
+        "text": "Atender",
+        "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Cancelar Solicitação",
+        "disabled": false
+      },
+      {
+        "text": "",
+        "title": "Ver Detalhes",
+        "disabled": false
+      }
+    ]
+  },
+  "errors": []
+}

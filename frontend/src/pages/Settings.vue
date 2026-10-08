@@ -836,6 +836,12 @@
               </div>
               <div v-if="editingCategory.scopeMode === 'specific'" class="space-y-2">
                 <p class="text-xs font-semibold text-gray-700">Setores que poderão usar a categoria:</p>
+                <div class="flex flex-wrap gap-2">
+                  <label v-for="sector in categorySectorsOptions" :key="sector.id" class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold cursor-pointer">
+                    <input v-model="editingCategory.sectors" type="checkbox" :value="sector.id" class="rounded border-gray-300 text-indigo-600" />
+                    {{ sector.label }}
+                  </label>
+                </div>
 
                 <p v-if="editingCategory.sectors.length === 0" class="text-xs font-medium text-amber-700" role="status">Escolha pelo menos um setor para salvar.</p>
               </div>
@@ -1223,7 +1229,7 @@ async function saveEditCategory() {
 }
 
 function deleteCategory(cat) {
-  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const isAdmin = isMasterAdmin.value
   const linked = cat.linkedCount || 0
 
   if (!isAdmin && linked > 0) {
@@ -1454,7 +1460,7 @@ async function addLocation() {
 }
 
 async function deleteLocation(loc) {
-  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const isAdmin = isMasterAdmin.value
   const linked = loc.linkedCount || 0
   const qty = loc.totalQuantity || 0
 
@@ -1555,7 +1561,7 @@ async function addOrigin() {
 }
 
 async function deleteOrigin(orig) {
-  const isAdmin = authStore.userRole === 'admin' || authStore.isAdmin
+  const isAdmin = isMasterAdmin.value
   const linked = orig.linkedCount || 0
 
   if (!isAdmin && linked > 0) {

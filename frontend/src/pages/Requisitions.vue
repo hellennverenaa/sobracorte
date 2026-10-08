@@ -89,6 +89,7 @@ interface UnverifiedRequisitionStockMatch {
 }
 
 interface SkuSuggestion {
+  categoryId?: number | null;
   id: string | number;
   stockItemIds: number[];
   sourceSector: string;
@@ -542,7 +543,7 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
   const requestVersion = ++autocompleteRequestVersion;
   const q = value.trim();
   preferredSourceStockItemIds.value = [];
-  if (q.length < 2 || !selectedRequestCategory.value) {
+  if (q.length < 2 || (!isRawMaterialRequest.value && !selectedRequestCategory.value)) {
     suggestions.value = [];
     suggestionsLoading.value = false;
     closeSuggestions();
@@ -560,8 +561,8 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
           requestSector: currentSector.value,
           field,
           q,
-          categoryId: selectedRequestCategory.value?.id,
-          ...(formItem.value.type ? { type: formItem.value.type } : {}),
+          categoryId: isRawMaterialRequest.value ? undefined : selectedRequestCategory.value?.id,
+          ...(!isRawMaterialRequest.value && formItem.value.type ? { type: formItem.value.type } : {}),
           ...(formItem.value.color ? { color: formItem.value.color } : {}),
           ...(formItem.value.sizeGrade ? { sizeGrade: formItem.value.sizeGrade } : {}),
           ...(formItem.value.footSide ? { footSide: formItem.value.footSide } : {}),
@@ -583,6 +584,11 @@ async function searchRequisitionSuggestions(field: 'IDENTIFIER' | 'MODEL', value
 
 // O identificador e o modelo localizam a mesma lista de variantes do estoque.
 function onSkuInput() {
+  if (isRawMaterialRequest.value) {
+    formItem.value.type = '';
+    formItem.value.description = '';
+    formItem.value.modelName = '';
+  }
   formItem.value.sizeGrade = '';
   formItem.value.color = '';
   formItem.value.footSide = null;
@@ -607,8 +613,11 @@ function selectSuggestion(sug: SkuSuggestion) {
   preferredSourceStockItemIds.value = [...sug.stockItemIds];
 
   if (currentSector.value === 'CORTE') {
+    const category = currentCategories.value.find((entry: any) => entry.id === sug.categoryId);
+    formItem.value.type = category?.name || sug.type || '';
     formItem.value.sku = sug.code || sug.sku || '';
     formItem.value.description = sug.description;
+    if (isRawMaterialRequest.value && !formItem.value.reason.trim()) formItem.value.reason = 'REPOSIÇÃO DE MATÉRIA-PRIMA';
   } else if (currentSector.value === 'APOIO') {
     formItem.value.pieceCode = sug.pieceCode || sug.sku || sug.code || '';
     formItem.value.sku = '';
@@ -1396,7 +1405,7 @@ onMounted(() => {
             </h4>
 
             <p v-if="isRawMaterialRequest" class="text-[11px] text-slate-600">
-              Informe o código e a descrição do material. A busca fica restrita às matérias-primas cadastradas no Corte.
+              Digite o código, selecione o material sugerido e informe a quantidade necessária.
             </p>
             <div v-else>
               <label class="block font-bold text-slate-600 uppercase mb-1">Setor solicitante *</label>
@@ -1411,7 +1420,7 @@ onMounted(() => {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="sm:col-span-1">
+              <div v-if="!isRawMaterialRequest" class="sm:col-span-1">
                 <label for="requisition-category" class="mb-1 block font-bold uppercase text-slate-600">Categoria do material *</label>
                 <select id="requisition-category" v-model="formItem.type" @change="onApoioComponentChange"
                   class="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-medium">
@@ -1517,6 +1526,7 @@ onMounted(() => {
                 <label class="block font-bold text-slate-600 uppercase mb-1">{{ isRawMaterialRequest ? 'Descrição / tipo do material *' : 'Peça / molde solicitado *' }}</label>
                 <input
                   v-model="formItem.description"
+                  :readonly="isRawMaterialRequest"
                   type="text"
                   :placeholder="isRawMaterialRequest ? 'Ex: couro bovino preto, sintético...' : 'Ex: reforço traseiro, gáspea cortada...'"
                   class="w-full border border-slate-200 p-2.5 rounded-xl font-medium uppercase outline-none focus:border-indigo-500 bg-white"
@@ -1563,7 +1573,7 @@ onMounted(() => {
 
             <!-- Dados comuns: aparecem depois que o item está identificado -->
             <div v-if="availabilityIdentityComplete" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start">
-              <div class="sm:col-span-3">
+              <div v-if="!isRawMaterialRequest" class="sm:col-span-3">
                 <label class="block font-bold text-slate-600 uppercase mb-1">Motivo da Avaria / Defeito *</label>
                 <input
                   ref="reasonInput"

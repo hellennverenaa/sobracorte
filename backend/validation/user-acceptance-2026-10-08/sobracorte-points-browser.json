@@ -1,0 +1,1211 @@
+[
+  {
+    "name": "Modal categoria",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nCategorias de Materiais\nNome, unidade e modo de cadastro\n\nCadastre a categoria para o setor escolhido. As regras de prateleiras e subsetores ficam em suas próprias abas.\n\nNome da categoria\nSetor da categoria\nSelecione o setor\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nUnidade de medida\nSelecione a unidade\nUnidade (UN)\nPar (PAR)\nCaixa (CX)\nRolo (ROLO)\nMetro (M)\nMetro Quadrado (M²)\nCentímetro (CM)\nLitro (L)\nGrama (G)\nQuilograma (KG)\nConfigurações avançadas: compartilhar entre setores\n Salvar categoria\nCATEGORIAS CADASTRADAS\nFILTRAR SETOR:\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nCATEGORIA\tSETORES DISPONÍVEIS\tUNIDADE / CADASTRO\tAÇÕES\nBORRACHA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nCABEDAL\tDistribuição\tUnidade (UN)\nPor lado/par\n\t\n\nCOURO\tCorte\tMetro (M)\nPor quantidade\n\t\n\nEVA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nFORRO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nLINHA\tCorte\tQuilograma (KG)\nPor quantidade\n\t\n\nMOLDE / PEÇA\tPeças Cortadas\tUnidade (UN)\nPor quantidade\n\t\n\nPE PRONTO\tMontagem\tUnidade (UN)\nPor lado/par\n\t\n\nSINTETICO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nSOLA_PROCESSADA\tDistribuição\tUnidade (UN)\nPor lado/par\n\t\n\nTECIDO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\nEditar Categoria\n×\nNome da categoria *\nUnidade de medida\nSelecione a unidade\nUnidade (UN)\nPar (PAR)\nCaixa (CX)\nRolo (ROLO)\nMetro (M)\nMetro Quadrado (M²)\nCentímetro (CM)\nLitro (L)\nGrama (G)\nQuilograma (KG)\nModo de cadastro\nPor unidade, sem lado\nPor lado/par (esquerdo, direito ou par)\n\nCada par registra a mesma quantidade de itens esquerdos e direitos.\n\nConfigurações avançadas\nCancelar\nSalvar Alterações",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "new-category-name",
+          "placeholder": "Ex.: Couro, Cabedal, Tecido",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "category-registration-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione o setor"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "new-category-unit",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a unidade"
+            },
+            {
+              "value": "UN",
+              "text": "Unidade (UN)"
+            },
+            {
+              "value": "PAR",
+              "text": "Par (PAR)"
+            },
+            {
+              "value": "CX",
+              "text": "Caixa (CX)"
+            },
+            {
+              "value": "ROLO",
+              "text": "Rolo (ROLO)"
+            },
+            {
+              "value": "M",
+              "text": "Metro (M)"
+            },
+            {
+              "value": "M²",
+              "text": "Metro Quadrado (M²)"
+            },
+            {
+              "value": "CM",
+              "text": "Centímetro (CM)"
+            },
+            {
+              "value": "L",
+              "text": "Litro (L)"
+            },
+            {
+              "value": "G",
+              "text": "Grama (G)"
+            },
+            {
+              "value": "KG",
+              "text": "Quilograma (KG)"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "specific"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "all"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "CORTE"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "APOIO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "PRE_FABRICADO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "DISTRIBUICAO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "MONTAGEM"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "edit-category-name",
+          "placeholder": "",
+          "value": "CABEDAL"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "edit-category-unit",
+          "value": "UN",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a unidade"
+            },
+            {
+              "value": "UN",
+              "text": "Unidade (UN)"
+            },
+            {
+              "value": "PAR",
+              "text": "Par (PAR)"
+            },
+            {
+              "value": "CX",
+              "text": "Caixa (CX)"
+            },
+            {
+              "value": "ROLO",
+              "text": "Rolo (ROLO)"
+            },
+            {
+              "value": "M",
+              "text": "Metro (M)"
+            },
+            {
+              "value": "M²",
+              "text": "Metro Quadrado (M²)"
+            },
+            {
+              "value": "CM",
+              "text": "Centímetro (CM)"
+            },
+            {
+              "value": "L",
+              "text": "Litro (L)"
+            },
+            {
+              "value": "G",
+              "text": "Grama (G)"
+            },
+            {
+              "value": "KG",
+              "text": "Quilograma (KG)"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "edit-category-entry-mode",
+          "value": "SIDE_PAIR",
+          "options": [
+            {
+              "value": "QUANTITY",
+              "text": "Por unidade, sem lado"
+            },
+            {
+              "value": "SIDE_PAIR",
+              "text": "Por lado/par (esquerdo, direito ou par)"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "specific"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "all"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "CORTE"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "APOIO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "PRE_FABRICADO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "DISTRIBUICAO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "MONTAGEM"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Salvar categoria",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Salvar Alterações",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Categoria compartilhada",
+    "snapshot": {
+      "url": "/sobra_corte/settings",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nConfigurações\n\nGerencie os valores de domínio do sistema\n\nCategoria \"CABEDAL\" atualizada com sucesso!\n Categorias\n Subsetores\n Localizações / Prateleiras\n Origens / Motivos\n Importar CSV\n Unidade Fabril\nCategorias de Materiais\nNome, unidade e modo de cadastro\n\nCadastre a categoria para o setor escolhido. As regras de prateleiras e subsetores ficam em suas próprias abas.\n\nNome da categoria\nSetor da categoria\nSelecione o setor\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nUnidade de medida\nSelecione a unidade\nUnidade (UN)\nPar (PAR)\nCaixa (CX)\nRolo (ROLO)\nMetro (M)\nMetro Quadrado (M²)\nCentímetro (CM)\nLitro (L)\nGrama (G)\nQuilograma (KG)\nConfigurações avançadas: compartilhar entre setores\n Salvar categoria\nCATEGORIAS CADASTRADAS\nFILTRAR SETOR:\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nCATEGORIA\tSETORES DISPONÍVEIS\tUNIDADE / CADASTRO\tAÇÕES\nBORRACHA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nCABEDAL\tDistribuição, Peças Cortadas\tUnidade (UN)\nPor lado/par\n\t\n\nCOURO\tCorte\tMetro (M)\nPor quantidade\n\t\n\nEVA\tPré-Fabricado\tUnidade (UN)\nPor lado/par\n\t\n\nFORRO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nLINHA\tCorte\tQuilograma (KG)\nPor quantidade\n\t\n\nMOLDE / PEÇA\tPeças Cortadas\tUnidade (UN)\nPor quantidade\n\t\n\nPE PRONTO\tMontagem\tUnidade (UN)\nPor lado/par\n\t\n\nSINTETICO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t\n\nSOLA_PROCESSADA\tDistribuição\tUnidade (UN)\nPor lado/par\n\t\n\nTECIDO\tCorte\tMetro Quadrado (M²)\nPor quantidade\n\t",
+      "fields": [
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "new-category-name",
+          "placeholder": "Ex.: Couro, Cabedal, Tecido",
+          "value": ""
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "category-registration-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione o setor"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "new-category-unit",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Selecione a unidade"
+            },
+            {
+              "value": "UN",
+              "text": "Unidade (UN)"
+            },
+            {
+              "value": "PAR",
+              "text": "Par (PAR)"
+            },
+            {
+              "value": "CX",
+              "text": "Caixa (CX)"
+            },
+            {
+              "value": "ROLO",
+              "text": "Rolo (ROLO)"
+            },
+            {
+              "value": "M",
+              "text": "Metro (M)"
+            },
+            {
+              "value": "M²",
+              "text": "Metro Quadrado (M²)"
+            },
+            {
+              "value": "CM",
+              "text": "Centímetro (CM)"
+            },
+            {
+              "value": "L",
+              "text": "Litro (L)"
+            },
+            {
+              "value": "G",
+              "text": "Grama (G)"
+            },
+            {
+              "value": "KG",
+              "text": "Quilograma (KG)"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "specific"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "",
+          "placeholder": "",
+          "value": "all"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "CORTE"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "APOIO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "PRE_FABRICADO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "DISTRIBUICAO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "checkbox",
+          "id": "",
+          "placeholder": "",
+          "value": "MONTAGEM"
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "",
+          "value": "TODOS",
+          "options": [
+            {
+              "value": "TODOS",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Categorias",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Subsetores",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Localizações / Prateleiras",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Origens / Motivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Importar CSV",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Unidade Fabril",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Salvar categoria",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Editar categoria",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Excluir categoria",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Busca sem categoria",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n2\n\nCOM SALDO EM SOBRAS\n\n1 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nSOLICITAR MATÉRIA-PRIMA PARA CORTE\n\nInforme o código e a descrição do material. A busca fica restrita às matérias-primas cadastradas no Corte.\n\nCÓDIGO DA MATÉRIA-PRIMA *\nQA-SIN-01SINTETICO\nCorte\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n1 M²\nUsar esta sobra\nDESCRIÇÃO / TIPO DO MATERIAL *\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (0)\nNenhum item adicionado ainda. Preencha o formulário acima e clique em \"Adicionar Item\".\nCancelar\nConfirmar e Enviar Requisição (0 itens)",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: COU-BOV-01, SINT-PTO...",
+          "value": "QA-SIN"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: couro bovino preto, sintético...",
+          "value": ""
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "QA-SIN-01SINTETICOCorte QA CORTE B (0.375), Área de Triagem QA (0.625)1 M²Usar esta sobra",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Adicionar Item à Requisição",
+          "title": "",
+          "disabled": true
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar e Enviar Requisição (0 itens)",
+          "title": "",
+          "disabled": true
+        }
+      ]
+    },
+    "errors": []
+  },
+  {
+    "name": "Material preenchido",
+    "snapshot": {
+      "url": "/sobra_corte/requisitions",
+      "text": "D\nSobras DASS\nDashboard\nEstoque Multi-Setor\nCasamento de Pares\nRequisições\n1\nHistórico\nRelatórios\nUsuários\nConfigurações\n\nUsuário sintético admin\n\nAdministrador\n\n1\nSair\nCentral de Requisições de Sobras\n\nDigitalização, multi-itens e verificação inteligente de sobras na fábrica\n\nProntos p/ Atendimento\nAtualizar\nNova Solicitação\n\nTOTAL DE ITENS SOLICITADOS\n\n2\n\nCOM SALDO EM SOBRAS\n\n1 (Pronto p/ Baixa)\n\nSEM SALDO COMPATÍVEL\n\n0\n\nATENDIDAS\n\n1\n\nSTATUS\nTodos os Status\nPendente\nAtendida Total\nAtendida Parcial\nCancelada\nSETOR SOLICITANTE\nTodos os Setores\nCorte\nPeças Cortadas\nPré-Fabricado\nDistribuição\nMontagem\nBUSCAR POR CÓDIGO, SKU, MODELO OU SOLICITANTE\nBuscar\nCÓDIGO / DATA\tSETOR & SOLICITANTE\tIDENTIFICADOR / MODELO\tGRADE / LADO\tQTD. SOLIC.\tDISPONIBILIDADE EM SOBRAS\tSTATUS\tAÇÕES\n\nREQ-2026-0002\n08/10/2026, 09:06\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.25\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tPendente\t\nAtender\n\n\nREQ-2026-0001\n08/10/2026, 08:56\tCorte\nUsuário sintético admin\nFornecedor: Corte\n\t\nQA-SIN-01\nSKU\nSINTETICO\nPRETO\n\t-\t0.125\n(Atendido: 0.125)\n\t\n1 M² em estoque\nMaterial compatível no setor CORTE.\nQA CORTE B (0.375), Área de Triagem QA (0.625)\n\tAtendida\t\nAbertura Digital de Requisição de Reposição\n\nAdicione um ou mais itens com saldo disponível\n\n×\n1. O QUE VOCÊ PRECISA SOLICITAR? *\nMatéria-prima para Corte\nBuscar somente no estoque de matéria-prima\nReutilizar produto ou componente\nLocalizar saldo compatível nos setores produtivos\nSOLICITAR MATÉRIA-PRIMA PARA CORTE\n\nInforme o código e a descrição do material. A busca fica restrita às matérias-primas cadastradas no Corte.\n\nCÓDIGO DA MATÉRIA-PRIMA *\nDESCRIÇÃO / TIPO DO MATERIAL *\nMOTIVO DA AVARIA / DEFEITO *\nQUANTIDADE * (M²)\n\nORIGEM SELECIONADA\n\nCorte · QA-SIN-01 · SINTETICO\n1 M²\nQA CORTE B (0.375), Área de Triagem QA (0.625)\nVer detalhes do item\nAdicionar Item à Requisição\nITENS NA REQUISIÇÃO (0)\nNenhum item adicionado ainda. Preencha o formulário acima e clique em \"Adicionar Item\".\nCancelar\n\nO motivo da avaria/defeito é obrigatório. Clique para destacar o campo.\n\nConfirmar e Enviar Requisição (0 itens)",
+      "fields": [
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-status",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Status"
+            },
+            {
+              "value": "PENDENTE",
+              "text": "Pendente"
+            },
+            {
+              "value": "ATENDIDA_TOTAL",
+              "text": "Atendida Total"
+            },
+            {
+              "value": "ATENDIDA_PARCIAL",
+              "text": "Atendida Parcial"
+            },
+            {
+              "value": "CANCELADA",
+              "text": "Cancelada"
+            }
+          ]
+        },
+        {
+          "tag": "SELECT",
+          "type": "select-one",
+          "id": "requisition-sector",
+          "value": "",
+          "options": [
+            {
+              "value": "",
+              "text": "Todos os Setores"
+            },
+            {
+              "value": "CORTE",
+              "text": "Corte"
+            },
+            {
+              "value": "APOIO",
+              "text": "Peças Cortadas"
+            },
+            {
+              "value": "PRE_FABRICADO",
+              "text": "Pré-Fabricado"
+            },
+            {
+              "value": "DISTRIBUICAO",
+              "text": "Distribuição"
+            },
+            {
+              "value": "MONTAGEM",
+              "text": "Montagem"
+            }
+          ]
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "requisition-search",
+          "placeholder": "Ex: REQ-2026, SKU, Pegasus, Gáspea...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: COU-BOV-01, SINT-PTO...",
+          "value": "QA-SIN-01"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: couro bovino preto, sintético...",
+          "value": "PRETO"
+        },
+        {
+          "tag": "INPUT",
+          "type": "text",
+          "id": "",
+          "placeholder": "Ex: quebra de agulha, rasgo, mancha de cola...",
+          "value": ""
+        },
+        {
+          "tag": "INPUT",
+          "type": "number",
+          "id": "",
+          "placeholder": "",
+          "value": "1"
+        },
+        {
+          "tag": "INPUT",
+          "type": "radio",
+          "id": "source-candidate-stock:6330",
+          "placeholder": "",
+          "value": "on"
+        }
+      ],
+      "buttons": [
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Sair",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Prontos p/ Atendimento",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atualizar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Nova Solicitação",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Buscar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Atender",
+          "title": "Atender Requisição (Aprovar e Baixar Estoque)",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Cancelar Solicitação",
+          "disabled": false
+        },
+        {
+          "text": "",
+          "title": "Ver Detalhes",
+          "disabled": false
+        },
+        {
+          "text": "×",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Matéria-prima para CorteBuscar somente no estoque de matéria-prima",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Reutilizar produto ou componenteLocalizar saldo compatível nos setores produtivos",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Adicionar Item à Requisição",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Cancelar",
+          "title": "",
+          "disabled": false
+        },
+        {
+          "text": "Confirmar e Enviar Requisição (0 itens)",
+          "title": "",
+          "disabled": false
+        }
+      ]
+    },
+    "errors": []
+  }
+]

@@ -115,3 +115,21 @@ test('seleção exata respeita APOIO, grade, cor, SKU e modelo; pares incompatí
   await assert.rejects(debitStockItem({} as any, item(), 100, 1), /Saldo insuficiente/);
   await assert.rejects(debitStockItem({} as any, item(), 0.5), /Quantidade inválida/);
 });
+
+test('baixa fracionada ignora localizações com saldo zero', async () => {
+  const record: any = { ...item(1, '', 6), sector: 'CORTE', unit: 'M²', locations: [
+    { locationId: 1, quantity: 0, location: { name: 'ZERADA A', sector: 'CORTE' } },
+    { locationId: 2, quantity: 0, location: { name: 'ZERADA B', sector: 'CORTE' } },
+    { locationId: 3, quantity: 6, location: { name: 'SALDO', sector: 'CORTE' } },
+  ] };
+  const locations: number[] = [];
+  const tx: any = {
+    stockItem: { updateMany: async () => ({ count: 1 }) },
+    stockItemLocation: { updateMany: async ({ where }: any) => { locations.push(where.locationId); return { count: 1 }; } },
+  };
+  const result = await debitStockItem(tx, record, 1.6);
+  assert.deepEqual(locations, [3]);
+  assert.equal(result.debits.length, 1);
+  assert.equal(String(result.debits[0].quantity), '1.6');
+  assert.equal(String(result.remainingQuantity), '4.4');
+});
