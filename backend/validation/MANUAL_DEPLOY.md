@@ -8,10 +8,15 @@ Não executa reset, seed, db push nem reescreve migrations antigas.
 
 A release precisa incluir as sete migrations novas, o `schema.prisma` alinhado e
 os scripts `prepare-category-upgrade.cjs`, `audit-category-entry.cjs` e
-`verify-category-upgrade.cjs`. Os arquivos novos desta sessão ainda precisam ser
-incluídos no pacote/commit de release; não basta publicar o commit antigo da branch.
+`verify-category-upgrade.cjs`, incluídos no commit `ed40a29`. Inclua também as
+correções posteriores de busca de origens/localizações legadas no backend e de
+envio do nome da localização no frontend; elas precisam integrar a release.
 Preserve os `.env` de produção. Variáveis exportadas no ambiente têm precedência
 sobre o `.env`, inclusive `DATABASE_URL`.
+
+Se as migrations de outubro já estiverem aplicadas, as correções de busca por
+nome exigem somente publicar o backend e o frontend atualizados. Não repetir a
+preparação do banco 2.0 nem renomear localizações/origens para corrigir esse erro.
 
 Na raiz da release:
 

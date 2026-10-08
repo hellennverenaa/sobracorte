@@ -10,10 +10,13 @@ const categories = [
   { id: 11, name: 'MOLDE / PEÇA', sectors: ['APOIO'], entryMode: 'QUANTITY', defaultUnitCode: 'UN', unitLocked: false },
 ];
 
-function setupStockDb(t: any, origins: Array<{ name: string; sector: string | null }> = []) {
+function setupStockDb(t: any, origins: Array<{ name: string; sector: string | null }> = [], locations?: any[]) {
   const created: any[] = [];
   const movements: any[] = [];
   const originQueries: any[] = [];
+  const locationQueries: any[] = [];
+  const configuredLocations = locations || [{ id: 1, name: 'PRAT-A', sector: null,
+    categoryLinks: categories.map(category => ({ categoryId: category.id })) }];
   const getRequestedSectors = (where: any) => where?.OR?.flatMap((condition: any) =>
     condition.sectors?.hasSome || condition.sector?.in || []
   ) || [];
@@ -29,7 +32,9 @@ function setupStockDb(t: any, origins: Array<{ name: string; sector: string | nu
     originConfig: {
       findFirst: async ({ where }: any) => {
         originQueries.push(where);
-        return origins.find(origin => origin.name === where.name
+        return origins.find(origin => (where.name.mode === 'insensitive'
+          ? origin.name.toUpperCase() === where.name.equals.toUpperCase()
+          : origin.name === where.name.equals)
           && where.OR.some((scope: any) => scope.sector === origin.sector)) || null;
       },
     },
@@ -42,12 +47,14 @@ function setupStockDb(t: any, origins: Array<{ name: string; sector: string | nu
       },
     },
     location: {
-      findUnique: async () => ({
-        id: 1,
-        name: 'PRAT-A',
-        sector: null,
-        categoryLinks: categories.map(category => ({ categoryId: category.id })),
-      }),
+      findUnique: async ({ where }: any) => {
+        locationQueries.push(where);
+        return configuredLocations.find(location => location.name === where.factoryUnitId_name.name) || null;
+      },
+      findMany: async ({ where }: any) => {
+        locationQueries.push(where);
+        return configuredLocations.filter(location => location.name.toUpperCase() === where.name.equals.toUpperCase());
+      },
     },
     stockItemLocation: { create: async () => ({}) },
     stockMovement: { create: async ({ data }: any) => { movements.push(data); return {}; } },
@@ -55,7 +62,7 @@ function setupStockDb(t: any, origins: Array<{ name: string; sector: string | nu
   const originalTransaction = prisma.$transaction;
   (prisma as any).$transaction = (callback: any) => callback(tx);
   t.after(() => { (prisma as any).$transaction = originalTransaction; });
-  return { created, movements, originQueries, create: (item: any) => new StockItemService().createBatch(
+  return { created, movements, originQueries, locationQueries, create: (item: any) => new StockItemService().createBatch(
     BatchCreateStockItemSchema.parse({ items: [item] }),
     { factoryUnitId: 1, role: 'admin' },
   ) };
@@ -124,6 +131,42 @@ test('cadastro inicial rejeita origem cadastrada para outro setor', async t => {
     location: 'PRAT-A', origem: 'SOBRA DE CABEDAL',
   }), StockOriginError);
 
+  assert.equal(created.length, 0);
+  assert.equal(movements.length, 0);
+});
+
+test('entrada rápida aceita nome legado com caixa mista e preserva a origem cadastrada', async t => {
+  const { create, created, movements, originQueries } = setupStockDb(t, [
+    { name: 'Retalho Aproveitável', sector: null },
+  ]);
+  await create({ sector: 'CORTE', categoryId: 10, code: 'C-LEGADO', name: 'TECIDO',
+    quantity: 1, location: 'PRAT-A', origem: 'RETALHO APROVEITÁVEL' });
+  assert.equal(created.length, 1);
+  assert.deepEqual(originQueries[0], { factoryUnitId: 1,
+    name: { equals: 'RETALHO APROVEITÁVEL', mode: 'insensitive' },
+    OR: [{ sector: null }, { sector: 'CORTE' }] });
+  assert.equal(movements[0].origem, 'Retalho Aproveitável');
+});
+
+test('localização legada com caixa mista preserva ID e nome, inclusive em cliente que envia maiúsculas', async t => {
+  const { create, movements, locationQueries } = setupStockDb(t, [], [
+    { id: 83, name: 'Área de Triagem', sector: 'CORTE', categoryMode: 'SELECTED', categoryLinks: [{ categoryId: 10 }] },
+  ]);
+  await create({ sector: 'CORTE', categoryId: 10, code: 'C-LOCAL', name: 'TECIDO',
+    quantity: 1, location: 'ÁREA DE TRIAGEM' });
+  assert.deepEqual(locationQueries[1], { factoryUnitId: 1,
+    name: { equals: 'ÁREA DE TRIAGEM', mode: 'insensitive' } });
+  assert.equal(movements[0].destinationLocationId, 83);
+  assert.equal(movements[0].destinationLocationName, 'Área de Triagem');
+});
+
+test('localizações com nomes equivalentes bloqueiam a entrada sem escolha arbitrária', async t => {
+  const { create, created, movements } = setupStockDb(t, [], [
+    { id: 83, name: 'Triagem', sector: 'CORTE' },
+    { id: 84, name: 'triagem', sector: 'CORTE' },
+  ]);
+  await assert.rejects(create({ sector: 'CORTE', categoryId: 10, code: 'C-LOCAL', name: 'TECIDO',
+    quantity: 1, location: 'TRIAGEM' }), /nomes equivalentes/);
   assert.equal(created.length, 0);
   assert.equal(movements.length, 0);
 });

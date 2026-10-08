@@ -51,6 +51,7 @@ function setupItemCreation(t: any, options: {
       : null },
     originConfig: { findFirst: async () => null },
     location: {
+      findMany: async () => [],
       findUnique: async () => options.locationMissing ? null : {
         id: 20, name: 'PRATELEIRA A', sector: 'APOIO', subsectorId: options.locationSubsectorId ?? 5, categoryMode: 'ALL', categoryLinks: [],
       },

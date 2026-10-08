@@ -53,7 +53,7 @@ test('entrada aceita e registra uma origem configurada para o setor real do item
   assert.equal(originQueries.length, 1);
   assert.deepEqual(originQueries[0].where, {
     factoryUnitId: 1,
-    name: 'SOBRA DE PEÇA CORTADA',
+    name: { equals: 'Sobra de peça cortada', mode: 'insensitive' },
     OR: [{ sector: null }, { sector: 'APOIO' }],
   });
   assert.equal(writes.find(([kind]) => kind === 'movement')[1].origem, 'Sobra de peça cortada');

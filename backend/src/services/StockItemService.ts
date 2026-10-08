@@ -79,7 +79,7 @@ export class StockItemService {
           ? await tx.originConfig.findFirst({
             where: {
               factoryUnitId,
-              name: selectedOrigin.toLocaleUpperCase('pt-BR'),
+              name: { equals: selectedOrigin, mode: 'insensitive' },
               OR: [{ sector: null }, ...originSectors.map(sector => ({ sector }))],
             },
             select: { name: true },
@@ -97,11 +97,23 @@ export class StockItemService {
           : [item];
 
         for (const expandedItem of items) {
-          const locationName = expandedItem.location.trim().toUpperCase();
+          const locationName = expandedItem.location.trim();
           let loc = await tx.location.findUnique({
             where: { factoryUnitId_name: { factoryUnitId, name: locationName } },
             include: { categoryLinks: { select: { categoryId: true } } },
           });
+
+          if (!loc) {
+            const legacyLocations = await tx.location.findMany({
+              where: { factoryUnitId, name: { equals: locationName, mode: 'insensitive' } },
+              include: { categoryLinks: { select: { categoryId: true } } },
+              take: 2,
+            });
+            if (legacyLocations.length > 1) {
+              throw new StockCategoryError('Há localizações com nomes equivalentes nesta unidade. Selecione o nome exato cadastrado em Configurações.');
+            }
+            loc = legacyLocations[0] || null;
+          }
 
           if (!loc && expandedItem.categoryId) {
             throw new StockCategoryError('A localização selecionada não existe ou não está vinculada à categoria. Cadastre e vincule-a em Configurações.');

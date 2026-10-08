@@ -50,7 +50,7 @@ export class StockMovementService {
         const origin = await tx.originConfig.findFirst({
           where: {
             factoryUnitId,
-            name: selectedOrigin.toLocaleUpperCase('pt-BR'),
+            name: { equals: selectedOrigin, mode: 'insensitive' },
             OR: [{ sector: null }, ...allowedSectors.map(allowedSector => ({ sector: allowedSector }))],
           },
           select: { id: true },

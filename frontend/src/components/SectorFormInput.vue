@@ -368,7 +368,7 @@ async function handleSubmit() {
     subsectorId: formData.subsectorId ? Number(formData.subsectorId) : null,
     categoryId: formData.categoryId ? Number(formData.categoryId) : null,
     origem: formData.origem.trim(),
-    location: formData.location.trim().toUpperCase(),
+    location: formData.location.trim(),
     quantity: Number(formData.quantity),
     observation: formData.observation.trim(),
     unit: formData.unit,

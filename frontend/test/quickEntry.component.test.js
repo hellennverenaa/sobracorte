@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { api, flushPromises, loadComponent, mountComponent } from './componentsHarness.js';
 
-async function openEntry({ category = {} } = {}) {
+async function openEntry({ category = {}, location = {} } = {}) {
   const { createPinia } = await import('pinia');
   const { createRouter, createMemoryHistory } = await import('vue-router');
   const component = await loadComponent('src/components/SectorFormInput.vue');
@@ -11,7 +11,7 @@ async function openEntry({ category = {} } = {}) {
   api.get = async url => ({ data: {
     '/settings/categories': [{ id: 1, name: 'COURO', sector: 'CORTE', defaultUnitCode: 'M²', entryMode: 'QUANTITY', ...category }],
     '/settings/units': [{ symbol: 'M²', name: 'Metro quadrado', integerOnly: false }, { symbol: 'KG', name: 'Quilograma', integerOnly: false }],
-    '/settings/locations': [{ id: 1, name: 'A1', sector: 'CORTE', categoryMode: 'ALL' }],
+    '/settings/locations': [{ id: 1, name: 'A1', sector: 'CORTE', categoryMode: 'ALL', ...location }],
     '/settings/origins': [{ name: 'SOBRA', sector: 'CORTE' }],
   }[url] || [] });
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] });
@@ -34,7 +34,7 @@ async function openEntry({ category = {} } = {}) {
     await set('Nome / Descrição', 'Couro preto');
     await set('Categoria do material', '1');
     await set('Quantidade Inicial', '2.5');
-    await set('Prateleira / Localização', 'A1');
+    await set('Prateleira / Localização', location.name || 'A1');
     await set('Origem', 'SOBRA');
     await set('Observação adicional', 'Lote 10');
   };
@@ -45,6 +45,18 @@ async function openEntry({ category = {} } = {}) {
   };
   return { ...mounted, field, set, fill, submit, toggle: mounted.element.querySelector('[role="switch"]') };
 }
+
+test('entrada envia o nome exato da localização legada selecionada', async () => {
+  const entry = await openEntry({ location: { name: 'Área de Triagem' } });
+  const writes = [];
+  api.post = async (_url, payload) => { writes.push(payload.items[0]); return { data: {} }; };
+  try {
+    await entry.fill();
+    await entry.submit();
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].location, 'Área de Triagem');
+  } finally { entry.unmount(); }
+});
 
 test('entrada mantém dados quando ativado, limpa após desativar e reinicia ao reabrir', async () => {
   const entry = await openEntry();
