@@ -561,15 +561,15 @@ model RequisitionStockCompatibility {
   sourceQuantityPerRequestUnit Decimal @default(1) @db.Decimal(18, 6)
   reason                   String
   createdAt                DateTime    @default(now())
-  updatedAt                DateTime    @updatedAt
+  updatedAt                DateTime    @default(now()) @updatedAt
 
   factoryUnit   FactoryUnit @relation(fields: [factoryUnitId], references: [id], onDelete: Cascade)
-  sourceStockItem StockItem @relation(fields: [sourceStockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade)
+  sourceStockItem StockItem @relation(fields: [sourceStockItemId, factoryUnitId], references: [id, factoryUnitId], onDelete: Cascade, map: "RequisitionStockCompatibility_sourceStockItemId_factoryUnitId_f")
 
-  @@unique([factoryUnitId, requestSector, matchKey, sourceStockItemId])
+  @@unique([factoryUnitId, requestSector, matchKey, sourceStockItemId], map: "RequisitionStockCompatibility_target_source_key")
   @@index([factoryUnitId, requestSector, requestSku], map: "RequisitionStockCompatibility_target_idx")
   @@index([factoryUnitId, requestSector, requestDescription], map: "RequisitionStockCompatibility_target_description_idx")
-  @@index([factoryUnitId, sourceSector, sourceStockItemId])
+  @@index([factoryUnitId, sourceSector, sourceStockItemId], map: "RequisitionStockCompatibility_source_idx")
   @@schema("sobra_corte")
 }
 
